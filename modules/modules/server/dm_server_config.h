@@ -21,6 +21,9 @@
 #ifndef __DM_SERVER_CONFIG_INCLUDE__
 #define __DM_SERVER_CONFIG_INCLUDE__
 
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
 
 typedef enum _lis_type_s {
     HTTP = 1, 
@@ -29,6 +32,22 @@ typedef enum _lis_type_s {
     HTTPS_PROXY,
     TCP_PROXY,
 } lis_type_t;
+
+
+typedef struct _req_t {
+    int                         fd;
+    lis_type_t                  type;
+    void                  *     data;
+    SSL                   *		ssl;
+} req_t;
+
+
+typedef struct _listen_info_s {
+	char                        ip[64];
+	int                         port;
+	int                         fd;
+	lis_type_t                  type;
+} lis_inf_t;
 
 
 #define SERVER_DEFAULT_PORT 8080

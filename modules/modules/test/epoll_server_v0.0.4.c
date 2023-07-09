@@ -72,19 +72,50 @@ static char send_buf[] = "HTTP/1.1 200 OK\r\n\r\nhello"
 
 int total_accept_num = 0;
 
+typedef struct {
+    int num1;
+    int num2;
+    int read_or_write;
+} Task;
+
+typedef struct Node {
+    Task task;
+    struct Node* next;
+} Node;
+
+typedef struct {
+    Node* head;
+    Node* tail;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+} Queue;
+
+typedef struct { 
+    int num_threads; 
+    pthread_t* threads; 
+    Queue* queues; 
+    int stop; 
+} ThreadPool; 
 
 
+struct arg_t {
+	int serfd;
+	ThreadPool* ptr_thread_pool;
+};
 
 static int   set_non_blocking(int);
 static int   set_reuse(int);
-
+static void  initQueue(Queue* );
+static void  enqueue(Queue*, Task);
+static Task  dequeue(Queue* );
 
 static void  handle_accept(int, int);
 static void  handle_read(int, int);
 static void  handle_write(int, int);
-
-
-
+static void* executeTask(void* arg);
+static void  initThreadPool(ThreadPool*, int);
+static void  addTask(ThreadPool*, int, int, int);
+static void  destroyThreadPool(ThreadPool*);
 static int   create_socket(int);
 static void* server_make();
 static void  daemonize();
@@ -108,6 +139,45 @@ int set_non_blocking(int fd) {
 int set_reuse(int i_listenfd) {
 	int out = 2;
     return setsockopt(i_listenfd, SOL_SOCKET, SO_REUSEADDR, &out, sizeof(out));
+}
+
+
+void initQueue(Queue* queue) { 
+    queue->head = NULL; 
+    queue->tail = NULL; 
+    pthread_mutex_init(&(queue->mutex), NULL); 
+    pthread_cond_init(&(queue->cond), NULL); 
+}
+
+void enqueue(Queue* queue, Task task) { 
+    Node* newNode = (Node*)malloc(sizeof(Node)); 
+    newNode->task = task; newNode->next = NULL;
+    pthread_mutex_lock(&(queue->mutex)); 
+    if (queue->head == NULL) { 
+        queue->head = newNode; 
+        queue->tail = newNode; 
+        pthread_cond_signal(&(queue->cond)); // 唤醒等待的线程 
+	} else { 
+		queue->tail->next = newNode; queue->tail = newNode; 
+	} 
+    pthread_mutex_unlock(&(queue->mutex)); 
+} 
+
+Task dequeue(Queue* queue) { 
+    Task task; 
+    pthread_mutex_lock(&(queue->mutex)); 
+    while (queue->head == NULL) { 
+        pthread_cond_wait(&(queue->cond), &(queue->mutex)); // 等待队列非空 
+    }
+    Node* temp = queue->head; 
+    task = temp->task; 
+    queue->head = queue->head->next; 
+    free(temp); 
+    if (queue->head == NULL) { 
+        queue->tail = NULL; 
+    } 
+    pthread_mutex_unlock(&(queue->mutex)); 
+    return task; 
 }
 
 
@@ -211,6 +281,69 @@ void handle_write (int client_fd, int epoll_fd) {
 }
 
 
+
+void* executeTask(void* arg) {
+    Queue* queue = (Queue*)arg;
+    Task task;
+    for (;;) {
+        task = dequeue(queue);
+        if (task.num1 == -1 && task.num2 == -1) {
+            break;
+        }
+        switch (task.read_or_write) {
+		case 1:
+			handle_accept (task.num1, task.num2);
+			break;
+		case 2:
+			handle_read (task.num1, task.num2);
+			break;
+		case 3:
+			handle_write (task.num1, task.num2);
+			break;
+		default:
+			break;
+		}
+	}
+    return NULL;
+}
+
+void initThreadPool(ThreadPool* threadPool, int num_threads) {
+    threadPool->num_threads = num_threads;
+    threadPool->threads = (pthread_t*)malloc(num_threads * sizeof(pthread_t));
+    threadPool->queues = (Queue*)malloc(num_threads * sizeof(Queue));
+    threadPool->stop = 0;
+    int i;
+    for (i = 0; i < num_threads; i++) {
+        initQueue(&(threadPool->queues[i]));
+        pthread_create(&(threadPool->threads[i]), NULL, executeTask, &(threadPool->queues[i]));
+    }
+}
+
+void addTask(ThreadPool* threadPool, int num1, int num2, int read_or_wite) { 
+    Task task; 
+    task.num1 = num1; 
+    task.num2 = num2; 
+    task.read_or_write = read_or_wite;
+    
+    int index = rand() % threadPool->num_threads; 
+	// printf("%d\n", index);
+    enqueue(&(threadPool->queues[0]), task); 
+} 
+
+void destroyThreadPool(ThreadPool* threadPool) { 
+    int i; 
+    threadPool->stop = 1; // 发送停止信号 
+    for (i = 0; i < threadPool->num_threads; i++) { 
+        enqueue(&(threadPool->queues[i]), (Task){-1, -1}); // 发送退出信号 
+        pthread_cond_signal(&(threadPool->queues[i].cond)); // 唤醒等待的线程 
+        pthread_join(threadPool->threads[i], NULL); 
+        pthread_mutex_destroy(&(threadPool->queues[i].mutex)); 
+        pthread_cond_destroy(&(threadPool->queues[i].cond)); 
+    } 
+    free(threadPool->threads); 
+    free(threadPool->queues); 
+}
+
 int create_socket(int port) {
 
 	int serfd;
@@ -242,9 +375,7 @@ int create_socket(int port) {
 	return serfd;
 }
 
-struct arg_t {
-	int serfd;
-};
+
 
 void* server_make(void* arg) {
 	
@@ -252,6 +383,7 @@ void* server_make(void* arg) {
 
 	int serfd = args.serfd;
 
+	ThreadPool* threadPool1 = args.ptr_thread_pool;
 
 	int epoll_fd = epoll_create(100);
 	
@@ -366,9 +498,17 @@ void check_and_restart(int serfd) {
                 } else if (pid == 0) {
 
 					struct arg_t args;
+					ThreadPool threadPool1;
+					initThreadPool(&threadPool1, 4);
 					args.serfd = serfd;
-					server_make((void*)(&args));
+					args.ptr_thread_pool = &threadPool1;
 
+					server_make((void*)(&args));
+					// for (int k = 0; k < 1; ++k) {
+					// 	pthread_t roundCheck;
+					// 	pthread_create(&roundCheck, NULL, server_make, (void*)(&args));
+					// 	pthread_join(roundCheck, NULL);
+					// }
                     
                 } else {
                     // father
@@ -416,8 +556,10 @@ void start_server() {
 	int serfd = create_socket( SERVER_PORT );
 
 	struct arg_t args;
-
+	ThreadPool threadPool1;
+	initThreadPool(&threadPool1, 1);
 	args.serfd = serfd;
+	args.ptr_thread_pool = &threadPool1;
 
 	server_make((void*)(&args));
 	// for (int k = 0; k < 1; ++k) {
@@ -447,8 +589,11 @@ int main(int arg, char* args[]) {
         if (pid == 0) {
 
 			struct arg_t args;
+			ThreadPool threadPool1;
 			// initThreadPool(&threadPool1, 1);
 			args.serfd = serfd;
+			args.ptr_thread_pool = &threadPool1;
+			args.ptr_thread_pool = NULL;
 
 			server_make((void*)(&args));
 			// for (int k = 0; k < 1; ++k) {

@@ -52,14 +52,14 @@ int main(int arg, char* args[]) {
     int serfd_tcp_proxy   = create_socket( 9090 );
 
     lis_inf_t *fds = (lis_inf_t*)malloc(sizeof(lis_inf_t) * ports_num);
-    fds[0].fd = serfd_http; fds[0].type = HTTP;
-    fds[1].fd = serfd_https; fds[1].type = HTTPS;
-    fds[2].fd = serfd_http_proxy; fds[2].type = HTTP_PROXY;   // http reverse
-    fds[3].fd = serfd_tcp_proxy; fds[3].type = TCP_PROXY;    // tcp reverse
+    fds[0].fd = serfd_http;         fds[0].type = HTTP;
+    fds[1].fd = serfd_https;        fds[1].type = HTTPS;
+    fds[2].fd = serfd_http_proxy;   fds[2].type = HTTP_PROXY;   // http reverse
+    fds[3].fd = serfd_tcp_proxy;    fds[3].type = TCP_PROXY;    // tcp reverse
 
 	start_server(fds, ports_num);
 
-    // epoll_ssl_server(serfd);
+    // epoll_ssl_server(serfd_https);
 
     // master_start_multi_process_server();
     

@@ -21,7 +21,6 @@
 
 #include <dm_server_config.h>
 #include <dm_socket.h>          // set_nonblocking
-// #include <dm_server.h>
 
 #include <sys/epoll.h>
 #include <unistd.h>             // for close
@@ -38,23 +37,15 @@ extern "C" {
 #endif
 
 
-typedef struct _per_req_event_s {
 
-	int                         fd;
-	lis_type_t 	                type;
-	SSL                   *		ssl;
-	void                  *     data;
-} per_req_event_t;
-
-
-extern void handle_accept (int serfd, int epoll_fd);
+extern void handle_accept (lis_inf_t lis_infs, int epoll_fd);
 // void handle_accept_http ( int serfd, int epoll_fd );
 
 
-extern void handle_read (int client_fd, int epoll_fd);
-extern void handle_write (int client_fd, int epoll_fd);
+extern void handle_read (void*, int client_fd, int epoll_fd);
+extern void handle_write (void*, int client_fd, int epoll_fd);
 extern void handle_shutdown (int client_fd, int epoll_fd, int how);
-extern void handle_close (int client_fd, int epoll_fd);
+extern void handle_close (void*, int client_fd, int epoll_fd);
 
 
 #ifdef __cplusplus

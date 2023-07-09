@@ -48,23 +48,15 @@ void* server_make(void* arg) {
 #endif // EPOLL_FD_NON_BLOCKING
 
 	// event.data.ptr
-/*
-	per_req_event_t* per_req_cli = (per_req_event_t*)malloc(sizeof(per_req_event_t));
-	memset(per_req_cli, 0, sizeof(per_req_event_t));
-	per_req_cli->fd = serfd;
-
-	ev.events = EPOLLIN | EPOLLET;
-	ev.data.ptr = (void*)per_req_cli;
-	if( epoll_ctl(epoll_fd, EPOLL_CTL_ADD, serfd, &ev) == -1) {
-		perror("epoll_ctl error");
-	}
-*/
-
-	// event.data.fd
-
+	
+	req_t* first_req = NULL;
+	
 	for(int k=0; k<lis_num; k++) {
+		first_req = (req_t*)malloc(sizeof(req_t));
+		first_req->fd = k;
+		first_req->data = NULL;
 		ev.events = EPOLLIN | EPOLLET;
-		ev.data.u32 = k;
+		ev.data.ptr = (void*)first_req;
 		if( epoll_ctl(epoll_fd, EPOLL_CTL_ADD, lis_infs[k].fd, &ev) == -1) {
 			perror("epoll_ctl error");
 		}
@@ -74,6 +66,7 @@ void* server_make(void* arg) {
 	int evnum = 0;
 	int tempfd;
 	uint32_t tempev;
+	req_t* temp_req = NULL;
 
 	timer_min_heap_t* heap = (timer_min_heap_t*)malloc(sizeof(timer_min_heap_t));
 	heap->size = 0;
@@ -86,25 +79,24 @@ void* server_make(void* arg) {
 			continue;
 		}
 		for(int i=0; i<evnum; i++) {
-			// event.data.ptr
-			// per_req_event_t* per_req_cli = (per_req_event_t*)(evs[i].data.ptr);
-			tempfd = evs[i].data.fd;
+
 			tempev = evs[i].events;
+			temp_req = (req_t*)evs[i].data.ptr;
+			tempfd = temp_req->fd;
+			
 
 			if ( tempfd <= lis_num ) {
-
-				handle_accept(lis_infs[tempfd].fd, epoll_fd);
+				handle_accept(lis_infs[tempfd], epoll_fd);
 			} else if( tempev & EPOLLIN ) {
 
-				handle_read(tempfd, epoll_fd);
+				handle_read(temp_req, tempfd, epoll_fd);
 			} else if( tempev & EPOLLOUT ) {
 
-				handle_write(tempfd, epoll_fd);
+				handle_write(temp_req, tempfd, epoll_fd);
 			} else if (( tempev & EPOLLHUP) || 
 					   (tempev & EPOLLERR )) {
 
-				printf("------------------------\n");
-				handle_close(tempfd, epoll_fd);
+				handle_close(temp_req, tempfd, epoll_fd);
 			} else {
 
 				printf("unknow events\n");

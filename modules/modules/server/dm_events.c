@@ -41,16 +41,12 @@ static char send_buf[] = "HTTP/1.1 200 OK\r\n\r\nhello"
 #endif // SERVER_DEBUG
 
 
-void handle_accept ( int serfd, int epoll_fd ) {
+void handle_accept (lis_inf_t lis_infs, int epoll_fd ) {
 	
 	struct sockaddr_in cliaddr;
 	int socklen = sizeof(cliaddr);
 	struct epoll_event ev;
-	
-	// per_req_event_t* per_req_cli = (per_req_event_t*)malloc(sizeof(per_req_event_t));
-	// per_req_cli->type = HTTP;
-	// per_req_cli->ssl = NULL;
-	// per_req_cli->data = NULL;
+	int serfd = lis_infs.fd;
 	int clifd;
 	
 	// serfd is nonblocking
@@ -63,9 +59,12 @@ void handle_accept ( int serfd, int epoll_fd ) {
 		
 		ev.events = EPOLLIN | EPOLLET ;
 		// ev.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
-		// per_req_cli->fd = clifd;
+		
+		req_t* req = (req_t*)malloc(sizeof(req_t)) ;
+        req->fd = clifd;
+		req->type = lis_infs.type;
 
-		ev.data.fd = clifd;
+		ev.data.ptr = (void*)req;
 		if( epoll_ctl(epoll_fd, EPOLL_CTL_ADD, clifd, &ev) == -1) {
 			perror("epoll_ctl add");
 			close(clifd);
@@ -79,7 +78,7 @@ void handle_accept ( int serfd, int epoll_fd ) {
 
 }
 
-void handle_read (int client_fd, int epoll_fd) {
+void handle_read (void* data, int client_fd, int epoll_fd) {
 
 	// int client_fd = per_req_cli->fd;
 
@@ -99,22 +98,22 @@ void handle_read (int client_fd, int epoll_fd) {
 				return;
 			}
 		}else if(bytes_read == 0) {		// client close socket
-			handle_close(client_fd, epoll_fd);
+			handle_close(data, client_fd, epoll_fd);
 			return;
 		}
 		total_read += bytes_read;
 	}
 
-	// ev.events = EPOLLOUT | EPOLLET ;
-	// ev.data.fd = client_fd;
-	// if( epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &ev) == -1)
-	// 	perror("epoll_ctl error");
+	ev.events = EPOLLOUT | EPOLLET ;
+	ev.data.ptr = data;
+	if( epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &ev) == -1)
+		perror("epoll_ctl error");
 
-	handle_write(client_fd, epoll_fd);
+	// handle_write(data, client_fd, epoll_fd);
 
 }
 
-void handle_write (int client_fd, int epoll_fd) {
+void handle_write (void* data, int client_fd, int epoll_fd) {
 
 	// int client_fd = per_req_cli->fd;
 
@@ -135,11 +134,11 @@ void handle_write (int client_fd, int epoll_fd) {
 		n -= nwrite;
 	}
 	
-	handle_close(client_fd, epoll_fd);
+	handle_close(data, client_fd, epoll_fd);
 }
 
-void handle_close (int client_fd, int epoll_fd) {
-
+void handle_close (void* data, int client_fd, int epoll_fd) {
+	req_t* req = (req_t*)data;
 	// int client_fd = per_req_cli->fd;
 
 	if( epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL) == -1)
@@ -148,9 +147,9 @@ void handle_close (int client_fd, int epoll_fd) {
 	if( close(client_fd) == -1)
 		perror("client close error");
 
-	// free(per_req_cli->data);
-	// free(per_req_cli->ssl);
-	// free(per_req_cli);
+	free(req->data);
+	free(req->ssl);
+	free(req);
 }
 
 

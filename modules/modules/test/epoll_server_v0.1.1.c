@@ -30,6 +30,13 @@
 #include <sys/time.h>
 #define MAX_EVENT_NUM 100
 
+
+typedef struct _req_t {
+    int fd;
+    void* data;
+} req_t;
+
+
 int total_accept_num = 0;
 
 static int set_non_blocking(int);
@@ -105,9 +112,12 @@ void handle_accept (int serfd, int epoll_fd) {
 			perror("set_non_blocking2");
 			return;
 		}
+
+        req_t* req = (req_t*)malloc(sizeof(req_t)) ;
+        req->fd = clifd;
 		
-		ev.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
-		ev.data.fd = clifd;
+		ev.events = EPOLLIN | EPOLLET ;
+		ev.data.ptr = (void*)req;
 		if( epoll_ctl(epoll_fd, EPOLL_CTL_ADD, clifd, &ev) == -1) {
 			perror("epoll_ctl add");
 			close(clifd);
@@ -143,10 +153,11 @@ void handle_read (int client_fd, int epoll_fd) {
 		total_read += bytes_read;
 	}
 
-	ev.events = EPOLLOUT | EPOLLET ;
-	ev.data.fd = client_fd;
-	epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &ev);
-	// handle_write(client_fd, epoll_fd);
+	// ev.events = EPOLLOUT | EPOLLET ;
+	// ev.data.fd = client_fd;
+	// epoll_ctl(epoll_fd, EPOLL_CTL_MOD, client_fd, &ev);
+
+	handle_write(client_fd, epoll_fd);
 }
 
 void handle_write (int client_fd, int epoll_fd) {
@@ -206,17 +217,20 @@ void* server_make() {
 	if( set_non_blocking(epoll_fd) == -1) {
 		perror("epoll set non blocking ");
 	}
+    req_t first_req = {.fd = serfd, .data = NULL};
 
 	ev.events = EPOLLIN | EPOLLET;
-	ev.data.fd = serfd;
+	ev.data.ptr = (void*)&first_req;
 	epoll_ctl(epoll_fd, EPOLL_CTL_ADD, serfd, &ev);
 
 	int evnum = 0;
 	int tempfd;
 	struct epoll_event tempev;
 
+    req_t* temp_req = NULL;
+
 	for(;;) {
-		evnum = epoll_wait(epoll_fd, evs, MAX_EVENT_NUM, 10);
+		evnum = epoll_wait(epoll_fd, evs, MAX_EVENT_NUM, 20);
 		// printf("%d\n", evnum);
 		if(evnum == -1){
 			perror("epoll wait");
@@ -224,12 +238,13 @@ void* server_make() {
 		}
 			
 		for(int i=0; i<evnum; i++) {
-			tempfd = evs[i].data.fd;
+            temp_req = (req_t*)evs[i].data.ptr;
+			tempfd = temp_req->fd;
 			
 			if ((evs[i].events & EPOLLHUP)||(evs[i].events & EPOLLERR)) {
 				handle_close(tempfd, epoll_fd);
 
-			} else if(tempfd == serfd) {
+			} else if(temp_req->fd == serfd) {
 				handle_accept(serfd, epoll_fd);
 
 			} else if( evs[i].events & EPOLLIN ) {
@@ -253,3 +268,4 @@ int main() {
 
 	return 0;
 }
+

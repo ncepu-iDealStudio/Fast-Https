@@ -34,17 +34,10 @@
 
 
 // #define SERVER_PORT 8080
-#define EPOLL_FD_NON_BLOCKING
+// #define EPOLL_FD_NON_BLOCKING
 #define EPOLL_MAX_EVENT_NUM 1024
 #define EPOLL_WAIT_TIMEOUT 40
 
-
-typedef struct _listen_info_s {
-	char                        ip[64];
-	int                         port;
-	int                         fd;
-	lis_type_t type;
-} lis_inf_t;
 
 
 struct arg_t {
@@ -59,6 +52,8 @@ typedef struct fd_ssl_map {
     SSL*                        ssl;
     struct fd_ssl_map       *   next;
 } fd_ssl_map ;
+
+
 
 #ifdef __cplusplus
 extern "C" {

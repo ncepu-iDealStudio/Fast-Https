@@ -70,10 +70,10 @@ void* execute_task(void* arg) {
         }
         switch (task.read_or_write) {
 		case 2:
-			handle_read (task.num1, task.num2);
+			//handle_read (task.num1, task.num2);
 			break;
 		case 3:
-			handle_write (task.num1, task.num2);
+			//handle_write (task.num1, task.num2);
 			break;
 		default:
 			break;
