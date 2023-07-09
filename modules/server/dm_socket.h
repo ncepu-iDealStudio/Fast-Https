@@ -24,6 +24,8 @@
 #include <sys/time.h>           //for struct timeval
 #include <fcntl.h>              //for fcntl()
 #include <stdio.h>              //perror
+#include <string.h>
+#include <arpa/inet.h>       // inet_ntoa
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +35,7 @@ extern "C" {
 extern int  set_non_blocking(int);
 extern int  set_reuse(int);
 extern int  create_socket(int);
-
+extern int  client_socket();
 
 #ifdef __cplusplus
 }		/* end of the 'extern "C"' block */

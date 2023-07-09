@@ -66,7 +66,7 @@ void* server_make(void* arg) {
 	int evnum = 0;
 	int tempfd;
 	uint32_t tempev;
-	req_t* temp_req = NULL;
+	req_t* req_data = NULL;
 
 	timer_min_heap_t* heap = (timer_min_heap_t*)malloc(sizeof(timer_min_heap_t));
 	heap->size = 0;
@@ -81,22 +81,23 @@ void* server_make(void* arg) {
 		for(int i=0; i<evnum; i++) {
 
 			tempev = evs[i].events;
-			temp_req = (req_t*)evs[i].data.ptr;
-			tempfd = temp_req->fd;
+			req_data = (req_t*)evs[i].data.ptr;
+			tempfd = req_data->fd;
 			
 
 			if ( tempfd <= lis_num ) {
 				handle_accept(lis_infs[tempfd], epoll_fd);
 			} else if( tempev & EPOLLIN ) {
 
-				handle_read(temp_req, tempfd, epoll_fd);
+				handle_read(req_data, tempfd, epoll_fd);
 			} else if( tempev & EPOLLOUT ) {
 
-				handle_write(temp_req, tempfd, epoll_fd);
+				handle_write(req_data, tempfd, epoll_fd);
 			} else if (( tempev & EPOLLHUP) || 
 					   (tempev & EPOLLERR )) {
 
-				handle_close(temp_req, tempfd, epoll_fd);
+				printf("error, handle close\n");
+				handle_close(req_data, tempfd, epoll_fd);
 			} else {
 
 				printf("unknow events\n");
@@ -152,6 +153,7 @@ void start_multi_threading_server(lis_inf_t *infs, int lis_num) {
 	}
 }
 
+
 static SSL_CTX* get_ssl_ctx1()
 {
     SSL_CTX *ctx ;
@@ -177,6 +179,7 @@ static SSL_CTX* get_ssl_ctx1()
     }
     return ctx;
 }
+
 
 extern int epoll_ssl_server(int serfd) {
 

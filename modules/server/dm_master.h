@@ -37,12 +37,12 @@ extern "C" {
 
 
 extern void master_daemonize();
-extern void master_start_multi_process_server();
+extern void master_start_multi_process_server(lis_inf_t *infs, int lis_num);
 
 
 static void handle_signal();
 static void signal_SIGUSR1(int signum);
-static void master_check_and_restart(int serfd);
+static void master_check_and_restart(lis_inf_t *infs, int lis_num);
 
 #ifdef __cplusplus
 }		/* end of the 'extern "C"' block */

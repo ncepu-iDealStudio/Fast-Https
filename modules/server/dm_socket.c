@@ -36,7 +36,6 @@ int set_reuse(int i_listenfd) {
     return setsockopt(i_listenfd, SOL_SOCKET, SO_REUSEADDR, &out, sizeof(out));
 }
 
-
 int create_socket(int port) {
 
 	int serfd;
@@ -73,4 +72,27 @@ int create_socket(int port) {
     // SO_SNDBUF    set zero to improve  
 
 	return serfd;
+}
+
+// return -1 for errors
+int client_socket()
+{
+	int sockfd;
+	struct sockaddr_in cli_addr;
+
+	sockfd = socket(PF_INET, SOCK_STREAM, 0);
+	if(sockfd == -1) {
+		perror("socket error");
+		return -1;
+	}
+	memset(&cli_addr, 0, sizeof(cli_addr));
+	cli_addr.sin_family = AF_INET;
+	cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	cli_addr.sin_port = htons(80);
+	if(connect(sockfd, (struct sockaddr*) &cli_addr, sizeof(cli_addr)) == -1) {
+		perror("connect error");
+		return -1;
+	}
+
+	return sockfd;
 }

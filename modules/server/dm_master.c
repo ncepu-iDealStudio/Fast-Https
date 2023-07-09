@@ -82,10 +82,8 @@ void master_daemonize() {
 }
 
 
-extern void master_start_multi_process_server() {
+extern void master_start_multi_process_server(lis_inf_t *infs, int lis_num) {
 
-	int serfd = create_socket( SERVER_DEFAULT_PORT );
-// -------------------------------------------------------------
 	pid_t pid;
 
     for(int i=0; i < WORKER_NUM; i++) {
@@ -93,7 +91,7 @@ extern void master_start_multi_process_server() {
         pid = fork();
         if (pid == 0) {
 
-			//  -----------------  start_server(serfd);
+			start_server(infs, lis_num);
 
         } else if (pid < 0){
             perror("fork failed!");
@@ -103,12 +101,11 @@ extern void master_start_multi_process_server() {
         }
     }
 
-	master_check_and_restart(serfd);
-
+	master_check_and_restart(infs, lis_num);
 }
 
 
-static void master_check_and_restart(int serfd) {
+static void master_check_and_restart(lis_inf_t *infs, int lis_num) {
 
     for(int i=0; i < WORKER_NUM; i++)
 		printf("--worker nums:%d, pid:%d\n", i, worker[i]);
@@ -135,7 +132,7 @@ static void master_check_and_restart(int serfd) {
                     exit(1);
                 } else if (pid == 0) {
 
-					//   ------------  start_server(serfd);
+					start_server(infs, lis_num);
                     
                 } else {
                     // father
