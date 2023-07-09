@@ -1,4 +1,4 @@
-build/*
+modules/server/build/*
 out/*
 .vscode/*
 *.out
