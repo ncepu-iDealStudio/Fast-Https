@@ -31,19 +31,25 @@
 #include <string.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <arpa/inet.h>       // inet_ntoa
 
+#include <stdbool.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
+extern void events_ssl_init();
 
 extern void handle_accept (lis_inf_t lis_infs, int epoll_fd);
-// void handle_accept_http ( int serfd, int epoll_fd );
+static void handle_accept_http ( int serfd, int epoll_fd );
+static void handle_accept_https ( int serfd, int epoll_fd );
 
 
 extern void handle_read (void*, int client_fd, int epoll_fd);
 extern void handle_write (void*, int client_fd, int epoll_fd);
+extern void handle_https_read_write(void* data) ;
+
+
 extern void handle_shutdown (int client_fd, int epoll_fd, int how);
 extern void handle_close (void*, int client_fd, int epoll_fd);
 

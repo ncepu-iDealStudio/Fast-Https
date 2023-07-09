@@ -45,6 +45,7 @@ int main(int arg, char* args[]) {
     free(obj);  // attention to double free
 */
     int ports_num = 4;
+    events_ssl_init();
 
     int serfd_http        = create_socket( SERVER_DEFAULT_PORT );
     int serfd_https       = create_socket( 443 );

@@ -38,18 +38,62 @@ static char send_buf[] = "HTTP/1.1 200 OK\r\n\r\nhello"
 "qwertyuiopasdfghjklzxcvbnm123456789123456789123456789123456789"
 "qwertyuiopasdfghjklzxcvbnm123456789123456789123456789123456789"
 "</pre>";
+static SSL_CTX* g_ctx = NULL;
+static const char *https_response = "HTTP/1.1 200 OK\r\n"
+									"Server: httpd\r\nContent-Length: %d\r\n"
+									"Connection: keep-alive\r\n\r\n";
 #endif // SERVER_DEBUG
 
 
+extern void events_ssl_init()
+{
+    SSL_CTX *ctx ;
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    ctx = SSL_CTX_new(SSLv23_server_method());
+    if (ctx == NULL) {
+        ERR_print_errors_fp(stdout);
+        return ;
+    }
+    if (SSL_CTX_use_certificate_file(ctx, "./localhost.pem" , SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stdout);
+        return ;
+    }
+    if (SSL_CTX_use_PrivateKey_file(ctx, "./localhost-key.pem" , SSL_FILETYPE_PEM) <= 0) {
+        ERR_print_errors_fp(stdout);
+        return ;
+    }
+    if (!SSL_CTX_check_private_key(ctx)) {
+        ERR_print_errors_fp(stdout);
+        return ;
+    }
+    g_ctx = ctx;
+}
+
+
 void handle_accept (lis_inf_t lis_infs, int epoll_fd ) {
-	
+
+	switch(lis_infs.type) {
+		case HTTP:
+			handle_accept_http(lis_infs.fd, epoll_fd);
+			break;
+		case HTTPS:
+			handle_accept_https(lis_infs.fd, epoll_fd);
+			break;
+		case HTTP_PROXY:	break;
+		case TCP_PROXY:		break;
+		default: break;
+	}
+}
+
+
+static void handle_accept_http ( int serfd, int epoll_fd ) {
 	struct sockaddr_in cliaddr;
 	int socklen = sizeof(cliaddr);
 	struct epoll_event ev;
-	int serfd = lis_infs.fd;
 	int clifd;
-	
-	// serfd is nonblocking
+		// serfd is nonblocking
 	while( (clifd = accept(serfd, (struct sockaddr*)&cliaddr, &socklen)) > 0) {
 	
 		if(set_non_blocking(clifd) == -1) {
@@ -61,26 +105,93 @@ void handle_accept (lis_inf_t lis_infs, int epoll_fd ) {
 		// ev.events = EPOLLIN | EPOLLET | EPOLLONESHOT;
 		
 		req_t* req = (req_t*)malloc(sizeof(req_t)) ;
+		memset(req, 0, sizeof(req_t));
         req->fd = clifd;
-		req->type = lis_infs.type;
+		req->type = HTTP;
 
 		ev.data.ptr = (void*)req;
 		if( epoll_ctl(epoll_fd, EPOLL_CTL_ADD, clifd, &ev) == -1) {
 			perror("epoll_ctl add");
 			close(clifd);
 		}	
+		printf("accept ok\n");
 	}
 	if(clifd == -1) {
 		if(errno != EAGAIN )
 		printf("accept %s\n", strerror(errno));
 		return;
 	}
-
 }
+
+
+static void handle_accept_https ( int serfd, int epoll_fd ) {
+
+	struct sockaddr_in addr;
+	socklen_t len = sizeof(addr);
+	struct epoll_event ev;
+	int code;
+	int retryTimes = 0;
+
+	req_t* req = (req_t*)malloc(sizeof(req_t)) ;
+	memset(req, 0, sizeof(req_t));
+
+	req->ssl = SSL_new(g_ctx);
+	req->type = HTTPS;
+
+	if (req->ssl == NULL) {
+		printf("SSL_new error.\n");
+	}
+
+	int clifd = accept(serfd, (struct sockaddr *)&addr, &len);
+
+	if (clifd > 0) {
+		printf("accept client %d [%s:%d]\n", clifd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+
+		bool isSSLAccept = true;
+		
+		if(set_non_blocking(clifd) == -1) {
+			perror("set_non_blocking2");
+			return;
+		}
+
+		SSL_set_fd(req->ssl, clifd);
+
+		while ((code = SSL_accept(req->ssl)) <= 0 && retryTimes++ < 100) {
+			if (SSL_get_error(req->ssl, code) != SSL_ERROR_WANT_READ) {
+				printf("ssl accept error. %d\n", SSL_get_error(req->ssl, code));
+				break;
+			}
+			usleep(1);
+			printf("--|");
+		}
+
+		printf("code %d, retry times %d\n", code, retryTimes);
+		if (code != 1) {
+			isSSLAccept = false;
+			close(clifd);
+			SSL_free(req->ssl);
+		}
+
+		req->fd = clifd;
+		ev.data.ptr = (void*)req;
+		ev.events = EPOLLET | EPOLLIN;
+		if( epoll_ctl(epoll_fd, EPOLL_CTL_ADD, clifd, &ev) == -1) {
+			printf("epoll_ctl error\n");
+		}
+		
+	} else {
+		perror("accept error");
+	}
+}
+
 
 void handle_read (void* data, int client_fd, int epoll_fd) {
 
-	// int client_fd = per_req_cli->fd;
+	req_t* req = (req_t*)data;
+	if(req->type == HTTPS) {
+		handle_https_read_write(data);
+		return;
+	}
 
 	char read_buf[512] = {0};
 	ssize_t total_read = 0;
@@ -110,8 +221,9 @@ void handle_read (void* data, int client_fd, int epoll_fd) {
 		perror("epoll_ctl error");
 
 	// handle_write(data, client_fd, epoll_fd);
-
+	printf("read ok\n");
 }
+
 
 void handle_write (void* data, int client_fd, int epoll_fd) {
 
@@ -133,9 +245,38 @@ void handle_write (void* data, int client_fd, int epoll_fd) {
 		}
 		n -= nwrite;
 	}
-	
+
 	handle_close(data, client_fd, epoll_fd);
 }
+
+
+void handle_https_read_write(void* data) {
+	req_t* req = (req_t*)data;
+	SSL* req_ssl = req->ssl;
+	
+	char buf[512] = {0};
+	int readSize = SSL_read(req_ssl, buf, sizeof(buf));
+	if (readSize <= 0) {
+		printf("SSL_read error. %d\n", SSL_get_error(req_ssl, readSize));
+	}
+	printf("read: %d\n%s\n", readSize, buf);
+
+	char sendBuf[1024] = {0};
+	int fmtSize = sprintf(sendBuf, https_response, readSize);
+
+	printf("*********************\n%s*********************\n", sendBuf);
+	int writeSize = SSL_write(req_ssl, sendBuf, strlen(sendBuf));    // 发送响应头
+	printf("format size %d, write size %d\n", fmtSize, writeSize);
+	if (writeSize <= 0) {
+		printf("SSL_write error. %d\n", SSL_get_error(req_ssl, writeSize));
+	}
+	writeSize = SSL_write(req_ssl, buf, readSize);   // 发送响应主体
+	if (writeSize <= 0) {
+		printf("SSL_write error. %d\n", SSL_get_error(req_ssl, writeSize));
+	}
+	printf("format size %d, write size %d\n", fmtSize, writeSize);
+}
+
 
 void handle_close (void* data, int client_fd, int epoll_fd) {
 	req_t* req = (req_t*)data;
@@ -148,8 +289,13 @@ void handle_close (void* data, int client_fd, int epoll_fd) {
 		perror("client close error");
 
 	free(req->data);
+	if(req->ssl != NULL) {
+		SSL_shutdown(req->ssl);
+		SSL_free(req->ssl);
+	}
 	free(req->ssl);
 	free(req);
+	
 }
 
 

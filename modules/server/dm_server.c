@@ -152,7 +152,7 @@ void start_multi_threading_server(lis_inf_t *infs, int lis_num) {
 	}
 }
 
-static SSL_CTX* get_ssl_ctx()
+static SSL_CTX* get_ssl_ctx1()
 {
     SSL_CTX *ctx ;
     SSL_library_init();
@@ -181,7 +181,7 @@ static SSL_CTX* get_ssl_ctx()
 extern int epoll_ssl_server(int serfd) {
 
 	/*创建ssl上下文*/
-	SSL_CTX *ctx = get_ssl_ctx();
+	SSL_CTX *ctx = get_ssl_ctx1();
 	if(ctx == NULL){
 		return 1;
 	}
