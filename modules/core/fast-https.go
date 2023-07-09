@@ -1,1 +1,5 @@
 package core
+
+func test() {
+	
+}
