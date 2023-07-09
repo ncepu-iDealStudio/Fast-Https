@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.10.0)
 
 #指定项目名称
-project(DmfServer)
+project(fasthttps)
 
 set(CMAKE_SYSTEM_VERSION 1)
 
@@ -14,4 +14,4 @@ link_libraries(pthread ssl crypto)
 file( GLOB main_SRC "*.h" "*.c" )
 include_directories(${PROJECT_SOURCE_DIR})
 
-add_executable(dmfserver ${main_SRC} )
+add_executable(fasthttps ${main_SRC} )
