@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <time.h>
+#include <sys/time.h>
 
 #include <signal.h>		// signal()
 #include <sys/wait.h>   // waitpid()

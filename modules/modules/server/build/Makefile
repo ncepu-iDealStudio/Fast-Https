@@ -48,10 +48,10 @@ RM = /usr/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/pzc/Dmfserver/epoll_test/moudles/server
+CMAKE_SOURCE_DIR = /home/pzc/Project/fast-https/modules/modules/server
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/pzc/Dmfserver/epoll_test/moudles/server/build
+CMAKE_BINARY_DIR = /home/pzc/Project/fast-https/modules/modules/server/build
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -80,9 +80,9 @@ edit_cache/fast: edit_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/pzc/Dmfserver/epoll_test/moudles/server/build/CMakeFiles /home/pzc/Dmfserver/epoll_test/moudles/server/build/CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/pzc/Project/fast-https/modules/modules/server/build/CMakeFiles /home/pzc/Project/fast-https/modules/modules/server/build/CMakeFiles/progress.marks
 	$(MAKE) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/pzc/Dmfserver/epoll_test/moudles/server/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/pzc/Project/fast-https/modules/modules/server/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -111,17 +111,17 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named dmfserver
+# Target rules for targets named fasthttps
 
 # Build rule for target.
-dmfserver: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 dmfserver
-.PHONY : dmfserver
+fasthttps: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 fasthttps
+.PHONY : fasthttps
 
 # fast build rule for target.
-dmfserver/fast:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/build
-.PHONY : dmfserver/fast
+fasthttps/fast:
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/build
+.PHONY : fasthttps/fast
 
 dm_events.o: dm_events.c.o
 
@@ -129,7 +129,7 @@ dm_events.o: dm_events.c.o
 
 # target to build an object file
 dm_events.c.o:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_events.c.o
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_events.c.o
 .PHONY : dm_events.c.o
 
 dm_events.i: dm_events.c.i
@@ -138,7 +138,7 @@ dm_events.i: dm_events.c.i
 
 # target to preprocess a source file
 dm_events.c.i:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_events.c.i
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_events.c.i
 .PHONY : dm_events.c.i
 
 dm_events.s: dm_events.c.s
@@ -147,7 +147,7 @@ dm_events.s: dm_events.c.s
 
 # target to generate assembly for a file
 dm_events.c.s:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_events.c.s
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_events.c.s
 .PHONY : dm_events.c.s
 
 dm_master.o: dm_master.c.o
@@ -156,7 +156,7 @@ dm_master.o: dm_master.c.o
 
 # target to build an object file
 dm_master.c.o:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_master.c.o
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_master.c.o
 .PHONY : dm_master.c.o
 
 dm_master.i: dm_master.c.i
@@ -165,7 +165,7 @@ dm_master.i: dm_master.c.i
 
 # target to preprocess a source file
 dm_master.c.i:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_master.c.i
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_master.c.i
 .PHONY : dm_master.c.i
 
 dm_master.s: dm_master.c.s
@@ -174,7 +174,7 @@ dm_master.s: dm_master.c.s
 
 # target to generate assembly for a file
 dm_master.c.s:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_master.c.s
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_master.c.s
 .PHONY : dm_master.c.s
 
 dm_server.o: dm_server.c.o
@@ -183,7 +183,7 @@ dm_server.o: dm_server.c.o
 
 # target to build an object file
 dm_server.c.o:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_server.c.o
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_server.c.o
 .PHONY : dm_server.c.o
 
 dm_server.i: dm_server.c.i
@@ -192,7 +192,7 @@ dm_server.i: dm_server.c.i
 
 # target to preprocess a source file
 dm_server.c.i:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_server.c.i
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_server.c.i
 .PHONY : dm_server.c.i
 
 dm_server.s: dm_server.c.s
@@ -201,7 +201,7 @@ dm_server.s: dm_server.c.s
 
 # target to generate assembly for a file
 dm_server.c.s:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_server.c.s
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_server.c.s
 .PHONY : dm_server.c.s
 
 dm_socket.o: dm_socket.c.o
@@ -210,7 +210,7 @@ dm_socket.o: dm_socket.c.o
 
 # target to build an object file
 dm_socket.c.o:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_socket.c.o
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_socket.c.o
 .PHONY : dm_socket.c.o
 
 dm_socket.i: dm_socket.c.i
@@ -219,7 +219,7 @@ dm_socket.i: dm_socket.c.i
 
 # target to preprocess a source file
 dm_socket.c.i:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_socket.c.i
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_socket.c.i
 .PHONY : dm_socket.c.i
 
 dm_socket.s: dm_socket.c.s
@@ -228,7 +228,7 @@ dm_socket.s: dm_socket.c.s
 
 # target to generate assembly for a file
 dm_socket.c.s:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_socket.c.s
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_socket.c.s
 .PHONY : dm_socket.c.s
 
 dm_threading_pool.o: dm_threading_pool.c.o
@@ -237,7 +237,7 @@ dm_threading_pool.o: dm_threading_pool.c.o
 
 # target to build an object file
 dm_threading_pool.c.o:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_threading_pool.c.o
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_threading_pool.c.o
 .PHONY : dm_threading_pool.c.o
 
 dm_threading_pool.i: dm_threading_pool.c.i
@@ -246,7 +246,7 @@ dm_threading_pool.i: dm_threading_pool.c.i
 
 # target to preprocess a source file
 dm_threading_pool.c.i:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_threading_pool.c.i
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_threading_pool.c.i
 .PHONY : dm_threading_pool.c.i
 
 dm_threading_pool.s: dm_threading_pool.c.s
@@ -255,7 +255,7 @@ dm_threading_pool.s: dm_threading_pool.c.s
 
 # target to generate assembly for a file
 dm_threading_pool.c.s:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_threading_pool.c.s
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_threading_pool.c.s
 .PHONY : dm_threading_pool.c.s
 
 dm_timer.o: dm_timer.c.o
@@ -264,7 +264,7 @@ dm_timer.o: dm_timer.c.o
 
 # target to build an object file
 dm_timer.c.o:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_timer.c.o
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_timer.c.o
 .PHONY : dm_timer.c.o
 
 dm_timer.i: dm_timer.c.i
@@ -273,7 +273,7 @@ dm_timer.i: dm_timer.c.i
 
 # target to preprocess a source file
 dm_timer.c.i:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_timer.c.i
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_timer.c.i
 .PHONY : dm_timer.c.i
 
 dm_timer.s: dm_timer.c.s
@@ -282,7 +282,7 @@ dm_timer.s: dm_timer.c.s
 
 # target to generate assembly for a file
 dm_timer.c.s:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/dm_timer.c.s
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/dm_timer.c.s
 .PHONY : dm_timer.c.s
 
 main.o: main.c.o
@@ -291,7 +291,7 @@ main.o: main.c.o
 
 # target to build an object file
 main.c.o:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/main.c.o
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/main.c.o
 .PHONY : main.c.o
 
 main.i: main.c.i
@@ -300,7 +300,7 @@ main.i: main.c.i
 
 # target to preprocess a source file
 main.c.i:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/main.c.i
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/main.c.i
 .PHONY : main.c.i
 
 main.s: main.c.s
@@ -309,7 +309,7 @@ main.s: main.c.s
 
 # target to generate assembly for a file
 main.c.s:
-	$(MAKE) -f CMakeFiles/dmfserver.dir/build.make CMakeFiles/dmfserver.dir/main.c.s
+	$(MAKE) -f CMakeFiles/fasthttps.dir/build.make CMakeFiles/fasthttps.dir/main.c.s
 .PHONY : main.c.s
 
 # Help Target
@@ -320,7 +320,7 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
-	@echo "... dmfserver"
+	@echo "... fasthttps"
 	@echo "... dm_events.o"
 	@echo "... dm_events.i"
 	@echo "... dm_events.s"

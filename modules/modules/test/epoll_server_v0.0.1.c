@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdbool.h>
-#include <time.h>
+#include <sys/time.h>
 #define MAX_EVENT_NUM 100
 
 int total_accept_num = 0;
