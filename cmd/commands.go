@@ -40,6 +40,19 @@ var startCmd = &cobra.Command{
 	},
 }
 
+// add a  command line parameter reload
+var reloadCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the app",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("Reloading app...")
+		// 重新载程序
+		reload()
+		fmt.Println("App Reloaded!")
+
+	},
+}
+
 // add a  command line parameter stop
 var stopCmd = &cobra.Command{
 	Use:   "stop",
@@ -71,7 +84,7 @@ var restartCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	rootCmd.AddCommand(startCmd, stopCmd, restartCmd)
+	rootCmd.AddCommand(startCmd, reloadCmd, stopCmd, restartCmd)
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -109,6 +122,12 @@ func start() {
 }
 
 func stop() {
+	// 这里可以编写停止程序的代码
+	// 比如关闭 HTTP 服务器
+	// httpServer.Close()
+}
+
+func reload() {
 	// 这里可以编写停止程序的代码
 	// 比如关闭 HTTP 服务器
 	// httpServer.Close()
