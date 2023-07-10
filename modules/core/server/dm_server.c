@@ -88,18 +88,14 @@ void* server_make(void* arg) {
 			if ( tempfd <= lis_num ) {
 				handle_accept(lis_infs[tempfd], epoll_fd);
 			} else if( tempev & EPOLLIN ) {
-
 				handle_read(req_data, tempfd, epoll_fd);
 			} else if( tempev & EPOLLOUT ) {
-
 				handle_write(req_data, tempfd, epoll_fd);
 			} else if (( tempev & EPOLLHUP) || 
 					   (tempev & EPOLLERR )) {
-
 				printf("error, handle close\n");
 				handle_close(req_data, tempfd, epoll_fd);
 			} else {
-
 				printf("unknow events\n");
 			}
 		}

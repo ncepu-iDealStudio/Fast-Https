@@ -33,8 +33,8 @@
 #include <assert.h>
 
 
-// #define SERVER_PORT 8080
-// #define EPOLL_FD_NON_BLOCKING
+
+#define EPOLL_FD_NON_BLOCKING
 #define EPOLL_MAX_EVENT_NUM 1024
 #define EPOLL_WAIT_TIMEOUT 40
 
