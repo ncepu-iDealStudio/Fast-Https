@@ -1,4 +1,5 @@
 modules/core/server/build/*
+modules/core/server/build/CMakeFiles/*
 out/*
 .vscode/*
 *.out

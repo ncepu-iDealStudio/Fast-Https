@@ -4,13 +4,13 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
-  "/home/pzc/Project/fast-https/modules/server/dm_events.c" "/home/pzc/Project/fast-https/modules/server/build/CMakeFiles/fasthttps.dir/dm_events.c.o"
-  "/home/pzc/Project/fast-https/modules/server/dm_master.c" "/home/pzc/Project/fast-https/modules/server/build/CMakeFiles/fasthttps.dir/dm_master.c.o"
-  "/home/pzc/Project/fast-https/modules/server/dm_server.c" "/home/pzc/Project/fast-https/modules/server/build/CMakeFiles/fasthttps.dir/dm_server.c.o"
-  "/home/pzc/Project/fast-https/modules/server/dm_socket.c" "/home/pzc/Project/fast-https/modules/server/build/CMakeFiles/fasthttps.dir/dm_socket.c.o"
-  "/home/pzc/Project/fast-https/modules/server/dm_threading_pool.c" "/home/pzc/Project/fast-https/modules/server/build/CMakeFiles/fasthttps.dir/dm_threading_pool.c.o"
-  "/home/pzc/Project/fast-https/modules/server/dm_timer.c" "/home/pzc/Project/fast-https/modules/server/build/CMakeFiles/fasthttps.dir/dm_timer.c.o"
-  "/home/pzc/Project/fast-https/modules/server/main.c" "/home/pzc/Project/fast-https/modules/server/build/CMakeFiles/fasthttps.dir/main.c.o"
+  "/home/pzc/Project/fast-https/modules/core/server/dm_events.c" "/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/fasthttps.dir/dm_events.c.o"
+  "/home/pzc/Project/fast-https/modules/core/server/dm_master.c" "/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/fasthttps.dir/dm_master.c.o"
+  "/home/pzc/Project/fast-https/modules/core/server/dm_server.c" "/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/fasthttps.dir/dm_server.c.o"
+  "/home/pzc/Project/fast-https/modules/core/server/dm_socket.c" "/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/fasthttps.dir/dm_socket.c.o"
+  "/home/pzc/Project/fast-https/modules/core/server/dm_threading_pool.c" "/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/fasthttps.dir/dm_threading_pool.c.o"
+  "/home/pzc/Project/fast-https/modules/core/server/dm_timer.c" "/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/fasthttps.dir/dm_timer.c.o"
+  "/home/pzc/Project/fast-https/modules/core/server/main.c" "/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/fasthttps.dir/main.c.o"
   )
 set(CMAKE_C_COMPILER_ID "GNU")
 
