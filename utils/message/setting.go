@@ -6,9 +6,9 @@
 package message
 
 import (
-	"IPFS-Blog-Hugo/utils"
-	"IPFS-Blog-Hugo/utils/loggers"
 	"context"
+	"fast-https/utils"
+	"fast-https/utils/loggers"
 	"fmt"
 	"github.com/fufuok/chanx"
 	"os"

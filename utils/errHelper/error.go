@@ -6,7 +6,7 @@
 package errHelper
 
 import (
-	"IPFS-Blog-Hugo/utils/message"
+	"fast-https/utils/message"
 )
 
 func Error(err error) {
