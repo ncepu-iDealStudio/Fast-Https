@@ -193,8 +193,6 @@ void handle_close (int client_fd, int epoll_fd) {
 }
 
 
-
-
 void* server_make() {
 	
 	int serfd = create_socket(8080);
