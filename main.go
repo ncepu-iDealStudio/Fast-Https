@@ -10,6 +10,7 @@ func main() {
 	waitGroup := initialization.Init()
 
 	// 执行cmd
+
 	cmd.Execute()
 
 	// 退出系统
