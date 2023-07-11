@@ -1,3 +1,0 @@
-/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/rebuild_cache.dir
-/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/edit_cache.dir
-/home/pzc/Project/fast-https/modules/core/server/build/CMakeFiles/fasthttps.dir
