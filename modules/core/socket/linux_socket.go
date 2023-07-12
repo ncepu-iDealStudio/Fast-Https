@@ -1,4 +1,4 @@
-package fh_socket
+package socket
 
 import (
 	"fmt"
@@ -12,31 +12,32 @@ type SockFd struct {
 	Fd     int
 }
 
-func SockFdInit(fdtype uint8, fdconf uint) *SockFd {
+func UnixSockFdInit(fdtype uint8, fdconf uint) *SockFd {
 	var sockfd SockFd
 	if fdtype == 1 {
 		sockfd.FdType = 1
-		sockfd.Fd = ListenFd()
+		sockfd.Fd = UnixListenFd()
 	} else if fdtype == 2 {
 		sockfd.FdType = 2
-		sockfd.Fd = ClientFd()
+		sockfd.Fd = UnixClientFd()
 	} else {
 		fmt.Println("error fdtype")
 	}
 	return &sockfd
 }
 
-func ListenFd() int {
+func UnixListenFd() int {
 	ListenFd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, unix.IPPROTO_TCP)
 	if err != nil {
 		fmt.Println("create socket err", err)
 		return 0
 	}
-	FdConfigure(ListenFd)
+	UnixFdConfigure(ListenFd)
+	UnixFdNonBlock(ListenFd)
 	return ListenFd
 }
 
-func ClientFd() int {
+func UnixClientFd() int {
 	ListenFd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, unix.IPPROTO_TCP)
 	if err != nil {
 		fmt.Println("create socket err", err)
@@ -45,14 +46,14 @@ func ClientFd() int {
 	return ListenFd
 }
 
-func FdConfigure(Fd int) {
+func UnixFdConfigure(Fd int) {
 	err := unix.SetsockoptInt(Fd, unix.SOL_SOCKET, unix.SO_REUSEADDR, 1)
 	if err != nil {
 		fmt.Println("set socket err", err)
 	}
 }
 
-func FdNonBlock(Fd int) {
+func UnixFdNonBlock(Fd int) {
 	err := unix.SetNonblock(Fd, true)
 	if err != nil {
 		fmt.Println("block err", err)
