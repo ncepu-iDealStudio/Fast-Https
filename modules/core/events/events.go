@@ -6,12 +6,18 @@ import (
 	"net"
 )
 
+type Events interface {
+	Start()
+	Stop()
+	Test()
+}
+
 func HandleEvent(conn net.Conn) {
-	defer conn.Close()
 
 	Handle_read(conn)
 	Handle_write(conn)
 
+	defer conn.Close()
 }
 
 func Handle_read(conn net.Conn) {
@@ -31,7 +37,7 @@ func Handle_read(conn net.Conn) {
 }
 
 func Handle_write(conn net.Conn) {
-	data := "HTTP/1.1 200 OK\r\n\r\nHello World"
+	data := "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nHello World"
 	write_buf := []byte(data)
 
 	_, err := conn.Write(write_buf)

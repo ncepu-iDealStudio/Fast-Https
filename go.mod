@@ -15,6 +15,7 @@ require (
 )
 
 require (
+	github.com/goccy/go-json v0.10.2
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jonboulle/clockwork v0.4.0 // indirect

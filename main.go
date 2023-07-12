@@ -1,19 +1,8 @@
 package main
 
-import (
-	"fast-https/cmd"
-	initialization "fast-https/init"
-	"fast-https/utils/message"
-)
+import "fast-https/modules/core/server"
 
 func main() {
-	waitGroup := initialization.Init()
-
-	// 执行cmd
-
-	cmd.Execute()
-
-	// 退出系统
-	waitGroup.Wait()
-	message.Exit()
+	server.Daemon(0, 1)
+	server.Run()
 }

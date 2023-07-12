@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"fast-https/modules/core/events"
-	"fast-https/modules/core/listener"
 	"fast-https/modules/core/socket"
 
 	"golang.org/x/sys/unix"
@@ -22,8 +21,7 @@ func newEventList(size int) *eventList {
 func Unixrun() {
 
 	// linfo := make([]listener.ListenInfo, 4)
-	linfo := listener.Listen()
-	ListenFd := linfo[0].Lfd
+	ListenFd := 8080
 
 	el := newEventList(1024)
 
