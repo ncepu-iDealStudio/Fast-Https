@@ -1,4 +1,4 @@
-package cert
+package config
 
 import (
 	"fmt"
@@ -38,6 +38,9 @@ type Config struct {
 	HttpServer []HttpServer
 }
 
+// 定义配置结构体
+var G_config Config
+
 func parseIndex(indexStr string) []string {
 	var index []string
 	inString := false
@@ -76,7 +79,7 @@ func parseIndex(indexStr string) []string {
 }
 
 func Process() {
-	content, err := ioutil.ReadFile("config\\fast-https.conf")
+	content, err := ioutil.ReadFile("./config/fast-https.conf")
 	if err != nil {
 		fmt.Println("读取配置文件失败：", err)
 		return
@@ -85,9 +88,6 @@ func Process() {
 	// 定义正则表达式
 	pattern := `server\s*{([^}]*)}`
 	re := regexp.MustCompile(pattern)
-
-	// 定义配置结构体
-	var config Config
 
 	// 使用正则表达式解析出所有 server 块内容
 	matches := re.FindAllStringSubmatch(string(content), -1)
@@ -198,7 +198,7 @@ func Process() {
 		}
 
 		// 将解析出的 HttpServer 结构体添加到 Config 结构体中
-		config.HttpServer = append(config.HttpServer, server)
+		G_config.HttpServer = append(G_config.HttpServer, server)
 	}
 
 	// 解析 error_page 字段
@@ -208,8 +208,8 @@ func Process() {
 	if len(errorPage) > 1 {
 		//config.ErrorPage.Code = uint8(errorPage[1])
 		temp, _ := strconv.Atoi(errorPage[1])
-		config.ErrorPage.Code = uint8(temp)
-		config.ErrorPage.Path = strings.TrimSpace(errorPage[2])
+		G_config.ErrorPage.Code = uint8(temp)
+		G_config.ErrorPage.Path = strings.TrimSpace(errorPage[2])
 	}
 	//re = regexp.MustCompile(`error_page\s+(\d+)\s+([^;]+);`)
 	//errorPage := re.FindStringSubmatch(string(content))
@@ -227,18 +227,17 @@ func Process() {
 	re = regexp.MustCompile(`log_root\s+([^;]+);`)
 	logRoot := re.FindStringSubmatch(string(content))
 	if len(logRoot) > 1 {
-		config.LogRoot = strings.TrimSpace(logRoot[1])
+		G_config.LogRoot = strings.TrimSpace(logRoot[1])
 	}
 
 	// 打印解析后的配置信息
-	fmt.Printf("%+v\n", config)
-	fmt.Println(config.HttpServer[0].Path)
+	fmt.Printf("%+v\n", G_config)
 }
 
-func main() {
+// func main() {
 
-	Process()
-}
+// 	Process()
+// }
 
 // Open the config file for reading
 //file, err := os.Open("config.conf")
