@@ -13,35 +13,48 @@ type Events interface {
 	Test()
 }
 
-var data = "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nHello World"
-
 func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 
-	Handle_read(conn, lis_info)
-	Handle_write(conn, data)
-	conn.Close()
+	switch lis_info.Proxy {
+	case 0:
+		str_row := handle_read(conn)
+
+		res := StaticEvent()
+		handle_write_close(conn, res)
+	case 1, 2:
+		res := ProxyEvent()
+		handle_write_close(conn, res)
+	case 3:
+
+	}
 
 }
 
-func Handle_read(conn net.Conn, lis_info listener.ListenInfo) {
+func handle_read_parse() {
 
+}
+
+func handle_read(conn net.Conn) string {
 	reader := bufio.NewReader(conn)
 	message, err := reader.ReadString('\n')
 	if err != nil {
 		log.Println("Error reading from client:", err)
-		return
 	}
 
 	log.Printf("Received message from client: %s\n", message)
-
-	switch lis_info.Proxy {
-	case 0:
-
-	}
-
+	return message
 }
 
-func Handle_write(conn net.Conn, res string) {
+func handle_write(conn net.Conn, res string) {
+	write_buf := []byte(res)
+	_, err := conn.Write(write_buf)
+	if err != nil {
+		// log.Println("Error writing to client:", err)
+		return
+	}
+}
+
+func handle_write_close(conn net.Conn, res string) {
 
 	write_buf := []byte(res)
 	_, err := conn.Write(write_buf)
@@ -50,4 +63,5 @@ func Handle_write(conn net.Conn, res string) {
 		return
 	}
 
+	conn.Close()
 }
