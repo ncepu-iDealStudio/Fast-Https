@@ -1,1 +1,306 @@
-123
+{
+    "extension": "linecount",
+    "version": "0.1.7",
+    "workspace": "/home/pzc/Project/fast-https",
+    "linecount": [
+        {
+            "version": "0.1.7",
+            "counttime": "2023-07-14 00:32:46",
+            "filesum": 48,
+            "codesum": 2511,
+            "commentsum": 349,
+            "blanksum": 469,
+            "filelist": [
+                {
+                    "blank": 0,
+                    "code": 1,
+                    "comment": 4,
+                    "filename": ".gitignore"
+                },
+                {
+                    "blank": 0,
+                    "code": 8,
+                    "comment": 0,
+                    "filename": ".idea/.gitignore"
+                },
+                {
+                    "blank": 0,
+                    "code": 9,
+                    "comment": 0,
+                    "filename": ".idea/Fast-Https.iml"
+                },
+                {
+                    "blank": 0,
+                    "code": 8,
+                    "comment": 0,
+                    "filename": ".idea/modules.xml"
+                },
+                {
+                    "blank": 0,
+                    "code": 6,
+                    "comment": 0,
+                    "filename": ".idea/vcs.xml"
+                },
+                {
+                    "blank": 28,
+                    "code": 78,
+                    "comment": 29,
+                    "filename": "cmd/commands.go"
+                },
+                {
+                    "blank": 0,
+                    "code": 0,
+                    "comment": 0,
+                    "filename": "config/cert/localhost.crt"
+                },
+                {
+                    "blank": 0,
+                    "code": 28,
+                    "comment": 0,
+                    "filename": "config/cert/localhost.key"
+                },
+                {
+                    "blank": 1,
+                    "code": 25,
+                    "comment": 0,
+                    "filename": "config/cert/localhost.pem"
+                },
+                {
+                    "blank": 45,
+                    "code": 187,
+                    "comment": 70,
+                    "filename": "config/config.go"
+                },
+                {
+                    "blank": 19,
+                    "code": 43,
+                    "comment": 3,
+                    "filename": "config/fast-https.conf"
+                },
+                {
+                    "blank": 0,
+                    "code": 0,
+                    "comment": 0,
+                    "filename": "config/fastcgi.conf"
+                },
+                {
+                    "blank": 7,
+                    "code": 86,
+                    "comment": 0,
+                    "filename": "config/mime.types"
+                },
+                {
+                    "blank": 8,
+                    "code": 89,
+                    "comment": 0,
+                    "filename": "config/mime.types.default"
+                },
+                {
+                    "blank": 0,
+                    "code": 0,
+                    "comment": 0,
+                    "filename": "docs/about.md"
+                },
+                {
+                    "blank": 3,
+                    "code": 36,
+                    "comment": 19,
+                    "filename": "go.mod"
+                },
+                {
+                    "blank": 0,
+                    "code": 588,
+                    "comment": 5,
+                    "filename": "go.sum"
+                },
+                {
+                    "blank": 18,
+                    "code": 37,
+                    "comment": 6,
+                    "filename": "init/init.go"
+                },
+                {
+                    "blank": 0,
+                    "code": 1,
+                    "comment": 0,
+                    "filename": "internal/metrics/metrics.go"
+                },
+                {
+                    "filename": "main",
+                    "isbinaryfile": true,
+                    "blank": 0,
+                    "code": 0,
+                    "comment": 0
+                },
+                {
+                    "blank": 7,
+                    "code": 8,
+                    "comment": 0,
+                    "filename": "main.go"
+                },
+                {
+                    "blank": 17,
+                    "code": 49,
+                    "comment": 3,
+                    "filename": "modules/cache/cache.go"
+                },
+                {
+                    "blank": 12,
+                    "code": 78,
+                    "comment": 13,
+                    "filename": "modules/cache/cache_map.go"
+                },
+                {
+                    "blank": 16,
+                    "code": 47,
+                    "comment": 0,
+                    "filename": "modules/core/events/event_proxy.go"
+                },
+                {
+                    "blank": 13,
+                    "code": 20,
+                    "comment": 3,
+                    "filename": "modules/core/events/event_static.go"
+                },
+                {
+                    "blank": 12,
+                    "code": 43,
+                    "comment": 2,
+                    "filename": "modules/core/events/events.go"
+                },
+                {
+                    "blank": 12,
+                    "code": 37,
+                    "comment": 9,
+                    "filename": "modules/core/events/events_linux.go"
+                },
+                {
+                    "blank": 17,
+                    "code": 70,
+                    "comment": 46,
+                    "filename": "modules/core/listener/listen.go"
+                },
+                {
+                    "blank": 9,
+                    "code": 30,
+                    "comment": 3,
+                    "filename": "modules/core/listener/listen_linux.go"
+                },
+                {
+                    "blank": 14,
+                    "code": 29,
+                    "comment": 18,
+                    "filename": "modules/core/routine_pool/routine_pool.go"
+                },
+                {
+                    "blank": 24,
+                    "code": 65,
+                    "comment": 9,
+                    "filename": "modules/core/server/linux_server.go"
+                },
+                {
+                    "blank": 17,
+                    "code": 64,
+                    "comment": 7,
+                    "filename": "modules/core/server/server.go"
+                },
+                {
+                    "blank": 10,
+                    "code": 52,
+                    "comment": 0,
+                    "filename": "modules/core/socket/linux_socket.go"
+                },
+                {
+                    "blank": 0,
+                    "code": 1,
+                    "comment": 0,
+                    "filename": "modules/logging/filters.go"
+                },
+                {
+                    "blank": 0,
+                    "code": 1,
+                    "comment": 0,
+                    "filename": "modules/os/linux/fasthttps_linux.go"
+                },
+                {
+                    "blank": 11,
+                    "code": 25,
+                    "comment": 5,
+                    "filename": "README.en.md"
+                },
+                {
+                    "blank": 12,
+                    "code": 25,
+                    "comment": 5,
+                    "filename": "README.md"
+                },
+                {
+                    "blank": 0,
+                    "code": 12,
+                    "comment": 0,
+                    "filename": "static/index.html"
+                },
+                {
+                    "blank": 0,
+                    "code": 1,
+                    "comment": 0,
+                    "filename": "test/fast-https_test.go"
+                },
+                {
+                    "blank": 19,
+                    "code": 89,
+                    "comment": 5,
+                    "filename": "utils/commons.go"
+                },
+                {
+                    "blank": 6,
+                    "code": 19,
+                    "comment": 4,
+                    "filename": "utils/errHelper/error.go"
+                },
+                {
+                    "blank": 6,
+                    "code": 31,
+                    "comment": 4,
+                    "filename": "utils/files/files.go"
+                },
+                {
+                    "blank": 17,
+                    "code": 64,
+                    "comment": 4,
+                    "filename": "utils/HttpParse/parse.go"
+                },
+                {
+                    "blank": 34,
+                    "code": 89,
+                    "comment": 23,
+                    "filename": "utils/loggers/logger.go"
+                },
+                {
+                    "blank": 10,
+                    "code": 61,
+                    "comment": 4,
+                    "filename": "utils/message/ouput.go"
+                },
+                {
+                    "blank": 13,
+                    "code": 94,
+                    "comment": 7,
+                    "filename": "utils/message/setting.go"
+                },
+                {
+                    "blank": 23,
+                    "code": 131,
+                    "comment": 39,
+                    "filename": "utils/security/rsa.go"
+                },
+                {
+                    "blank": 9,
+                    "code": 46,
+                    "comment": 0,
+                    "filename": "utils/security/rsa_test.go"
+                }
+            ]
+        }
+    ]
+}

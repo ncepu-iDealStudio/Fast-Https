@@ -1,7 +1,9 @@
 package config
 
 import (
+	"fast-https/utils/files"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -39,10 +41,53 @@ type Config struct {
 
 // 定义配置结构体
 var G_config Config
+var G_ContentTypeMap map[string]string
 
 func init() {
 	fmt.Println("-----[Fast-Https]config init...")
 	process()
+	ServerContentType()
+}
+
+func ServerContentType() {
+
+	G_ContentTypeMap = make(map[string]string)
+	var content_type string
+
+	confBytes, err := files.ReadFile("./config/mime.types")
+	if err != nil {
+		log.Fatal("Can't open mime.types file")
+	}
+
+	clear_str := strings.ReplaceAll(string(confBytes), "\n", "")
+	all_type_arr := strings.Split(delete_extra_space(clear_str), ";")
+	for _, one_type := range all_type_arr {
+		arr := strings.Split(one_type, " ")
+
+		for i := 0; i < len(arr); i++ {
+			if i == 0 {
+				content_type = arr[0]
+			} else {
+				G_ContentTypeMap[arr[i]] = content_type
+			}
+		}
+
+	}
+}
+
+func delete_extra_space(s string) string {
+	//删除字符串中的多余空格，有多个空格时，仅保留一个空格
+	s1 := strings.Replace(s, "	", " ", -1)       //替换tab为空格
+	regstr := "\\s{2,}"                          //两个及两个以上空格的正则表达式
+	reg, _ := regexp.Compile(regstr)             //编译正则表达式
+	s2 := make([]byte, len(s1))                  //定义字符数组切片
+	copy(s2, s1)                                 //将字符串复制到切片
+	spc_index := reg.FindStringIndex(string(s2)) //在字符串中搜索
+	for len(spc_index) > 0 {                     //找到适配项
+		s2 = append(s2[:spc_index[0]+1], s2[spc_index[1]:]...) //删除多余空格
+		spc_index = reg.FindStringIndex(string(s2))            //继续在字符串中搜索
+	}
+	return string(s2)
 }
 
 func parseIndex(indexStr string) []string {
@@ -244,10 +289,5 @@ func process() {
 		G_config.LogRoot = strings.TrimSpace(logRoot[1])
 	}
 
-	// 打印解析后的配置信息
 	// fmt.Printf("%+v\n", G_config)
 }
-
-//func main() {
-//	Process()
-//}
