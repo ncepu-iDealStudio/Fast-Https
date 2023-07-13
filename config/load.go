@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -243,9 +243,9 @@ func Process() {
 	fmt.Printf("%+v\n", G_config)
 }
 
-func main() {
-	Process()
-}
+//func main() {
+//	Process()
+//}
 
 // Open the config file for reading
 //file, err := os.Open("config.conf")
