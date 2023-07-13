@@ -243,10 +243,13 @@ func Process() {
 	fmt.Printf("%+v\n", G_config)
 }
 
+<<<<<<< HEAD
 //func main() {
 //	Process()
 //}
 
+=======
+>>>>>>> 4e5114c7748c7764fada2154ed949d688d737b99
 // Open the config file for reading
 //file, err := os.Open("config.conf")
 //if err != nil {
