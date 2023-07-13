@@ -18,56 +18,48 @@ type ListenInfo struct {
 }
 
 /*
+{ErrorPage:
+	{Code:148 Path:/404.html}
+	LogRoot:/var/www
+	HttpServer:[
+		{Listen:8080
+			ServerName:apple.ideal.com
+			Static:{Root:/var/html Index:[index.html index.htm]}
+			Path:/
+			Ssl:
+			Ssl_Key:
+			Gzip:0
+			PROXY_TYPE:0
+			PROXY_DATA:
+		}
+		{Listen:8000
+			ServerName:banana.ideal.com
+			Static:{Root: Index:[]}
+			Path:/api
+			Ssl:
+			Ssl_Key:
+			Gzip:0
+			PROXY_TYPE:1
+			PROXY_DATA:127.0.0.1:8001}
+		{Listen:443 ssl
+			ServerName:ssl.ideal.com
+			Static:{Root: Index:[]}
+			Path:/
+			Ssl:/home/cert.pem
+			Ssl_Key:/home/cert.key
+			Gzip:0
+			PROXY_TYPE:2
+			PROXY_DATA:127.0.0.1:8001}
+		{Listen:9002
+			ServerName: Static:{Root: Index:[]}
+			Path:
+			Ssl:
+			Ssl_Key:
+			Gzip:0
+			PROXY_TYPE:3
+			PROXY_DATA:127.0.0.1:9003}
+	]}
 
-{
-ErrorPage:{Code:148 Path:/404.html}
-LogRoot:/var/www
-
-HttpServer:[
-	{Listen:8080
-		ServerName:apple.ideal.com
-		Static:{Root:/var/html Index:[index.html index.htm]}
-		Path:/api
-		Ssl:
-		Ssl_Key:
-		Gzip:0
-		HTTP_PROXY:
-		HTTPS_PROXY:
-		TCP_PROXY:
-	}
-	{Listen:8000
-		ServerName:banana.ideal.com
-		Static:{Root: Index:[]}
-		Path:/api
-		Ssl:
-		Ssl_Key:
-		Gzip:0
-		HTTP_PROXY:127.0.0.1:8001
-		HTTPS_PROXY:
-		TCP_PROXY:
-	}
-	{Listen:443 ssl
-		ServerName:ssl.ideal.com
-		Static:{Root: Index:[]}
-		Path:/api
-		Ssl:/home/cert.pem
-		Ssl_Key:/home/cert.key
-		Gzip:0
-		HTTP_PROXY:
-		HTTPS_PROXY:127.0.0.1:8001
-		TCP_PROXY:
-	}
-	{Listen:9002
-		ServerName:
-		Static:{Root: Index:[]}
-		Path:/api
-		Ssl:
-		Ssl_Key:
-		Gzip:0
-		PROXY_TYPE:1
-		PROXY_DATA:127.0.0.1:9003
-	}]
-}
 */
 
 func Listen() []ListenInfo {
@@ -78,14 +70,14 @@ func Listen() []ListenInfo {
 		if strings.Contains(each.Listen, "ssl") {
 			arr = strings.Split(each.Listen, " ")
 			lisi[index].Lfd = listenssl("0.0.0.0:"+arr[0], each.Ssl, each.Ssl_Key)
-			if each.HTTP_PROXY != "" {
-				lisi[index].Proxy_addr = each.HTTP_PROXY
+			if each.PROXY_TYPE == 1 {
+				lisi[index].Proxy_addr = each.PROXY_DATA
 				lisi[index].Proxy = 1
-			} else if each.HTTPS_PROXY != "" {
-				lisi[index].Proxy_addr = each.HTTPS_PROXY
+			} else if each.PROXY_TYPE == 2 {
+				lisi[index].Proxy_addr = each.PROXY_DATA
 				lisi[index].Proxy = 1
-			} else if each.TCP_PROXY != "" {
-				lisi[index].Proxy_addr = each.TCP_PROXY
+			} else if each.PROXY_TYPE == 3 {
+				lisi[index].Proxy_addr = each.PROXY_DATA
 				lisi[index].Proxy = 2
 			} else {
 				lisi[index].Proxy = 0
@@ -93,14 +85,14 @@ func Listen() []ListenInfo {
 		} else {
 			arr = strings.Split(each.Listen, " ")
 			lisi[index].Lfd = listen("0.0.0.0:" + arr[0])
-			if each.HTTP_PROXY != "" {
-				lisi[index].Proxy_addr = each.HTTP_PROXY
+			if each.PROXY_TYPE == 1 {
+				lisi[index].Proxy_addr = each.PROXY_DATA
 				lisi[index].Proxy = 1
-			} else if each.HTTPS_PROXY != "" {
-				lisi[index].Proxy_addr = each.HTTPS_PROXY
+			} else if each.PROXY_TYPE == 2 {
+				lisi[index].Proxy_addr = each.PROXY_DATA
 				lisi[index].Proxy = 1
-			} else if each.TCP_PROXY != "" {
-				lisi[index].Proxy_addr = each.TCP_PROXY
+			} else if each.PROXY_TYPE == 3 {
+				lisi[index].Proxy_addr = each.PROXY_DATA
 				lisi[index].Proxy = 2
 			} else {
 				lisi[index].Proxy = 0

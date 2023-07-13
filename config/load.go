@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -241,10 +241,6 @@ func Process() {
 
 	// 打印解析后的配置信息
 	fmt.Printf("%+v\n", G_config)
-}
-
-func main() {
-	Process()
 }
 
 // Open the config file for reading
