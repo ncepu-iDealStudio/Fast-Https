@@ -1,4 +1,4 @@
-package config
+package main
 
 import (
 	"fmt"
@@ -27,9 +27,8 @@ type HttpServer struct {
 	Ssl_Key    string
 	Gzip       uint8
 
-	HTTP_PROXY  string
-	HTTPS_PROXY string
-	TCP_PROXY   string
+	PROXY_TYPE uint8
+	PROXY_DATA string
 }
 
 type Config struct {
@@ -136,21 +135,27 @@ func Process() {
 		}
 
 		// 解析 path 字段和static字段
-
-		rePath := regexp.MustCompile(`path\s+\/(.+?)\s+\{`)
-		//reStatic := regexp.MustCompile(`path\s+\/\s*\{\s*root\s+(.+?);\s*index\s+(.+?)\s*\}`)
-		lines := strings.Split(string(content), "\n")
-		for i := 0; i < len(lines); i++ {
-			line := strings.TrimSpace(lines[i])
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			if matches := rePath.FindStringSubmatch(line); len(matches) > 0 {
-				server.Path = "/" + matches[1]
-
-			}
-
+		re = regexp.MustCompile(`path\s+(/[^{]+)`)
+		path := re.FindStringSubmatch(match[1])
+		if len(path) > 1 {
+			server.Path = strings.TrimSpace(path[1])
 		}
+
+		//rePath := regexp.MustCompile(`path\s+\/(.+?)\s+\{`)
+		//
+		//lines := strings.Split(string(content), "\n")
+		//	for i := 0; i < len(lines); i++ {
+		//	line := strings.TrimSpace(lines[i])
+		//	if line == "" || strings.HasPrefix(line, "#") {
+		//		continue
+		//	}
+		//	if matches := rePath.FindStringSubmatch(line); len(matches) > 0 {
+		//		server.Path = "/" + matches[1]
+		//
+		//	}
+		//
+		//}
+
 		re = regexp.MustCompile(`path\s+/[^{]+{[^}]*root\s+([^;]+);[^}]*index\s+([^;]+);`)
 		staticMatches := re.FindStringSubmatch(match[1])
 		if len(staticMatches) > 2 {
@@ -181,20 +186,24 @@ func Process() {
 		// 解析 TCP_PROXY 和 HTTP_PROXY 字段
 		re = regexp.MustCompile(`TCP_PROXY\s+([^;]+);`)
 		tcpProxy := re.FindStringSubmatch(match[1])
-		if len(tcpProxy) > 1 {
-			server.TCP_PROXY = strings.TrimSpace(tcpProxy[1])
-		}
 
 		re = regexp.MustCompile(`HTTP_PROXY\s+([^;]+);`)
 		httpProxy := re.FindStringSubmatch(match[1])
 		if len(httpProxy) > 1 {
-			server.HTTP_PROXY = strings.TrimSpace(httpProxy[1])
+			server.PROXY_TYPE = 1
+			server.PROXY_DATA = strings.TrimSpace(httpProxy[1])
 		}
 
 		re = regexp.MustCompile(`HTTPS_PROXY\s+([^;]+);`)
 		httpsProxy := re.FindStringSubmatch(match[1])
 		if len(httpsProxy) > 1 {
-			server.HTTPS_PROXY = strings.TrimSpace(httpsProxy[1])
+			server.PROXY_TYPE = 2
+			server.PROXY_DATA = strings.TrimSpace(httpsProxy[1])
+		}
+
+		if len(tcpProxy) > 1 {
+			server.PROXY_TYPE = 3
+			server.PROXY_DATA = strings.TrimSpace(tcpProxy[1])
 		}
 
 		// 将解析出的 HttpServer 结构体添加到 Config 结构体中
@@ -234,10 +243,9 @@ func Process() {
 	fmt.Printf("%+v\n", G_config)
 }
 
-// func main() {
-
-// 	Process()
-// }
+func main() {
+	Process()
+}
 
 // Open the config file for reading
 //file, err := os.Open("config.conf")
