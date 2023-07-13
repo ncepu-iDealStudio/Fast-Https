@@ -1,6 +1,9 @@
 package cache
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 const BucketsCount = 20
 
@@ -14,6 +17,7 @@ type Node struct {
 type Value struct {
 	Key   string
 	Value []byte
+	time  int64
 }
 
 // hashMap 桶
@@ -29,6 +33,10 @@ func NewHashMap() HashMap {
 	}
 
 	return hashMap
+}
+
+func Find() {
+
 }
 
 // 自定义hash算法获取key
@@ -88,15 +96,16 @@ func NewEmptyNode() *Node {
 	node.Data.Key = ""
 	node.Data.Value = nil
 	node.Next = nil
+	node.Data.time = time.Now().Unix()
 	return node
 }
 
 func MapTest() {
 	myMap := NewHashMap()
 	str := "this is string"
-	data1 := Value{"001", []byte(str)}
+	data1 := Value{"001", []byte(str), 1}
 	myMap.put(data1)
-	data2 := Value{"002", []byte(str)}
+	data2 := Value{"002", []byte(str), 1}
 	myMap.put(data2)
 	fmt.Println(myMap.get("002"))
 }

@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 var myMap = NewHashMap()
@@ -46,7 +47,8 @@ func LoadAllStatic() {
 			}
 			for _, realPath := range dir {
 				data, _ := files.ReadFile(realPath)
-				myMap.put(Value{realPath, data})
+
+				myMap.put(Value{realPath, data, time.Now().Unix()})
 			}
 		}
 	}

@@ -16,8 +16,13 @@ func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 	case 0:
 		_, str_row := read_data(conn)
 		req := httpparse.HttpParse2(str_row)
-		res := StaticEvent(lis_info.Proxy_addr + req.Path) // Proxy equal to 0, Proxy is static file path
-		write_bytes_close(conn, res)
+		if req.Path == "/" {
+			res := StaticEvent(lis_info.Proxy_addr + req.Path + "index.html")
+			write_bytes_close(conn, res)
+		} else {
+			res := StaticEvent(lis_info.Proxy_addr + req.Path) // Proxy equal to 0, Proxy is static file path
+			write_bytes_close(conn, res)
+		}
 	case 1, 2:
 		byte_row, _ := read_data(conn)
 		res := ProxyEvent(byte_row, lis_info.Proxy_addr)
