@@ -2,6 +2,7 @@ package events
 
 import (
 	"bufio"
+	"fast-https/modules/core/listener"
 	"log"
 	"net"
 )
@@ -12,34 +13,37 @@ type Events interface {
 	Test()
 }
 
-func HandleEvent(conn net.Conn) {
+var data = "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nHello World"
 
-	Handle_read(conn)
-	Handle_write(conn)
+func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 
-	defer conn.Close()
+	Handle_read(conn, lis_info)
+	Handle_write(conn, data)
+	conn.Close()
+
 }
 
-func Handle_read(conn net.Conn) {
+func Handle_read(conn net.Conn, lis_info listener.ListenInfo) {
 
-	// 读取客户端发送的数据
 	reader := bufio.NewReader(conn)
-	// message, err := reader.ReadString('\n')
 	message, err := reader.ReadString('\n')
-
 	if err != nil {
-		// log.Println("Error reading from client:", err)
+		log.Println("Error reading from client:", err)
 		return
 	}
 
 	log.Printf("Received message from client: %s\n", message)
 
+	switch lis_info.Proxy {
+	case 0:
+
+	}
+
 }
 
-func Handle_write(conn net.Conn) {
-	data := "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nHello World"
-	write_buf := []byte(data)
+func Handle_write(conn net.Conn, res string) {
 
+	write_buf := []byte(res)
 	_, err := conn.Write(write_buf)
 	if err != nil {
 		// log.Println("Error writing to client:", err)
