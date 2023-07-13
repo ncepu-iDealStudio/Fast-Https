@@ -5,7 +5,6 @@ import (
 	"fast-https/modules/core/listener"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"runtime"
 	"syscall"
@@ -63,9 +62,9 @@ func Daemon(nochdir, noclose int) int {
 	return 0
 }
 
-func serve_one_port(listener net.Listener) {
+func serve_one_port(listener listener.ListenInfo) {
 	for {
-		conn, err := listener.Accept()
+		conn, err := listener.Lfd.Accept()
 		if err != nil {
 			log.Println("Error accepting connection:", err)
 			continue
@@ -73,7 +72,7 @@ func serve_one_port(listener net.Listener) {
 
 		log.Printf("New client connected: %s\n", conn.RemoteAddr())
 
-		go events.HandleEvent(conn)
+		go events.HandleEvent(conn, listener)
 	}
 }
 
@@ -81,8 +80,7 @@ func Run() {
 	listens := listener.Listen()
 	for _, value := range listens {
 
-		listener := value.Lfd
-		go serve_one_port(listener)
+		go serve_one_port(value)
 	}
 
 	select {}
