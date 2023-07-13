@@ -75,11 +75,12 @@ func Listen() []ListenInfo {
 				lisi[index].Proxy = 1
 			} else if each.PROXY_TYPE == 2 {
 				lisi[index].Proxy_addr = each.PROXY_DATA
-				lisi[index].Proxy = 1
+				lisi[index].Proxy = 2
 			} else if each.PROXY_TYPE == 3 {
 				lisi[index].Proxy_addr = each.PROXY_DATA
-				lisi[index].Proxy = 2
+				lisi[index].Proxy = 3
 			} else {
+				lisi[index].Proxy_addr = each.Static.Root
 				lisi[index].Proxy = 0
 			}
 		} else {
@@ -90,11 +91,12 @@ func Listen() []ListenInfo {
 				lisi[index].Proxy = 1
 			} else if each.PROXY_TYPE == 2 {
 				lisi[index].Proxy_addr = each.PROXY_DATA
-				lisi[index].Proxy = 1
+				lisi[index].Proxy = 2
 			} else if each.PROXY_TYPE == 3 {
 				lisi[index].Proxy_addr = each.PROXY_DATA
-				lisi[index].Proxy = 2
+				lisi[index].Proxy = 3
 			} else {
+				lisi[index].Proxy_addr = each.Static.Root
 				lisi[index].Proxy = 0
 			}
 		}

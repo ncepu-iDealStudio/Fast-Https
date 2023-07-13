@@ -11,22 +11,24 @@ type Req struct {
 	Path     string
 	Encoding []string
 	Host     string
+	Protocol string
 }
 
-var data = "GET /config HTTP/1.1\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7\r\nAccept-Encoding: gzip, deflate, br\r\nConnection: keep-alive\r\nHost: gitee.com\r\n"
-
-var R_rea Req
-
-func Process_HttpParse() {
+// there are some bugs 7.13 20:00
+func Process_HttpParse(data string) Req {
 
 	re := regexp.MustCompile(`^(\w+)\s+([^ ]+)\s+HTTP/1.1\r\n.*\r\nAccept-Encoding:\s*([^\r\n]+)\r\n.*\r\nHost:\s*([^\r\n]+)\r\n`)
 	matches := re.FindStringSubmatch(data)
 
 	// 将 Accept-Encoding 字段的值分割成数组
-	encodings := strings.Split(matches[3], ", ")
+
 	var encoding []string
-	for _, e := range encodings {
-		encoding = append(encoding, strings.TrimSpace(e))
+	if len(matches) >= 3 {
+		encodings := strings.Split(matches[3], ", ")
+		fmt.Println(data)
+		for _, e := range encodings {
+			encoding = append(encoding, strings.TrimSpace(e))
+		}
 	}
 
 	// 将解析结果存储到 Req 结构体中
@@ -37,9 +39,47 @@ func Process_HttpParse() {
 			Encoding: encoding,
 			Host:     matches[4],
 		}
-		fmt.Printf("%+v\n", req)
+		return req
+
 	} else {
-		fmt.Println("解析失败")
+		fmt.Println("Parse error")
+		return Req{}
+	}
+}
+
+func HttpParse2(request string) Req {
+
+	requestLine := strings.Split(request, "\r\n")[0]
+	parts := strings.Split(requestLine, " ")
+	method := parts[0]
+	path := parts[1]
+	protocol := parts[2]
+
+	var host string
+
+	headers := make(map[string]string)
+	lines := strings.Split(request, "\r\n")[1:]
+	for _, line := range lines {
+		if line == "" {
+			break
+		}
+		parts := strings.SplitN(line, ":", 2)
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		headers[key] = value
+		if strings.Compare(key, "Host") == 0 {
+			host = value
+		}
 	}
 
+	// fmt.Println("Headers:", headers)
+	encoding := []string{"gzip"}
+
+	return Req{
+		Method:   method,
+		Path:     path,
+		Encoding: encoding,
+		Host:     host,
+		Protocol: protocol,
+	}
 }
