@@ -47,8 +47,11 @@ func Process_HttpParse(data string) Req {
 	}
 }
 
-func HttpParse2(request string) Req {
+func HttpParse2(request string) (Req, int) {
 
+	if request == "" {
+		return Req{}, 10
+	}
 	requestLine := strings.Split(request, "\r\n")[0]
 	parts := strings.Split(requestLine, " ")
 	method := parts[0]
@@ -81,5 +84,5 @@ func HttpParse2(request string) Req {
 		Encoding: encoding,
 		Host:     host,
 		Protocol: protocol,
-	}
+	}, 0
 }
