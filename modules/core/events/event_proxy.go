@@ -1,6 +1,7 @@
 package events
 
 import (
+	"fmt"
 	"log"
 	"net"
 )
@@ -17,11 +18,11 @@ func get_data_from_server(proxyaddr string, data []byte) []byte {
 		log.Fatal("Proxy Write error")
 	}
 
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 1024*512)
 	n, err := conn.Read(buffer)
 	if err != nil {
 		conn.Close()
-		log.Fatal("Proxy Read error")
+		fmt.Println("Proxy Read error", err)
 	}
 	conn.Close()
 

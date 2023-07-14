@@ -37,7 +37,7 @@ func read_data(conn net.Conn) ([]byte, string) {
 	buffer := make([]byte, 1024)
 	n, err := conn.Read(buffer)
 	if err != nil {
-		log.Println("Error reading from client:", err)
+		log.Println("Error reading from client:------", err)
 	}
 	str_row := string(buffer[:n])
 	return buffer, str_row
