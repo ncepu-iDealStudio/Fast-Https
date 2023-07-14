@@ -14,7 +14,10 @@ require (
 	gopkg.in/sohlich/elogrus.v7 v7.0.0
 )
 
+require github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
+
 require (
+	github.com/chenhg5/collection v0.0.0-20200925143926-f403b87088f9
 	github.com/goccy/go-json v0.10.2
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
