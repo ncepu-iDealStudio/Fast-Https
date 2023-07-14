@@ -3,6 +3,7 @@ package events
 import (
 	"fast-https/config"
 	"fast-https/modules/cache"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -11,12 +12,13 @@ import (
 
 func StaticEvent(path string) []byte {
 
-	// fmt.Println("load file, Path", path)
 	var res []byte
 	var file_data = cache.Get_data_from_cache(path)
 
 	if file_data != nil { // Not Fount
 		path_type := strings.Split(path, ".")
+
+		log.Println("[Events]Get file: ", path)
 
 		head := "HTTP/1.1 200 OK\r\n"
 		head += "Content-Type: " + config.G_ContentTypeMap[path_type[len(path_type)-1]] + "\r\n"
@@ -28,6 +30,7 @@ func StaticEvent(path string) []byte {
 		res = append(res, file_data...)
 
 	} else {
+		log.Println("[Events]file not found: ", path)
 		res = []byte("HTTP/1.1 404 \r\n\r\nNOTFOUNT")
 	}
 

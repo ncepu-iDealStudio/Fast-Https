@@ -49,6 +49,7 @@ func LoadAllStatic() {
 				data, _ := files.ReadFile(realPath)
 
 				myMap.put(Value{realPath, data, time.Now().Unix()})
+				log.Println("Cached file ", realPath)
 			}
 		}
 	}
