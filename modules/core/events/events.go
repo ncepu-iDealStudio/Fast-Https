@@ -1,67 +1,61 @@
 package events
 
 import (
-	"bufio"
 	"fast-https/modules/core/listener"
+	httpparse "fast-https/utils/HttpParse"
 	"log"
 	"net"
 )
 
 type Events interface {
-	Start()
-	Stop()
-	Test()
 }
 
 func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 
 	switch lis_info.Proxy {
 	case 0:
-		str_row := handle_read(conn)
-
-		res := StaticEvent()
-		handle_write_close(conn, res)
+		_, str_row := read_data(conn)
+		req := httpparse.HttpParse2(str_row)
+		if req.Path == "/" {
+			res := StaticEvent(lis_info.Proxy_addr + req.Path + "index.html")
+			write_bytes_close(conn, res)
+		} else {
+			res := StaticEvent(lis_info.Proxy_addr + req.Path) // Proxy equal to 0, Proxy is static file path
+			write_bytes_close(conn, res)
+		}
 	case 1, 2:
-		res := ProxyEvent()
-		handle_write_close(conn, res)
+		byte_row, _ := read_data(conn)
+		res := ProxyEvent(byte_row, lis_info.Proxy_addr)
+		write_bytes_close(conn, res)
 	case 3:
-
+		ProxyEventTCP(conn, lis_info.Proxy_addr)
 	}
 
 }
 
-func handle_read_parse() {
-
-}
-
-func handle_read(conn net.Conn) string {
-	reader := bufio.NewReader(conn)
-	message, err := reader.ReadString('\n')
+func read_data(conn net.Conn) ([]byte, string) {
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
 	if err != nil {
-		log.Println("Error reading from client:", err)
+		log.Println("Error reading from client:------", err)
 	}
-
-	log.Printf("Received message from client: %s\n", message)
-	return message
+	str_row := string(buffer[:n])
+	return buffer, str_row
 }
 
-func handle_write(conn net.Conn, res string) {
-	write_buf := []byte(res)
-	_, err := conn.Write(write_buf)
+// handle row bytes
+func write_bytes_close(conn net.Conn, res []byte) {
+	_, err := conn.Write(res)
 	if err != nil {
-		// log.Println("Error writing to client:", err)
-		return
+		log.Println("Error writing to client:", err)
 	}
-}
-
-func handle_write_close(conn net.Conn, res string) {
-
-	write_buf := []byte(res)
-	_, err := conn.Write(write_buf)
-	if err != nil {
-		// log.Println("Error writing to client:", err)
-		return
-	}
-
 	conn.Close()
+}
+
+func Write_bytes(conn net.Conn, res []byte) {
+
+	_, err := conn.Write(res)
+	if err != nil {
+		log.Println("Error writing to client:", err)
+	}
 }

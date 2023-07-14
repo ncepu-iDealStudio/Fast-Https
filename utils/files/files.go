@@ -1,32 +1,39 @@
 package files
 
 import (
-	"io"
-	"mime/multipart"
 	"os"
-	"path/filepath"
 )
 
-type File struct {
-	file   multipart.File
-	header *multipart.FileHeader
-	path   string
+// 读取文件内容并返回字节切片
+func ReadFile(filename string) ([]byte, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	return content, nil
 }
 
-// Save function saves file to filesystem. dir is the dictionary that saves file.
-// For example Save("resource", "test.md")
-func (f *File) Save(dir string, path string) error {
-	if !filepath.IsAbs(path) {
-		wd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		dir := filepath.Join(filepath.Dir(filepath.Dir(wd)), dir)
-		path = filepath.Join(dir, path)
+// 将字节切片写入文件
+func WriteFile(filename string, data []byte) error {
+	err := os.WriteFile(filename, data, 0644)
+	if err != nil {
+		return err
 	}
+	return nil
+}
 
-	b, _ := io.ReadAll(f.file)
-	err := os.WriteFile(path, b, 0777)
+// 打开文件并返回文件指针和错误信息
+func OpenFile(filename string) (*os.File, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
+// 关闭文件
+func CloseFile(file *os.File) error {
+	err := file.Close()
 	if err != nil {
 		return err
 	}
