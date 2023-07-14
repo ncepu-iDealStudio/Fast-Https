@@ -13,4 +13,5 @@ func main() {
 
 	service.TestService("0.0.0.0:5000")
 	server.Run()
+	// select {}
 }
