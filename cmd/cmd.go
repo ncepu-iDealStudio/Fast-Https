@@ -30,10 +30,10 @@ var rootcmd = &cobra.Command{
 
 func init() {
 	// -h help帮助文档
-	rootcmd.Flags().StringVarP(&string_1, "reoad", "d", "", "进行读写判断")
-	rootcmd.Flags().StringVarP(&string_2, "start", "t", "", "进行读写判断")
-	rootcmd.Flags().StringVarP(&string_3, "stop", "p", "", "进行读写判断")
-	rootcmd.Flags().StringVarP(&string_4, "status", "s", "", "进行读写判断")
+	rootcmd.Flags().StringVarP(&string_1, "reoad", "d", "", "reload server")
+	rootcmd.Flags().StringVarP(&string_2, "start", "t", "", "start server")
+	rootcmd.Flags().StringVarP(&string_3, "stop", "p", "", "stop server")
+	rootcmd.Flags().StringVarP(&string_4, "status", "s", "", "show server status")
 }
 
 func Execute() {
