@@ -5,32 +5,65 @@ import (
 	httpparse "fast-https/utils/HttpParse"
 	"log"
 	"net"
+	"strings"
 )
 
 type Events interface {
 }
 
-func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
+// {Listen:8080
+// 	ServerName:apple.ideal.com
+// 	Static:{Root:/var/html Index:[index.html index.htm]}
+// 	Path:/
+// 	Ssl:
+// 	Ssl_Key:
+// 	Gzip:0
+// 	PROXY_TYPE:0
+// 	PROXY_DATA:
+// }
 
-	switch lis_info.Proxy {
-	case 0:
-		_, str_row := read_data(conn)
-		req := httpparse.HttpParse2(str_row)
-		if req.Path == "/" {
-			res := StaticEvent(lis_info.Proxy_addr + req.Path + "index.html")
-			write_bytes_close(conn, res)
-		} else {
-			res := StaticEvent(lis_info.Proxy_addr + req.Path) // Proxy equal to 0, Proxy is static file path
-			write_bytes_close(conn, res)
-		}
-	case 1, 2:
-		byte_row, _ := read_data(conn)
-		res := ProxyEvent(byte_row, lis_info.Proxy_addr)
-		write_bytes_close(conn, res)
-	case 3:
-		ProxyEventTCP(conn, lis_info.Proxy_addr)
+func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
+	if lis_info.LisType == 2 {
+		ProxyEventTCP(conn, lis_info.Data[0].Proxy_addr)
+		return
 	}
 
+	byte_row, str_row := read_data(conn)
+
+	for _, item := range lis_info.Data {
+		switch item.Proxy {
+		case 0:
+			req, err := httpparse.HttpParse2(str_row)
+			if err == 10 {
+				goto next
+			}
+			host := strings.Split(req.Host, ":")[0]
+			if host == item.ServerName {
+				if strings.HasPrefix(req.Path, item.Path) {
+					if item.Path == "/" {
+						res := StaticEvent(item.StaticRoot + req.Path)
+						write_bytes_close(conn, res)
+					} else {
+						res := StaticEvent(item.StaticRoot + req.Path[len(item.Path):])
+						write_bytes_close(conn, res)
+					}
+
+					goto next
+				}
+			}
+		case 1, 2:
+			res, err := ProxyEvent(byte_row, item.Proxy_addr)
+			if err == 1 {
+				write_bytes_close(conn, []byte("HTTP/1.1 500 \r\n\r\nSERVER ERROR"))
+				goto next
+			}
+			write_bytes_close(conn, res)
+			goto next
+		}
+	}
+	write_bytes_close(conn, []byte("HTTP/1.1 404 \r\n\r\nNOTFOUNT1"))
+
+next:
 }
 
 func read_data(conn net.Conn) ([]byte, string) {
