@@ -45,14 +45,22 @@ func LoadAllStatic() {
 			if err != nil {
 				log.Fatal("search files in dir error")
 			}
+
 			for _, realPath := range dir {
 				data, _ := files.ReadFile(realPath)
+				flag := false
 				if item.Gzip == 1 {
 					data, _ = CompressBytes(data)
-					fmt.Println("[cache:]gzip: ", realPath)
+					flag = true
 				}
+
 				myMap.put(Value{realPath, data, time.Now().Unix()})
-				log.Println("Cached file ", realPath)
+				if flag {
+					log.Println("Cached [gzip] ", realPath)
+				} else {
+					log.Println("Cached file ", realPath)
+				}
+
 			}
 		}
 	}

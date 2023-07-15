@@ -321,7 +321,7 @@ func process() {
 	if len(logRoot) > 1 {
 		G_config.LogRoot = strings.TrimSpace(logRoot[1])
 	}
-	fmt.Println(G_config)
+	// fmt.Println(G_config)
 
 	// fmt.Printf("%+v\n", G_config)
 }

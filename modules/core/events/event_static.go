@@ -19,8 +19,6 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 	if file_data != nil { // Not Fount
 		path_type := strings.Split(path, ".")
 
-		log.Println("[Events]Get file: ", path)
-
 		head := "HTTP/1.1 200 OK\r\n"
 		head += "Content-Type: " + config.G_ContentTypeMap[path_type[len(path_type)-1]] + "\r\n"
 		if lisdata.Gzip == 1 {
@@ -28,6 +26,8 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 		}
 		head += "Content-Length: " + strconv.Itoa(len(file_data)) + "\r\n"
 		head += "\r\n"
+
+		log.Println("[Events]Get file: ", path)
 
 		head_byte := []byte(head)
 		res = append(res, head_byte...)
