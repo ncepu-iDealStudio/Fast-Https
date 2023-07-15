@@ -6,11 +6,13 @@ import (
 	"net"
 )
 
-func get_data_from_server(proxyaddr string, data []byte) []byte {
+func get_data_from_server(proxyaddr string, data []byte) ([]byte, int) {
 
 	conn, err := net.Dial("tcp", proxyaddr)
 	if err != nil {
-		log.Fatal("Can't connect to "+proxyaddr, err.Error())
+
+		log.Println("Can't connect to "+proxyaddr, err.Error())
+		return nil, 1 // no server
 	}
 	_, err = conn.Write(data)
 	if err != nil {
@@ -26,10 +28,10 @@ func get_data_from_server(proxyaddr string, data []byte) []byte {
 	}
 	conn.Close()
 
-	return buffer[:n]
+	return buffer[:n], 0 // no error
 }
 
-func ProxyEvent(req_data []byte, proxyaddr string) []byte {
+func ProxyEvent(req_data []byte, proxyaddr string) ([]byte, int) {
 
 	return get_data_from_server(proxyaddr, req_data)
 }
