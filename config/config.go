@@ -134,12 +134,42 @@ func process() {
 		return
 	}
 
+	//删除注释
+	clear_str := ""
+	for _, line := range strings.Split(string(content), "\n") {
+		clear_str += delete_comment(line) + "\n"
+	}
+
+	// 检查是否存在include语句
+	includeRe := regexp.MustCompile(`include\s+([^;]+);`)
+	matches := includeRe.FindAllStringSubmatch(clear_str, -1)
+	if matches != nil {
+		for _, match := range matches {
+			includePath := strings.TrimSpace(match[1])
+
+			// 扩展include语句
+			expandedPaths := expandInclude(includePath)
+
+			// 逐个读取扩展后的配置文件
+			for _, path := range expandedPaths {
+				fileContent, err := os.ReadFile(path)
+				if err != nil {
+					fmt.Println("读取配置文件失败：", err)
+					continue
+				}
+
+				// 将扩展后的配置文件内容拼接到clear_str中，用于后续解析
+				clear_str += string(fileContent) + "\n"
+			}
+		}
+	}
+
 	// 定义正则表达式
 	pattern := `server\s*{([^}]*)}`
 	re := regexp.MustCompile(pattern)
 
 	// 使用正则表达式解析出所有 server 块内容
-	matches := re.FindAllStringSubmatch(string(content), -1)
+	matches = re.FindAllStringSubmatch(clear_str, -1)
 	if matches == nil {
 		fmt.Println("没有找到 server 块")
 		return
@@ -147,6 +177,7 @@ func process() {
 
 	// 循环遍历每个 server 块
 	for _, match := range matches {
+
 		// 定义 HttpServer 结构体
 		var server HttpServer
 
@@ -191,47 +222,12 @@ func process() {
 			server.Path = strings.TrimSpace(path[1])
 		}
 
-		//rePath := regexp.MustCompile(`path\s+\/(.+?)\s+\{`)
-		//
-		//lines := strings.Split(string(content), "\n")
-		//	for i := 0; i < len(lines); i++ {
-		//	line := strings.TrimSpace(lines[i])
-		//	if line == "" || strings.HasPrefix(line, "#") {
-		//		continue
-		//	}
-		//	if matches := rePath.FindStringSubmatch(line); len(matches) > 0 {
-		//		server.Path = "/" + matches[1]
-		//
-		//	}
-		//
-		//}
-
 		re = regexp.MustCompile(`path\s+/[^{]+{[^}]*root\s+([^;]+);[^}]*index\s+([^;]+);`)
 		staticMatches := re.FindStringSubmatch(match[1])
 		if len(staticMatches) > 2 {
 			server.Static.Root = strings.TrimSpace(staticMatches[1])
 			server.Static.Index = parseIndex(strings.TrimSpace(staticMatches[2]))
 		}
-
-		//
-		//re = regexp.MustCompile(`path\s+([^{}]+)\s*{([^}]*)}`)
-		//path := re.FindStringSubmatch(match[1])
-		//if len(path) > 2 {
-		//	server.Path = strings.TrimSpace(path[1])
-		//
-		//	// 解析 path 块中的字段
-		//	re = regexp.MustCompile(`root\s+([^;]+);`)
-		//	root := re.FindStringSubmatch(path[2])
-		//	if len(root) > 1 {
-		//		server.Static.Root = strings.TrimSpace(root[1])
-		//	}
-		//
-		//	re = regexp.MustCompile(`index\s+([^;]+);`)
-		//	index := re.FindStringSubmatch(path[2])
-		//	if len(index) > 1 {
-		//		server.Static.Index = strings.Fields(strings.TrimSpace(index[1]))
-		//	}
-		//}
 
 		// 解析 TCP_PROXY 和 HTTP_PROXY 字段
 		re = regexp.MustCompile(`TCP_PROXY\s+([^;]+);`)
@@ -288,6 +284,7 @@ func process() {
 	if len(logRoot) > 1 {
 		G_config.LogRoot = strings.TrimSpace(logRoot[1])
 	}
+	fmt.Println(G_config)
 
 	// fmt.Printf("%+v\n", G_config)
 }
