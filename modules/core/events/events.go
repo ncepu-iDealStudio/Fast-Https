@@ -37,28 +37,35 @@ func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 			if err == 10 {
 				goto next
 			}
-			host := strings.Split(req.Host, ":")[0]
-			if host == item.ServerName {
+			// fmt.Println(req.Host, req.Path, item.ServerName)
+			if req.Host == item.ServerName {
 				if strings.HasPrefix(req.Path, item.Path) {
 					if item.Path == "/" {
-						res := StaticEvent(item.StaticRoot + req.Path)
+						res := StaticEvent(item, item.StaticRoot+req.Path)
 						write_bytes_close(conn, res)
 					} else {
-						res := StaticEvent(item.StaticRoot + req.Path[len(item.Path):])
+						res := StaticEvent(item, item.StaticRoot+req.Path[len(item.Path):])
 						write_bytes_close(conn, res)
 					}
-
 					goto next
 				}
 			}
 		case 1, 2:
-			res, err := ProxyEvent(byte_row, item.Proxy_addr)
-			if err == 1 {
-				write_bytes_close(conn, []byte("HTTP/1.1 500 \r\n\r\nSERVER ERROR"))
+			req, err := httpparse.HttpParse2(str_row)
+			if err == 10 {
 				goto next
 			}
-			write_bytes_close(conn, res)
-			goto next
+			if req.Host == item.ServerName {
+				if strings.HasPrefix(req.Path, item.Path) {
+					res, err := ProxyEvent(byte_row, item.Proxy_addr)
+					if err == 1 {
+						write_bytes_close(conn, []byte("HTTP/1.1 500 \r\n\r\nSERVER ERROR"))
+						goto next
+					}
+					write_bytes_close(conn, res)
+					goto next
+				}
+			}
 		}
 	}
 	write_bytes_close(conn, []byte("HTTP/1.1 404 \r\n\r\nNOTFOUNT1"))
