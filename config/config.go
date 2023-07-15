@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -47,6 +48,36 @@ func init() {
 	fmt.Println("-----[Fast-Https]config init...")
 	process()
 	ServerContentType()
+}
+
+func expandInclude(path string) []string {
+	// 解析include语句，获取通配符部分
+	dir, file := filepath.Split(path)
+	dir = filepath.Clean(dir)
+
+	// 查找匹配的文件
+	matches, err := filepath.Glob(filepath.Join(dir, file))
+	if err != nil {
+		log.Printf("无法解析include语句: %v", err)
+		return nil
+	}
+
+	return matches
+}
+
+func delete_comment(s string) string {
+	var sb strings.Builder
+	inString := false
+	for i := 0; i < len(s); i++ {
+		if s[i] == '"' {
+			inString = !inString
+		}
+		if !inString && s[i] == '#' {
+			break
+		}
+		sb.WriteByte(s[i])
+	}
+	return sb.String()
 }
 
 func ServerContentType() {
@@ -153,13 +184,19 @@ func process() {
 			// 逐个读取扩展后的配置文件
 			for _, path := range expandedPaths {
 				fileContent, err := os.ReadFile(path)
+
 				if err != nil {
 					fmt.Println("读取配置文件失败：", err)
 					continue
 				}
 
+				clear_str_temp := ""
+				for _, line := range strings.Split(string(fileContent), "\n") {
+					clear_str_temp += delete_comment(line) + "\n"
+				}
+
 				// 将扩展后的配置文件内容拼接到clear_str中，用于后续解析
-				clear_str += string(fileContent) + "\n"
+				clear_str += clear_str_temp + "\n"
 			}
 		}
 	}
