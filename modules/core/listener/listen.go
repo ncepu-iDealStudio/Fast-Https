@@ -24,6 +24,7 @@ type ListenData struct {
 	Path       string
 	SSL        SSLkv
 	StaticRoot string
+	Gzip       uint8
 }
 
 // one listen port arg
@@ -117,11 +118,16 @@ func ProcessData() {
 			if item.Port == num {
 				data := ListenData{}
 				data.Path = each.Path
-				data.ServerName = each.ServerName
+				if item.Port == "80" || item.Port == "443" {
+					data.ServerName = each.ServerName
+				} else {
+					data.ServerName = each.ServerName + ":" + item.Port
+				}
 				data.Proxy = each.PROXY_TYPE
 				data.StaticRoot = each.Static.Root
 				data.Proxy_addr = each.PROXY_DATA
 				data.SSL = SSLkv{each.Ssl, each.Ssl_Key}
+				data.Gzip = each.Gzip
 
 				Lisinfos[index].Data = append(item.Data, data)
 			}

@@ -3,6 +3,7 @@ package events
 import (
 	"fast-https/config"
 	"fast-https/modules/cache"
+	"fast-https/modules/core/listener"
 	"log"
 	"strconv"
 	"strings"
@@ -10,7 +11,7 @@ import (
 
 // var data = "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nHello World"
 
-func StaticEvent(path string) []byte {
+func StaticEvent(lisdata listener.ListenData, path string) []byte {
 
 	var res []byte
 	var file_data = cache.Get_data_from_cache(path)
@@ -22,6 +23,9 @@ func StaticEvent(path string) []byte {
 
 		head := "HTTP/1.1 200 OK\r\n"
 		head += "Content-Type: " + config.G_ContentTypeMap[path_type[len(path_type)-1]] + "\r\n"
+		if lisdata.Gzip == 1 {
+			head += "Content-Encoding: gzip" + "\r\n"
+		}
 		head += "Content-Length: " + strconv.Itoa(len(file_data)) + "\r\n"
 		head += "\r\n"
 

@@ -233,7 +233,7 @@ func process() {
 		}
 
 		//解析Gzip
-		re = regexp.MustCompile(`Gzip\s+([^;]+);`)
+		re = regexp.MustCompile(`gzip\s+([^;]+);`)
 		gzip := re.FindStringSubmatch(match[1])
 		if len(gzip) > 1 {
 			server.Gzip = 1

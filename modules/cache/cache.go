@@ -47,7 +47,10 @@ func LoadAllStatic() {
 			}
 			for _, realPath := range dir {
 				data, _ := files.ReadFile(realPath)
-
+				if item.Gzip == 1 {
+					data, _ = CompressBytes(data)
+					fmt.Println("[cache:]gzip: ", realPath)
+				}
 				myMap.put(Value{realPath, data, time.Now().Unix()})
 				log.Println("Cached file ", realPath)
 			}
