@@ -56,7 +56,7 @@ func LoadAllStatic() {
 
 				myMap.put(Value{realPath, data, time.Now().Unix()})
 				if flag {
-					log.Println("Cached [gzip] ", realPath)
+					log.Println("Cached gzip ", realPath)
 				} else {
 					log.Println("Cached file ", realPath)
 				}
