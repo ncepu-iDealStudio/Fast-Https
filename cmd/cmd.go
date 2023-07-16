@@ -2,16 +2,16 @@ package cmd
 
 import (
 	"bufio"
-	"fast-https/modules/core/server"
 	"fmt"
+	"io/ioutil"
 	"os"
-
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -22,22 +22,35 @@ var string_4 string
 var count int = 0
 
 var rootcmd = &cobra.Command{
-	Use:   "go",
+	Use:   color.HiYellowString("go"),
 	Short: "this is a short command",
-	Long:  "this is a helping log",
-	Run:   Startfunc,
-}
-
-func init() {
-	// -h help帮助文档
-	rootcmd.Flags().StringVarP(&string_1, "reoad", "d", "", "reload server")
-	rootcmd.Flags().StringVarP(&string_2, "start", "t", "", "start server")
-	rootcmd.Flags().StringVarP(&string_3, "stop", "p", "", "stop server")
-	rootcmd.Flags().StringVarP(&string_4, "status", "s", "", "show server status")
+	Long:  color.RedString("this is a helping log"),
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		data := os.Args
+		comma := data[1]
+		if comma == "start" {
+			string_2 = "m"
+		} else if comma == "reoad" {
+			string_1 = "m"
+		} else if comma == "stop" {
+			string_3 = "m"
+		} else if comma == "status" {
+			string_4 = "m"
+		}
+	},
+	Run: Startfunc,
 }
 
 func Execute() {
 	rootcmd.Execute()
+}
+
+func init() {
+	// -h help帮助文档
+	rootcmd.PersistentFlags().String("reload", "", color.BlueString("覆写"))
+	rootcmd.PersistentFlags().String("start", "", color.BlueString("启动"))
+	rootcmd.PersistentFlags().String("stop", "", color.BlueString("停止"))
+	rootcmd.PersistentFlags().String("status", "", color.BlueString("进行读写判断"))
 }
 
 func Startfunc(cmd *cobra.Command, args []string) {
@@ -51,6 +64,7 @@ func Startfunc(cmd *cobra.Command, args []string) {
 			Start()
 			return
 		case 3:
+			Kill()
 			return
 		case 4:
 			return
@@ -60,67 +74,87 @@ func Startfunc(cmd *cobra.Command, args []string) {
 
 func Reoad_func() {
 	Kill()
-	Start()
+	Start_test()
 }
 
 func Kill() {
-	file, _ := os.OpenFile("/home/pzc/Project/fast-https/fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
-	defer file.Close()
-	reader1 := bufio.NewReader(file)
-	str, _ := reader1.ReadString('\n')
-	mtg := strings.Trim(str, "\r\n")
-	ax, _ := strconv.Atoi(mtg)
-
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
-	} else {
-		cmd = exec.Command("kill", "-9", strconv.Itoa(ax))
-	}
-
-	fmt.Println(ax)
-	err := cmd.Run()
+	file, err := os.OpenFile("/home/pzc/Project/fast-https/fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
-		fmt.Println("关闭进程失败:", err)
-		return
+		fmt.Printf(color.BlueString("输出错误"))
+	} else {
+		str_1 := color.RedString("有一个进程正在运行,需要继续操作吗(y/n):")
+		fmt.Println(str_1)
 	}
+	var scan byte
+	fmt.Scanf("%c", &scan)
+	if scan == 'y' {
 
-	fmt.Println("进程已关闭")
+		reader1 := bufio.NewReader(file)
+		str, _ := reader1.ReadString('\n')
+		msg := strings.Trim(str, "\r\n")
+		ax, _ := strconv.Atoi(msg)
+		// ax := 21980
+
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
+		} else {
+			cmd = exec.Command("kill", "-9", strconv.Itoa(ax))
+		}
+
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println("关闭进程失败:", err)
+			return
+		}
+
+		fmt.Println("进程已关闭")
+		file.Close()
+
+		ioutil.WriteFile("/home/pzc/Project/fast-https/fasthttps.pid", []byte{}, 0666)
+	} else {
+		fmt.Println("结束操作")
+	}
 }
 
 func Start() {
 	Start_test()
+	return
 }
 
 func Start_test() {
 	x_pid := os.Getpid()
 
-	file, _ := os.OpenFile("/home/pzc/Project/fast-https/fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
+	file, _ := os.OpenFile("/home/pzc/Project/fast-https/fasthttps.pid", os.O_WRONLY|os.O_APPEND, 0666)
+
 	defer file.Close()
 	writer1 := bufio.NewWriter(file)
 	writer1.WriteString(strconv.Itoa(x_pid))
+	writer1.WriteString("\n")
 	writer1.Flush()
-
-	server.Run()
+	fmt.Println(color.RedString("进程开始运行"))
+	for {
+		y_pid := color.BlueString(strconv.Itoa(x_pid))
+		fmt.Println(y_pid)
+		time.Sleep(2 * time.Second)
+	}
 }
 
 func Choose() {
-	if string_1 != "" {
-
+	if string_1 == "m" {
 		count = 1
-	} else if string_2 != "" {
+	} else if string_2 == "m" {
 		count = 2
-	} else if string_3 != "" {
+	} else if string_3 == "m" {
 		count = 3
-	} else if string_4 != "" {
+	} else if string_4 == "m" {
 		count = 4
 	}
 }
 
 func Hot_Reoad_func() {
 	for {
-		file, err := os.OpenFile("C:/Users/Lenovo/Desktop/P/a.txt", os.O_RDWR|os.O_APPEND, 0666)
-
+		file, err := os.OpenFile("/home/pzc/Project/fast-https/fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
 		defer file.Close()
 
 		if err != nil {
