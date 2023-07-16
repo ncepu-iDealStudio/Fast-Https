@@ -9,9 +9,10 @@ import (
 
 func main() {
 	cache.LoadAllStatic()
+	// cmd.Execute()
+
 	service.TestService("127.0.0.1:5000")
 	server.Run()
-	//cmd.Execute()
 
 	// cache.TestCsGzip()
 }

@@ -30,4 +30,5 @@ func TestService(port1 string) {
 			log.Fatal("ListenAndServe: ", err)
 		}
 	}()
+	fmt.Println("start test service")
 }

@@ -18,13 +18,14 @@ type SSLkv struct {
 }
 
 type ListenData struct {
-	Proxy      uint8 // 0 1 2 3
-	Proxy_addr string
-	ServerName string
-	Path       string
-	SSL        SSLkv
-	StaticRoot string
-	Gzip       uint8
+	Proxy       uint8 // 0 1 2 3
+	Proxy_addr  string
+	ServerName  string
+	Path        string
+	SSL         SSLkv
+	StaticRoot  string
+	StaticIndex []string
+	Gzip        uint8
 }
 
 // one listen port arg
@@ -125,6 +126,7 @@ func ProcessData() {
 				}
 				data.Proxy = each.PROXY_TYPE
 				data.StaticRoot = each.Static.Root
+				data.StaticIndex = each.Static.Index
 				data.Proxy_addr = each.PROXY_DATA
 				data.SSL = SSLkv{each.Ssl, each.Ssl_Key}
 				data.Gzip = each.Gzip
