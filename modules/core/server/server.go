@@ -66,7 +66,7 @@ func serve_one_port(listener listener.ListenInfo) {
 			continue
 		}
 
-		log.Printf("New client connected: %s\n", conn.RemoteAddr())
+		// log.Printf("New client connected: %s\n", conn.RemoteAddr())
 
 		go events.HandleEvent(conn, listener)
 	}

@@ -37,7 +37,8 @@ func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 			if err == 10 {
 				goto next
 			}
-			// fmt.Println(req.Host, req.Path, item.ServerName)
+			log.Println("[Events:static]", conn.RemoteAddr(), req.Method, req.Path)
+
 			if req.Host == item.ServerName {
 				if strings.HasPrefix(req.Path, item.Path) {
 					if item.Path == "/" {

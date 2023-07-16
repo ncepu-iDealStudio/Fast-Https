@@ -4,7 +4,6 @@ import (
 	"fast-https/config"
 	"fast-https/modules/cache"
 	"fast-https/modules/core/listener"
-	"log"
 	"strconv"
 	"strings"
 )
@@ -27,7 +26,7 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 		head += "Content-Length: " + strconv.Itoa(len(file_data)) + "\r\n"
 		head += "\r\n"
 
-		log.Println("[Events]Get file: ", path)
+		// log.Println("[Events]Get file: ", path)
 
 		head_byte := []byte(head)
 		res = append(res, head_byte...)
@@ -50,7 +49,7 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 			head += "Content-Length: " + strconv.Itoa(len(file_data)) + "\r\n"
 			head += "\r\n"
 
-			log.Println("[Events]Get file(default index): ", path+item)
+			// log.Println("[Events]Get file(default index): ", path+item)
 
 			head_byte := []byte(head)
 			res = append(res, head_byte...)
@@ -60,7 +59,7 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 		}
 	}
 
-	log.Println("[Events]file not found: ", path)
+	// log.Println("[Events]file not found: ", path)
 	res = []byte("HTTP/1.1 404 \r\n\r\nNOTFOUNT")
 
 	return res
