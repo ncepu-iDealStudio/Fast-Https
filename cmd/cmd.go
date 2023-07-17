@@ -79,7 +79,7 @@ func Reoad_func() {
 }
 
 func Kill() {
-	file, err := os.OpenFile("/home/pzc/Project/fast-https/fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
+	file, err := os.OpenFile("fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
 		fmt.Printf(color.BlueString("输出错误"))
 	} else {
@@ -112,7 +112,7 @@ func Kill() {
 		fmt.Println("进程已关闭")
 		file.Close()
 
-		ioutil.WriteFile("/home/pzc/Project/fast-https/fasthttps.pid", []byte{}, 0666)
+		ioutil.WriteFile("fasthttps.pid", []byte{}, 0666)
 	} else {
 		fmt.Println("结束操作")
 	}
@@ -126,7 +126,7 @@ func Start() {
 func Start_test() {
 	x_pid := os.Getpid()
 
-	file, _ := os.OpenFile("/home/pzc/Project/fast-https/fasthttps.pid", os.O_WRONLY|os.O_APPEND, 0666)
+	file, _ := os.OpenFile("fasthttps.pid", os.O_WRONLY|os.O_APPEND, 0666)
 
 	defer file.Close()
 	writer1 := bufio.NewWriter(file)
@@ -157,7 +157,7 @@ func Choose() {
 
 func Hot_Reoad_func() {
 	for {
-		file, err := os.OpenFile("/home/pzc/Project/fast-https/fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
+		file, err := os.OpenFile("fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
 		defer file.Close()
 
 		if err != nil {
