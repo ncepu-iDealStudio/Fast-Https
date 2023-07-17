@@ -7,8 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+)
+
+const (
+	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
 )
 
 type static struct {
@@ -43,11 +48,18 @@ type Config struct {
 // 定义配置结构体
 var G_config Config
 var G_ContentTypeMap map[string]string
+var G_OS = ""
 
 func init() {
+	if runtime.GOOS == "linux" {
+		G_OS = "linux"
+	} else {
+		G_OS = "windows"
+	}
 	// fmt.Println("-----[Fast-Https]config init...")
 	process()
 	ServerContentType()
+
 }
 
 func expandInclude(path string) []string {
@@ -85,12 +97,16 @@ func ServerContentType() {
 	G_ContentTypeMap = make(map[string]string)
 	var content_type string
 
-	confBytes, err := files.ReadFile("./config/mime.types")
+	confBytes, err := files.ReadFile("config/mime.types")
 	if err != nil {
 		log.Fatal("Can't open mime.types file")
 	}
-
-	clear_str := strings.ReplaceAll(string(confBytes), "\n", "")
+	var clear_str string
+	if G_OS == "windows" {
+		clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
+	} else {
+		clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
+	}
 	all_type_arr := strings.Split(delete_extra_space(clear_str), ";")
 	for _, one_type := range all_type_arr {
 		arr := strings.Split(one_type, " ")
@@ -104,6 +120,33 @@ func ServerContentType() {
 		}
 
 	}
+}
+
+func GetContentType(path string) string {
+	path_type := strings.Split(path, ".")
+
+	if path_type == nil {
+		return HTTP_DEFAULT_CONTENT_TYPE
+	}
+	pointAfter := path_type[len(path_type)-1]
+	row := G_ContentTypeMap[pointAfter]
+	if row == "" {
+		sep := "?"
+		index := strings.Index(pointAfter, sep)
+		if index != -1 { // 如果存在特定字符
+			pointAfter = pointAfter[:index] // 删除特定字符之后的所有字符
+		}
+		//fmt.Println(pointAfter, "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii")
+		secondFind := G_ContentTypeMap[pointAfter]
+		if secondFind != "" {
+			return secondFind
+		} else {
+			return HTTP_DEFAULT_CONTENT_TYPE
+		}
+	}
+
+	return row
+
 }
 
 func delete_extra_space(s string) string {

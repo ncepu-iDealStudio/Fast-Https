@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -53,7 +54,10 @@ func LoadAllStatic() {
 					data, _ = CompressBytes(data)
 					// flag = true
 				}
-
+				if config.G_OS == "windows" {
+					realPath = "/" + realPath
+					realPath = strings.ReplaceAll(realPath, "\\", "/")
+				}
 				myMap.put(Value{realPath, data, time.Now().Unix()})
 				// if flag {
 				// 	log.Println("Cached gzip ", realPath)

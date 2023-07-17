@@ -5,21 +5,22 @@ import (
 	"fast-https/modules/cache"
 	"fast-https/modules/core/listener"
 	"strconv"
-	"strings"
 )
 
 // var data = "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nHello World"
 
 func StaticEvent(lisdata listener.ListenData, path string) []byte {
-
+	if config.G_OS == "windows" {
+		path = "/" + path
+	}
 	var res []byte
 	var file_data = cache.Get_data_from_cache(path)
 
 	if file_data != nil { // Not Fount
-		path_type := strings.Split(path, ".")
 
 		head := "HTTP/1.1 200 OK\r\n"
-		head += "Content-Type: " + config.G_ContentTypeMap[path_type[len(path_type)-1]] + "\r\n"
+		head += "Server: Fast-Https\r\n"
+		head += "Content-Type: " + config.GetContentType(path) + "\r\n"
 		if lisdata.Gzip == 1 {
 			head += "Content-Encoding: gzip" + "\r\n"
 		}
@@ -39,10 +40,8 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 		file_data = cache.Get_data_from_cache(path + item)
 		if file_data != nil {
 
-			path_type := strings.Split(path, ".")
-
 			head := "HTTP/1.1 200 OK\r\n"
-			head += "Content-Type: " + config.G_ContentTypeMap[path_type[len(path_type)-1]] + "\r\n"
+			head += "Content-Type: " + config.GetContentType(path) + "\r\n"
 			if lisdata.Gzip == 1 {
 				head += "Content-Encoding: gzip" + "\r\n"
 			}
