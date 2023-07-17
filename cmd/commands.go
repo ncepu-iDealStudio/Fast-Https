@@ -1,121 +1,203 @@
 package cmd
 
-// var rootCmd = &cobra.Command{
-// 	Use:   "fast-https",
-// 	Short: "fast-https",
-// 	Long:  `A simple command line fast-https`,
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		// Start doing things.
-// 		message.Println("Start Server.....")
-// 		utils.GetWaitGroup().Add(1)
+import (
+	"bufio"
+	"fast-https/modules/core/server"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
 
-// 		// check something on here
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+)
 
-// 	},
-// }
+var string_1 string
+var string_2 string
+var string_3 string
+var string_4 string
+var count int = 0
 
-// // add a  command line parameter start
-// var startCmd = &cobra.Command{
-// 	Use:   "start",
-// 	Short: "Start the app",
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		fmt.Println("Starting app...")
-// 		// 启动程序
-// 		start()
-// 		fmt.Println("App started")
+var rootcmd = &cobra.Command{
+	Use:   color.HiYellowString("go"),
+	Short: "this is a short command",
+	Long:  color.RedString("this is a helping log"),
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		data := os.Args
+		comma := data[1]
+		if comma == "start" {
+			string_2 = "m"
+		} else if comma == "reoad" {
+			string_1 = "m"
+		} else if comma == "stop" {
+			string_3 = "m"
+		} else if comma == "status" {
+			string_4 = "m"
+		}
+	},
+	Run: Startfunc,
+}
 
-// 	},
-// }
+func Execute() {
+	rootcmd.Execute()
+}
 
-// // add a  command line parameter reload
-// var reloadCmd = &cobra.Command{
-// 	Use:   "start",
-// 	Short: "Start the app",
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		fmt.Println("Reloading app...")
-// 		// 重新载程序
-// 		reload()
-// 		fmt.Println("App Reloaded!")
+func init() {
+	// -h help帮助文档
+	rootcmd.PersistentFlags().String("reload", "", color.BlueString("Switching Processes"))
+	rootcmd.PersistentFlags().String("start", "", color.BlueString("Start process"))
+	rootcmd.PersistentFlags().String("stop", "", color.BlueString("Sop process"))
+	rootcmd.PersistentFlags().String("status", "", color.BlueString("进行读写判断"))
+}
 
-// 	},
-// }
+func Startfunc(cmd *cobra.Command, args []string) {
+	for {
+		Choose()
+		switch count {
+		case 1:
+			Reoad_func()
+			return
+		case 2:
+			Start()
+			return
+		case 3:
+			Kill()
+			return
+		case 4:
+			return
+		}
+	}
+}
 
-// // add a  command line parameter stop
-// var stopCmd = &cobra.Command{
-// 	Use:   "stop",
-// 	Short: "Stop the app",
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		fmt.Println("Stopping app...")
-// 		// 停止程序
-// 		stop()
-// 		fmt.Println("App stopped")
-// 	},
-// }
+func Reoad_func() {
+	Kill()
+	Start_test()
+}
 
-// // add a  command line parameter restart
-// var restartCmd = &cobra.Command{
-// 	Use:   "restart",
-// 	Short: "Restart the app",
-// 	Run: func(cmd *cobra.Command, args []string) {
-// 		fmt.Println("Restarting app...")
-// 		// 停止程序
-// 		stop()
-// 		// 等待一段时间
-// 		time.Sleep(1 * time.Second)
-// 		// 启动程序
-// 		start()
-// 		fmt.Println("App restarted")
-// 	},
-// }
+func Kill() {
+	file, err := os.OpenFile("fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
+	if err != nil {
+		fmt.Printf(color.BlueString("output error"))
+	} else {
+		str_1 := color.RedString("There is a process running, do you need to continue the operation (y/n):")
+		fmt.Println(str_1)
+	}
+	var scan byte
+	fmt.Scanf("%c", &scan)
+	if scan == 'y' {
 
-// // Execute adds all child commands to the root command and sets flags appropriately.
-// // This is called by main.main(). It only needs to happen once to the rootCmd.
-// func Execute1() {
-// 	rootCmd.AddCommand(startCmd, reloadCmd, stopCmd, restartCmd)
-// 	if err := rootCmd.Execute(); err != nil {
-// 		fmt.Println(err)
-// 		os.Exit(1)
-// 	}
-// 	errHelper.ErrExit(rootCmd.Execute())
-// }
+		reader1 := bufio.NewReader(file)
+		str, _ := reader1.ReadString('\n')
+		msg := strings.Trim(str, "\r\n")
+		ax, _ := strconv.Atoi(msg)
+		// ax := 21980
 
-// func init() {
-// 	//rootCmd.PersistentFlags().StringP("Port", "P", "8000", "配置文件名(注意-C为大写)")
-// 	cobra.OnInitialize(initConfig)
-// }
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
+		} else {
+			cmd = exec.Command("kill", "-9", strconv.Itoa(ax))
+		}
 
-// func initConfig() {
-// 	//port, err := rootCmd.Flags().GetString("Port")
-// 	//errHelper.ErrExit(err)
-// }
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println("Shutdown process failed:", err)
+			return
+		}
 
-// func start() {
-// 	// 这里编写启动Web服务器的代码
-// 	// 比如启动一个 HTTP 服务器
-// 	// http.ListenAndServe(":8080", nil)
-// 	go func() {
-// 		httpServer := http.Server{Addr: ":8080"} // 创建HTTP服务器
-// 		if err := httpServer.ListenAndServe(); err != nil {
-// 			fmt.Println("HTTP server stopped")
-// 		}
-// 	}()
+		fmt.Println("Process closed")
+		file.Close()
 
-// 	// 建立信号监听
-// 	signals := make(chan os.Signal, 1)
-// 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+		ioutil.WriteFile("fasthttps.pid", []byte{}, 0666)
+	} else {
+		fmt.Println("End operation")
+	}
+}
 
-// 	// 等待信号
-// 	<-signals
-// }
+func Start() {
+	Start_test()
+	return
+}
 
-// func stop() {
-// 	// 这里可以编写停止程序的代码
-// 	// 比如关闭 HTTP 服务器
-// 	// httpServer.Close()
-// }
+func Start_test() {
+	x_pid := os.Getpid()
 
-// func reload() {
-// 	// 这里可以编写停止程序的代码
-// 	// 比如关闭 HTTP 服务器
-// 	// httpServer.Close()
-// }
+	file, _ := os.OpenFile("fasthttps.pid", os.O_WRONLY|os.O_APPEND, 0666)
+
+	defer file.Close()
+	writer1 := bufio.NewWriter(file)
+	writer1.WriteString(strconv.Itoa(x_pid))
+	writer1.WriteString("\n")
+	writer1.Flush()
+	fmt.Println(color.RedString("Fast-Https running [PID]:"), x_pid)
+	// for {
+	// 	y_pid := color.BlueString(strconv.Itoa(x_pid))
+	// 	fmt.Println(y_pid)
+	// 	time.Sleep(2 * time.Second)
+	// }
+	// server.Daemon(0, 1)
+	server.Run()
+}
+
+func Choose() {
+	if string_1 == "m" {
+		count = 1
+	} else if string_2 == "m" {
+		count = 2
+	} else if string_3 == "m" {
+		count = 3
+	} else if string_4 == "m" {
+		count = 4
+	}
+}
+
+func Hot_Reoad_func() {
+	for {
+		file, err := os.OpenFile("fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
+		defer file.Close()
+
+		if err != nil {
+			fmt.Println("File search failed")
+			continue
+		}
+
+		reader1 := bufio.NewReader(file)
+		writer1 := bufio.NewWriter(file)
+
+		str_1, err := reader1.ReadString('\n')
+
+		if err != nil {
+			fmt.Println("File read failure")
+			fmt.Println(err)
+			break
+		}
+
+		msg := strings.Trim(str_1, "\r\n")
+		fmt.Println(msg)
+
+		if msg == "" {
+			count := 0
+			for {
+				writer1.WriteString("reoad\n")
+				time.Sleep(1 * time.Second)
+				count++
+				if count >= 5 {
+					break
+				}
+			}
+			writer1.Flush()
+		}
+
+		if msg == "reoad" {
+			fmt.Println("Output End")
+			break
+		} else {
+			fmt.Println("There is already data available")
+			break
+		}
+	}
+}
