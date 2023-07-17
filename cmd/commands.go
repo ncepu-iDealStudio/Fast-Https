@@ -20,6 +20,7 @@ var string_1 string
 var string_2 string
 var string_3 string
 var string_4 string
+var re_put string = "false"
 var count int = 0
 
 var rootcmd = &cobra.Command{
@@ -28,15 +29,31 @@ var rootcmd = &cobra.Command{
 	Long:  color.RedString("this is a helping log"),
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		data := os.Args
-		comma := data[1]
-		if comma == "start" {
-			string_2 = "m"
-		} else if comma == "reoad" {
-			string_1 = "m"
-		} else if comma == "stop" {
-			string_3 = "m"
-		} else if comma == "status" {
-			string_4 = "m"
+		if len(os.Args) == 1 {
+			fmt.Println(color.RedString("The input parameter is empty"))
+			fmt.Println(color.RedString("please re-enter"))
+			re_put = "true"
+			return
+		} else {
+			comma := data[1]
+			if comma == "start" {
+				string_2 = "m"
+				re_put = "false"
+			} else if comma == "reoad" {
+				re_put = "false"
+				string_1 = "m"
+			} else if comma == "stop" {
+				re_put = "false"
+				string_3 = "m"
+			} else if comma == "status" {
+				string_4 = "m"
+				re_put = "false"
+			} else {
+				fmt.Println(color.YellowString("The input parameters are incorrect"))
+				fmt.Println(color.YellowString("please re-enter"))
+				re_put = "true"
+				return
+			}
 		}
 	},
 	Run: Startfunc,
@@ -55,6 +72,9 @@ func init() {
 }
 
 func Startfunc(cmd *cobra.Command, args []string) {
+	if re_put == "true" {
+		return
+	}
 	for {
 		Choose()
 		switch count {
@@ -79,7 +99,7 @@ func Reoad_func() {
 }
 
 func Kill() {
-	file, err := os.OpenFile("fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
+	file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
 		fmt.Printf(color.BlueString("output error"))
 	} else {
@@ -112,7 +132,7 @@ func Kill() {
 		fmt.Println("Process closed")
 		file.Close()
 
-		ioutil.WriteFile("fasthttps.pid", []byte{}, 0666)
+		ioutil.WriteFile("fast-https.pid", []byte{}, 0666)
 	} else {
 		fmt.Println("End operation")
 	}
@@ -126,7 +146,7 @@ func Start() {
 func Start_test() {
 	x_pid := os.Getpid()
 
-	file, _ := os.OpenFile("fasthttps.pid", os.O_WRONLY|os.O_APPEND, 0666)
+	file, _ := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_APPEND, 0666)
 
 	defer file.Close()
 	writer1 := bufio.NewWriter(file)
@@ -157,7 +177,7 @@ func Choose() {
 
 func Hot_Reoad_func() {
 	for {
-		file, err := os.OpenFile("fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
+		file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
 		defer file.Close()
 
 		if err != nil {
@@ -200,4 +220,26 @@ func Hot_Reoad_func() {
 			break
 		}
 	}
+}
+
+func RunInBackground() {
+	filePath := "server.exe"
+	// outputFilePath := "path/to/output/file.txt"
+	cmd := exec.Command(filePath)
+	// cmd.Stdout = outputFile
+	err := cmd.Start()
+	if err != nil {
+		fmt.Println("Failed to start command:", err)
+		return
+	}
+
+	fmt.Println("Command started in the background.")
+
+	err = cmd.Wait()
+	if err != nil {
+		fmt.Println("Command execution failed:", err)
+		return
+	}
+
+	fmt.Println("Command execution completed. ")
 }

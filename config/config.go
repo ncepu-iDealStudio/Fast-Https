@@ -45,7 +45,7 @@ type Config struct {
 	HttpServer []HttpServer
 }
 
-// 定义配置结构体
+// Define Configuration Structure
 var G_config Config
 var G_ContentTypeMap map[string]string
 var G_OS = ""
@@ -63,14 +63,14 @@ func init() {
 }
 
 func expandInclude(path string) []string {
-	// 解析include语句，获取通配符部分
+	// Parse the include statement to obtain the wildcard part
 	dir, file := filepath.Split(path)
 	dir = filepath.Clean(dir)
 
-	// 查找匹配的文件
+	// Find matching files
 	matches, err := filepath.Glob(filepath.Join(dir, file))
 	if err != nil {
-		log.Printf("无法解析include语句: %v", err)
+		log.Printf("Unable to parse include statement: %v", err)
 		return nil
 	}
 
@@ -150,16 +150,16 @@ func GetContentType(path string) string {
 }
 
 func delete_extra_space(s string) string {
-	//删除字符串中的多余空格，有多个空格时，仅保留一个空格
-	s1 := strings.Replace(s, "	", " ", -1)       //替换tab为空格
-	regstr := "\\s{2,}"                          //两个及两个以上空格的正则表达式
-	reg, _ := regexp.Compile(regstr)             //编译正则表达式
-	s2 := make([]byte, len(s1))                  //定义字符数组切片
-	copy(s2, s1)                                 //将字符串复制到切片
-	spc_index := reg.FindStringIndex(string(s2)) //在字符串中搜索
-	for len(spc_index) > 0 {                     //找到适配项
-		s2 = append(s2[:spc_index[0]+1], s2[spc_index[1]:]...) //删除多余空格
-		spc_index = reg.FindStringIndex(string(s2))            //继续在字符串中搜索
+	//Remove excess spaces from the string, and when there are multiple spaces, only one space is retained
+	s1 := strings.Replace(s, "	", " ", -1)       //Replace tab with a space
+	regstr := "\\s{2,}"                          //Regular expressions with two or more spaces
+	reg, _ := regexp.Compile(regstr)             //Compiling Regular Expressions
+	s2 := make([]byte, len(s1))                  //Define character array slicing
+	copy(s2, s1)                                 //Copy String to Slice
+	spc_index := reg.FindStringIndex(string(s2)) //Search in strings
+	for len(spc_index) > 0 {                     //Find Adapt
+		s2 = append(s2[:spc_index[0]+1], s2[spc_index[1]:]...) //Remove excess spaces
+		spc_index = reg.FindStringIndex(string(s2))            //Continue searching in strings
 	}
 	return string(s2)
 }
@@ -204,32 +204,32 @@ func parseIndex(indexStr string) []string {
 func process() {
 	content, err := os.ReadFile("./config/fast-https.conf")
 	if err != nil {
-		fmt.Println("读取配置文件失败：", err)
+		fmt.Println("Failed to read configuration file：", err)
 		return
 	}
 
-	//删除注释
+	//Delete Note
 	clear_str := ""
 	for _, line := range strings.Split(string(content), "\n") {
 		clear_str += delete_comment(line) + "\n"
 	}
 
-	// 检查是否存在include语句
+	// Check if there are include statements
 	includeRe := regexp.MustCompile(`include\s+([^;]+);`)
 	matches := includeRe.FindAllStringSubmatch(clear_str, -1)
 	if matches != nil {
 		for _, match := range matches {
 			includePath := strings.TrimSpace(match[1])
 
-			// 扩展include语句
+			// Extend include statement
 			expandedPaths := expandInclude(includePath)
 
-			// 逐个读取扩展后的配置文件
+			// Read the extended configuration files one by one
 			for _, path := range expandedPaths {
 				fileContent, err := os.ReadFile(path)
 
 				if err != nil {
-					fmt.Println("读取配置文件失败：", err)
+					fmt.Println("Failed to read configuration file:", err)
 					continue
 				}
 
@@ -238,51 +238,51 @@ func process() {
 					clear_str_temp += delete_comment(line) + "\n"
 				}
 
-				// 将扩展后的配置文件内容拼接到clear_str中，用于后续解析
+				// Splice the expanded configuration file content into clear_ In str, for subsequent parsing
 				clear_str += clear_str_temp + "\n"
 			}
 		}
 	}
 
-	// 定义正则表达式
+	// Defining Regular Expressions
 	pattern := `server\s*{([^}]*)}`
 	re := regexp.MustCompile(pattern)
 
-	// 使用正则表达式解析出所有 server 块内容
+	// Parse all server block contents using regular expressions
 	matches = re.FindAllStringSubmatch(clear_str, -1)
 	if matches == nil {
-		fmt.Println("没有找到 server 块")
+		fmt.Println("Server block not found")
 		return
 	}
 
-	// 循环遍历每个 server 块
+	// Loop through each server block
 	for _, match := range matches {
 
-		// 定义 HttpServer 结构体
+		// Define the HttpServer structure
 		var server HttpServer
 
-		// 解析 server_name 字段
+		// Parsing server_ Name field
 		re = regexp.MustCompile(`server_name\s+([^;]+);`)
 		serverName := re.FindStringSubmatch(match[1])
 		if len(serverName) > 1 {
 			server.ServerName = strings.TrimSpace(serverName[1])
 		}
 
-		// 解析 listen 字段
+		// Parsing the listen field
 		re = regexp.MustCompile(`listen\s+([^;]+);`)
 		listen := re.FindStringSubmatch(match[1])
 		if len(listen) > 1 {
 			server.Listen = strings.TrimSpace(listen[1])
 		}
 
-		//解析Gzip
+		//Parsing Gzip
 		re = regexp.MustCompile(`gzip\s+([^;]+);`)
 		gzip := re.FindStringSubmatch(match[1])
 		if len(gzip) > 1 {
 			server.Gzip = 1
 		}
 
-		// 解析 ssl 和 ssl_key 字段
+		// Parsing SSL and SSL_ Key field
 		re = regexp.MustCompile(`ssl\s+([^;]+);`)
 		ssl := re.FindStringSubmatch(match[1])
 		if len(ssl) > 1 {
@@ -295,7 +295,7 @@ func process() {
 			server.Ssl_Key = strings.TrimSpace(sslKey[1])
 		}
 
-		// 解析 path 字段和static字段
+		//Parsing path and static fields
 		re = regexp.MustCompile(`path\s+(/[^{]+)`)
 		path := re.FindStringSubmatch(match[1])
 		if len(path) > 1 {
@@ -309,7 +309,7 @@ func process() {
 			server.Static.Index = parseIndex(strings.TrimSpace(staticMatches[2]))
 		}
 
-		// 解析 TCP_PROXY 和 HTTP_PROXY 字段
+		// Parsing TCP_ PROXY and HTTP_ PROXY field
 		re = regexp.MustCompile(`TCP_PROXY\s+([^;]+);`)
 		tcpProxy := re.FindStringSubmatch(match[1])
 
@@ -332,11 +332,11 @@ func process() {
 			server.PROXY_DATA = strings.TrimSpace(tcpProxy[1])
 		}
 
-		// 将解析出的 HttpServer 结构体添加到 Config 结构体中
+		// Add the parsed HttpServer structure to the Config structure
 		G_config.HttpServer = append(G_config.HttpServer, server)
 	}
 
-	// 解析 error_page 字段
+	// Parse error_ Page field
 
 	re = regexp.MustCompile(`error_page\s+(\d+)\s+([^;]+);`)
 	errorPage := re.FindStringSubmatch(string(content))
@@ -351,14 +351,14 @@ func process() {
 	//if len(errorPage) > 1 {
 	//	code, err := strconv.ParseUint(errorPage[1], 10, 8)
 	//	if err != nil {
-	//		fmt.Println("解析 error_page 中的 code 字段失败：", err)
+	//		fmt.Println("Parse error_ Code field in page failed:", err)
 	//		return
 	//	}
 	//	config.ErrorPage.Code = uint8(code)
 	//	config.ErrorPage.Path = strings.TrimSpace(errorPage[2])
 	//}
 
-	// 解析 log_root 字段
+	// Parsing logs_ Root field
 	re = regexp.MustCompile(`log_root\s+([^;]+);`)
 	logRoot := re.FindStringSubmatch(string(content))
 	if len(logRoot) > 1 {
