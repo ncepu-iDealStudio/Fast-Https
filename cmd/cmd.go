@@ -48,9 +48,9 @@ func Execute() {
 
 func init() {
 	// -h help帮助文档
-	rootcmd.PersistentFlags().String("reload", "", color.BlueString("覆写"))
-	rootcmd.PersistentFlags().String("start", "", color.BlueString("启动"))
-	rootcmd.PersistentFlags().String("stop", "", color.BlueString("停止"))
+	rootcmd.PersistentFlags().String("reload", "", color.BlueString("Switching Processes"))
+	rootcmd.PersistentFlags().String("start", "", color.BlueString("Start process"))
+	rootcmd.PersistentFlags().String("stop", "", color.BlueString("Sop process"))
 	rootcmd.PersistentFlags().String("status", "", color.BlueString("进行读写判断"))
 }
 
@@ -81,9 +81,9 @@ func Reoad_func() {
 func Kill() {
 	file, err := os.OpenFile("fasthttps.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
-		fmt.Printf(color.BlueString("输出错误"))
+		fmt.Printf(color.BlueString("output error"))
 	} else {
-		str_1 := color.RedString("有一个进程正在运行,需要继续操作吗(y/n):")
+		str_1 := color.RedString("There is a process running, do you need to continue the operation (y/n):")
 		fmt.Println(str_1)
 	}
 	var scan byte
@@ -105,16 +105,16 @@ func Kill() {
 
 		err = cmd.Run()
 		if err != nil {
-			fmt.Println("关闭进程失败:", err)
+			fmt.Println("Shutdown process failed:", err)
 			return
 		}
 
-		fmt.Println("进程已关闭")
+		fmt.Println("Process closed")
 		file.Close()
 
 		ioutil.WriteFile("fasthttps.pid", []byte{}, 0666)
 	} else {
-		fmt.Println("结束操作")
+		fmt.Println("End operation")
 	}
 }
 
@@ -133,7 +133,7 @@ func Start_test() {
 	writer1.WriteString(strconv.Itoa(x_pid))
 	writer1.WriteString("\n")
 	writer1.Flush()
-	fmt.Println(color.RedString("FastHttps running [PID]:"), x_pid)
+	fmt.Println(color.RedString("Fast-Https running [PID]:"), x_pid)
 	// for {
 	// 	y_pid := color.BlueString(strconv.Itoa(x_pid))
 	// 	fmt.Println(y_pid)
@@ -161,7 +161,7 @@ func Hot_Reoad_func() {
 		defer file.Close()
 
 		if err != nil {
-			fmt.Println("文件寻找失败")
+			fmt.Println("File search failed")
 			continue
 		}
 
@@ -171,7 +171,7 @@ func Hot_Reoad_func() {
 		str_1, err := reader1.ReadString('\n')
 
 		if err != nil {
-			fmt.Println("文件读取失败")
+			fmt.Println("File read failure")
 			fmt.Println(err)
 			break
 		}
@@ -193,10 +193,10 @@ func Hot_Reoad_func() {
 		}
 
 		if msg == "reoad" {
-			fmt.Println("输出结束")
+			fmt.Println("Output End")
 			break
 		} else {
-			fmt.Println("已经有数据")
+			fmt.Println("There is already data available")
 			break
 		}
 	}
