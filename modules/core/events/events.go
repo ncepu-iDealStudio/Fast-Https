@@ -29,16 +29,16 @@ func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 	}
 
 	byte_row, str_row := read_data(conn)
+	req, err := httpparse.HttpParse2(str_row)
+	if err == 10 {
+		write_bytes_close(conn, []byte("HTTP/1.1 404 \r\n\r\nNOTFOUNT1"))
+		goto next
+	}
+	log.Println("[Events:static]", conn.RemoteAddr(), req.Method, req.Path)
 
 	for _, item := range lis_info.Data {
 		switch item.Proxy {
 		case 0:
-			req, err := httpparse.HttpParse2(str_row)
-			if err == 10 {
-				goto next
-			}
-			log.Println("[Events:static]", conn.RemoteAddr(), req.Method, req.Path)
-
 			if req.Host == item.ServerName {
 				if strings.HasPrefix(req.Path, item.Path) {
 					if item.Path == "/" {
@@ -52,10 +52,6 @@ func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 				}
 			}
 		case 1, 2:
-			req, err := httpparse.HttpParse2(str_row)
-			if err == 10 {
-				goto next
-			}
 			if req.Host == item.ServerName {
 				if strings.HasPrefix(req.Path, item.Path) {
 					res, err := ProxyEvent(byte_row, item.Proxy_addr)
