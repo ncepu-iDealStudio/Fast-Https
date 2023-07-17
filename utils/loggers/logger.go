@@ -2,16 +2,17 @@ package loggers
 
 import (
 	"fmt"
+	"os"
+	"path"
+	"sync"
+	"time"
+
 	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/olivere/elastic/v7"
 	"github.com/rifflock/lfshook"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"gopkg.in/sohlich/elogrus.v7"
-	"os"
-	"path"
-	"sync"
-	"time"
 )
 
 var (

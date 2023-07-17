@@ -158,7 +158,7 @@ func Listen() []ListenInfo {
 }
 
 func listen(laddr string) net.Listener {
-	log.Println("[Listener:]listen", laddr)
+	// log.Println("[Listener:]listen", laddr)
 
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
@@ -168,7 +168,7 @@ func listen(laddr string) net.Listener {
 }
 
 func listenssl(laddr string, lisdata []ListenData) net.Listener {
-	log.Println("[Listener:]listen", laddr)
+	// log.Println("[Listener:]listen", laddr)
 	certs := []tls.Certificate{}
 	for _, item := range lisdata {
 		crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
@@ -176,7 +176,7 @@ func listenssl(laddr string, lisdata []ListenData) net.Listener {
 			log.Fatal("Error load " + item.SSL.SslKey + " cert")
 		}
 		certs = append(certs, crt)
-		log.Println("[Listener:]Load ssl file", item.ServerName)
+		// log.Println("[Listener:]Load ssl file", item.ServerName)
 	}
 	tlsConfig := &tls.Config{}
 	tlsConfig.Certificates = certs

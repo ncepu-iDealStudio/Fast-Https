@@ -15,7 +15,7 @@ import (
 var myMap = NewHashMap()
 
 func init() {
-	fmt.Println("-----[Fast-Https]cache init...")
+	// fmt.Println("-----[Fast-Https]cache init...")
 }
 
 // get all file-names in specific dir
@@ -48,18 +48,18 @@ func LoadAllStatic() {
 
 			for _, realPath := range dir {
 				data, _ := files.ReadFile(realPath)
-				flag := false
+				// flag := false
 				if item.Gzip == 1 {
 					data, _ = CompressBytes(data)
-					flag = true
+					// flag = true
 				}
 
 				myMap.put(Value{realPath, data, time.Now().Unix()})
-				if flag {
-					log.Println("Cached gzip ", realPath)
-				} else {
-					log.Println("Cached file ", realPath)
-				}
+				// if flag {
+				// 	log.Println("Cached gzip ", realPath)
+				// } else {
+				// 	log.Println("Cached file ", realPath)
+				// }
 
 			}
 		}

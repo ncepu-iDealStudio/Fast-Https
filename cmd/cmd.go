@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	"fast-https/modules/core/server"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -132,12 +133,14 @@ func Start_test() {
 	writer1.WriteString(strconv.Itoa(x_pid))
 	writer1.WriteString("\n")
 	writer1.Flush()
-	fmt.Println(color.RedString("进程开始运行"))
-	for {
-		y_pid := color.BlueString(strconv.Itoa(x_pid))
-		fmt.Println(y_pid)
-		time.Sleep(2 * time.Second)
-	}
+	fmt.Println(color.RedString("FastHttps running [PID]:"), x_pid)
+	// for {
+	// 	y_pid := color.BlueString(strconv.Itoa(x_pid))
+	// 	fmt.Println(y_pid)
+	// 	time.Sleep(2 * time.Second)
+	// }
+	// server.Daemon(0, 1)
+	server.Run()
 }
 
 func Choose() {

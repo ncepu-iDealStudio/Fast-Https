@@ -45,7 +45,7 @@ var G_config Config
 var G_ContentTypeMap map[string]string
 
 func init() {
-	fmt.Println("-----[Fast-Https]config init...")
+	// fmt.Println("-----[Fast-Https]config init...")
 	process()
 	ServerContentType()
 }

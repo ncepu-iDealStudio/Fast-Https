@@ -1,18 +1,18 @@
 package main
 
 import (
+	"fast-https/cmd"
 	_ "fast-https/config"
 	"fast-https/modules/cache"
-	"fast-https/modules/core/server"
 	"fast-https/service"
 )
 
 func main() {
 	cache.LoadAllStatic()
-	// cmd.Execute()
+	cmd.Execute()
 
 	service.TestService("127.0.0.1:5000")
-	server.Run()
+	// server.Run()
 
 	// cache.TestCsGzip()
 }
