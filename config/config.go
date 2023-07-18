@@ -23,6 +23,59 @@ const (
 	ZIP_GZIP_BR = 10
 )
 
+type global struct {
+	workerProcesses uint8
+}
+
+type events struct {
+	eventDrivenModel  string
+	workerConnections uint8
+}
+
+type location struct {
+	root                        string
+	index                       string
+	proxyPass                   string
+	proxySetHeaderHost          string
+	proxySetHeaderXRealIp       string
+	proxySetHeaderXForwardedFor string
+}
+
+type server struct {
+	listen            uint8
+	serverName        string
+	rewrite           string
+	deny              string
+	allow             string
+	sslCertificate    string
+	sslCertificateKey string
+	sslSessionCache   string
+	sslSessionTimeout uint8
+	clientMaxBodySize uint8
+
+	locations []location
+}
+
+type http struct {
+	include                   string // 需要包含的文件映射类型
+	defaultType               string // 默认文件类型配置
+	serverNamesHashBucketSize uint8  //服务器名字的hash表大小
+	clientHeaderBufferSize    uint8  //上传文件大小限制
+	largeClientHeaderBuffers  uint8  //设定请求缓
+	clientMaxBodySize         uint8  //设定请求缓
+	keepaliveTimeout          uint8  //连接超时时间，默认为75s，可以在http，server，location块。
+	// 开启目录列表访问,合适下载服务器,默认关闭.
+	autoIndex          string // 显示目录
+	autoIndexExactSize string // 显示文件大小 默认为on,显示出文件的确切大小,单位是bytes 改为off后,显示出文件的大概大小,单位是kB或者MB或者GB
+	autoIndexLocaltime string // 显示文件时间 默认为off,显示的文件时间为GMT时间 改为on后,显示的文件时间为文件的服务器时间
+
+	sendfile   string // 开启高效文件传输模式,sendfile指令指定nginx是否调用sendfile函数来输出文件,对于普通应用设为 on,如果用来进行下载等应用磁盘IO重负载应用,可设置为off,以平衡磁盘与网络I/O处理速度,降低系统的负载.注意：如果图片显示不正常把这个改成off.
+	tcpNopush  string // 防止网络阻塞
+	tcpNodelay string // 防止网络阻塞
+
+	server []server
+}
+
 type static struct {
 	Root  string
 	Index []string

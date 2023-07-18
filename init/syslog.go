@@ -13,6 +13,7 @@ var (
 	maxWait = 5000 // 5s
 )
 
+// monitorLog monitor log data in logChan
 func monitorLog(logChan chan string) {
 	var logData []string
 	var lastWrite time.Time
@@ -36,6 +37,7 @@ func monitorLog(logChan chan string) {
 	}
 }
 
+// writeLog  write  log to logChan
 func writeLog(logChan chan string) {
 	for i := 0; i < 100000; i++ {
 		logChan <- fmt.Sprintf("%v %v\n", time.Now().Format("2006-01-02 15:04:05"), "log message")
@@ -43,6 +45,7 @@ func writeLog(logChan chan string) {
 	}
 }
 
+// writeToFile  write  log to file
 func writeToFile(logData []string) {
 	file, err := os.OpenFile(logFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -59,6 +62,7 @@ func writeToFile(logData []string) {
 	}
 }
 
+// SysLogInit SysLog handle initial
 func SysLogInit() {
 	logChan := make(chan string, 1000)
 	go monitorLog(logChan)
