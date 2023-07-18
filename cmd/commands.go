@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bufio"
+	initialization "fast-https/init"
 	"fast-https/modules/core/server"
 	"fmt"
 	"io/ioutil"
@@ -145,12 +146,15 @@ func stopHandler() error {
 	return nil
 }
 
+// startHandler start server
 func startHandler() error {
-	StartTest()
+	Write_fast_https_pid()
+	initialization.Init()
+	server.Run()
 	return nil
 }
 
-func StartTest() {
+func Write_fast_https_pid() {
 	x_pid := os.Getpid()
 
 	file, _ := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_APPEND, 0666)
@@ -161,13 +165,6 @@ func StartTest() {
 	writer1.WriteString("\n")
 	writer1.Flush()
 	fmt.Println(color.RedString("Fast-Https running [PID]:"), x_pid)
-	// for {
-	// 	y_pid := color.BlueString(strconv.Itoa(x_pid))
-	// 	fmt.Println(y_pid)
-	// 	time.Sleep(2 * time.Second)
-	// }
-	// server.Daemon(0, 1)
-	server.Run()
 }
 
 func statusHandler() error {
