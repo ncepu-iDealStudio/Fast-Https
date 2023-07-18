@@ -16,6 +16,13 @@ const (
 	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
 )
 
+const (
+	ZIP_NONE    = 0
+	ZIP_GZIP    = 1
+	ZIP_BR      = 2
+	ZIP_GZIP_BR = 10
+)
+
 type static struct {
 	Root  string
 	Index []string
