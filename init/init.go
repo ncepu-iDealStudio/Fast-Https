@@ -22,7 +22,7 @@ func Init() *sync.WaitGroup {
 	}
 
 	// logger object initial
-	LoggerInit(viper.GetString("log.type"))
+	//LoggerInit(viper.GetString("log.type"))
 
 	// sysLog  initial
 	SysLogInit()
