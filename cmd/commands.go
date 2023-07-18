@@ -18,6 +18,7 @@ import (
 
 var data []string
 
+// Command Structure Definition
 type command struct {
 	name        string
 	description string
@@ -25,6 +26,7 @@ type command struct {
 }
 
 var (
+	// Command structure initialization
 	reloadFlag string
 	startFlag  string
 	stopFlag   string
@@ -53,6 +55,7 @@ var (
 	}
 )
 
+// Root command parameters are methods
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          color.HiYellowString("go"),
@@ -60,11 +63,13 @@ func RootCmd() *cobra.Command {
 		Long:         color.RedString("This is a help log"),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Read terminal input
 			data = os.Args
 			return runCommand(data)
 		},
 	}
 
+	// Read terminal input
 	for _, c := range commands {
 		cmd.PersistentFlags().String(c.name, "", color.BlueString(c.description))
 	}
@@ -72,13 +77,16 @@ func RootCmd() *cobra.Command {
 	return cmd
 }
 
+// Read terminal input
 func runCommand(args []string) error {
+	// missing parameter
 	if len(data) == 1 {
 		fmt.Println(color.RedString("Input is missing a parameter"))
 		fmt.Println(color.RedString("Please re-enter"))
 		return nil
 	}
 
+	// Correct command usage
 	var found bool
 	for _, c := range commands {
 		if data[1] == c.name {
@@ -90,6 +98,7 @@ func runCommand(args []string) error {
 		}
 	}
 
+	// Irregular commands
 	if !found {
 		fmt.Println(color.YellowString("The input command is not a valid command"))
 		fmt.Println(color.YellowString("Please re-enter"))
@@ -99,12 +108,14 @@ func runCommand(args []string) error {
 	return nil
 }
 
+// reloadHandler reload server
 func reloadHandler() error {
 	stopHandler()
 	startHandler()
 	return nil
 }
 
+// stopHandler stop server
 func stopHandler() error {
 	file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
@@ -155,6 +166,7 @@ func startHandler() error {
 }
 
 func Write_fast_https_pid() {
+	// Obtain the pid and store it
 	x_pid := os.Getpid()
 
 	file, _ := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_APPEND, 0666)
