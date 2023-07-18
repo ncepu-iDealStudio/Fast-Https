@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	rootcmd := cmd.NewRootCmd()
+	rootcmd := cmd.RootCmd()
 	cache.LoadAllStatic()
 	rootcmd.Execute()
 }
