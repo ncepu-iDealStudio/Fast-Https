@@ -3,6 +3,7 @@ package config
 import (
 	"fast-https/utils/files"
 	"fmt"
+	"github.com/kr/pretty"
 	"log"
 	"os"
 	"path/filepath"
@@ -55,9 +56,9 @@ type Path struct {
 type Server struct {
 	Listen            string
 	ServerName        string
-	Path              []Path
 	SSLCertificate    string
 	SSLCertificateKey string
+	Path              []Path
 }
 
 type Fast_Https struct {
@@ -247,7 +248,7 @@ func contains(slice []string, str string) bool {
 }
 
 func process() {
-	content, err := os.ReadFile("./config/fast-https.conf")
+	content, err := os.ReadFile("./config/fast-https-test.conf")
 	if err != nil {
 		fmt.Println("Failed to read configuration file：", err)
 		return
@@ -322,62 +323,33 @@ func process() {
 			server.Listen = strings.TrimSpace(listen[1])
 		}
 
-		//Parsing Zip
-		//re = regexp.MustCompile(`zip\s+([^;]+);`)
-		//zip := re.FindStringSubmatch(match[1])
-		//if len(zip) > 1 {
+		//zipRe := regexp.MustCompile(`zip\s+([^;]+);`)
 		//
-		//	//re = regexp.MustCompile(`gzip\s+([^;]+);`)
-		//	//gzip := re.FindStringSubmatch(match[1])
-		//	//
-		//	//re = regexp.MustCompile(`br\s+([^;]+);`)
-		//	//br := re.FindStringSubmatch(match[1])
-		//	zipValues := strings.Fields(strings.TrimSpace(zip[1]))
-		//	if len(zipValues) > 1 {
-		//		fmt.Println(zipValues)
-		//		if contains(zipValues, "gzip") && contains(zipValues, "br") {
-		//			server.Zip = 10
-		//		} else if contains(zipValues, "gzip") {
-		//			server.Zip = 1
-		//		} else if contains(zipValues, "br") {
-		//			server.Zip = 2
-		//		}
+		//// Loop through each server block
+		//// Find zip directive in the server block
+		//zipMatch := zipRe.FindStringSubmatch(match[1])
+		////fmt.Println(zipMatch, "11111111111111111111111111111111111111")
+		//if len(zipMatch) > 1 {
+		//	if zipMatch[1] == "gzip br" {
+		//		server.Zip = 10
+		//	} else if zipMatch[1] == "br" {
+		//		server.Zip = 2
+		//	} else if zipMatch[1] == "gzip" {
+		//		server.Zip = 1
 		//	}
-		//
 		//}
-		//------------------------------------------------------------------------------------------------------------------------------
-		zipRe := regexp.MustCompile(`zip\s+([^;]+);`)
 
-		// Loop through each server block
-		// Find zip directive in the server block
-		zipMatch := zipRe.FindStringSubmatch(match[1])
-		//fmt.Println(zipMatch, "11111111111111111111111111111111111111")
-		if len(zipMatch) > 1 {
-			if zipMatch[1] == "gzip br" {
-				server.Zip = 10
-			} else if zipMatch[1] == "br" {
-				server.Zip = 2
-			} else if zipMatch[1] == "gzip" {
-				server.Zip = 1
-			}
-		}
-
-		// Determine the value of zip based on the presence of gzip and br directives
-
-		// Define the HttpServer structure with the zip value
-
-		//-----------------------------------------------------------------------------------------------------------
 		// Parsing SSL and SSL_ Key field
-		re = regexp.MustCompile(`ssl\s+([^;]+);`)
+		re = regexp.MustCompile(`ssl_certificate\s+([^;]+);`)
 		ssl := re.FindStringSubmatch(match[1])
 		if len(ssl) > 1 {
-			server.Ssl = strings.TrimSpace(ssl[1])
+			server.SSLCertificate = strings.TrimSpace(ssl[1])
 		}
 
-		re = regexp.MustCompile(`ssl_key\s+([^;]+);`)
+		re = regexp.MustCompile(`ssl_certificate_key\s+([^;]+);`)
 		sslKey := re.FindStringSubmatch(match[1])
 		if len(sslKey) > 1 {
-			server.Ssl_Key = strings.TrimSpace(sslKey[1])
+			server.SSLCertificateKey = strings.TrimSpace(sslKey[1])
 		}
 
 		//re := regexp.MustCompile(`(?s)path\s+(\S+)\s+{.*?}`)
@@ -442,11 +414,12 @@ func process() {
 		//			server.Path = append(server.Path, p)
 		//		}
 
-		rootPattern := `root\s+([^;]+)`
-		indexPattern := `index\s+([^;]+)`
-		rootRe := regexp.MustCompile(rootPattern)
-		indexRe := regexp.MustCompile(indexPattern)
+		zipRe := regexp.MustCompile(`zip\s+([^;]+);`)
+		rootRe := regexp.MustCompile(`root\s+([^;]+)`)
+		indexRe := regexp.MustCompile(`index\s+([^;]+)`)
 		re = regexp.MustCompile(`path\s+(\S+)\s*{([^}]*)}`)
+
+		zipMatch := zipRe.FindStringSubmatch(match[1])
 
 		server_clear_str := ""
 		for _, line := range strings.Split(match[1], "\n") {
@@ -456,47 +429,80 @@ func process() {
 		paths := re.FindAllStringSubmatch(server_clear_str, -1)
 		for _, path := range paths {
 			var p Path
-			p.Path_name = strings.TrimSpace(path[1])
-			if p.Path_name == "" {
-				p.Path_name = "/"
+			p.PathName = strings.TrimSpace(path[1])
+			if p.PathName == "" {
+				p.PathName = "/"
 			}
-			p.Root = strings.TrimSpace(rootRe.FindStringSubmatch(path[2])[1])
-			p.Index = strings.Fields(strings.TrimSpace(indexRe.FindStringSubmatch(path[2])[1]))
+
+			if len(zipMatch) > 1 {
+				if zipMatch[1] == "gzip br" || zipMatch[1] == "br gzip" {
+					p.Zip = 10
+				} else if zipMatch[1] == "br" {
+					p.Zip = 2
+				} else if zipMatch[1] == "gzip" {
+					p.Zip = 1
+				}
+			}
+
+			//re = regexp.MustCompile(`proxy_http\s+([^;]+)`)
+			//httpProxy := re.FindStringSubmatch(match[1])
+			//if len(httpProxy) > 1 {
+			//	p.PathType = 1
+			//	p.ProxyData = strings.TrimSpace(httpProxy[1])
+			//}
+
+			re = regexp.MustCompile(`proxy_tcp\s+([^;]+)`)
+			if len(re.FindStringSubmatch(path[2])) > 1 {
+				p.PathType = 3
+				p.ProxyData = strings.TrimSpace(re.FindStringSubmatch(path[2])[1])
+			}
+
+			re = regexp.MustCompile(`proxy_http\s+([^;]+)`)
+			if len(re.FindStringSubmatch(path[2])) > 1 {
+				p.PathType = 1
+				p.ProxyData = strings.TrimSpace(re.FindStringSubmatch(path[2])[1])
+			}
+			//re = regexp.MustCompile(`proxy_https\s+([^;]+)`)
+			//httpsProxy := re.FindStringSubmatch(match[1])
+			//if len(httpsProxy) > 1 {
+			//	p.PathType = 2
+			//	p.ProxyData = strings.TrimSpace(httpsProxy[1])
+			//}
+			re = regexp.MustCompile(`proxy_http\s+([^;]+)`)
+			if len(re.FindStringSubmatch(path[2])) > 1 {
+				p.PathType = 2
+				p.ProxyData = strings.TrimSpace(re.FindStringSubmatch(path[2])[1])
+			}
+
+			//tcpProxy := re.FindStringSubmatch(match[1])
+			//if len(tcpProxy) > 1 {
+			//	p.PathType = 3
+			//	p.ProxyData = strings.TrimSpace(tcpProxy[1])
+			//}
+
+			if len(rootRe.FindStringSubmatch(path[2])) > 1 {
+				p.Root = strings.TrimSpace(rootRe.FindStringSubmatch(path[2])[1])
+			}
+
+			if len(indexRe.FindStringSubmatch(path[2])) > 1 {
+				p.Index = strings.Fields(strings.TrimSpace(indexRe.FindStringSubmatch(path[2])[1]))
+
+			}
+
 			server.Path = append(server.Path, p)
 		}
 
 		// Parsing TCP_ PROXY and HTTP_ PROXY field
-		re = regexp.MustCompile(`TCP_PROXY\s+([^;]+);`)
-		tcpProxy := re.FindStringSubmatch(match[1])
-
-		re = regexp.MustCompile(`HTTP_PROXY\s+([^;]+);`)
-		httpProxy := re.FindStringSubmatch(match[1])
-		if len(httpProxy) > 1 {
-			server.PROXY_TYPE = 1
-			server.PROXY_DATA = strings.TrimSpace(httpProxy[1])
-		}
-
-		re = regexp.MustCompile(`HTTPS_PROXY\s+([^;]+);`)
-		httpsProxy := re.FindStringSubmatch(match[1])
-		if len(httpsProxy) > 1 {
-			server.PROXY_TYPE = 2
-			server.PROXY_DATA = strings.TrimSpace(httpsProxy[1])
-		}
-
-		if len(tcpProxy) > 1 {
-			server.PROXY_TYPE = 3
-			server.PROXY_DATA = strings.TrimSpace(tcpProxy[1])
-		}
 
 		// Add the parsed HttpServer structure to the Config structure
 		fast_https.Server = append(fast_https.Server, server)
 	}
-	// each server end----------------------------------------------------------
+	// each server end
 	// Parse error_ Page field
 
 	re = regexp.MustCompile(`error_page\s+(\d+)\s+([^;]+);`)
 	errorPage := re.FindStringSubmatch(string(content))
-	if len(errorPage) > 1 {
+	if len(errorPage) >= 1 {
 		//config.ErrorPage.Code = uint8(errorPage[1])
 		temp, _ := strconv.Atoi(errorPage[1])
 		fast_https.ErrorPage.Code = uint8(temp)
@@ -505,12 +511,13 @@ func process() {
 
 	re = regexp.MustCompile(`log_root\s+([^;]+);`)
 	logRoot := re.FindStringSubmatch(string(content))
-	if len(logRoot) > 1 {
+	if len(logRoot) >= 1 {
 		fast_https.LogRoot = strings.TrimSpace(logRoot[1])
 	}
 
 	//fmt.Println(fast_https.Server[1].Path)
 	//fmt.Println(fast_https.Server[0].Zip, fast_https.Server[1].Zip)
 
-	fmt.Printf("%+v\n", fast_https)
+	//fmt.Printf("%+v\n", fast_https)
+	pretty.Print(fast_https)
 }
