@@ -38,30 +38,26 @@ type ErrorPath struct {
 }
 
 type Path struct {
-	Path_name string
-	Root      string
-	Index     []string
-
-	ProxyPass                   string
+	PathName                    string
+	PathType                    uint8
+	Zip                         uint8
+	Root                        string // static file  pathtype = 0
+	Index                       []string
+	Rewrite                     string // rewrite	   pathtype = 4
+	ProxyData                   string // Proxy	       pathtype = 1, 2
 	ProxySetHeaderHost          string
 	ProxySetHeaderXRealIp       string
 	ProxySetHeaderXForwardedFor string
+	Deny                        string
+	Allow                       string
 }
 
 type Server struct {
-	Listen     string
-	ServerName string
-	Path       []Path
-	Ssl        string
-	Ssl_Key    string
-	Zip        uint8
-
-	PROXY_TYPE uint8
-	PROXY_DATA string
-
-	Rewrite string
-	Deny    string
-	Allow   string
+	Listen            string
+	ServerName        string
+	Path              []Path
+	SSLCertificate    string
+	SSLCertificateKey string
 }
 
 type Fast_Https struct {
@@ -71,19 +67,17 @@ type Fast_Https struct {
 
 	Include                   string // 需要包含的文件映射类型
 	DefaultType               string // 默认文件类型配置
-	ServerNamesHashBucketSize uint8  //服务器名字的hash表大小
-	ClientHeaderBufferSize    uint8  //上传文件大小限制
-	LargeClientHeaderBuffers  uint8  //设定请求缓
-	ClientMaxBodySize         uint8  //设定请求缓
-	KeepaliveTimeout          uint8  //连接超时时间，默认为75s，可以在http，server，location块。
-	// 开启目录列表访问,合适下载服务器,默认关闭.
-	AutoIndex          string // 显示目录
-	AutoIndexExactSize string // 显示文件大小 默认为on,显示出文件的确切大小,单位是bytes 改为off后,显示出文件的大概大小,单位是kB或者MB或者GB
-	AutoIndexLocaltime string // 显示文件时间 默认为off,显示的文件时间为GMT时间 改为on后,显示的文件时间为文件的服务器时间
-
-	Sendfile   string // 开启高效文件传输模式,sendfile指令指定nginx是否调用sendfile函数来输出文件,对于普通应用设为 on,如果用来进行下载等应用磁盘IO重负载应用,可设置为off,以平衡磁盘与网络I/O处理速度,降低系统的负载.注意：如果图片显示不正常把这个改成off.
-	TcpNopush  string // 防止网络阻塞
-	TcpNodelay string // 防止网络阻塞
+	ServerNamesHashBucketSize uint8  // 服务器名字的hash表大小
+	ClientHeaderBufferSize    uint8  // 上传文件大小限制
+	LargeClientHeaderBuffers  uint8  // 设定请求缓
+	ClientMaxBodySize         uint8  // 设定请求缓
+	KeepaliveTimeout          uint8  // 连接超时时间，默认为75s，可以在http，server，location块。
+	AutoIndex                 string // 显示目录
+	AutoIndexExactSize        string // 显示文件大小 默认为on,显示出文件的确切大小,单位是bytes 改为off后,显示出文件的大概大小,单位是kB或者MB或者GB
+	AutoIndexLocaltime        string // 显示文件时间 默认为off,显示的文件时间为GMT时间 改为on后,显示的文件时间为文件的服务器时间
+	Sendfile                  string // 开启高效文件传输模式,sendfile指令指定nginx是否调用sendfile函数来输出文件,对于普通应用设为 on,如果用来进行下载等应用磁盘IO重负载应用,可设置为off,以平衡磁盘与网络I/O处理速度,降低系统的负载.注意：如果图片显示不正常把这个改成off.
+	TcpNopush                 string // 防止网络阻塞
+	TcpNodelay                string // 防止网络阻塞
 
 }
 
@@ -358,13 +352,16 @@ func process() {
 		// Find zip directive in the server block
 		zipMatch := zipRe.FindStringSubmatch(match[1])
 		//fmt.Println(zipMatch, "11111111111111111111111111111111111111")
-		if zipMatch[1] == "gzip br" {
-			server.Zip = 10
-		} else if zipMatch[1] == "br" {
-			server.Zip = 2
-		} else if zipMatch[1] == "gzip" {
-			server.Zip = 1
+		if len(zipMatch) > 1 {
+			if zipMatch[1] == "gzip br" {
+				server.Zip = 10
+			} else if zipMatch[1] == "br" {
+				server.Zip = 2
+			} else if zipMatch[1] == "gzip" {
+				server.Zip = 1
+			}
 		}
+
 		// Determine the value of zip based on the presence of gzip and br directives
 
 		// Define the HttpServer structure with the zip value
