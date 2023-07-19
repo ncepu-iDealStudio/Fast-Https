@@ -32,81 +32,63 @@ type events struct {
 	workerConnections uint8
 }
 
-type location struct {
-	root                        string
-	index                       string
-	proxyPass                   string
-	proxySetHeaderHost          string
-	proxySetHeaderXRealIp       string
-	proxySetHeaderXForwardedFor string
-}
-
-type server struct {
-	listen            uint8
-	serverName        string
-	rewrite           string
-	deny              string
-	allow             string
-	sslCertificate    string
-	sslCertificateKey string
-	sslSessionCache   string
-	sslSessionTimeout uint8
-	clientMaxBodySize uint8
-
-	locations []location
-}
-
-type http struct {
-	include                   string // 需要包含的文件映射类型
-	defaultType               string // 默认文件类型配置
-	serverNamesHashBucketSize uint8  //服务器名字的hash表大小
-	clientHeaderBufferSize    uint8  //上传文件大小限制
-	largeClientHeaderBuffers  uint8  //设定请求缓
-	clientMaxBodySize         uint8  //设定请求缓
-	keepaliveTimeout          uint8  //连接超时时间，默认为75s，可以在http，server，location块。
-	// 开启目录列表访问,合适下载服务器,默认关闭.
-	autoIndex          string // 显示目录
-	autoIndexExactSize string // 显示文件大小 默认为on,显示出文件的确切大小,单位是bytes 改为off后,显示出文件的大概大小,单位是kB或者MB或者GB
-	autoIndexLocaltime string // 显示文件时间 默认为off,显示的文件时间为GMT时间 改为on后,显示的文件时间为文件的服务器时间
-
-	sendfile   string // 开启高效文件传输模式,sendfile指令指定nginx是否调用sendfile函数来输出文件,对于普通应用设为 on,如果用来进行下载等应用磁盘IO重负载应用,可设置为off,以平衡磁盘与网络I/O处理速度,降低系统的负载.注意：如果图片显示不正常把这个改成off.
-	tcpNopush  string // 防止网络阻塞
-	tcpNodelay string // 防止网络阻塞
-
-	server []server
-}
-
-type static struct {
-	Root  string
-	Index []string
-}
-
 type ErrorPath struct {
 	Code uint8
 	Path string
 }
 
-type HttpServer struct {
+type Path struct {
+	Path_name string
+	Root      string
+	Index     []string
+
+	ProxyPass                   string
+	ProxySetHeaderHost          string
+	ProxySetHeaderXRealIp       string
+	ProxySetHeaderXForwardedFor string
+}
+
+type Server struct {
 	Listen     string
 	ServerName string
-	Static     static
-	Path       string
+	Path       []Path
 	Ssl        string
 	Ssl_Key    string
-	Gzip       uint8
+	Zip        uint8
 
 	PROXY_TYPE uint8
 	PROXY_DATA string
+
+	Rewrite string
+	Deny    string
+	Allow   string
 }
 
-type Config struct {
-	ErrorPage  ErrorPath
-	LogRoot    string
-	HttpServer []HttpServer
+type Fast_Https struct {
+	ErrorPage ErrorPath
+	LogRoot   string
+	Server    []Server
+
+	Include                   string // 需要包含的文件映射类型
+	DefaultType               string // 默认文件类型配置
+	ServerNamesHashBucketSize uint8  //服务器名字的hash表大小
+	ClientHeaderBufferSize    uint8  //上传文件大小限制
+	LargeClientHeaderBuffers  uint8  //设定请求缓
+	ClientMaxBodySize         uint8  //设定请求缓
+	KeepaliveTimeout          uint8  //连接超时时间，默认为75s，可以在http，server，location块。
+	// 开启目录列表访问,合适下载服务器,默认关闭.
+	AutoIndex          string // 显示目录
+	AutoIndexExactSize string // 显示文件大小 默认为on,显示出文件的确切大小,单位是bytes 改为off后,显示出文件的大概大小,单位是kB或者MB或者GB
+	AutoIndexLocaltime string // 显示文件时间 默认为off,显示的文件时间为GMT时间 改为on后,显示的文件时间为文件的服务器时间
+
+	Sendfile   string // 开启高效文件传输模式,sendfile指令指定nginx是否调用sendfile函数来输出文件,对于普通应用设为 on,如果用来进行下载等应用磁盘IO重负载应用,可设置为off,以平衡磁盘与网络I/O处理速度,降低系统的负载.注意：如果图片显示不正常把这个改成off.
+	TcpNopush  string // 防止网络阻塞
+	TcpNodelay string // 防止网络阻塞
+
 }
 
 // Define Configuration Structure
-var G_config Config
+var fast_https Fast_Https
 var G_ContentTypeMap map[string]string
 var G_OS = ""
 
@@ -261,6 +243,15 @@ func parseIndex(indexStr string) []string {
 	return index
 }
 
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
 func process() {
 	content, err := os.ReadFile("./config/fast-https.conf")
 	if err != nil {
@@ -279,6 +270,7 @@ func process() {
 	matches := includeRe.FindAllStringSubmatch(clear_str, -1)
 	if matches != nil {
 		for _, match := range matches {
+
 			includePath := strings.TrimSpace(match[1])
 
 			// Extend include statement
@@ -305,7 +297,7 @@ func process() {
 	}
 
 	// Defining Regular Expressions
-	pattern := `server\s*{([^}]*)}`
+	pattern := `server\s*{([^{}]*(?:{[^{}]*}[^{}]*)*)}`
 	re := regexp.MustCompile(pattern)
 
 	// Parse all server block contents using regular expressions
@@ -316,10 +308,11 @@ func process() {
 	}
 
 	// Loop through each server block
+
 	for _, match := range matches {
 
 		// Define the HttpServer structure
-		var server HttpServer
+		var server Server
 
 		// Parsing server_ Name field
 		re = regexp.MustCompile(`server_name\s+([^;]+);`)
@@ -335,13 +328,48 @@ func process() {
 			server.Listen = strings.TrimSpace(listen[1])
 		}
 
-		//Parsing Gzip
-		re = regexp.MustCompile(`gzip\s+([^;]+);`)
-		gzip := re.FindStringSubmatch(match[1])
-		if len(gzip) > 1 {
-			server.Gzip = 1
-		}
+		//Parsing Zip
+		//re = regexp.MustCompile(`zip\s+([^;]+);`)
+		//zip := re.FindStringSubmatch(match[1])
+		//if len(zip) > 1 {
+		//
+		//	//re = regexp.MustCompile(`gzip\s+([^;]+);`)
+		//	//gzip := re.FindStringSubmatch(match[1])
+		//	//
+		//	//re = regexp.MustCompile(`br\s+([^;]+);`)
+		//	//br := re.FindStringSubmatch(match[1])
+		//	zipValues := strings.Fields(strings.TrimSpace(zip[1]))
+		//	if len(zipValues) > 1 {
+		//		fmt.Println(zipValues)
+		//		if contains(zipValues, "gzip") && contains(zipValues, "br") {
+		//			server.Zip = 10
+		//		} else if contains(zipValues, "gzip") {
+		//			server.Zip = 1
+		//		} else if contains(zipValues, "br") {
+		//			server.Zip = 2
+		//		}
+		//	}
+		//
+		//}
+		//------------------------------------------------------------------------------------------------------------------------------
+		zipRe := regexp.MustCompile(`zip\s+([^;]+);`)
 
+		// Loop through each server block
+		// Find zip directive in the server block
+		zipMatch := zipRe.FindStringSubmatch(match[1])
+		//fmt.Println(zipMatch, "11111111111111111111111111111111111111")
+		if zipMatch[1] == "gzip br" {
+			server.Zip = 10
+		} else if zipMatch[1] == "br" {
+			server.Zip = 2
+		} else if zipMatch[1] == "gzip" {
+			server.Zip = 1
+		}
+		// Determine the value of zip based on the presence of gzip and br directives
+
+		// Define the HttpServer structure with the zip value
+
+		//-----------------------------------------------------------------------------------------------------------
 		// Parsing SSL and SSL_ Key field
 		re = regexp.MustCompile(`ssl\s+([^;]+);`)
 		ssl := re.FindStringSubmatch(match[1])
@@ -355,18 +383,89 @@ func process() {
 			server.Ssl_Key = strings.TrimSpace(sslKey[1])
 		}
 
-		//Parsing path and static fields
-		re = regexp.MustCompile(`path\s+(/[^{]+)`)
-		path := re.FindStringSubmatch(match[1])
-		if len(path) > 1 {
-			server.Path = strings.TrimSpace(path[1])
+		//re := regexp.MustCompile(`(?s)path\s+(\S+)\s+{.*?}`)
+		//
+		//if len(matches) < 2 {
+		//	//return nil, fmt.Errorf("Path字段未找到")
+		//}
+		//pathStr := matches[1]
+		//paths := strings.Split(pathStr, "\n")
+		//for _, p := range paths {
+		//	pathValue := strings.TrimSpace(p)
+		//	if pathValue != "" {
+		//		config.Path = append(config.Path, pathValue)
+		//	}
+		//}
+		//
+		//// 正则表达式匹配Index字段
+		//re = regexp.MustCompile(`index\s+(\S+);`)
+		//matches = re.FindStringSubmatch(fileContent)
+		//if len(matches) < 2 {
+		//	return nil, fmt.Errorf("Index字段未找到")
+		//}
+		//config.Index = matches[1]
+		//
+		//// 正则表达式匹配Root字段
+		//re = regexp.MustCompile(`root\s+(\S+);`)
+		//matches = re.FindStringSubmatch(fileContent)
+		//if len(matches) < 2 {
+		//	return nil, fmt.Errorf("Root字段未找到")
+		//}
+		//config.Root = matches[1]
+
+		//pathPattern := `path\s+([^{]+){([^}]*)}`
+		//rootPattern := `root\s+([^;]+);`
+		//indexPattern := `index\s+([^;]+);`
+		//rootRe := regexp.MustCompile(rootPattern)
+		//indexRe := regexp.MustCompile(indexPattern)
+		//pathRe := regexp.MustCompile(pathPattern)
+		//
+		//paths := pathRe.FindAllStringSubmatch(match[1], -1)
+		//for _, path := range paths {
+		//	var p Path
+		//	p.Path_name = strings.TrimSpace(path[1])
+		//	p.Root = strings.TrimSpace(rootRe.FindStringSubmatch(path[2])[1])
+		//	p.Index = strings.Fields(strings.TrimSpace(indexRe.FindStringSubmatch(path[2])[1]))
+		//	server.Path = append(server.Path, p)
+		//}
+		//||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//		pathPattern := `path\s+([^{\s]+)?\s*{([^}]*)}`
+		//		pathRe := regexp.MustCompile(pathPattern)
+		//
+		//		paths := pathRe.FindAllStringSubmatch(match[1], -1)
+		//		for _, path := range paths {
+		//			var p Path
+		//			p.Path_name = strings.TrimSpace(path[1])
+		//			if p.Path_name == "" {
+		//				p.Path_name = "/"
+		//			}
+		//			p.Root = strings.TrimSpace(rootRe.FindStringSubmatch(path[2])[1])
+		//			p.Index = strings.Fields(strings.TrimSpace(indexRe.FindStringSubmatch(path[2])[1]))
+		//
+		//			server.Path = append(server.Path, p)
+		//		}
+
+		rootPattern := `root\s+([^;]+)`
+		indexPattern := `index\s+([^;]+)`
+		rootRe := regexp.MustCompile(rootPattern)
+		indexRe := regexp.MustCompile(indexPattern)
+		re = regexp.MustCompile(`path\s+(\S+)\s*{([^}]*)}`)
+
+		server_clear_str := ""
+		for _, line := range strings.Split(match[1], "\n") {
+			server_clear_str += delete_comment(line) + "\n"
 		}
 
-		re = regexp.MustCompile(`path\s+/[^{]+{[^}]*root\s+([^;]+);[^}]*index\s+([^;]+);`)
-		staticMatches := re.FindStringSubmatch(match[1])
-		if len(staticMatches) > 2 {
-			server.Static.Root = strings.TrimSpace(staticMatches[1])
-			server.Static.Index = parseIndex(strings.TrimSpace(staticMatches[2]))
+		paths := re.FindAllStringSubmatch(server_clear_str, -1)
+		for _, path := range paths {
+			var p Path
+			p.Path_name = strings.TrimSpace(path[1])
+			if p.Path_name == "" {
+				p.Path_name = "/"
+			}
+			p.Root = strings.TrimSpace(rootRe.FindStringSubmatch(path[2])[1])
+			p.Index = strings.Fields(strings.TrimSpace(indexRe.FindStringSubmatch(path[2])[1]))
+			server.Path = append(server.Path, p)
 		}
 
 		// Parsing TCP_ PROXY and HTTP_ PROXY field
@@ -393,9 +492,9 @@ func process() {
 		}
 
 		// Add the parsed HttpServer structure to the Config structure
-		G_config.HttpServer = append(G_config.HttpServer, server)
+		fast_https.Server = append(fast_https.Server, server)
 	}
-
+	// each server end----------------------------------------------------------
 	// Parse error_ Page field
 
 	re = regexp.MustCompile(`error_page\s+(\d+)\s+([^;]+);`)
@@ -403,28 +502,18 @@ func process() {
 	if len(errorPage) > 1 {
 		//config.ErrorPage.Code = uint8(errorPage[1])
 		temp, _ := strconv.Atoi(errorPage[1])
-		G_config.ErrorPage.Code = uint8(temp)
-		G_config.ErrorPage.Path = strings.TrimSpace(errorPage[2])
+		fast_https.ErrorPage.Code = uint8(temp)
+		fast_https.ErrorPage.Path = strings.TrimSpace(errorPage[2])
 	}
-	//re = regexp.MustCompile(`error_page\s+(\d+)\s+([^;]+);`)
-	//errorPage := re.FindStringSubmatch(string(content))
-	//if len(errorPage) > 1 {
-	//	code, err := strconv.ParseUint(errorPage[1], 10, 8)
-	//	if err != nil {
-	//		fmt.Println("Parse error_ Code field in page failed:", err)
-	//		return
-	//	}
-	//	config.ErrorPage.Code = uint8(code)
-	//	config.ErrorPage.Path = strings.TrimSpace(errorPage[2])
-	//}
 
-	// Parsing logs_ Root field
 	re = regexp.MustCompile(`log_root\s+([^;]+);`)
 	logRoot := re.FindStringSubmatch(string(content))
 	if len(logRoot) > 1 {
-		G_config.LogRoot = strings.TrimSpace(logRoot[1])
+		fast_https.LogRoot = strings.TrimSpace(logRoot[1])
 	}
-	// fmt.Println(G_config)
 
-	// fmt.Printf("%+v\n", G_config)
+	//fmt.Println(fast_https.Server[1].Path)
+	//fmt.Println(fast_https.Server[0].Zip, fast_https.Server[1].Zip)
+
+	fmt.Printf("%+v\n", fast_https)
 }
