@@ -66,7 +66,7 @@ func initMsgHandler() {
 		log.Infoln(args)
 		var err error
 		for _, arg := range args {
-			_, err = fmt.Fprint(os.Stdout, arg)
+			_, err = fmt.Fprintln(os.Stdout, arg)
 			if err != nil {
 				return err
 			}
@@ -78,7 +78,7 @@ func initMsgHandler() {
 		log.Errorln(args)
 		var err error
 		for _, arg := range args {
-			_, err = fmt.Fprint(os.Stderr, arg)
+			_, err = fmt.Fprintln(os.Stderr, arg)
 			if err != nil {
 				return err
 			}
@@ -90,7 +90,7 @@ func initMsgHandler() {
 		log.Warnln(args)
 		var err error
 		for _, arg := range args {
-			_, err = fmt.Fprintf(os.Stdout, "\\033[1;37;40m%s\\033[0m\\n", arg)
+			_, err = fmt.Fprintln(os.Stdout, "\\033[1;37;40m%s\\033[0m\\n", arg)
 			if err != nil {
 				return err
 			}

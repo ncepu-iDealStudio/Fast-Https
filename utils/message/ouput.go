@@ -14,11 +14,11 @@ type message struct {
 	Type    string
 }
 
-func Println(a ...interface{}) {
+func PrintInfo(a ...interface{}) {
 	if rwMutex.TryRLock() {
 		defer rwMutex.RUnlock()
 		outputChan.In <- message{
-			Context: fmt.Sprintln(a...),
+			Context: fmt.Sprint(a...),
 			Type:    "info",
 		}
 	}
@@ -28,7 +28,7 @@ func PrintWarn(a ...interface{}) {
 	if rwMutex.TryRLock() {
 		defer rwMutex.RUnlock()
 		outputChan.In <- message{
-			Context: fmt.Sprintln(a...),
+			Context: fmt.Sprint(a...),
 			Type:    "warn",
 		}
 	}
@@ -38,7 +38,7 @@ func PrintErr(a ...interface{}) {
 	if rwMutex.TryRLock() {
 		defer rwMutex.RUnlock()
 		outputChan.In <- message{
-			Context: fmt.Sprintln(a...),
+			Context: fmt.Sprint(a...),
 			Type:    "err",
 		}
 	}
