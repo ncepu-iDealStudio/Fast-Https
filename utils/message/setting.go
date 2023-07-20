@@ -64,37 +64,16 @@ func initMsgHandler() {
 	AddMsgHandler("info", func(args ...any) error {
 		var log = loggers.GetLogger()
 		log.Infoln(args)
-		var err error
-		for _, arg := range args {
-			_, err = fmt.Fprintln(os.Stdout, arg)
-			if err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 	AddMsgHandler("err", func(args ...any) error {
 		var log = loggers.GetLogger()
 		log.Errorln(args)
-		var err error
-		for _, arg := range args {
-			_, err = fmt.Fprintln(os.Stderr, arg)
-			if err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 	AddMsgHandler("warn", func(args ...any) error {
 		var log = loggers.GetLogger()
 		log.Warnln(args)
-		var err error
-		for _, arg := range args {
-			_, err = fmt.Fprintln(os.Stdout, "\\033[1;37;40m%s\\033[0m\\n", arg)
-			if err != nil {
-				return err
-			}
-		}
 		return nil
 	})
 	AddMsgHandler("recover", func(errs ...any) error {

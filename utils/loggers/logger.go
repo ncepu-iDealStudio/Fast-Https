@@ -2,6 +2,7 @@ package loggers
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"sync"
@@ -26,14 +27,14 @@ func GetLogger() *logrus.Logger {
 }
 func InitLogger(path string, logName string) {
 	logOnce.Do(func() {
-		log = loggerToFile(path, logName)
+		log = loggerToFileAndCmd(path, logName)
 	})
 
 	log.Infoln("日志初始化服务完成!")
 }
 
 // 日志记录到文件
-func loggerToFile(logPath string, logName string) *logrus.Logger {
+func loggerToFileAndCmd(logPath string, logName string) *logrus.Logger {
 	// 日志文件
 	fileName := path.Join(logPath, logName)
 
@@ -47,7 +48,8 @@ func loggerToFile(logPath string, logName string) *logrus.Logger {
 	logger := logrus.New()
 
 	// 设置输出
-	logger.Out = src
+	fileAndStdoutWriter := io.MultiWriter(os.Stdout, src)
+	logger.SetOutput(fileAndStdoutWriter)
 
 	// 设置日志级别
 	logger.SetLevel(logrus.DebugLevel)
