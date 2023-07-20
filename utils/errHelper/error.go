@@ -9,9 +9,9 @@ import (
 	"fast-https/utils/message"
 )
 
-func Error(err error) {
+func Error(err error, msg string) {
 	if err != nil {
-		message.PrintErr(err)
+		message.PrintErr(err, " "+msg)
 	}
 }
 

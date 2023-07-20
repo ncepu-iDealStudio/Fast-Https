@@ -1,8 +1,7 @@
 package events
 
 import (
-	"fmt"
-	"log"
+	"fast-https/utils/message"
 	"net"
 )
 
@@ -11,20 +10,20 @@ func get_data_from_server(proxyaddr string, data []byte) ([]byte, int) {
 	conn, err := net.Dial("tcp", proxyaddr)
 	if err != nil {
 
-		log.Println("Can't connect to "+proxyaddr, err.Error())
+		message.PrintWarn("Can't connect to "+proxyaddr, err.Error())
 		return nil, 1 // no server
 	}
 	_, err = conn.Write(data)
 	if err != nil {
 		conn.Close()
-		log.Fatal("Proxy Write error")
+		message.PrintErr("Proxy Write error")
 	}
 
 	buffer := make([]byte, 1024*512)
 	n, err := conn.Read(buffer)
 	if err != nil {
 		conn.Close()
-		fmt.Println("Proxy Read error", err)
+		message.PrintWarn("Proxy Read error", err)
 	}
 	conn.Close()
 
@@ -40,7 +39,7 @@ func ProxyEventTCP(conn net.Conn, proxyaddr string) {
 
 	conn2, err := net.Dial("tcp", proxyaddr)
 	if err != nil {
-		log.Fatal("Can't connect to "+proxyaddr, err.Error())
+		message.PrintErr("Can't connect to "+proxyaddr, err.Error())
 	}
 	buffer := make([]byte, 1024)
 
@@ -58,7 +57,7 @@ func ProxyEventTCP(conn net.Conn, proxyaddr string) {
 		_, err = conn2.Write(buffer[:n])
 		if err != nil {
 			conn2.Close()
-			log.Fatal("Proxy Write error")
+			message.PrintErr("Proxy Write error")
 		}
 
 	}

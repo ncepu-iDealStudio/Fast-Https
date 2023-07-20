@@ -4,8 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fast-https/config"
-	"fmt"
-	"log"
+	"fast-https/utils/message"
 	"net"
 	"strings"
 	"time"
@@ -66,7 +65,6 @@ func ProcessPorts() {
 }
 
 func ProcessData() {
-	fmt.Println("config.G_config.Servers length:", len(config.G_config.Servers))
 	for _, server := range config.G_config.Servers {
 		for _, paths := range server.Path {
 			for index, eachlisten := range Lisinfos {
@@ -107,17 +105,17 @@ func Listen() []ListenInfo {
 }
 
 func listen(laddr string) net.Listener {
-	log.Println("[Listener:]listen", laddr)
+	message.PrintInfo("[Listener:]listen", laddr)
 
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
-		log.Fatal("Error starting the server:", err)
+		message.PrintErr("Error starting the server:", err)
 	}
 	return listener
 }
 
 func listenssl(laddr string, lisdata []ListenData) net.Listener {
-	log.Println("[Listener:]listen", laddr)
+	message.PrintInfo("[Listener:]listen", laddr)
 	certs := []tls.Certificate{}
 
 	var servernames []string
@@ -127,10 +125,10 @@ func listenssl(laddr string, lisdata []ListenData) net.Listener {
 		if !collection.Collect(servernames).Contains(item.ServerName) {
 			crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
 			if err != nil {
-				log.Fatal("Error load " + item.SSL.SslKey + " cert")
+				message.PrintErr("Error load " + item.SSL.SslKey + " cert")
 			}
 			certs = append(certs, crt)
-			log.Println("[Listener:]----", item.ServerName, "start ssl listen")
+			message.PrintInfo("[Listener:]----", item.ServerName, "start ssl listen")
 		}
 		servernames = append(servernames, item.ServerName)
 
@@ -143,7 +141,7 @@ func listenssl(laddr string, lisdata []ListenData) net.Listener {
 
 	listener, err := tls.Listen("tcp", laddr, tlsConfig)
 	if err != nil {
-		log.Fatal("Error starting the server:", err)
+		message.PrintErr("Error starting the server:", err)
 	}
 	return listener
 }

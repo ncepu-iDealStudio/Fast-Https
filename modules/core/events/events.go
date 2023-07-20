@@ -3,7 +3,7 @@ package events
 import (
 	"fast-https/modules/core/listener"
 	httpparse "fast-https/utils/HttpParse"
-	"log"
+	"fast-https/utils/message"
 	"net"
 	"strings"
 )
@@ -34,7 +34,7 @@ func HandleEvent(conn net.Conn, lis_info listener.ListenInfo) {
 		write_bytes_close(conn, []byte("HTTP/1.1 404 \r\n\r\nNOTFOUNT1"))
 		goto next
 	}
-	log.Println("[Events:static]", conn.RemoteAddr(), req.Method, req.Path)
+	message.PrintInfo("[Events:static]", conn.RemoteAddr(), req.Method, req.Path)
 
 	for _, item := range lis_info.Data {
 		switch item.Proxy {
@@ -74,7 +74,7 @@ func read_data(conn net.Conn) ([]byte, string) {
 	buffer := make([]byte, 1024)
 	n, err := conn.Read(buffer)
 	if err != nil {
-		log.Println("Error reading from client:------", err)
+		message.PrintErr("Error reading from client:------", err)
 	}
 	str_row := string(buffer[:n])
 	return buffer, str_row
@@ -84,7 +84,7 @@ func read_data(conn net.Conn) ([]byte, string) {
 func write_bytes_close(conn net.Conn, res []byte) {
 	_, err := conn.Write(res)
 	if err != nil {
-		log.Println("Error writing to client:", err)
+		message.PrintErr("Error writing to client:", err)
 	}
 	conn.Close()
 }
@@ -93,6 +93,6 @@ func Write_bytes(conn net.Conn, res []byte) {
 
 	_, err := conn.Write(res)
 	if err != nil {
-		log.Println("Error writing to client:", err)
+		message.PrintErr("Error writing to client:", err)
 	}
 }

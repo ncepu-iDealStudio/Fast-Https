@@ -3,7 +3,7 @@ package server
 import (
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
-	"log"
+	"fast-https/utils/message"
 )
 
 //func Daemon(nochdir, noclose int) int {
@@ -62,7 +62,7 @@ func serve_one_port(listener listener.ListenInfo) {
 	for {
 		conn, err := listener.Lfd.Accept()
 		if err != nil {
-			log.Println("Error accepting connection:", err)
+			message.PrintErr("Error accepting connection:", err)
 			continue
 		}
 

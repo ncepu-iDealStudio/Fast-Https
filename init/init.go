@@ -2,6 +2,7 @@ package init
 
 import (
 	"fast-https/config"
+	"fast-https/modules/cache"
 	"fast-https/utils"
 	"fast-https/utils/loggers"
 	"fast-https/utils/message"
@@ -25,6 +26,9 @@ func Init() *sync.WaitGroup {
 
 	// cert  initialization
 	Cert_init()
+
+	// static load
+	cache.LoadAllStatic()
 
 	return waitGroup
 }

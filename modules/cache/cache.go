@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fast-https/config"
 	"fast-https/utils/files"
+	"fast-https/utils/message"
 	"fmt"
 	"log"
 	"os"
@@ -40,13 +41,14 @@ func SearchDirFiles(path string) ([]string, error) {
 }
 
 func LoadAllStatic() {
+	message.PrintInfo("loadstatic")
 	for _, server := range config.G_config.Servers {
 		for _, path := range server.Path {
 
 			if path.Root != "" {
 				dir, err := SearchDirFiles(path.Root)
 				if err != nil {
-					log.Fatal("search files in dir error")
+					message.PrintErr("search files in dir error")
 				}
 
 				for _, realPath := range dir {
@@ -63,9 +65,9 @@ func LoadAllStatic() {
 					myMap.put(Value{realPath, data, time.Now().Unix()})
 
 					if flag {
-						log.Println("Cached gzip ", realPath)
+						message.PrintInfo("Cached gzip ", realPath)
 					} else {
-						log.Println("Cached file ", realPath)
+						message.PrintInfo("Cached file ", realPath)
 					}
 				}
 			}
