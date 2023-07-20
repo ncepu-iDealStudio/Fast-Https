@@ -1,6 +1,7 @@
 package init
 
 import (
+	"fast-https/config"
 	"fast-https/utils"
 	"fast-https/utils/loggers"
 	"fast-https/utils/message"
@@ -11,22 +12,18 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Init setup necessary modules of the whole system
 func Init() *sync.WaitGroup {
-	// 消息初始化
+	// message initialization
 	waitGroup := MessageInit()
 
-	// 配置读取初始化
-	//err := ViperInit()
-	//if err != nil {
-	//	message.PrintErr(err)
-	//	message.Exit()
-	//}
+	// config initialization
+	config.Init()
 
-	//logger object initial
-	LoggerInit(viper.GetString("log.type"))
+	//logger object initialization
+	loggers.InitLogger(config.G_config.LogRoot, "system.log")
 
-	// sysLog  initial
-
+	// cert  initialization
 	Cert_init()
 
 	return waitGroup
@@ -57,9 +54,4 @@ func ViperInit() (err error) {
 	})
 
 	return
-}
-
-// LoggerInit Log object init
-func LoggerInit(logType string) {
-	loggers.InitLogger(logType)
 }

@@ -86,7 +86,7 @@ var G_config Fast_Https
 var G_ContentTypeMap map[string]string
 var G_OS = ""
 
-func init() {
+func Init() {
 	if runtime.GOOS == "linux" {
 		G_OS = "linux"
 	} else {
@@ -133,7 +133,10 @@ func ServerContentType() {
 	G_ContentTypeMap = make(map[string]string)
 	var content_type string
 
-	confBytes, err := files.ReadFile("config/mime.types")
+	wd, err := os.Getwd()
+	confPath := filepath.Join(wd, "config/mime.types")
+	confBytes, err := files.ReadFile(confPath)
+
 	if err != nil {
 		log.Fatal("Can't open mime.types file")
 	}
@@ -247,7 +250,9 @@ func contains(slice []string, str string) bool {
 }
 
 func process() {
-	content, err := os.ReadFile("./config/fast-https-test.conf")
+	wd, err := os.Getwd()
+	confPath := filepath.Join(wd, "config/fast-https-test.conf")
+	content, err := os.ReadFile(confPath)
 	if err != nil {
 		fmt.Println("Failed to read configuration file：", err)
 		return
