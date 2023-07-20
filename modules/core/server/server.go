@@ -65,21 +65,14 @@ func serve_one_port(listener listener.ListenInfo) {
 			message.PrintErr("Error accepting connection:", err)
 			continue
 		}
-
-		// log.Printf("New client connected: %s\n", conn.RemoteAddr())
-
-		go events.HandleEvent(conn, listener)
+		go events.Handle_event(conn, listener)
 	}
 }
 
 func Run() {
 	listens := listener.Listen()
-
 	for _, value := range listens {
-
 		go serve_one_port(value)
 	}
-
 	select {}
-
 }

@@ -25,7 +25,7 @@ type ListenData struct {
 	SSL         SSLkv
 	StaticRoot  string
 	StaticIndex []string
-	Gzip        uint8
+	Zip         uint8
 }
 
 // one listen port arg
@@ -67,6 +67,7 @@ func ProcessPorts() {
 func ProcessData() {
 	for _, server := range config.G_config.Servers {
 		for _, paths := range server.Path {
+
 			for index, eachlisten := range Lisinfos {
 				listen := strings.Split(server.Listen, " ")[0]
 				if eachlisten.Port == listen {
@@ -82,7 +83,7 @@ func ProcessData() {
 					data.StaticIndex = paths.Index
 					data.Proxy_addr = paths.ProxyData
 					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
-					data.Gzip = paths.Zip
+					data.Zip = paths.Zip
 					Lisinfos[index].Data = append(eachlisten.Data, data)
 				}
 			}
@@ -96,52 +97,48 @@ func Listen() []ListenInfo {
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 {
-			Lisinfos[index].Lfd = listenssl("0.0.0.0:"+each.Port, each.Data)
+			Lisinfos[index].Lfd = listen_ssl("0.0.0.0:"+each.Port, each.Data)
 		} else {
-			Lisinfos[index].Lfd = listen("0.0.0.0:" + each.Port)
+			Lisinfos[index].Lfd = listen_tcp("0.0.0.0:" + each.Port)
 		}
 	}
 	return Lisinfos
 }
 
-func listen(laddr string) net.Listener {
-	message.PrintInfo("[Listener:]listen", laddr)
+func listen_tcp(laddr string) net.Listener {
+	message.PrintInfo("Listen ", laddr)
 
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
-		message.PrintErr("Error starting the server:", err)
+		message.PrintErr("Error listen_tcp :", err)
 	}
 	return listener
 }
 
-func listenssl(laddr string, lisdata []ListenData) net.Listener {
-	message.PrintInfo("[Listener:]listen", laddr)
+func listen_ssl(laddr string, lisdata []ListenData) net.Listener {
+	message.PrintInfo("listen ", laddr)
 	certs := []tls.Certificate{}
-
 	var servernames []string
 
 	for _, item := range lisdata {
-
 		if !collection.Collect(servernames).Contains(item.ServerName) {
 			crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
 			if err != nil {
-				message.PrintErr("Error load " + item.SSL.SslKey + " cert")
+				message.PrintErr("Error load cert: " + item.SSL.SslKey)
 			}
 			certs = append(certs, crt)
-			message.PrintInfo("[Listener:]----", item.ServerName, "start ssl listen")
+			message.PrintInfo(item.ServerName, " start ssl listen")
 		}
 		servernames = append(servernames, item.ServerName)
-
 	}
 
 	tlsConfig := &tls.Config{}
 	tlsConfig.Certificates = certs
 	tlsConfig.Time = time.Now
 	tlsConfig.Rand = rand.Reader
-
 	listener, err := tls.Listen("tcp", laddr, tlsConfig)
 	if err != nil {
-		message.PrintErr("Error starting the server:", err)
+		message.PrintErr("Error listen_ssl: ", err)
 	}
 	return listener
 }
