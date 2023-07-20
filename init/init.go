@@ -22,11 +22,11 @@ func Init() *sync.WaitGroup {
 	//	message.Exit()
 	//}
 
-	// logger object initial
-	//LoggerInit(viper.GetString("log.type"))
+	//logger object initial
+	LoggerInit(viper.GetString("log.type"))
 
 	// sysLog  initial
-	SysLogInit()
+
 	Cert_init()
 
 	return waitGroup
