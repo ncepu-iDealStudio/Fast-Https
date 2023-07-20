@@ -15,17 +15,18 @@ func Init() *sync.WaitGroup {
 	waitGroup := MessageInit()
 
 	// 配置读取初始化
-	err := ViperInit()
-	if err != nil {
-		message.PrintErr(err)
-		message.Exit()
-	}
+	//err := ViperInit()
+	//if err != nil {
+	//	message.PrintErr(err)
+	//	message.Exit()
+	//}
 
 	// logger object initial
 	//LoggerInit(viper.GetString("log.type"))
 
 	// sysLog  initial
 	SysLogInit()
+	Cert_init()
 
 	return waitGroup
 }

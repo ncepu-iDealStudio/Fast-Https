@@ -10,13 +10,14 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/pem"
+	"fast-https/config"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/big"
 	"net"
 	"net/mail"
 	"net/url"
+	"os"
 	"path/filepath"
 	"time"
 )
@@ -25,12 +26,42 @@ var userAndHostname string
 var caCert *x509.Certificate
 var caKey crypto.PrivateKey
 
-func main() {
+const (
+	ROOT_CRT_DIR  = "httpdoc/root"
+	ROOT_CRT_NAME = "root"
+
+	CERT_DIR = "config/cert"
+)
+
+func Cert_init() {
 	userAndHostname = "pzc@desktop"
-	// new_root()
-	load_ca()
-	ss := []string{"banana.ideal.com"}
-	new_cert(ss)
+
+	file := filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt"
+	fmt.Println(file)
+	_, err := os.Stat(file)
+	if os.IsNotExist(err) {
+		new_root()
+		load_ca() // init caCert   init caKey
+		for _, serverconfig := range config.G_config.Servers {
+
+			certfile := filepath.Join(CERT_DIR, serverconfig.ServerName) + ".crt"
+			_, err = os.Stat(certfile)
+			if os.IsNotExist(err) {
+				new_cert([]string{serverconfig.ServerName})
+			}
+		}
+	} else {
+		load_ca() // init caCert   init caKey
+		for _, serverconfig := range config.G_config.Servers {
+
+			certfile := filepath.Join(CERT_DIR, serverconfig.ServerName) + ".crt"
+			_, err = os.Stat(certfile)
+			if os.IsNotExist(err) {
+				fmt.Println("-----------")
+				new_cert([]string{serverconfig.ServerName})
+			}
+		}
+	}
 	// test()
 }
 
@@ -91,11 +122,11 @@ func new_root() {
 	privDER, err := x509.MarshalPKCS8PrivateKey(priv)
 	Handle_err(err, "failed to encode CA key")
 
-	err = ioutil.WriteFile(filepath.Join("./", "root.key"), pem.EncodeToMemory(
+	err = os.WriteFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME)+".key", pem.EncodeToMemory(
 		&pem.Block{Type: "PRIVATE KEY", Bytes: privDER}), 0400)
 	Handle_err(err, "failed to save CA key")
 
-	err = ioutil.WriteFile(filepath.Join("./", "root.pem"), pem.EncodeToMemory(
+	err = os.WriteFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME)+".crt", pem.EncodeToMemory(
 		&pem.Block{Type: "CERTIFICATE", Bytes: cert}), 0644)
 	Handle_err(err, "failed to save CA certificate")
 
@@ -103,7 +134,9 @@ func new_root() {
 }
 
 func load_ca() {
-	certPEMBlock, err := ioutil.ReadFile("./root.pem")
+	fmt.Println(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
+
+	certPEMBlock, err := os.ReadFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
 	Handle_err(err, "failed to read the CA certificate")
 
 	certDERBlock, _ := pem.Decode(certPEMBlock)
@@ -113,7 +146,7 @@ func load_ca() {
 	caCert, err = x509.ParseCertificate(certDERBlock.Bytes)
 	Handle_err(err, "failed to parse the CA certificate")
 
-	keyPEMBlock, err := ioutil.ReadFile("./root.key")
+	keyPEMBlock, err := os.ReadFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".key")
 
 	Handle_err(err, "failed to read the CA key")
 	keyDERBlock, _ := pem.Decode(keyPEMBlock)
@@ -165,16 +198,14 @@ func new_cert(hosts []string) {
 	cert, err := x509.CreateCertificate(rand.Reader, tpl, caCert, pub, caKey)
 	Handle_err(err, "failed to generate certificate")
 
-	certFile, keyFile := "cert.pem", "key.pem"
-
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
 	privDER, err := x509.MarshalPKCS8PrivateKey(priv)
 	Handle_err(err, "failed to encode certificate key")
 	privPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privDER})
 
-	err = ioutil.WriteFile(certFile, certPEM, 0644)
+	err = os.WriteFile(filepath.Join(CERT_DIR, hosts[0])+".pem", certPEM, 0644) // hosts is not nil
 	Handle_err(err, "failed to save certificate")
-	err = ioutil.WriteFile(keyFile, privPEM, 0600)
+	err = os.WriteFile(filepath.Join(CERT_DIR, hosts[0])+"-key.pem", privPEM, 0600)
 	Handle_err(err, "failed to save certificate key")
 
 	log.Printf("It will expire on %s \n\n", expiration.Format("2 January 2006"))
