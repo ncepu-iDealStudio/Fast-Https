@@ -40,39 +40,52 @@ func SearchDirFiles(path string) ([]string, error) {
 }
 
 func LoadAllStatic() {
-	for _, item := range config.G_config.HttpServer {
-		if item.Static.Root != "" {
-			dir, err := SearchDirFiles(item.Static.Root)
-			if err != nil {
-				log.Fatal("search files in dir error")
-			}
+	for _, server := range config.G_config.Servers {
+		for _, path := range server.Path {
 
-			for _, realPath := range dir {
-				data, _ := files.ReadFile(realPath)
-				// flag := false
-				if item.Gzip == 1 {
-					data, _ = CompressBytes(data)
-					// flag = true
+			if path.Root != "" {
+				dir, err := SearchDirFiles(path.Root)
+				if err != nil {
+					log.Fatal("search files in dir error")
 				}
-				if config.G_OS == "windows" {
-					realPath = "/" + realPath
-					realPath = strings.ReplaceAll(realPath, "\\", "/")
-				}
-				myMap.put(Value{realPath, data, time.Now().Unix()})
-				// if flag {
-				// 	log.Println("Cached gzip ", realPath)
-				// } else {
-				// 	log.Println("Cached file ", realPath)
-				// }
 
+				for _, realPath := range dir {
+					data, _ := files.ReadFile(realPath)
+					flag := false
+					if path.Zip == 1 {
+						data, _ = CompressBytes_Gzip(data)
+						flag = true
+					}
+					if config.G_OS == "windows" {
+						realPath = "/" + realPath
+						realPath = strings.ReplaceAll(realPath, "\\", "/")
+					}
+					myMap.put(Value{realPath, data, time.Now().Unix()})
+
+					if flag {
+						log.Println("Cached gzip ", realPath)
+					} else {
+						log.Println("Cached file ", realPath)
+					}
+				}
 			}
 		}
+
 	}
 }
 
 func Get_data_from_cache(realPath string) []byte {
 
 	return myMap.get(realPath)
+	// if data == nil {
+	// read_from_disk()
+	// }
+	// myMap.put(xx, xx)
+}
+
+func Release_cache() {
+	time.Sleep(60 * time.Second)
+
 }
 
 func Test() {

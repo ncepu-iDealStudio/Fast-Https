@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fast-https/config"
+	"fmt"
 	"log"
 	"net"
 	"strings"
@@ -38,58 +39,10 @@ type ListenInfo struct {
 
 var Lisinfos []ListenInfo
 
-/*
-{ErrorPage:
-	{Code:148 Path:/404.html}
-	LogRoot:/var/www
-	HttpServer:[
-		{Listen:8080
-			ServerName:apple.ideal.com
-			Static:{Root:/var/html Index:[index.html index.htm]}
-			Path:/
-			Ssl:
-			Ssl_Key:
-			Gzip:0
-			PROXY_TYPE:0
-			PROXY_DATA:
-		}
-		{Listen:8000
-			ServerName:banana.ideal.com
-			Static:{Root: Index:[]}
-			Path:/api
-			Ssl:
-			Ssl_Key:
-			Gzip:0
-			PROXY_TYPE:1
-			PROXY_DATA:127.0.0.1:8001
-		}
-		{Listen:443 ssl
-			ServerName:ssl.ideal.com
-			Static:{Root: Index:[]}
-			Path:/
-			Ssl:/home/cert.pem
-			Ssl_Key:/home/cert.key
-			Gzip:0
-			PROXY_TYPE:2
-			PROXY_DATA:127.0.0.1:8001
-		}
-		{Listen:9002
-			ServerName: Static:{Root: Index:[]}
-			Path:
-			Ssl:
-			Ssl_Key:
-			Gzip:0
-			PROXY_TYPE:3
-			PROXY_DATA:127.0.0.1:9003
-		}
-	]}
-
-*/
-
 func ProcessPorts() {
 	var Ports []string
 	lis_temp := ListenInfo{}
-	for _, each := range config.G_config.HttpServer {
+	for _, each := range config.G_config.Servers {
 
 		arr := strings.Split(each.Listen, " ")
 		if !collection.Collect(Ports).Contains(arr[0]) {
@@ -113,25 +66,27 @@ func ProcessPorts() {
 }
 
 func ProcessData() {
-	for _, each := range config.G_config.HttpServer {
-		for index, item := range Lisinfos {
-			num := strings.Split(each.Listen, " ")[0]
-			if item.Port == num {
-				data := ListenData{}
-				data.Path = each.Path
-				if item.Port == "80" || item.Port == "443" {
-					data.ServerName = each.ServerName
-				} else {
-					data.ServerName = each.ServerName + ":" + item.Port
+	fmt.Println("config.G_config.Servers length:", len(config.G_config.Servers))
+	for _, server := range config.G_config.Servers {
+		for _, paths := range server.Path {
+			for index, eachlisten := range Lisinfos {
+				listen := strings.Split(server.Listen, " ")[0]
+				if eachlisten.Port == listen {
+					data := ListenData{}
+					data.Path = paths.PathName
+					if eachlisten.Port == "80" || eachlisten.Port == "443" {
+						data.ServerName = server.ServerName
+					} else {
+						data.ServerName = server.ServerName + ":" + eachlisten.Port
+					}
+					data.Proxy = paths.PathType
+					data.StaticRoot = paths.Root
+					data.StaticIndex = paths.Index
+					data.Proxy_addr = paths.ProxyData
+					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
+					data.Gzip = paths.Zip
+					Lisinfos[index].Data = append(eachlisten.Data, data)
 				}
-				data.Proxy = each.PROXY_TYPE
-				data.StaticRoot = each.Static.Root
-				data.StaticIndex = each.Static.Index
-				data.Proxy_addr = each.PROXY_DATA
-				data.SSL = SSLkv{each.Ssl, each.Ssl_Key}
-				data.Gzip = each.Gzip
-
-				Lisinfos[index].Data = append(item.Data, data)
 			}
 		}
 	}
@@ -140,12 +95,6 @@ func ProcessData() {
 func Listen() []ListenInfo {
 	ProcessPorts()
 	ProcessData()
-
-	// [{[{0  apple.ideal.com /static { } /home/pzc/Project/fast-https/static}] <nil> 8080 0}
-	// {[{1 192.168.11.236:5000 banana.ideal.com /api { } }] <nil> 8000 0}
-	// {[{2 192.168.11.236:5000 ssl.ideal.com / {/home/pzc/Project/fast-https/config/cert/apple.ideal.com.pem /home/pzc/Project/fast-https/config/cert/apple.ideal.com-key.pem} }] <nil> 443 1}
-	// {[{3 127.0.0.1:9003   { } }] <nil> 9002 0}
-	// ]
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 {
@@ -158,7 +107,7 @@ func Listen() []ListenInfo {
 }
 
 func listen(laddr string) net.Listener {
-	// log.Println("[Listener:]listen", laddr)
+	log.Println("[Listener:]listen", laddr)
 
 	listener, err := net.Listen("tcp", laddr)
 	if err != nil {
@@ -168,16 +117,25 @@ func listen(laddr string) net.Listener {
 }
 
 func listenssl(laddr string, lisdata []ListenData) net.Listener {
-	// log.Println("[Listener:]listen", laddr)
+	log.Println("[Listener:]listen", laddr)
 	certs := []tls.Certificate{}
+
+	var servernames []string
+
 	for _, item := range lisdata {
-		crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
-		if err != nil {
-			log.Fatal("Error load " + item.SSL.SslKey + " cert")
+
+		if !collection.Collect(servernames).Contains(item.ServerName) {
+			crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
+			if err != nil {
+				log.Fatal("Error load " + item.SSL.SslKey + " cert")
+			}
+			certs = append(certs, crt)
+			log.Println("[Listener:]----", item.ServerName, "start ssl listen")
 		}
-		certs = append(certs, crt)
-		// log.Println("[Listener:]Load ssl file", item.ServerName)
+		servernames = append(servernames, item.ServerName)
+
 	}
+
 	tlsConfig := &tls.Config{}
 	tlsConfig.Certificates = certs
 	tlsConfig.Time = time.Now

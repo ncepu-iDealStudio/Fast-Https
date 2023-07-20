@@ -3,7 +3,6 @@ package config
 import (
 	"fast-https/utils/files"
 	"fmt"
-	"github.com/kr/pretty"
 	"log"
 	"os"
 	"path/filepath"
@@ -64,7 +63,7 @@ type Server struct {
 type Fast_Https struct {
 	ErrorPage ErrorPath
 	LogRoot   string
-	Server    []Server
+	Servers   []Server
 
 	Include                   string // 需要包含的文件映射类型
 	DefaultType               string // 默认文件类型配置
@@ -83,7 +82,7 @@ type Fast_Https struct {
 }
 
 // Define Configuration Structure
-var fast_https Fast_Https
+var G_config Fast_Https
 var G_ContentTypeMap map[string]string
 var G_OS = ""
 
@@ -323,22 +322,6 @@ func process() {
 			server.Listen = strings.TrimSpace(listen[1])
 		}
 
-		//zipRe := regexp.MustCompile(`zip\s+([^;]+);`)
-		//
-		//// Loop through each server block
-		//// Find zip directive in the server block
-		//zipMatch := zipRe.FindStringSubmatch(match[1])
-		////fmt.Println(zipMatch, "11111111111111111111111111111111111111")
-		//if len(zipMatch) > 1 {
-		//	if zipMatch[1] == "gzip br" {
-		//		server.Zip = 10
-		//	} else if zipMatch[1] == "br" {
-		//		server.Zip = 2
-		//	} else if zipMatch[1] == "gzip" {
-		//		server.Zip = 1
-		//	}
-		//}
-
 		// Parsing SSL and SSL_ Key field
 		re = regexp.MustCompile(`ssl_certificate\s+([^;]+);`)
 		ssl := re.FindStringSubmatch(match[1])
@@ -351,68 +334,6 @@ func process() {
 		if len(sslKey) > 1 {
 			server.SSLCertificateKey = strings.TrimSpace(sslKey[1])
 		}
-
-		//re := regexp.MustCompile(`(?s)path\s+(\S+)\s+{.*?}`)
-		//
-		//if len(matches) < 2 {
-		//	//return nil, fmt.Errorf("Path字段未找到")
-		//}
-		//pathStr := matches[1]
-		//paths := strings.Split(pathStr, "\n")
-		//for _, p := range paths {
-		//	pathValue := strings.TrimSpace(p)
-		//	if pathValue != "" {
-		//		config.Path = append(config.Path, pathValue)
-		//	}
-		//}
-		//
-		//// 正则表达式匹配Index字段
-		//re = regexp.MustCompile(`index\s+(\S+);`)
-		//matches = re.FindStringSubmatch(fileContent)
-		//if len(matches) < 2 {
-		//	return nil, fmt.Errorf("Index字段未找到")
-		//}
-		//config.Index = matches[1]
-		//
-		//// 正则表达式匹配Root字段
-		//re = regexp.MustCompile(`root\s+(\S+);`)
-		//matches = re.FindStringSubmatch(fileContent)
-		//if len(matches) < 2 {
-		//	return nil, fmt.Errorf("Root字段未找到")
-		//}
-		//config.Root = matches[1]
-
-		//pathPattern := `path\s+([^{]+){([^}]*)}`
-		//rootPattern := `root\s+([^;]+);`
-		//indexPattern := `index\s+([^;]+);`
-		//rootRe := regexp.MustCompile(rootPattern)
-		//indexRe := regexp.MustCompile(indexPattern)
-		//pathRe := regexp.MustCompile(pathPattern)
-		//
-		//paths := pathRe.FindAllStringSubmatch(match[1], -1)
-		//for _, path := range paths {
-		//	var p Path
-		//	p.Path_name = strings.TrimSpace(path[1])
-		//	p.Root = strings.TrimSpace(rootRe.FindStringSubmatch(path[2])[1])
-		//	p.Index = strings.Fields(strings.TrimSpace(indexRe.FindStringSubmatch(path[2])[1]))
-		//	server.Path = append(server.Path, p)
-		//}
-		//||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-		//		pathPattern := `path\s+([^{\s]+)?\s*{([^}]*)}`
-		//		pathRe := regexp.MustCompile(pathPattern)
-		//
-		//		paths := pathRe.FindAllStringSubmatch(match[1], -1)
-		//		for _, path := range paths {
-		//			var p Path
-		//			p.Path_name = strings.TrimSpace(path[1])
-		//			if p.Path_name == "" {
-		//				p.Path_name = "/"
-		//			}
-		//			p.Root = strings.TrimSpace(rootRe.FindStringSubmatch(path[2])[1])
-		//			p.Index = strings.Fields(strings.TrimSpace(indexRe.FindStringSubmatch(path[2])[1]))
-		//
-		//			server.Path = append(server.Path, p)
-		//		}
 
 		zipRe := regexp.MustCompile(`zip\s+([^;]+);`)
 		rootRe := regexp.MustCompile(`root\s+([^;]+)`)
@@ -444,13 +365,6 @@ func process() {
 				}
 			}
 
-			//re = regexp.MustCompile(`proxy_http\s+([^;]+)`)
-			//httpProxy := re.FindStringSubmatch(match[1])
-			//if len(httpProxy) > 1 {
-			//	p.PathType = 1
-			//	p.ProxyData = strings.TrimSpace(httpProxy[1])
-			//}
-
 			re = regexp.MustCompile(`proxy_tcp\s+([^;]+)`)
 			if len(re.FindStringSubmatch(path[2])) > 1 {
 				p.PathType = 3
@@ -462,23 +376,12 @@ func process() {
 				p.PathType = 1
 				p.ProxyData = strings.TrimSpace(re.FindStringSubmatch(path[2])[1])
 			}
-			//re = regexp.MustCompile(`proxy_https\s+([^;]+)`)
-			//httpsProxy := re.FindStringSubmatch(match[1])
-			//if len(httpsProxy) > 1 {
-			//	p.PathType = 2
-			//	p.ProxyData = strings.TrimSpace(httpsProxy[1])
-			//}
+
 			re = regexp.MustCompile(`proxy_http\s+([^;]+)`)
 			if len(re.FindStringSubmatch(path[2])) > 1 {
 				p.PathType = 2
 				p.ProxyData = strings.TrimSpace(re.FindStringSubmatch(path[2])[1])
 			}
-
-			//tcpProxy := re.FindStringSubmatch(match[1])
-			//if len(tcpProxy) > 1 {
-			//	p.PathType = 3
-			//	p.ProxyData = strings.TrimSpace(tcpProxy[1])
-			//}
 
 			if len(rootRe.FindStringSubmatch(path[2])) > 1 {
 				p.Root = strings.TrimSpace(rootRe.FindStringSubmatch(path[2])[1])
@@ -495,7 +398,7 @@ func process() {
 		// Parsing TCP_ PROXY and HTTP_ PROXY field
 
 		// Add the parsed HttpServer structure to the Config structure
-		fast_https.Server = append(fast_https.Server, server)
+		G_config.Servers = append(G_config.Servers, server)
 	}
 	// each server end
 	// Parse error_ Page field
@@ -505,19 +408,19 @@ func process() {
 	if len(errorPage) >= 1 {
 		//config.ErrorPage.Code = uint8(errorPage[1])
 		temp, _ := strconv.Atoi(errorPage[1])
-		fast_https.ErrorPage.Code = uint8(temp)
-		fast_https.ErrorPage.Path = strings.TrimSpace(errorPage[2])
+		G_config.ErrorPage.Code = uint8(temp)
+		G_config.ErrorPage.Path = strings.TrimSpace(errorPage[2])
 	}
 
 	re = regexp.MustCompile(`log_root\s+([^;]+);`)
 	logRoot := re.FindStringSubmatch(string(content))
 	if len(logRoot) >= 1 {
-		fast_https.LogRoot = strings.TrimSpace(logRoot[1])
+		G_config.LogRoot = strings.TrimSpace(logRoot[1])
 	}
 
-	//fmt.Println(fast_https.Server[1].Path)
-	//fmt.Println(fast_https.Server[0].Zip, fast_https.Server[1].Zip)
+	//fmt.Println(G_config.Server[1].Path)
+	//fmt.Println(G_config.Server[0].Zip, G_config.Server[1].Zip)
 
-	//fmt.Printf("%+v\n", fast_https)
-	pretty.Print(fast_https)
+	//fmt.Printf("%+v\n", G_config)
+	// pretty.Print(G_config)
 }
