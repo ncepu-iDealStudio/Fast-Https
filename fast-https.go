@@ -1,15 +1,13 @@
 package main
 
 import (
+	"fast-https/cmd"
 	_ "fast-https/config"
 	"fast-https/modules/cache"
-	"fast-https/modules/core/server"
 )
 
 func main() {
-	//rootcmd := cmd.RootCmd()
 	cache.LoadAllStatic()
-
-	server.Run()
-	//rootcmd.Execute()
+	rootcmd := cmd.RootCmd()
+	rootcmd.Execute()
 }

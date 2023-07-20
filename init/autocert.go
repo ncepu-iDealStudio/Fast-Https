@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -19,6 +18,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -37,32 +37,28 @@ func Cert_init() {
 	userAndHostname = "pzc@desktop"
 
 	file := filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt"
-	fmt.Println(file)
+	// fmt.Println(file)
 	_, err := os.Stat(file)
+
 	if os.IsNotExist(err) {
 		new_root()
-		load_ca() // init caCert   init caKey
-		for _, serverconfig := range config.G_config.Servers {
+	}
 
-			certfile := filepath.Join(CERT_DIR, serverconfig.ServerName) + ".crt"
+	load_ca() // init caCert   init caKey
+	for _, serverconfig := range config.G_config.Servers {
+
+		certfile := filepath.Join(CERT_DIR, serverconfig.ServerName) + ".pem"
+
+		if serverconfig.ServerName != "" && strings.Contains(serverconfig.Listen, "ssl") {
 			_, err = os.Stat(certfile)
 			if os.IsNotExist(err) {
 				new_cert([]string{serverconfig.ServerName})
-			}
-		}
-	} else {
-		load_ca() // init caCert   init caKey
-		for _, serverconfig := range config.G_config.Servers {
+				fmt.Println(certfile, " created")
 
-			certfile := filepath.Join(CERT_DIR, serverconfig.ServerName) + ".crt"
-			_, err = os.Stat(certfile)
-			if os.IsNotExist(err) {
-				fmt.Println("-----------")
-				new_cert([]string{serverconfig.ServerName})
 			}
 		}
 	}
-	// test()
+
 }
 
 func Handle_err(err error, msg string) {
@@ -134,7 +130,7 @@ func new_root() {
 }
 
 func load_ca() {
-	fmt.Println(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
+	// fmt.Println(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
 
 	certPEMBlock, err := os.ReadFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
 	Handle_err(err, "failed to read the CA certificate")
@@ -208,41 +204,5 @@ func new_cert(hosts []string) {
 	err = os.WriteFile(filepath.Join(CERT_DIR, hosts[0])+"-key.pem", privPEM, 0600)
 	Handle_err(err, "failed to save certificate key")
 
-	log.Printf("It will expire on %s \n\n", expiration.Format("2 January 2006"))
-}
-
-func test() {
-	certs := []tls.Certificate{}
-	crt, err := tls.LoadX509KeyPair("./cert.pem", "key.pem")
-	if err != nil {
-		log.Fatal("Error load " + "./cert.pem" + " cert")
-	}
-	certs = append(certs, crt)
-	tlsConfig := &tls.Config{}
-	tlsConfig.Certificates = certs
-	tlsConfig.Time = time.Now
-	tlsConfig.Rand = rand.Reader
-
-	listener, err := tls.Listen("tcp", "0.0.0.0:443", tlsConfig)
-	if err != nil {
-		log.Fatal("Error starting the server:", err)
-	}
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Println("Error accepting connection:", err)
-			continue
-		}
-		fmt.Println(conn.RemoteAddr())
-		req := []byte{}
-		reve_len, err := conn.Read(req)
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Println(reve_len, req)
-
-		conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\nhello"))
-		conn.Close()
-	}
-
+	// log.Printf("It will expire on %s \n\n", expiration.Format("2 January 2006"))
 }

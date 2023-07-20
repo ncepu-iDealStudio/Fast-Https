@@ -5,9 +5,10 @@ import (
 	"fast-https/utils/loggers"
 	"fast-https/utils/message"
 	"fmt"
+	"sync"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
-	"sync"
 )
 
 func Init() *sync.WaitGroup {
