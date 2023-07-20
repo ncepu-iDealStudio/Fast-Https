@@ -18,6 +18,10 @@ func monitorLog(logChan chan string) {
 	var logData []string
 	var lastWrite time.Time
 
+	timer := time.NewTicker(time.Duration(maxWait) * time.Millisecond)
+	defer timer.Stop()
+	defer close(logChan)
+
 	for {
 		select {
 		case log := <-logChan:
@@ -27,7 +31,7 @@ func monitorLog(logChan chan string) {
 				lastWrite = time.Now()
 				logData = nil
 			}
-		case <-time.Tick(time.Duration(maxWait) * time.Millisecond):
+		case <-timer.C:
 			if len(logData) > 0 {
 				writeToFile(logData)
 				lastWrite = time.Now()
@@ -37,12 +41,9 @@ func monitorLog(logChan chan string) {
 	}
 }
 
-// writeLog  write  log to logChan
-func writeLog(logChan chan string) {
-	for i := 0; i < 100000; i++ {
-		logChan <- fmt.Sprintf("%v %v\n", time.Now().Format("2006-01-02 15:04:05"), "log message")
-		time.Sleep(10 * time.Millisecond)
-	}
+// WriteLog writes the log to logChan
+func writeLog(logChan chan string, input string) {
+	logChan <- fmt.Sprintln(input)
 }
 
 // writeToFile  write  log to file
@@ -66,6 +67,4 @@ func writeToFile(logData []string) {
 func SysLogInit() {
 	logChan := make(chan string, 1000)
 	go monitorLog(logChan)
-	go writeLog(logChan)
-	select {}
 }
