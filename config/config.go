@@ -338,6 +338,7 @@ func process() {
 					p.Zip = 1
 				}
 			}
+			fmt.Println(p.Zip)
 
 			re = regexp.MustCompile(`proxy_tcp\s+([^;]+)`)
 			if len(re.FindStringSubmatch(path[2])) > 1 {
@@ -395,6 +396,6 @@ func process() {
 	//fmt.Println(G_config.Server[1].Path)
 	//fmt.Println(G_config.Server[0].Zip, G_config.Server[1].Zip)
 
-	fmt.Printf("%+v\n", G_config)
+	// fmt.Printf("%+v\n", G_config)
 	// pretty.Print(G_config)
 }
