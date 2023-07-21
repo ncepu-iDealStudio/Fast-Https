@@ -38,7 +38,7 @@ type ListenInfo struct {
 
 var Lisinfos []ListenInfo
 
-func ProcessPorts() {
+func Process_ports() {
 	var Ports []string
 	lis_temp := ListenInfo{}
 	for _, each := range config.G_config.Servers {
@@ -64,7 +64,7 @@ func ProcessPorts() {
 	}
 }
 
-func ProcessData() {
+func Process_data() {
 	for _, server := range config.G_config.Servers {
 		for _, paths := range server.Path {
 
@@ -92,8 +92,8 @@ func ProcessData() {
 }
 
 func Listen() []ListenInfo {
-	ProcessPorts()
-	ProcessData()
+	Process_ports()
+	Process_data()
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 {
