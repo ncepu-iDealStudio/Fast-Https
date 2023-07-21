@@ -336,7 +336,7 @@ func process() {
 					p.Zip = 1
 				}
 			}
-			fmt.Println(p.Zip)
+			// fmt.Println(p.Zip)
 			re = regexp.MustCompile(`proxy_tcp\s+([^;]+)`)
 			if len(re.FindStringSubmatch(path[2])) > 1 {
 				p.PathType = 3
@@ -349,7 +349,7 @@ func process() {
 				p.ProxyData = strings.TrimSpace(re.FindStringSubmatch(path[2])[1])
 			}
 
-			re = regexp.MustCompile(`proxy_http\s+([^;]+)`)
+			re = regexp.MustCompile(`proxy_https\s+([^;]+)`)
 			if len(re.FindStringSubmatch(path[2])) > 1 {
 				p.PathType = 2
 				p.ProxyData = strings.TrimSpace(re.FindStringSubmatch(path[2])[1])

@@ -44,35 +44,33 @@ func Handle_event(ev Event) {
 	for _, item := range ev.Lis_info.Data {
 		switch item.Proxy {
 		case 0:
-			if req.Host == item.ServerName {
-				if strings.HasPrefix(req.Path, item.Path) { // path
-					if item.Path != "/" {
-						row_file_path := req.Path[len(item.Path):]
-						if row_file_path == "" {
-							_event_301(ev.Conn, item.Path+"/")
-							goto next
-						}
-						res := StaticEvent(item, item.StaticRoot+row_file_path)
-						write_bytes_close(ev.Conn, res)
-						goto next
-					} else {
-						res := StaticEvent(item, item.StaticRoot+req.Path)
-						write_bytes_close(ev.Conn, res)
+			if req.Host == item.ServerName && strings.HasPrefix(req.Path, item.Path) {
+
+				if item.Path != "/" {
+					row_file_path := req.Path[len(item.Path):]
+					if row_file_path == "" {
+						_event_301(ev.Conn, item.Path+"/")
 						goto next
 					}
-				}
-			}
-		case 1, 2:
-			if req.Host == item.ServerName {
-				if strings.HasPrefix(req.Path, item.Path) {
-					res, err := Proxy_event(byte_row, item.Proxy_addr)
-					if err == 1 {
-						write_bytes_close(ev.Conn, []byte("HTTP/1.1 500 \r\n\r\nSERVER ERROR"))
-						goto next
-					}
+					res := StaticEvent(item, item.StaticRoot+row_file_path)
+					write_bytes_close(ev.Conn, res)
+					goto next
+				} else {
+					res := StaticEvent(item, item.StaticRoot+req.Path)
 					write_bytes_close(ev.Conn, res)
 					goto next
 				}
+			}
+		case 1, 2:
+			if req.Host == item.ServerName && strings.HasPrefix(req.Path, item.Path) {
+
+				res, err := Proxy_event(byte_row, item.Proxy_addr)
+				if err == 1 {
+					write_bytes_close(ev.Conn, []byte("HTTP/1.1 500 \r\n\r\nSERVER ERROR"))
+					goto next
+				}
+				write_bytes_close(ev.Conn, res)
+				goto next
 			}
 		}
 	}

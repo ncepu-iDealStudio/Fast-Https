@@ -6,6 +6,7 @@ import (
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"strings"
+	"time"
 )
 
 // var data = "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nHello World"
@@ -25,6 +26,7 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 		response := response.Response_init()
 		response.Set_first_line(200, "OK")
 		response.Set_header("Server", "Fast-Https")
+		response.Set_header("Date", time.Now().String())
 		response.Set_header("Content-Type", get_content_type(path))
 		if lisdata.Zip == 1 {
 			response.Set_header("Content-Encoding", "gzip")
@@ -43,6 +45,7 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 			response := response.Response_init()
 			response.Set_first_line(200, "OK")
 			response.Set_header("Server", "Fast-Https")
+			response.Set_header("Date", time.Now().String())
 			response.Set_header("Content-Type", get_content_type(path))
 			if lisdata.Zip == 1 {
 				response.Set_header("Content-Encoding", "gzip")
