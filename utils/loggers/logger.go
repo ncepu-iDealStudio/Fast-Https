@@ -21,7 +21,7 @@ var (
 func GetLogger() *logrus.Logger {
 	logOnce.Do(func() {
 		log = loggerToCmd()
-		log.Infoln("日志初始化服务完成!")
+		log.Infoln("log initialization finished!")
 	})
 	return log
 }
@@ -30,7 +30,7 @@ func InitLogger(path string, logName string) {
 		log = loggerToFileAndCmd(path, logName)
 	})
 
-	log.Infoln("日志初始化服务完成!")
+	log.Infoln("log initialization finished!")
 }
 
 // 日志记录到文件
