@@ -35,8 +35,7 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 
 	for _, item := range lisdata.StaticIndex { // Find files in default Index array
 
-		realPath := path + "/" + item
-		realPath = strings.ReplaceAll(realPath, "//", "/")
+		realPath := path + item
 		file_data = cache.Get_data_from_cache(realPath)
 
 		if file_data != nil {

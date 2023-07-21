@@ -38,6 +38,7 @@ func Http_parse(request string) (Req, int) {
 	if request == "" {
 		return Req{}, NONE
 	}
+	// fmt.Printf(request)
 	requestLine := strings.Split(request, "\r\n")
 	if requestLine == nil {
 		return Req{}, UNKNOW_INVALID // invlaid request

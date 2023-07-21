@@ -16,6 +16,14 @@ type Event struct {
 	Timer    *timer.Timer
 }
 
+func _event_301(conn net.Conn, path string) {
+	res := []byte("HTTP/1.1 301 Moved Permanently\r\n" +
+		"Location: " + path + "\r\n" +
+		"Connection: close\r\n" +
+		"\r\n")
+	write_bytes_close(conn, res)
+}
+
 func Handle_event(ev Event) {
 
 	if ev.Lis_info.LisType == 2 {
@@ -41,7 +49,8 @@ func Handle_event(ev Event) {
 					if item.Path != "/" {
 						row_file_path := req.Path[len(item.Path):]
 						if row_file_path == "" {
-							row_file_path = "/"
+							_event_301(ev.Conn, item.Path+"/")
+							goto next
 						}
 						res := StaticEvent(item, item.StaticRoot+row_file_path)
 						write_bytes_close(ev.Conn, res)
