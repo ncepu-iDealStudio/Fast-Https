@@ -220,7 +220,7 @@ func contains(slice []string, str string) bool {
 
 func process() {
 	wd, _ := os.Getwd()
-	confPath := filepath.Join(wd, "config/fast-https-test.conf")
+	confPath := filepath.Join(wd, "config/fast-https.conf")
 	content, err := os.ReadFile(confPath)
 	if err != nil {
 		fmt.Println("Failed to read configuration file：", err)

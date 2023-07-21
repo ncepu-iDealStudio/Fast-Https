@@ -32,9 +32,12 @@ archives:
       format: zip
     # files needed to archive into dir
     files:
-      - config/*
+      - config/cert/
+      - config/fast-https.conf
+      - config/fastcgi.conf
+      - config/mime.types
       - docs/*
-      - httpdoc/*
+      - httpdoc/root/*
       - README.md
 checksum:
   name_template: 'checksums.txt'
