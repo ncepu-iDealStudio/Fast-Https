@@ -3,10 +3,7 @@ package server
 import (
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
-	"fast-https/modules/core/timer"
 	"fast-https/utils/message"
-	"fmt"
-	"time"
 )
 
 //func Daemon(nochdir, noclose int) int {
@@ -67,10 +64,8 @@ func serve_one_port(listener listener.ListenInfo) {
 		each_event := events.Event{}
 		each_event.Conn = conn
 		each_event.Lis_info = listener
-		timer := timer.SetTimer(2*time.Second, func() {
-			fmt.Println("定时器触发")
-		})
-		each_event.Timer = timer
+
+		each_event.Timer = nil
 
 		if err != nil {
 			message.PrintErr("Error accepting connection:", err)

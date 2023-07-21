@@ -29,7 +29,7 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 		if lisdata.Zip == 1 {
 			response.Set_header("Content-Encoding", "gzip")
 		}
-		response.Set_body([]byte("<h1>Hello, World!</h1>"))
+		response.Set_body([]byte(file_data))
 		return response.Generate_response()
 	}
 
@@ -48,7 +48,7 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 			if lisdata.Zip == 1 {
 				response.Set_header("Content-Encoding", "gzip")
 			}
-			response.Set_body([]byte("<h1>Hello, World!</h1>"))
+			response.Set_body([]byte(file_data))
 			return response.Generate_response()
 		}
 	}

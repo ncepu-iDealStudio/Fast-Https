@@ -35,6 +35,7 @@ func (r *Response) Generate_response() []byte {
 		response += fmt.Sprintf("%s: %s\r\n", key, value)
 	}
 	res = append(res, []byte(response)...)
+	res = append(res, []byte("\r\n")...)
 	res = append(res, r.body...)
 
 	return res
