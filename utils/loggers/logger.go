@@ -21,7 +21,6 @@ var (
 func GetLogger() *logrus.Logger {
 	logOnce.Do(func() {
 		log = loggerToCmd()
-		log.Infoln("log initialization finished!")
 	})
 	return log
 }
@@ -29,8 +28,6 @@ func InitLogger(path string, logName string) {
 	logOnce.Do(func() {
 		log = loggerToFileAndCmd(path, logName)
 	})
-
-	log.Infoln("log initialization finished!")
 }
 
 // 日志记录到文件
@@ -41,7 +38,7 @@ func loggerToFileAndCmd(logPath string, logName string) *logrus.Logger {
 	// 写入文件
 	src, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
-		fmt.Println("err", err)
+		fmt.Println("log to file err:", err)
 	}
 
 	// 实例化

@@ -7,7 +7,9 @@ import (
 	"fast-https/utils/loggers"
 	"fast-https/utils/message"
 	"fmt"
+	"os"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
@@ -17,18 +19,23 @@ import (
 func Init() *sync.WaitGroup {
 	// message initialization
 	waitGroup := MessageInit()
+	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]message initialization finished")
 
 	// config initialization
 	config.Init()
+	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]config initialization finished")
 
 	//logger object initialization
 	loggers.InitLogger(config.G_config.LogRoot, "system.log")
+	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]log initialization finished")
 
 	// cert  initialization
 	Cert_init()
+	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]certification initialization finished")
 
 	// static load
 	cache.LoadAllStatic()
+	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]cache load finished")
 
 	return waitGroup
 }

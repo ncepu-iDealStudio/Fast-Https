@@ -4,6 +4,7 @@ import (
 	"bufio"
 	initialization "fast-https/init"
 	"fast-https/modules/core/server"
+	"fast-https/output"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -159,8 +160,11 @@ func stopHandler() error {
 
 // startHandler start server
 func startHandler() error {
+	output.PrintLogo()
 	Write_fast_https_pid()
+	output.PrintInitialStart()
 	initialization.Init()
+	output.PrintInitialEnd()
 	server.Run()
 	return nil
 }
