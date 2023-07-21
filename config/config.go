@@ -309,12 +309,10 @@ func process() {
 			server.SSLCertificateKey = strings.TrimSpace(sslKey[1])
 		}
 
-		zipRe := regexp.MustCompile(`zip\s+([^;]+);`)
+		zipRe := regexp.MustCompile(`zip\s+([^;]+)`)
 		rootRe := regexp.MustCompile(`root\s+([^;]+)`)
 		indexRe := regexp.MustCompile(`index\s+([^;]+)`)
 		re = regexp.MustCompile(`path\s+(\S+)\s*{([^}]*)}`)
-
-		zipMatch := zipRe.FindStringSubmatch(match[1])
 
 		server_clear_str := ""
 		for _, line := range strings.Split(match[1], "\n") {
@@ -328,7 +326,7 @@ func process() {
 			if p.PathName == "" {
 				p.PathName = "/"
 			}
-
+			zipMatch := zipRe.FindStringSubmatch(path[2])
 			if len(zipMatch) > 1 {
 				if zipMatch[1] == "gzip br" || zipMatch[1] == "br gzip" {
 					p.Zip = 10
@@ -339,7 +337,6 @@ func process() {
 				}
 			}
 			fmt.Println(p.Zip)
-
 			re = regexp.MustCompile(`proxy_tcp\s+([^;]+)`)
 			if len(re.FindStringSubmatch(path[2])) > 1 {
 				p.PathType = 3
@@ -396,6 +393,6 @@ func process() {
 	//fmt.Println(G_config.Server[1].Path)
 	//fmt.Println(G_config.Server[0].Zip, G_config.Server[1].Zip)
 
-	// fmt.Printf("%+v\n", G_config)
+	//fmt.Printf("%+v\n", G_config)
 	// pretty.Print(G_config)
 }

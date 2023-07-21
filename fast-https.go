@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fast-https/cmd"
+	"fast-https/config"
 	_ "fast-https/config"
-	"fast-https/service"
 )
 
 func main() {
-	service.TestService("0.0.0.0:5000")
-	rootcmd := cmd.RootCmd()
-	rootcmd.Execute()
+	//service.TestService("0.0.0.0:5000")
+	//rootcmd := cmd.RootCmd()
+	//rootcmd.Execute()
+	config.Init()
 }
