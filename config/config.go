@@ -13,23 +13,19 @@ import (
 )
 
 const (
-	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
-)
-
-const (
 	ZIP_NONE    = 0
 	ZIP_GZIP    = 1
 	ZIP_BR      = 2
 	ZIP_GZIP_BR = 10
 )
 
-type global struct {
-	workerProcesses uint8
+type Global struct {
+	WorkerProcesses uint8
 }
 
-type events struct {
-	eventDrivenModel  string
-	workerConnections uint8
+type Events struct {
+	EventDrivenModel  string
+	WorkerConnections uint8
 }
 
 type ErrorPath struct {
@@ -133,7 +129,7 @@ func ServerContentType() {
 	G_ContentTypeMap = make(map[string]string)
 	var content_type string
 
-	wd, err := os.Getwd()
+	wd, _ := os.Getwd()
 	confPath := filepath.Join(wd, "config/mime.types")
 	confBytes, err := files.ReadFile(confPath)
 
@@ -159,33 +155,6 @@ func ServerContentType() {
 		}
 
 	}
-}
-
-func GetContentType(path string) string {
-	path_type := strings.Split(path, ".")
-
-	if path_type == nil {
-		return HTTP_DEFAULT_CONTENT_TYPE
-	}
-	pointAfter := path_type[len(path_type)-1]
-	row := G_ContentTypeMap[pointAfter]
-	if row == "" {
-		sep := "?"
-		index := strings.Index(pointAfter, sep)
-		if index != -1 { // 如果存在特定字符
-			pointAfter = pointAfter[:index] // 删除特定字符之后的所有字符
-		}
-		//fmt.Println(pointAfter, "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii")
-		secondFind := G_ContentTypeMap[pointAfter]
-		if secondFind != "" {
-			return secondFind
-		} else {
-			return HTTP_DEFAULT_CONTENT_TYPE
-		}
-	}
-
-	return row
-
 }
 
 func delete_extra_space(s string) string {
@@ -250,7 +219,7 @@ func contains(slice []string, str string) bool {
 }
 
 func process() {
-	wd, err := os.Getwd()
+	wd, _ := os.Getwd()
 	confPath := filepath.Join(wd, "config/fast-https-test.conf")
 	content, err := os.ReadFile(confPath)
 	if err != nil {
