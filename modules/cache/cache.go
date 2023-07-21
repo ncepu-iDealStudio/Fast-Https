@@ -41,7 +41,7 @@ func SearchDirFiles(path string) ([]string, error) {
 }
 
 func LoadAllStatic() {
-	message.PrintInfo("loadstatic")
+	// message.PrintInfo("loadstatic")
 	for _, server := range config.G_config.Servers {
 		for _, path := range server.Path {
 
@@ -53,10 +53,10 @@ func LoadAllStatic() {
 
 				for _, realPath := range dir {
 					data, _ := files.ReadFile(realPath)
-					flag := false
+					// flag := false
 					if path.Zip == 1 {
 						data, _ = CompressBytes_Gzip(data)
-						flag = true
+						// flag = true
 					}
 					if config.G_OS == "windows" {
 						realPath = "/" + realPath
@@ -64,11 +64,11 @@ func LoadAllStatic() {
 					}
 					myMap.put(Value{realPath, data, time.Now().Unix()})
 
-					if flag {
-						message.PrintInfo("Cached gzip ", realPath)
-					} else {
-						message.PrintInfo("Cached file ", realPath)
-					}
+					// if flag {
+					// message.PrintInfo("Cached gzip ", realPath)
+					// } else {
+					// message.PrintInfo("Cached file ", realPath)
+					// }
 				}
 			}
 		}

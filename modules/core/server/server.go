@@ -3,7 +3,6 @@ package server
 import (
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
-	"fast-https/service"
 	"fast-https/utils/message"
 )
 
@@ -77,7 +76,7 @@ func serve_one_port(listener listener.ListenInfo) {
 }
 
 func Run() {
-	service.TestService("0.0.0.0:5000")
+	// service.TestService("0.0.0.0:5000")
 	listens := listener.Listen()
 	for _, value := range listens {
 		go serve_one_port(value)
