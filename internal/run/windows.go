@@ -2,13 +2,13 @@ package run
 
 import (
 	"fast-https/cmd"
+	"fast-https/output"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"time"
 
 	"github.com/getlantern/systray"
-	"github.com/getlantern/systray/example/icon"
 	"github.com/skratchdot/open-golang/open"
 )
 
@@ -22,13 +22,13 @@ func StartWindows() {
 }
 
 func onReady() {
-	systray.SetTemplateIcon(icon.Data, icon.Data)
+	systray.SetTemplateIcon(output.Logo, output.Logo)
 	systray.SetTitle("Fast Https")
 	systray.SetTooltip("Lantern")
 
 	// We can manipulate the systray in other goroutines
 	go func() {
-		systray.SetTemplateIcon(icon.Data, icon.Data)
+		systray.SetTemplateIcon(output.Logo, output.Logo)
 		systray.SetTitle("Fast Https")
 		systray.SetTooltip("Fast Https")
 		mStart := systray.AddMenuItem("Start", "Start server")
