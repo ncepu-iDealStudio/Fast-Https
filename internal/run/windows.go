@@ -3,7 +3,6 @@ package run
 import (
 	"fast-https/cmd"
 	"fast-https/output"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"time"
@@ -15,7 +14,7 @@ import (
 func StartWindows() {
 	onExit := func() {
 		now := time.Now()
-		ioutil.WriteFile(fmt.Sprintf(`on_exit_%d.txt`, now.UnixNano()), []byte(now.String()), 0644)
+		ioutil.WriteFile("logs/system.log", []byte(now.String()+" System Exit.\n"), 0644)
 	}
 
 	systray.Run(onReady, onExit)
