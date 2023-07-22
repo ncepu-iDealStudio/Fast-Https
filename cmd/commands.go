@@ -36,17 +36,17 @@ var (
 		{
 			name:        "reload",
 			description: "Switching Processes",
-			handler:     reloadHandler,
+			handler:     ReloadHandler,
 		},
 		{
 			name:        "start",
 			description: "start process",
-			handler:     startHandler,
+			handler:     StartHandler,
 		},
 		{
 			name:        "stop",
 			description: "Stop process",
-			handler:     stopHandler,
+			handler:     StopHandler,
 		},
 		{
 			name:        "status",
@@ -109,15 +109,15 @@ func runCommand(args []string) error {
 	return nil
 }
 
-// reloadHandler reload server
-func reloadHandler() error {
-	stopHandler()
-	startHandler()
+// ReloadHandler reload server
+func ReloadHandler() error {
+	StopHandler()
+	StartHandler()
 	return nil
 }
 
-// stopHandler stop server
-func stopHandler() error {
+// StopHandler stop server
+func StopHandler() error {
 	file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
 		fmt.Printf(color.BlueString("output error"))
@@ -158,8 +158,8 @@ func stopHandler() error {
 	return nil
 }
 
-// startHandler start server
-func startHandler() error {
+// StartHandler start server
+func StartHandler() error {
 	output.PrintLogo()
 	Write_fast_https_pid()
 	output.PrintInitialStart()
