@@ -14,25 +14,24 @@ const (
 	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
 )
 
-func StaticEvent(lisdata listener.ListenData, path string) []byte {
+func Static_event(lisdata listener.ListenData, path string) []byte {
 	if config.G_OS == "windows" {
 		path = "/" + path
 	}
-	var res []byte
 	var file_data = cache.Get_data_from_cache(path)
 
 	if file_data != nil { // Not Fount
 
-		response := response.Response_init()
-		response.Set_first_line(200, "OK")
-		response.Set_header("Server", "Fast-Https")
-		response.Set_header("Date", time.Now().String())
-		response.Set_header("Content-Type", get_content_type(path))
+		res := response.Response_init()
+		res.Set_first_line(200, "OK")
+		res.Set_header("Server", "Fast-Https")
+		res.Set_header("Date", time.Now().String())
+		res.Set_header("Content-Type", get_content_type(path))
 		if lisdata.Zip == 1 {
-			response.Set_header("Content-Encoding", "gzip")
+			res.Set_header("Content-Encoding", "gzip")
 		}
-		response.Set_body([]byte(file_data))
-		return response.Generate_response()
+		res.Set_body([]byte(file_data))
+		return res.Generate_response()
 	}
 
 	for _, item := range lisdata.StaticIndex { // Find files in default Index array
@@ -42,22 +41,20 @@ func StaticEvent(lisdata listener.ListenData, path string) []byte {
 
 		if file_data != nil {
 
-			response := response.Response_init()
-			response.Set_first_line(200, "OK")
-			response.Set_header("Server", "Fast-Https")
-			response.Set_header("Date", time.Now().String())
-			response.Set_header("Content-Type", get_content_type(path))
+			res := response.Response_init()
+			res.Set_first_line(200, "OK")
+			res.Set_header("Server", "Fast-Https")
+			res.Set_header("Date", time.Now().String())
+			res.Set_header("Content-Type", get_content_type(path))
 			if lisdata.Zip == 1 {
-				response.Set_header("Content-Encoding", "gzip")
+				res.Set_header("Content-Encoding", "gzip")
 			}
-			response.Set_body([]byte(file_data))
-			return response.Generate_response()
+			res.Set_body([]byte(file_data))
+			return res.Generate_response()
 		}
 	}
 
-	res = response.Default_not_found
-
-	return res
+	return response.Default_not_found
 }
 
 func get_content_type(path string) string {
