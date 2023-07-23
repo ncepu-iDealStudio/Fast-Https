@@ -10,37 +10,12 @@ builds:
   - env:
       - CGO_ENABLED=0
     goos:
-      - windows
+      - linux
       - darwin
     binary:
       fast-https
     main:
       ./fast-https.go
-    # TODO fix darwin problem
-    ignore:
-      - goos: darwin
-
-    overrides:
-      - goos: darwin
-        goarch: amd64
-        ldflags:
-          - framework=Cocoa
-        gcflags:
-          - "-DDARWIN -x objective-c -fobjc-arc"
-        env:
-          - CGO_ENABLED=1
-      - goos: darwin
-        goarch: arm64
-        goamd64: v1
-        goarm: ""
-        gomips: ""
-        ldflags:
-          - "framework=Cocoa"
-        gcflags:
-          - "-DDARWIN -x objective-c -fobjc-arc"
-        env:
-          - CGO_ENABLED=1
-
 
 archives:
   - format: tar.gz

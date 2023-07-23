@@ -1,23 +1,58 @@
 package run
 
 import (
-	"fast-https/cmd"
 	"fast-https/output"
 	"io/ioutil"
 	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/getlantern/systray"
-	"github.com/skratchdot/open-golang/open"
 )
 
 func StartWindows() {
 	onExit := func() {
 		now := time.Now()
-		ioutil.WriteFile("logs/system.log", []byte(now.String()+" System Exit.\n"), 0644)
+		ioutil.WriteFile("logs/monitor.log", []byte(now.String()+" System Exit.\n"), 0644)
 	}
 
 	systray.Run(onReady, onExit)
+}
+
+func startServer() (err error) {
+	dir, err := os.Getwd()
+	command := exec.Command(filepath.Join(dir, "fast-https"), "start")
+	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	err = command.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return nil
+}
+
+func stopServer() (err error) {
+	dir, err := os.Getwd()
+	command := exec.Command(filepath.Join(dir, "fast-https"), "stop")
+	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	err = command.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return nil
+}
+
+func reloadServer() (err error) {
+	dir, err := os.Getwd()
+	command := exec.Command(filepath.Join(dir, "fast-https"), "reload")
+	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	err = command.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	return nil
 }
 
 func onReady() {
@@ -33,7 +68,6 @@ func onReady() {
 		mStart := systray.AddMenuItem("Start", "Start server")
 		mStop := systray.AddMenuItem("Stop", "Stop server")
 		mReload := systray.AddMenuItem("Reload", "Reload server")
-		mUrl := systray.AddMenuItem("Github", "Project Source code")
 
 		systray.AddSeparator()
 
@@ -41,26 +75,26 @@ func onReady() {
 			select {
 			case <-mStart.ClickedCh:
 				log.Println("Fast-Https Starting...")
-				err := cmd.StartHandler()
+				err := startServer()
+				mStart.Disable()
 				if err != nil {
 					log.Fatal(err)
 				}
 			case <-mStop.ClickedCh:
-				err := cmd.StopHandler()
+				err := stopServer()
 				if err != nil {
 					log.Fatal(err)
 				} else {
 					log.Println("Fast-Https Stop")
+					mStart.Enable()
 				}
 			case <-mReload.ClickedCh:
-				err := cmd.ReloadHandler()
+				err := reloadServer()
 				if err != nil {
 					log.Fatal(err)
 				} else {
-					log.Println("Fast-Https Reload")
+					log.Println("Fast-Https Monitor Reload")
 				}
-			case <-mUrl.ClickedCh:
-				open.Run("https://gitee.com/ncepu-bj/fast-https")
 			}
 		}
 	}()

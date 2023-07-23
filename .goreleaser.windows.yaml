@@ -7,16 +7,18 @@ before:
     # you may remove this if you don't need go generate
     - go generate ./...
 
-dist: dist_linux
+dist: dist_windows
 
 builds:
   - env:
       - CGO_ENABLED=0
     goos:
-      - linux
+      - windows
     binary:
       fast-https
-    main: ./fast-https-linux.go
+    main: ./fast-https.go
+    ldflags:
+      - "-s -w -H=windowsgui"
 
 archives:
   - format: tar.gz
@@ -29,6 +31,9 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     # files needed to archive into dir
+    format_overrides:
+      - goos: windows
+        format: zip
     files:
       - config/cert/
       - config/fast-https.conf
@@ -38,6 +43,7 @@ archives:
       - httpdoc/root/*
       - logs/.keep
       - README.md
+      - monitor.exe
 checksum:
   name_template: 'checksums.txt'
 snapshot:

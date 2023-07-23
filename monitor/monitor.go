@@ -1,13 +1,12 @@
 package main
 
 import (
-	"fast-https/cmd"
 	_ "fast-https/config"
+	"fast-https/internal/run"
 )
 
 func main() {
 
-	rootcmd := cmd.RootCmd()
-	rootcmd.Execute()
+	run.StartWindows()
 
 }
