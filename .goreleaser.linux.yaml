@@ -6,41 +6,17 @@ before:
     - go mod tidy
     # you may remove this if you don't need go generate
     - go generate ./...
+
+dist: dist_linux
+
 builds:
   - env:
       - CGO_ENABLED=0
     goos:
-      - windows
-      - darwin
+      - linux
     binary:
       fast-https
-    main:
-      ./fast-https.go
-    # TODO fix darwin problem
-    ignore:
-      - goos: darwin
-
-    overrides:
-      - goos: darwin
-        goarch: amd64
-        ldflags:
-          - framework=Cocoa
-        gcflags:
-          - "-DDARWIN -x objective-c -fobjc-arc"
-        env:
-          - CGO_ENABLED=1
-      - goos: darwin
-        goarch: arm64
-        goamd64: v1
-        goarm: ""
-        gomips: ""
-        ldflags:
-          - "framework=Cocoa"
-        gcflags:
-          - "-DDARWIN -x objective-c -fobjc-arc"
-        env:
-          - CGO_ENABLED=1
-
+    main: ./fast-https-linux.go
 
 archives:
   - format: tar.gz
@@ -52,10 +28,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    format_overrides:
-    - goos: windows
-      format: zip
     # files needed to archive into dir
     files:
       - config/cert/
