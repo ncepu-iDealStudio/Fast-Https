@@ -10,6 +10,7 @@ import (
 	"fast-https/utils"
 	"fast-https/utils/loggers"
 	"fmt"
+	"github.com/fatih/color"
 	"github.com/fufuok/chanx"
 	"os"
 	"runtime"
@@ -39,7 +40,7 @@ func InitMsg() {
 			}()
 			err = msgMap[m.Type](m.Context)
 			if err != nil {
-				PrintErr(err)
+				PrintErr(color.RedString(err.Error()))
 			}
 		}(msg)
 	}
@@ -68,7 +69,7 @@ func initMsgHandler() {
 	})
 	AddMsgHandler("err", func(args ...any) error {
 		var log = loggers.GetLogger()
-		log.Errorln(args)
+		log.Errorln(color.RedString("", args))
 		return nil
 	})
 	AddMsgHandler("warn", func(args ...any) error {

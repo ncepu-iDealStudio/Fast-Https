@@ -180,7 +180,7 @@ func Write_fast_https_pid() {
 	writer1.WriteString(strconv.Itoa(x_pid))
 	writer1.WriteString("\n")
 	writer1.Flush()
-	fmt.Println(color.RedString("Fast-Https running [PID]:"), x_pid)
+	fmt.Println("Fast-Https running [PID]:", x_pid)
 }
 
 func statusHandler() error {
