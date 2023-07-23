@@ -3,6 +3,7 @@ package events
 import (
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
+	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
 	"fast-https/utils/message"
 	"io"
@@ -52,11 +53,11 @@ func Handle_event(ev Event) {
 						_event_301(ev.Conn, item.Path+"/")
 						goto next
 					}
-					res := StaticEvent(item, item.StaticRoot+row_file_path)
+					res := Static_event(item, item.StaticRoot+row_file_path)
 					write_bytes_close(ev.Conn, res)
 					goto next
 				} else {
-					res := StaticEvent(item, item.StaticRoot+req.Path)
+					res := Static_event(item, item.StaticRoot+req.Path)
 					write_bytes_close(ev.Conn, res)
 					goto next
 				}
@@ -66,7 +67,7 @@ func Handle_event(ev Event) {
 
 				res, err := Proxy_event(byte_row, item.Proxy_addr)
 				if err == 1 {
-					write_bytes_close(ev.Conn, []byte("HTTP/1.1 500 \r\n\r\nSERVER ERROR"))
+					write_bytes_close(ev.Conn, response.Default_server_error)
 					goto next
 				}
 				write_bytes_close(ev.Conn, res)
@@ -74,7 +75,7 @@ func Handle_event(ev Event) {
 			}
 		}
 	}
-	write_bytes_close(ev.Conn, []byte("HTTP/1.1 404 \r\n\r\nNOTFOUND[event:63]"))
+	write_bytes_close(ev.Conn, response.Default_not_found)
 
 next:
 }
