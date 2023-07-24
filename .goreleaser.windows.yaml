@@ -43,7 +43,9 @@ archives:
       - httpdoc/root/*
       - logs/.keep
       - README.md
-      - monitor.exe
+      - src: "monitor/monitor.exe"
+        dst: .
+        strip_parent: true
 checksum:
   name_template: 'checksums.txt'
 snapshot:
