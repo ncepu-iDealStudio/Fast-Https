@@ -8,55 +8,61 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/getlantern/systray"
 )
 
+var logFile *os.File
+
 // StartWindows start the taskBox window
 func StartWindows() {
-	logFile, _ := os.OpenFile("logs/monitor.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
-	log.SetOutput(io.MultiWriter(os.Stdout, logFile))
+	logFile, _ = os.OpenFile("logs/monitor.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	log.SetOutput(logFile)
+	defer logFile.Close()
 
 	onExit := func() {
 		now := time.Now()
-		log.Println(now.String() + "Monitor System Exit.")
+		log.Println(now.String() + " Monitor System Exit.")
+		os.Exit(0)
 	}
 
 	systray.Run(onReady, onExit)
 }
 
-func startServer() (err error) {
+func startServer() {
 	dir, err := os.Getwd()
 	command := exec.Command(filepath.Join(dir, "fast-https"), "start")
-	//command.SysProcAttr = &syscall.SysProcAttr{HideWindow: false}
-	err = command.Run()
+	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	command.Stdout = logFile
+	err = command.Start()
 	if err != nil {
 		log.Println(err)
 	}
-	return nil
 }
 
-func stopServer() (err error) {
+func stopServer() {
 	dir, err := os.Getwd()
 	command := exec.Command(filepath.Join(dir, "fast-https"), "stop")
-	//command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	command.Stdout = logFile
 	err = command.Run()
 	if err != nil {
 		log.Println(err)
 	}
-	return nil
+
 }
 
-func reloadServer() (err error) {
+func reloadServer() {
 	dir, err := os.Getwd()
 	command := exec.Command(filepath.Join(dir, "fast-https"), "reload")
-	//command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	command.Stdout = logFile
 	err = command.Run()
 	if err != nil {
 		log.Println(err)
 	}
-	return nil
 }
 
 func isProcessRunning(processId string) bool {
@@ -111,45 +117,49 @@ func onReady() {
 	go func() {
 		<-mQuitOrig.ClickedCh
 		systray.Quit()
-		os.Exit(0)
 	}()
 
-	// start
+	// start stop and reload control
 	go func() {
-		<-mStart.ClickedCh
-		mStart.SetIcon(output.LogoStopping)
-		systray.SetTemplateIcon(output.LogoExecuting, output.LogoExecuting)
-		mStart.Disable()
-		err := startServer()
-		if err != nil {
-			log.Println(err)
-		} else {
-			log.Println("Fast-Https Starting...")
-		}
-	}()
+		for {
+			select {
+			// start
+			case <-mStart.ClickedCh:
+				log.Println("Fast-Https Starting...")
+				if mStart.Checked() {
+					mStart.Uncheck()
+				}
 
-	// stop
-	go func() {
-		<-mStop.ClickedCh
-		systray.SetTemplateIcon(output.LogoStopping, output.LogoStopping)
-		mStart.Enable()
-		err := stopServer()
-		if err != nil {
-			log.Println(err)
-		} else {
-			log.Println("Fast-Https Stop...")
-		}
-	}()
+				mStart.Disable()
+				mStart.SetIcon(output.IconStart)
+				mStart.Uncheck()
+				mStart.Show()
+				systray.SetTemplateIcon(output.LogoExecuting, output.LogoExecuting)
+				startServer()
 
-	// reload
-	go func() {
-		<-mReload.ClickedCh
-		err := reloadServer()
-		if err != nil {
-			log.Println(err)
-		} else {
-			log.Println("Fast-Https Monitor Reload")
-		}
-	}()
+			// stop
+			case <-mStop.ClickedCh:
+				if mStop.Checked() {
+					mStop.Uncheck()
+					mStop.Show()
+				}
+				mStart.Enable()
+				mStart.SetIcon(output.IconStop)
+				mStart.Show()
+				log.Println("Fast-Https Stop...")
+				systray.SetTemplateIcon(output.LogoStopping, output.LogoStopping)
+				stopServer()
 
+			// reload
+			case <-mReload.ClickedCh:
+				if mReload.Checked() {
+					mReload.Uncheck()
+					mReload.Show()
+				}
+				log.Println("Fast-Https Monitor Reload")
+				reloadServer()
+			}
+		}
+
+	}()
 }

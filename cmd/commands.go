@@ -121,40 +121,32 @@ func StopHandler() error {
 	file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
 		fmt.Printf(color.BlueString("output error"))
-	} else {
-		str_1 := color.RedString("There is a process running, do you need to continue the operation (y/n):")
-		fmt.Println(str_1)
 	}
-	var scan byte
-	fmt.Scanf("%c", &scan)
-	if scan == 'y' {
 
-		reader1 := bufio.NewReader(file)
-		str, _ := reader1.ReadString('\n')
-		msg := strings.Trim(str, "\r\n")
-		ax, _ := strconv.Atoi(msg)
-		// ax := 21980
+	reader1 := bufio.NewReader(file)
+	str, _ := reader1.ReadString('\n')
+	msg := strings.Trim(str, "\r\n")
+	ax, _ := strconv.Atoi(msg)
+	// ax := 21980
 
-		var cmd *exec.Cmd
-		if runtime.GOOS == "windows" {
-			cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
-		} else {
-			cmd = exec.Command("kill", "-9", strconv.Itoa(ax))
-		}
-
-		err = cmd.Run()
-		if err != nil {
-			fmt.Println("Shutdown process failed:", err)
-			return nil
-		}
-
-		fmt.Println("Process closed")
-		file.Close()
-
-		ioutil.WriteFile("fast-https.pid", []byte{}, 0666)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
 	} else {
-		fmt.Println("End operation")
+		cmd = exec.Command("kill", "-9", strconv.Itoa(ax))
 	}
+
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("Shutdown process failed:", err)
+		return nil
+	}
+
+	fmt.Println("Process closed")
+	file.Close()
+
+	ioutil.WriteFile("fast-https.pid", []byte{}, 0666)
+
 	return nil
 }
 
