@@ -2,10 +2,11 @@ package events
 
 import (
 	"fast-https/utils/message"
+	"io"
 	"net"
 )
 
-func get_data_from_server(proxyaddr string, data []byte) ([]byte, int) {
+func get_data_from_server(ev Event, proxyaddr string, data []byte) ([]byte, int) {
 
 	conn, err := net.Dial("tcp", proxyaddr)
 	if err != nil {
@@ -19,20 +20,34 @@ func get_data_from_server(proxyaddr string, data []byte) ([]byte, int) {
 		message.PrintErr("Proxy Write error")
 	}
 
-	buffer := make([]byte, 1024*512)
-	n, err := conn.Read(buffer)
-	if err != nil {
+	// buffer := make([]byte, 1024*512)
+	var resData []byte
+	tmpByte := make([]byte, 1)
+	for {
+		len, err := conn.Read(tmpByte)
+		if err != nil {
+			if err == io.EOF { // read all
+				break
+			} else {
+				conn.Close()
+				message.PrintWarn("Proxy Read error", err)
+			}
+		}
+		if len == 0 {
+			break
+		}
+		resData = append(resData, tmpByte...)
+	}
+	if ev.Req_.Connection == "close" {
 		conn.Close()
-		message.PrintWarn("Proxy Read error", err)
 	}
 	conn.Close()
-
-	return buffer[:n], 0 // no error
+	return resData, 0 // no error
 }
 
-func Proxy_event(req_data []byte, proxyaddr string) ([]byte, int) {
+func Proxy_event(ev Event, req_data []byte, proxyaddr string) ([]byte, int) {
 
-	return get_data_from_server(proxyaddr, req_data)
+	return get_data_from_server(ev, proxyaddr, req_data)
 }
 
 func Proxy_event_tcp(conn net.Conn, proxyaddr string) {
@@ -61,5 +76,4 @@ func Proxy_event_tcp(conn net.Conn, proxyaddr string) {
 		}
 
 	}
-
 }

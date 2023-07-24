@@ -64,13 +64,19 @@ func Handle_event(ev Event) {
 		case 1, 2:
 			if ev.Req_.Host == d.ServerName && strings.HasPrefix(ev.Req_.Path, d.Path) {
 
-				res, err := Proxy_event(byte_row, d.Proxy_addr)
+				res, err := Proxy_event(ev, byte_row, d.Proxy_addr)
 				if err == 1 {
 					write_bytes_close(ev, response.Default_server_error)
 					return
 				}
-				write_bytes_close(ev, res)
-				return
+				if ev.Req_.Connection == "close" {
+					write_bytes_close(ev, res)
+				} else {
+					write_bytes_close(ev, res)
+					return
+					Handle_event(ev)
+				}
+				// return
 			}
 		}
 	}
@@ -78,7 +84,7 @@ func Handle_event(ev Event) {
 }
 
 func read_data(ev Event) ([]byte, string) {
-	buffer := make([]byte, 1024)
+	buffer := make([]byte, 1024*4)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
 		if err == io.EOF {
@@ -103,9 +109,9 @@ func write_bytes_close(ev Event, res []byte) {
 	}
 }
 
-func Write_bytes(conn net.Conn, res []byte) {
+func write_bytes(ev Event, res []byte) {
 
-	_, err := conn.Write(res)
+	_, err := ev.Conn.Write(res)
 	if err != nil {
 		message.PrintErr("Error writing to client:", err)
 	}

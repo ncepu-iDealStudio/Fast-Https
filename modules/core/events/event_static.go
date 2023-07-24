@@ -5,7 +5,6 @@ import (
 	"fast-https/modules/cache"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -18,8 +17,8 @@ const (
 func Static_event(d listener.ListenData, path string, ev Event) {
 	if ev.Req_.Connection == "keep-alive" {
 		res := get_res_bytes(d, path, ev.Req_.Connection)
-		fmt.Println("-------------")
-		write_bytes_close(ev, res)
+		write_bytes(ev, res)
+		Handle_event(ev)
 	} else {
 		res := get_res_bytes(d, path, ev.Req_.Connection)
 		write_bytes_close(ev, res)
