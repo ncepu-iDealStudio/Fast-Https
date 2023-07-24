@@ -53,7 +53,7 @@ func Process_ports() {
 			if strings.Contains(each.Listen, "ssl") {
 				lis_temp.LisType = 1 // ssl
 			} else if strings.Contains(each.Listen, "tcp") {
-				lis_temp.LisType = 2 // tcp
+				lis_temp.LisType = 2 // tcp proxy
 			} else {
 				lis_temp.LisType = 0
 			}

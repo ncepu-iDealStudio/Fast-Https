@@ -17,9 +17,13 @@ const (
 type Req struct {
 	Method   string
 	Path     string
-	Encoding []string
-	Host     string
 	Protocol string
+
+	Host       string
+	Encoding   []string
+	Connection string // <keep-alive> <close>
+
+	Headers map[string]string
 }
 
 var http_method = []string{
@@ -33,30 +37,33 @@ var http_method = []string{
 	"CONNECT",
 }
 
-func Http_parse(request string) (Req, int) {
+func Req_init() *Req {
+	return &Req{
+		Headers: make(map[string]string),
+	}
+}
+
+func (r *Req) Http_parse(request string) int {
 
 	if request == "" {
-		return Req{}, NONE
+		return NONE
 	}
-	// fmt.Printf(request)
 	requestLine := strings.Split(request, "\r\n")
 	if requestLine == nil {
-		return Req{}, UNKNOW_INVALID // invlaid request
+		return UNKNOW_INVALID // invlaid request
 	}
 	parts := strings.Split(requestLine[0], " ")
 	if parts == nil || len(parts) < 3 {
-		return Req{}, FIRST_LINE_INVALID // invlaid first line
+		return FIRST_LINE_INVALID // invlaid first line
 	}
-	method := parts[0]
-	if !collection.Collect(http_method).Contains(method) {
-		return Req{}, METHOD_INVALID // invlaid method
+	if !collection.Collect(http_method).Contains(parts[0]) {
+		return METHOD_INVALID // invlaid method
 	}
-	path := parts[1]
-	protocol := parts[2]
 
-	var host string
+	r.Method = parts[0]
+	r.Path = parts[1]
+	r.Protocol = parts[2]
 
-	headers := make(map[string]string)
 	lines := strings.Split(request, "\r\n")[1:]
 	for _, line := range lines {
 		if line == "" {
@@ -65,20 +72,16 @@ func Http_parse(request string) (Req, int) {
 		parts := strings.SplitN(line, ":", 2)
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
-		headers[key] = value
+		r.Headers[key] = value
 		if strings.Compare(key, "Host") == 0 {
-			host = value
+			r.Host = value
+		}
+		if strings.Compare(key, "Connection") == 0 {
+			r.Connection = value
 		}
 	}
 
-	// fmt.Println("Headers:", headers)
-	encoding := []string{"gzip"}
+	// fmt.Println(r)
 
-	return Req{
-		Method:   method,
-		Path:     path,
-		Encoding: encoding,
-		Host:     host,
-		Protocol: protocol,
-	}, REQUEST_OK
+	return REQUEST_OK // valid
 }

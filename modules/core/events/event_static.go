@@ -4,33 +4,50 @@ import (
 	"fast-https/config"
 	"fast-https/modules/cache"
 	"fast-https/modules/core/listener"
+	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
 
-// var data = "HTTP/1.1 200 OK\r\nConnection: keep-alive\r\n\r\nHello World"
 const (
 	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
 )
 
-func Static_event(lisdata listener.ListenData, path string) []byte {
+func Static_event(d listener.ListenData, path string, ev Event, req *request.Req) {
+	if req.Connection == "keep-alive" {
+		res := get_res_bytes(d, path, req.Connection)
+		fmt.Println("-------------")
+		write_bytes_close(ev.Conn, res)
+	} else {
+		res := get_res_bytes(d, path, req.Connection)
+		write_bytes_close(ev.Conn, res)
+	}
+}
+
+func get_res_bytes(lisdata listener.ListenData, path string, connection string) []byte {
 	if config.G_OS == "windows" {
 		path = "/" + path
 	}
 	var file_data = cache.Get_data_from_cache(path)
 
+	res := response.Response_init() // Create a res Object
+	res.Set_first_line(200, "OK")
+	res.Set_header("Server", "Fast-Https")
+	res.Set_header("Date", time.Now().String())
+
 	if file_data != nil { // Not Fount
 
-		res := response.Response_init()
-		res.Set_first_line(200, "OK")
-		res.Set_header("Server", "Fast-Https")
-		res.Set_header("Date", time.Now().String())
 		res.Set_header("Content-Type", get_content_type(path))
+		res.Set_header("Content-Length", strconv.Itoa(len(file_data)))
 		if lisdata.Zip == 1 {
 			res.Set_header("Content-Encoding", "gzip")
 		}
-		res.Set_body([]byte(file_data))
+		res.Set_header("Connection", connection)
+
+		res.Set_body(file_data)
 		return res.Generate_response()
 	}
 
@@ -41,15 +58,14 @@ func Static_event(lisdata listener.ListenData, path string) []byte {
 
 		if file_data != nil {
 
-			res := response.Response_init()
-			res.Set_first_line(200, "OK")
-			res.Set_header("Server", "Fast-Https")
-			res.Set_header("Date", time.Now().String())
 			res.Set_header("Content-Type", get_content_type(path))
+			res.Set_header("Content-Length", strconv.Itoa(len(file_data)))
 			if lisdata.Zip == 1 {
 				res.Set_header("Content-Encoding", "gzip")
 			}
-			res.Set_body([]byte(file_data))
+			res.Set_header("Connection", connection)
+
+			res.Set_body(file_data)
 			return res.Generate_response()
 		}
 	}
