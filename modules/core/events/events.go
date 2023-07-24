@@ -18,12 +18,12 @@ type Event struct {
 	Timer    *timer.Timer
 }
 
-func _event_301(conn net.Conn, path string) {
+func _event_301(ev Event, path string) {
 	res := []byte("HTTP/1.1 301 Moved Permanently\r\n" +
 		"Location: " + path + "\r\n" +
 		"Connection: close\r\n" +
 		"\r\n")
-	write_bytes_close(conn, res)
+	write_bytes_close(ev, res)
 }
 
 func Handle_event(ev Event) {
@@ -36,7 +36,7 @@ func Handle_event(ev Event) {
 	ev.Req_ = request.Req_init()
 	byte_row, str_row := read_data(ev)
 	if byte_row == nil { // client closed
-		goto next
+		return
 	} else {
 		ev.Req_.Http_parse(str_row)
 	}
@@ -51,14 +51,14 @@ func Handle_event(ev Event) {
 
 				if d.Path != "/" {
 					if row_file_path == "" {
-						_event_301(ev.Conn, d.Path+"/")
-						goto next
+						_event_301(ev, d.Path+"/")
+						return
 					}
-					Static_event(d, d.StaticRoot+row_file_path, ev, ev.Req_)
-					goto next
+					Static_event(d, d.StaticRoot+row_file_path, ev)
+					return
 				} else {
-					Static_event(d, d.StaticRoot+ev.Req_.Path, ev, ev.Req_)
-					goto next
+					Static_event(d, d.StaticRoot+ev.Req_.Path, ev)
+					return
 				}
 			}
 		case 1, 2:
@@ -66,17 +66,15 @@ func Handle_event(ev Event) {
 
 				res, err := Proxy_event(byte_row, d.Proxy_addr)
 				if err == 1 {
-					write_bytes_close(ev.Conn, response.Default_server_error)
-					goto next
+					write_bytes_close(ev, response.Default_server_error)
+					return
 				}
-				write_bytes_close(ev.Conn, res)
-				goto next
+				write_bytes_close(ev, res)
+				return
 			}
 		}
 	}
-	write_bytes_close(ev.Conn, response.Default_not_found)
-
-next:
+	write_bytes_close(ev, response.Default_not_found)
 }
 
 func read_data(ev Event) ([]byte, string) {
@@ -94,12 +92,12 @@ func read_data(ev Event) ([]byte, string) {
 }
 
 // handle row bytes
-func write_bytes_close(conn net.Conn, res []byte) {
-	_, err := conn.Write(res)
+func write_bytes_close(ev Event, res []byte) {
+	_, err := ev.Conn.Write(res)
 	if err != nil {
 		message.PrintErr("Error writing to client:", err)
 	}
-	err = conn.Close()
+	err = ev.Conn.Close()
 	if err != nil {
 		message.PrintErr("Error Close:", err)
 	}

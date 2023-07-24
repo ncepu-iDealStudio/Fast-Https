@@ -4,7 +4,6 @@ import (
 	"fast-https/config"
 	"fast-https/modules/cache"
 	"fast-https/modules/core/listener"
-	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fmt"
 	"strconv"
@@ -16,14 +15,14 @@ const (
 	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
 )
 
-func Static_event(d listener.ListenData, path string, ev Event, req *request.Req) {
-	if req.Connection == "keep-alive" {
-		res := get_res_bytes(d, path, req.Connection)
+func Static_event(d listener.ListenData, path string, ev Event) {
+	if ev.Req_.Connection == "keep-alive" {
+		res := get_res_bytes(d, path, ev.Req_.Connection)
 		fmt.Println("-------------")
-		write_bytes_close(ev.Conn, res)
+		write_bytes_close(ev, res)
 	} else {
-		res := get_res_bytes(d, path, req.Connection)
-		write_bytes_close(ev.Conn, res)
+		res := get_res_bytes(d, path, ev.Req_.Connection)
+		write_bytes_close(ev, res)
 	}
 }
 
