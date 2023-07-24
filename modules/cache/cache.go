@@ -84,7 +84,7 @@ func Get_data_from_cache(realPath string) []byte {
 	// }
 	// myMap.put(xx, xx)
 	data, err := files.ReadFile(realPath)
-	if err == nil {
+	if err != nil {
 		return nil
 	}
 
