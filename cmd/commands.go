@@ -173,13 +173,11 @@ func Write_fast_https_pid() {
 	// Obtain the pid and store it
 	x_pid := os.Getpid()
 
-	file, _ := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_APPEND, 0666)
+	file, _ := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 
 	defer file.Close()
-	writer1 := bufio.NewWriter(file)
-	writer1.WriteString(strconv.Itoa(x_pid))
-	writer1.WriteString("\n")
-	writer1.Flush()
+	file.WriteString(strconv.Itoa(x_pid) + "\n")
+
 	fmt.Println("Fast-Https running [PID]:", x_pid)
 }
 
