@@ -34,7 +34,7 @@ func Handle_event(ev Event) {
 	}
 
 	ev.Req_ = request.Req_init()
-	byte_row, str_row := read_data(ev.Conn)
+	byte_row, str_row := read_data(ev)
 	if byte_row == nil { // client closed
 		goto next
 	} else {
@@ -79,12 +79,12 @@ func Handle_event(ev Event) {
 next:
 }
 
-func read_data(conn net.Conn) ([]byte, string) {
+func read_data(ev Event) ([]byte, string) {
 	buffer := make([]byte, 1024)
-	n, err := conn.Read(buffer)
+	n, err := ev.Conn.Read(buffer)
 	if err != nil {
 		if err == io.EOF {
-			message.PrintInfo(conn.RemoteAddr(), " closed")
+			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
 		message.PrintErr("Error reading from client:", err)
@@ -105,7 +105,7 @@ func write_bytes_close(conn net.Conn, res []byte) {
 	}
 }
 
-func write_bytes(conn net.Conn, res []byte) {
+func Write_bytes(conn net.Conn, res []byte) {
 
 	_, err := conn.Write(res)
 	if err != nil {

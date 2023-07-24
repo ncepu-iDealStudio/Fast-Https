@@ -78,11 +78,17 @@ func LoadAllStatic() {
 
 func Get_data_from_cache(realPath string) []byte {
 
-	return myMap.get(realPath)
+	// return myMap.get(realPath)
 	// if data == nil {
 	// read_from_disk()
 	// }
 	// myMap.put(xx, xx)
+	data, err := files.ReadFile(realPath)
+	if err == nil {
+		return nil
+	}
+
+	return data
 }
 
 func Release_cache() {
