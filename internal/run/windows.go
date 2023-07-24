@@ -59,17 +59,15 @@ func onReady() {
 	systray.SetTemplateIcon(output.Logo, output.Logo)
 	systray.SetTitle("Fast Https")
 	systray.SetTooltip("Lantern")
-
+	systray.SetTemplateIcon(output.Logo, output.Logo)
+	systray.SetTitle("Fast Https")
+	systray.SetTooltip("Fast Https")
+	mStart := systray.AddMenuItem("Start", "Start server")
+	mStop := systray.AddMenuItem("Stop", "Stop server")
+	mReload := systray.AddMenuItem("Reload", "Reload server")
+	systray.AddSeparator()
 	// We can manipulate the systray in other goroutines
 	go func() {
-		systray.SetTemplateIcon(output.Logo, output.Logo)
-		systray.SetTitle("Fast Https")
-		systray.SetTooltip("Fast Https")
-		mStart := systray.AddMenuItem("Start", "Start server")
-		mStop := systray.AddMenuItem("Stop", "Stop server")
-		mReload := systray.AddMenuItem("Reload", "Reload server")
-
-		systray.AddSeparator()
 
 		for {
 			select {
