@@ -3,11 +3,11 @@ package run
 import (
 	"bufio"
 	"fast-https/output"
-	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -69,34 +69,28 @@ func isProcessRunning(processId string) bool {
 	if len(processId) == 0 {
 		return false
 	}
-	cmd := exec.Command("tasklist", "/FI", "\"PID eq "+processId+"\"")
-	out, err := cmd.Output()
+	atoi, _ := strconv.Atoi(processId)
+	_, err := os.FindProcess(atoi)
 	if err != nil {
-		log.Println("Error while checking process status")
-		log.Println(err)
 		return false
-	}
-	if len(out) > 0 {
+	} else {
 		return true
 	}
-	return false
 }
 
 func getPid() string {
 	file, _ := os.OpenFile("fast-https.pid", os.O_RDONLY, 0666)
 	defer file.Close()
-	var pid string
 	reader := bufio.NewReader(file)
-	line, err := reader.ReadString('\n')
-	if err == io.EOF {
-		pid = line
+	pid, _, err := reader.ReadLine()
+	if err != nil {
+		return ""
 	}
-	return pid
+	return string(pid)
 }
 
 func onReady() {
-	isRunning := isProcessRunning(getPid())
-
+	// setup taskBar window
 	systray.SetTitle("Fast-Https")
 	systray.SetTooltip("Fast-Https")
 	mStart := systray.AddMenuItem("Start", "Start server")
@@ -105,10 +99,16 @@ func onReady() {
 	systray.AddSeparator()
 	mQuitOrig := systray.AddMenuItem("Quit", "Quit the whole app")
 
+	// check the fast-https server status
+	pid := getPid()
+	log.Println("pid:", pid)
+	isRunning := isProcessRunning(pid)
 	if isRunning {
 		systray.SetTemplateIcon(output.LogoExecuting, output.LogoExecuting)
 		mStart.Disable()
-
+		mStart.SetIcon(output.IconStart)
+		mStart.Uncheck()
+		mStart.Show()
 	} else {
 		systray.SetTemplateIcon(output.LogoStopping, output.LogoStopping)
 	}
