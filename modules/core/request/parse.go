@@ -14,6 +14,8 @@ const (
 	METHOD_INVALID     = 4
 )
 
+// this struct is saved in Event
+// which contaions event's method,path,servername(headers)
 type Req struct {
 	Method   string
 	Path     string
@@ -43,6 +45,7 @@ func Req_init() *Req {
 	}
 }
 
+// parse row tcp str to a req object
 func (r *Req) Http_parse(request string) int {
 
 	if request == "" {

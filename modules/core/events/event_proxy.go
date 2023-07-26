@@ -6,6 +6,7 @@ import (
 	"net"
 )
 
+// fast-https will send data to real server and get response from target
 func get_data_from_server(ev Event, proxyaddr string, data []byte) ([]byte, int) {
 
 	conn, err := net.Dial("tcp", proxyaddr)
@@ -20,7 +21,6 @@ func get_data_from_server(ev Event, proxyaddr string, data []byte) ([]byte, int)
 		message.PrintErr("Proxy Write error")
 	}
 
-	// buffer := make([]byte, 1024*512)
 	var resData []byte
 	tmpByte := make([]byte, 1)
 	for {

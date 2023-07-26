@@ -60,13 +60,14 @@ import (
 //	return 0
 //}
 
+// listen and serve one port
 func serve_one_port(listener listener.ListenInfo) {
 	for {
 		conn, err := listener.Lfd.Accept()
+
 		each_event := events.Event{}
 		each_event.Conn = conn
 		each_event.Lis_info = listener
-
 		each_event.Timer = nil
 
 		if err != nil {

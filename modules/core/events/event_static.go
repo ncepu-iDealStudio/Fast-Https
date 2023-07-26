@@ -14,11 +14,16 @@ const (
 	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
 )
 
+// handle static events
+// if requests want to keep-alive, we use write bytes,
+// if Content-Type is close, we write bytes and close this connection
+// Recursion "Handle_event" isn't a problem, because it
+// will pause when TCP buffer is None.
 func Static_event(d listener.ListenData, path string, ev Event) {
 	if ev.Req_.Connection == "keep-alive" {
 		res := get_res_bytes(d, path, ev.Req_.Connection)
 		write_bytes(ev, res)
-		Handle_event(ev)
+		Handle_event(ev) // recursion
 	} else {
 		res := get_res_bytes(d, path, ev.Req_.Connection)
 		write_bytes_close(ev, res)
@@ -71,6 +76,8 @@ func get_res_bytes(lisdata listener.ListenData, path string, connection string) 
 	return response.Default_not_found
 }
 
+// get this endpoint's content type
+// user can define mime.types in confgure
 func get_content_type(path string) string {
 	path_type := strings.Split(path, ".")
 
@@ -82,8 +89,8 @@ func get_content_type(path string) string {
 	if row == "" {
 		sep := "?"
 		index := strings.Index(pointAfter, sep)
-		if index != -1 { // 如果存在特定字符
-			pointAfter = pointAfter[:index] // 删除特定字符之后的所有字符
+		if index != -1 { // if "?" exists
+			pointAfter = pointAfter[:index] // delete chars from "?"
 		}
 		secondFind := config.G_ContentTypeMap[pointAfter]
 		if secondFind != "" {

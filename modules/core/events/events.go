@@ -11,6 +11,7 @@ import (
 	"strings"
 )
 
+// each request event is saved in this struct
 type Event struct {
 	Conn     net.Conn
 	Lis_info listener.ListenInfo
@@ -18,6 +19,9 @@ type Event struct {
 	Timer    *timer.Timer
 }
 
+// for static requests which not end with "/"
+// attention: if backends use API interface, they
+// must end with "/"
 func _event_301(ev Event, path string) {
 	res := []byte("HTTP/1.1 301 Moved Permanently\r\n" +
 		"Location: " + path + "\r\n" +
@@ -26,15 +30,20 @@ func _event_301(ev Event, path string) {
 	write_bytes_close(ev, res)
 }
 
+// distribute event
+// LisType(2) tcp proxy
 func Handle_event(ev Event) {
 
+	// handle tcp proxy
 	if ev.Lis_info.LisType == 2 {
 		Proxy_event_tcp(ev.Conn, ev.Lis_info.Data[0].Proxy_addr)
 		return
 	}
 
-	ev.Req_ = request.Req_init()
+	// read data (bytes and str) from socket
 	byte_row, str_row := read_data(ev)
+	// save requte infomation to ev.Req_
+	ev.Req_ = request.Req_init()
 	if byte_row == nil { // client closed
 		return
 	} else {
@@ -45,10 +54,11 @@ func Handle_event(ev Event) {
 
 	for _, d := range ev.Lis_info.Data {
 		switch d.Proxy {
-		case 0:
+		case 0: // Proxy: 0, static events
 			if ev.Req_.Host == d.ServerName && strings.HasPrefix(ev.Req_.Path, d.Path) {
 				row_file_path := ev.Req_.Path[len(d.Path):]
 
+				// according to user's confgure and requets endporint handle events
 				if d.Path != "/" {
 					if row_file_path == "" {
 						_event_301(ev, d.Path+"/")
@@ -61,9 +71,10 @@ func Handle_event(ev Event) {
 					return
 				}
 			}
-		case 1, 2:
+		case 1, 2: // proxy: 1 or 2,  proxy events
 			if ev.Req_.Host == d.ServerName && strings.HasPrefix(ev.Req_.Path, d.Path) {
 
+				// according to user's confgure and requets endporint handle events
 				res, err := Proxy_event(ev, byte_row, d.Proxy_addr)
 				if err == 1 {
 					write_bytes_close(ev, response.Default_server_error)
@@ -83,21 +94,24 @@ func Handle_event(ev Event) {
 	write_bytes_close(ev, response.Default_not_found)
 }
 
+// read data from EventFd
+// attention: row str only can be used when parse FirstLine or Headers
+// because request body maybe contaions '\0'
 func read_data(ev Event) ([]byte, string) {
 	buffer := make([]byte, 1024*4)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
-		if err == io.EOF {
+		if err == io.EOF { // read None, remoteAddr is closed
 			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
 		message.PrintErr("Error reading from client:", err)
 	}
 	str_row := string(buffer[:n])
-	return buffer, str_row
+	return buffer, str_row // return row str or bytes
 }
 
-// handle row bytes
+// write row bytes and close
 func write_bytes_close(ev Event, res []byte) {
 	_, err := ev.Conn.Write(res)
 	if err != nil {
@@ -109,6 +123,7 @@ func write_bytes_close(ev Event, res []byte) {
 	}
 }
 
+// write row bytes
 func write_bytes(ev Event, res []byte) {
 
 	_, err := ev.Conn.Write(res)

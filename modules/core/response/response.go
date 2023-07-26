@@ -4,6 +4,8 @@ import (
 	"fmt"
 )
 
+// every event will return a Response object
+// except tcp proxy
 type Response struct {
 	firstLine string
 	headers   map[string]string
@@ -28,6 +30,9 @@ func (r *Response) Set_body(body []byte) {
 	r.body = body
 }
 
+// Generate a response data (bytes)
+// attention: this function must return bytes, not str
+// once response contain '\0', it will doesn't work
 func (r *Response) Generate_response() []byte {
 	var res []byte
 	response := r.firstLine + HTTP_SPLIT

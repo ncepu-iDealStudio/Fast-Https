@@ -12,11 +12,13 @@ import (
 	"github.com/chenhg5/collection"
 )
 
+// donmain cert and key
 type SSLkv struct {
 	SslKey   string
 	SslValue string
 }
 
+// struct like confgure "path"
 type ListenData struct {
 	Proxy       uint8 // 0 1 2 3
 	Proxy_addr  string
@@ -38,6 +40,7 @@ type ListenInfo struct {
 
 var Lisinfos []ListenInfo
 
+// sort confgure form "listen"
 func Process_ports() {
 	var Ports []string
 	lis_temp := ListenInfo{}
@@ -64,6 +67,7 @@ func Process_ports() {
 	}
 }
 
+// sort confgure from "path"
 func Process_data() {
 	for _, server := range config.G_config.Servers {
 		for _, paths := range server.Path {
@@ -91,6 +95,7 @@ func Process_data() {
 	}
 }
 
+// listen some ports
 func Listen() []ListenInfo {
 	Process_ports()
 	Process_data()
@@ -105,6 +110,7 @@ func Listen() []ListenInfo {
 	return Lisinfos
 }
 
+// tcp listen
 func listen_tcp(laddr string) net.Listener {
 	message.PrintInfo("Listen ", laddr)
 
@@ -115,6 +121,7 @@ func listen_tcp(laddr string) net.Listener {
 	return listener
 }
 
+// ssl listen
 func listen_ssl(laddr string, lisdata []ListenData) net.Listener {
 	message.PrintInfo("listen ", laddr)
 	certs := []tls.Certificate{}
