@@ -31,7 +31,7 @@ func Static_event(d listener.ListenData, path string, ev Event) {
 }
 
 func get_res_bytes(lisdata listener.ListenData, path string, connection string) []byte {
-	if config.G_OS == "windows" {
+	if config.GOs == "windows" {
 		path = "/" + path
 	}
 	var file_data = cache.Get_data_from_cache(path)
@@ -85,14 +85,14 @@ func get_content_type(path string) string {
 		return HTTP_DEFAULT_CONTENT_TYPE
 	}
 	pointAfter := path_type[len(path_type)-1]
-	row := config.G_ContentTypeMap[pointAfter]
+	row := config.GContentTypeMap[pointAfter]
 	if row == "" {
 		sep := "?"
 		index := strings.Index(pointAfter, sep)
 		if index != -1 { // if "?" exists
 			pointAfter = pointAfter[:index] // delete chars from "?"
 		}
-		secondFind := config.G_ContentTypeMap[pointAfter]
+		secondFind := config.GContentTypeMap[pointAfter]
 		if secondFind != "" {
 			return secondFind
 		} else {

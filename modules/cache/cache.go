@@ -42,7 +42,7 @@ func SearchDirFiles(path string) ([]string, error) {
 
 func LoadAllStatic() {
 	// message.PrintInfo("loadstatic")
-	for _, server := range config.G_config.Servers {
+	for _, server := range config.GConfig.Servers {
 		for _, path := range server.Path {
 
 			if path.Root != "" {
@@ -58,7 +58,7 @@ func LoadAllStatic() {
 						data, _ = CompressBytes_Gzip(data)
 						// flag = true
 					}
-					if config.G_OS == "windows" {
+					if config.GOs == "windows" {
 						realPath = "/" + realPath
 						realPath = strings.ReplaceAll(realPath, "\\", "/")
 					}

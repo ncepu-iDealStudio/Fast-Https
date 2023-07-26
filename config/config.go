@@ -1,9 +1,9 @@
 package config
 
 import (
+	"errors"
 	"fast-https/utils/files"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -78,23 +78,36 @@ type Fast_Https struct {
 }
 
 // Define Configuration Structure
-var G_config Fast_Https
-var G_ContentTypeMap map[string]string
-var G_OS = ""
+var GConfig Fast_Https
+var GContentTypeMap map[string]string
+var GOs = runtime.GOOS
 
-func Init() {
-	if runtime.GOOS == "linux" {
-		G_OS = "linux"
-	} else {
-		G_OS = "windows"
+// Init the whole config module
+func Init() error {
+	err := process()
+	if err != nil {
+		return err
 	}
-	// fmt.Println("-----[Fast-Https]config init...")
-	process()
-	ServerContentType()
-
+	err = serverContentType()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func expandInclude(path string) []string {
+// CheckConfig check whether config is correct
+func CheckConfig() error {
+	err := Init()
+	if err != nil {
+		GConfig = Fast_Https{}
+		GContentTypeMap = map[string]string{}
+		return err
+	}
+	return nil
+}
+
+// add file into includes settings
+func expandInclude(path string) ([]string, error) {
 	// Parse the include statement to obtain the wildcard part
 	dir, file := filepath.Split(path)
 	dir = filepath.Clean(dir)
@@ -102,14 +115,14 @@ func expandInclude(path string) []string {
 	// Find matching files
 	matches, err := filepath.Glob(filepath.Join(dir, file))
 	if err != nil {
-		log.Printf("Unable to parse include statement: %v", err)
-		return nil
+		return nil, errors.New(fmt.Sprintf("Unable to parse include statement: %v", err))
 	}
 
-	return matches
+	return matches, nil
 }
 
-func delete_comment(s string) string {
+// delete comments
+func deleteComment(s string) string {
 	var sb strings.Builder
 	inString := false
 	for i := 0; i < len(s); i++ {
@@ -124,9 +137,10 @@ func delete_comment(s string) string {
 	return sb.String()
 }
 
-func ServerContentType() {
+// content types of server
+func serverContentType() error {
 
-	G_ContentTypeMap = make(map[string]string)
+	GContentTypeMap = make(map[string]string)
 	var content_type string
 
 	wd, _ := os.Getwd()
@@ -134,15 +148,15 @@ func ServerContentType() {
 	confBytes, err := files.ReadFile(confPath)
 
 	if err != nil {
-		log.Fatal("Can't open mime.types file")
+		return errors.New("Can't open mime.types file.")
 	}
 	var clear_str string
-	if G_OS == "windows" {
+	if GOs == "windows" {
 		clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
 	} else {
 		clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
 	}
-	all_type_arr := strings.Split(delete_extra_space(clear_str), ";")
+	all_type_arr := strings.Split(deleteExtraSpace(clear_str), ";")
 	for _, one_type := range all_type_arr {
 		arr := strings.Split(one_type, " ")
 
@@ -150,14 +164,15 @@ func ServerContentType() {
 			if i == 0 {
 				content_type = arr[0]
 			} else {
-				G_ContentTypeMap[arr[i]] = content_type
+				GContentTypeMap[arr[i]] = content_type
 			}
 		}
 
 	}
+	return nil
 }
 
-func delete_extra_space(s string) string {
+func deleteExtraSpace(s string) string {
 	//Remove excess spaces from the string, and when there are multiple spaces, only one space is retained
 	s1 := strings.Replace(s, "	", " ", -1)       //Replace tab with a space
 	regstr := "\\s{2,}"                          //Regular expressions with two or more spaces
@@ -218,19 +233,44 @@ func contains(slice []string, str string) bool {
 	return false
 }
 
-func process() {
+// make sure left '{' matches right '}'
+func checkBracketsMatching(config string) (bool, string) {
+	re := regexp.MustCompile(`server\s*{(?:[^}]*{[^{}]*})*[^{}]*}`)
+	matches := re.FindAllString(config, -1)
+
+	for _, configText := range matches {
+		stack := make([]rune, 0)
+		for _, char := range configText {
+			if char == '{' {
+				stack = append(stack, char)
+			} else if char == '}' {
+				if len(stack) == 0 {
+					return false, configText
+				}
+				stack = stack[:len(stack)-1]
+			}
+		}
+
+		if len(stack) != 0 {
+			return false, matches[0]
+		}
+	}
+	return true, ""
+}
+
+// process the whole config system
+func process() error {
 	wd, _ := os.Getwd()
 	confPath := filepath.Join(wd, "config/fast-https.conf")
 	content, err := os.ReadFile(confPath)
 	if err != nil {
-		fmt.Println("Failed to read configuration file：", err)
-		return
+		return errors.New(fmt.Sprintf("Failed to read configuration file：%v", err))
 	}
 
 	//Delete Note
 	clear_str := ""
 	for _, line := range strings.Split(string(content), "\n") {
-		clear_str += delete_comment(line) + "\n"
+		clear_str += deleteComment(line) + "\n"
 	}
 
 	// Check if there are include statements
@@ -242,26 +282,31 @@ func process() {
 			includePath := strings.TrimSpace(match[1])
 
 			// Extend include statement
-			expandedPaths := expandInclude(includePath)
-
+			expandedPaths, err := expandInclude(includePath)
+			if err != nil {
+				return err
+			}
 			// Read the extended configuration files one by one
 			for _, path := range expandedPaths {
 				fileContent, err := os.ReadFile(path)
 
 				if err != nil {
-					fmt.Println("Failed to read configuration file:", err)
-					continue
+					return errors.New(fmt.Sprintf("Failed to read configuration file:%v", err))
 				}
 
 				clear_str_temp := ""
 				for _, line := range strings.Split(string(fileContent), "\n") {
-					clear_str_temp += delete_comment(line) + "\n"
+					clear_str_temp += deleteComment(line) + "\n"
 				}
 
 				// Splice the expanded configuration file content into clear_ In str, for subsequent parsing
 				clear_str += clear_str_temp + "\n"
 			}
 		}
+	}
+	matching, info := checkBracketsMatching(clear_str)
+	if !matching {
+		return errors.New(fmt.Sprintf("Error config:\n%v\n Please check config of server, especially settings of curly brackets.", info))
 	}
 
 	// Defining Regular Expressions
@@ -270,13 +315,12 @@ func process() {
 
 	// Parse all server block contents using regular expressions
 	matches = re.FindAllStringSubmatch(clear_str, -1)
+
 	if matches == nil {
-		fmt.Println("Server block not found")
-		return
+		return errors.New("server block not found")
 	}
 
 	// Loop through each server block
-
 	for _, match := range matches {
 
 		// Define the HttpServer structure
@@ -306,7 +350,13 @@ func process() {
 		re = regexp.MustCompile(`ssl_certificate_key\s+([^;]+);`)
 		sslKey := re.FindStringSubmatch(match[1])
 		if len(sslKey) > 1 {
-			server.SSLCertificateKey = strings.TrimSpace(sslKey[1])
+			if len(ssl) > 1 {
+				server.SSLCertificateKey = strings.TrimSpace(sslKey[1])
+			} else {
+				return errors.New("ssl_certificate field not found")
+			}
+		} else if len(ssl) > 1 {
+			return errors.New("ssl_certificate_key field not found")
 		}
 
 		zipRe := regexp.MustCompile(`zip\s+([^;]+)`)
@@ -316,7 +366,7 @@ func process() {
 
 		server_clear_str := ""
 		for _, line := range strings.Split(match[1], "\n") {
-			server_clear_str += delete_comment(line) + "\n"
+			server_clear_str += deleteComment(line) + "\n"
 		}
 
 		paths := re.FindAllStringSubmatch(server_clear_str, -1)
@@ -325,6 +375,10 @@ func process() {
 			p.PathName = strings.TrimSpace(path[1])
 			if p.PathName == "" {
 				p.PathName = "/"
+			}
+
+			if len(path[2]) == 0 {
+				return errors.New(fmt.Sprintf("config [%v] is wrong", path))
 			}
 			zipMatch := zipRe.FindStringSubmatch(path[2])
 			if len(zipMatch) > 1 {
@@ -336,7 +390,8 @@ func process() {
 					p.Zip = 1
 				}
 			}
-			// fmt.Println(p.Zip)
+
+			// Parsing TCP_ PROXY and HTTP_ PROXY field
 			re = regexp.MustCompile(`proxy_tcp\s+([^;]+)`)
 			if len(re.FindStringSubmatch(path[2])) > 1 {
 				p.PathType = 3
@@ -367,10 +422,8 @@ func process() {
 			server.Path = append(server.Path, p)
 		}
 
-		// Parsing TCP_ PROXY and HTTP_ PROXY field
-
 		// Add the parsed HttpServer structure to the Config structure
-		G_config.Servers = append(G_config.Servers, server)
+		GConfig.Servers = append(GConfig.Servers, server)
 	}
 	// each server end
 	// Parse error_ Page field
@@ -380,19 +433,16 @@ func process() {
 	if len(errorPage) >= 1 {
 		//config.ErrorPage.Code = uint8(errorPage[1])
 		temp, _ := strconv.Atoi(errorPage[1])
-		G_config.ErrorPage.Code = uint8(temp)
-		G_config.ErrorPage.Path = strings.TrimSpace(errorPage[2])
+		GConfig.ErrorPage.Code = uint8(temp)
+		GConfig.ErrorPage.Path = strings.TrimSpace(errorPage[2])
 	}
 
-	re = regexp.MustCompile(`log_root\s+([^;]+);`)
+	re = regexp.MustCompile(`log_root\s+([^;\n]+);`)
 	logRoot := re.FindStringSubmatch(string(content))
 	if len(logRoot) >= 1 {
-		G_config.LogRoot = strings.TrimSpace(logRoot[1])
+		GConfig.LogRoot = strings.TrimSpace(logRoot[1])
+	} else {
+		GConfig.LogRoot = "./logs"
 	}
-
-	//fmt.Println(G_config.Server[1].Path)
-	//fmt.Println(G_config.Server[0].Zip, G_config.Server[1].Zip)
-
-	//fmt.Printf("%+v\n", G_config)
-	// pretty.Print(G_config)
+	return nil
 }

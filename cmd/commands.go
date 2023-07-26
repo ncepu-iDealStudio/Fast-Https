@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"bufio"
+	"fast-https/config"
 	initialization "fast-https/init"
 	"fast-https/modules/core/server"
 	"fast-https/output"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -152,6 +154,13 @@ func StopHandler() error {
 
 // StartHandler start server
 func StartHandler() error {
+	// check config first
+	err := config.CheckConfig()
+	if err != nil {
+		log.Println("Start server failed. An error occurred for the following reason:")
+		log.Fatalln(err)
+	}
+	// output logo, make initialization and start server
 	output.PrintLogo()
 	Write_fast_https_pid()
 	output.PrintInitialStart()

@@ -7,6 +7,7 @@ import (
 	"fast-https/utils/loggers"
 	"fast-https/utils/message"
 	"fmt"
+	"log"
 	"os"
 	"sync"
 	"time"
@@ -22,11 +23,14 @@ func Init() *sync.WaitGroup {
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]message initialization finished")
 
 	// config initialization
-	config.Init()
+	err := config.Init()
+	if err != nil {
+		log.Fatalln(err)
+	}
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]config initialization finished")
 
 	//logger object initialization
-	loggers.InitLogger(config.G_config.LogRoot, "system.log")
+	loggers.InitLogger(config.GConfig.LogRoot, "system.log")
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]log initialization finished")
 
 	// cert  initialization
