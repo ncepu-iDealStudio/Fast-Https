@@ -121,7 +121,7 @@ func new_root() {
 		&pem.Block{Type: "CERTIFICATE", Bytes: cert}), 0644)
 	errHelper.Error(err, "failed to save CA certificate")
 
-	message.PrintInfo("Created a new local CA \n")
+	message.PrintInfo("Created a new local CA")
 }
 
 func load_ca() {

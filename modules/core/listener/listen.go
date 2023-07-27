@@ -135,7 +135,7 @@ func listen_ssl(laddr string, lisdata []ListenData) net.Listener {
 				message.PrintErr("Error load cert: " + item.SSL.SslKey)
 			}
 			certs = append(certs, crt)
-			message.PrintInfo(item.ServerName, " start ssl listen")
+			message.PrintInfo("Automatically load " + item.ServerName + " certificate")
 		}
 		servernames = append(servernames, item.ServerName)
 	}
