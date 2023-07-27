@@ -83,7 +83,7 @@ func Handle_event(ev Event) {
 			if realHost == d.ServerName {
 
 				// according to user's confgure and requets endporint handle events
-				res, err := Proxy_event(ev, byte_row, d.Proxy_addr)
+				res, err := Proxy_event(ev, byte_row, d.Proxy_addr, d.Proxy)
 				if err == 1 { // target no response
 					write_bytes_close(ev, response.Default_server_error)
 					return
@@ -92,10 +92,10 @@ func Handle_event(ev Event) {
 					write_bytes_close(ev, res)
 					return
 				} else {
-					// write_bytes_close(ev, res)
-					write_bytes(ev, res)
-					// return
-					Handle_event(ev)
+					write_bytes_close(ev, res)
+					// write_bytes(ev, res)
+					return
+					// Handle_event(ev)
 				}
 			}
 		}
