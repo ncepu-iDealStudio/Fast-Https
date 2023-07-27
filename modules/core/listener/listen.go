@@ -78,11 +78,7 @@ func Process_data() {
 				if eachlisten.Port == listen {
 					data := ListenData{}
 					data.Path = paths.PathName
-					if eachlisten.Port == "80" || eachlisten.Port == "443" {
-						data.ServerName = server.ServerName
-					} else {
-						data.ServerName = server.ServerName + ":" + eachlisten.Port
-					}
+					data.ServerName = server.ServerName + ":" + eachlisten.Port
 					data.Proxy = paths.PathType
 					data.StaticRoot = paths.Root
 					data.StaticIndex = paths.Index
