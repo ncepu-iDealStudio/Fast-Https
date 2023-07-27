@@ -44,7 +44,7 @@ func Handle_event(ev Event) {
 	byte_row, str_row := read_data(ev)
 	// save requte infomation to ev.Req_
 	ev.Req_ = request.Req_init()
-	if byte_row == nil { // client closed
+	if byte_row == nil || str_row == "" { // client closed
 		return
 	} else {
 		ev.Req_.Http_parse(str_row)
@@ -76,16 +76,19 @@ func Handle_event(ev Event) {
 
 				// according to user's confgure and requets endporint handle events
 				res, err := Proxy_event(ev, byte_row, d.Proxy_addr)
-				if err == 1 {
+				if err == 1 { // target no response
 					write_bytes_close(ev, response.Default_server_error)
 					return
 				}
 				if ev.Req_.Connection == "close" {
 					write_bytes_close(ev, res)
+					return
 				} else {
 					write_bytes_close(ev, res)
+					// write_bytes(ev, res)
+
 					return
-					Handle_event(ev)
+					// Handle_event(ev)
 				}
 				// return
 			}
@@ -102,32 +105,43 @@ func read_data(ev Event) ([]byte, string) {
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
-			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
+			return nil, ""
+		}
+		if n == 0 {
+			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
 		message.PrintErr("Error reading from client:", err)
 	}
 	str_row := string(buffer[:n])
+	// buffer = buffer[:n]
 	return buffer, str_row // return row str or bytes
 }
 
 // write row bytes and close
-func write_bytes_close(ev Event, res []byte) {
-	_, err := ev.Conn.Write(res)
-	if err != nil {
-		message.PrintErr("Error writing to client:", err)
+func write_bytes_close(ev Event, data []byte) {
+	for len(data) > 0 {
+		n, err := ev.Conn.Write(data)
+		if err != nil {
+			message.PrintErr("Error writing to client:", err)
+			return
+		}
+		data = data[n:]
 	}
-	err = ev.Conn.Close()
+	err := ev.Conn.Close()
 	if err != nil {
 		message.PrintErr("Error Close:", err)
 	}
 }
 
 // write row bytes
-func write_bytes(ev Event, res []byte) {
-
-	_, err := ev.Conn.Write(res)
-	if err != nil {
-		message.PrintErr("Error writing to client:", err)
+func write_bytes(ev Event, data []byte) {
+	for len(data) > 0 {
+		n, err := ev.Conn.Write(data)
+		if err != nil {
+			message.PrintErr("Error writing to client:", err)
+			return
+		}
+		data = data[n:]
 	}
 }
