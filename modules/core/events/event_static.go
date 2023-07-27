@@ -31,9 +31,9 @@ func Static_event(d listener.ListenData, path string, ev Event) {
 }
 
 func get_res_bytes(lisdata listener.ListenData, path string, connection string) []byte {
-	if config.GOs == "windows" {
-		path = "/" + path
-	}
+	// if config.GOs == "windows" {
+	// 	path = "/" + path
+	// }
 	var file_data = cache.Get_data_from_cache(path)
 
 	res := response.Response_init() // Create a res Object
