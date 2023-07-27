@@ -49,20 +49,20 @@ func Handle_event(ev Event) {
 	} else {
 		ev.Req_.Http_parse(str_row)
 	}
+	var realHost string
+	if ev.Lis_info.Port == "80" {
+		realHost = ev.Req_.Host + ":80"
+	} else if ev.Lis_info.Port == "443" {
+		realHost = ev.Req_.Host + ":443"
+	} else {
+		realHost = ev.Req_.Host
+	}
 
 	message.PrintInfo("Events ", ev.Conn.RemoteAddr(), " "+ev.Req_.Method, " "+ev.Req_.Path)
 
 	for _, d := range ev.Lis_info.Data {
 		switch d.Proxy {
 		case 0: // Proxy: 0, static events
-			var realHost string
-			if ev.Lis_info.Port == "80" {
-				realHost = ev.Req_.Host + ":80"
-			} else if ev.Lis_info.Port == "443" {
-				realHost = ev.Req_.Host + ":443"
-			} else {
-				realHost = ev.Req_.Host
-			}
 			if realHost == d.ServerName && strings.HasPrefix(ev.Req_.Path, d.Path) {
 				row_file_path := ev.Req_.Path[len(d.Path):]
 
@@ -80,15 +80,7 @@ func Handle_event(ev Event) {
 				}
 			}
 		case 1, 2: // proxy: 1 or 2,  proxy events
-			var realHost string
-			if ev.Lis_info.Port == "80" {
-				realHost = ev.Req_.Host + ":80"
-			} else if ev.Lis_info.Port == "443" {
-				realHost = ev.Req_.Host + ":443"
-			} else {
-				realHost = ev.Req_.Host
-			}
-			if realHost == d.ServerName && strings.HasPrefix(ev.Req_.Path, d.Path) {
+			if realHost == d.ServerName {
 
 				// according to user's confgure and requets endporint handle events
 				res, err := Proxy_event(ev, byte_row, d.Proxy_addr)
@@ -100,13 +92,11 @@ func Handle_event(ev Event) {
 					write_bytes_close(ev, res)
 					return
 				} else {
-					write_bytes_close(ev, res)
-					// write_bytes(ev, res)
-
-					return
-					// Handle_event(ev)
+					// write_bytes_close(ev, res)
+					write_bytes(ev, res)
+					// return
+					Handle_event(ev)
 				}
-				// return
 			}
 		}
 	}

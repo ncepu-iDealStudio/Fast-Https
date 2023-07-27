@@ -38,10 +38,10 @@ func get_data_from_server(ev Event, proxyaddr string, data []byte) ([]byte, int)
 		}
 		resData = append(resData, tmpByte...)
 	}
-	// if ev.Req_.Connection == "close" {
-	// 	conn.Close()
-	// }
-	conn.Close()
+	if ev.Req_.Connection == "close" {
+		conn.Close()
+	}
+	// conn.Close()
 	return resData, 0 // no error
 }
 
