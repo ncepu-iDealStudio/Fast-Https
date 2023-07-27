@@ -6,6 +6,7 @@ import (
 	"fast-https/output"
 	"fast-https/service"
 	"fast-https/utils/message"
+	"net"
 )
 
 //func Daemon(nochdir, noclose int) int {
@@ -76,6 +77,21 @@ func serve_one_port(listener listener.ListenInfo) {
 		}
 		go events.Handle_event(each_event)
 	}
+}
+
+// ScanPorts scan ports to check whether they've been used
+func ScanPorts() error {
+	ports := listener.Process_ports()
+	for _, port := range ports {
+		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
+		if err != nil {
+			listener.Lisinfos = []listener.ListenInfo{}
+			return err
+		}
+		conn.Close()
+	}
+	listener.Lisinfos = []listener.ListenInfo{}
+	return nil
 }
 
 func Run() {

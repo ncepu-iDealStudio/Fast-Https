@@ -41,7 +41,7 @@ type ListenInfo struct {
 var Lisinfos []ListenInfo
 
 // sort confgure form "listen"
-func Process_ports() {
+func Process_ports() []string {
 	var Ports []string
 	lis_temp := ListenInfo{}
 	for _, each := range config.GConfig.Servers {
@@ -65,6 +65,7 @@ func Process_ports() {
 		}
 
 	}
+	return Ports
 }
 
 // sort confgure from "path"

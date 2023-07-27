@@ -99,11 +99,14 @@ func Init() error {
 func CheckConfig() error {
 	err := Init()
 	if err != nil {
-		GConfig = Fast_Https{}
-		GContentTypeMap = map[string]string{}
 		return err
 	}
 	return nil
+}
+
+func ClearConfig() {
+	GConfig = Fast_Https{}
+	GContentTypeMap = map[string]string{}
 }
 
 // add file into includes settings
