@@ -46,7 +46,7 @@ func Cert_init() {
 	}
 
 	load_ca() // init caCert   init caKey
-	for _, serverconfig := range config.G_config.Servers {
+	for _, serverconfig := range config.GConfig.Servers {
 
 		certfile := filepath.Join(CERT_DIR, serverconfig.ServerName) + ".pem"
 

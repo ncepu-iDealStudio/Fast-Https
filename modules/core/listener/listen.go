@@ -41,10 +41,10 @@ type ListenInfo struct {
 var Lisinfos []ListenInfo
 
 // sort confgure form "listen"
-func Process_ports() {
+func Process_ports() []string {
 	var Ports []string
 	lis_temp := ListenInfo{}
-	for _, each := range config.G_config.Servers {
+	for _, each := range config.GConfig.Servers {
 
 		arr := strings.Split(each.Listen, " ")
 		if !collection.Collect(Ports).Contains(arr[0]) {
@@ -65,11 +65,12 @@ func Process_ports() {
 		}
 
 	}
+	return Ports
 }
 
 // sort confgure from "path"
 func Process_data() {
-	for _, server := range config.G_config.Servers {
+	for _, server := range config.GConfig.Servers {
 		for _, paths := range server.Path {
 
 			for index, eachlisten := range Lisinfos {

@@ -2,19 +2,20 @@ package cmd
 
 import (
 	"bufio"
+	"fast-https/config"
 	initialization "fast-https/init"
 	"fast-https/modules/core/server"
 	"fast-https/output"
 	"fmt"
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 var data []string
@@ -152,6 +153,10 @@ func StopHandler() error {
 
 // StartHandler start server
 func StartHandler() error {
+	// pre check before server start
+	PreCheckHandler()
+
+	// output logo, make initialization and start server
 	output.PrintLogo()
 	Write_fast_https_pid()
 	output.PrintInitialStart()
@@ -159,6 +164,24 @@ func StartHandler() error {
 	output.PrintInitialEnd()
 	server.Run()
 	return nil
+}
+
+func PreCheckHandler() {
+	// check config
+	err := config.CheckConfig()
+	if err != nil {
+		log.Println("Start server failed. An error occurred for the following reason:")
+		log.Fatalln(err)
+	}
+
+	// check ports
+	err = server.ScanPorts()
+	if err != nil {
+		log.Println("Port has been used, An error occurred for the following reason:")
+		log.Fatalln(err)
+	}
+
+	config.ClearConfig()
 }
 
 func Write_fast_https_pid() {

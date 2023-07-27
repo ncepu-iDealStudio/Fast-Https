@@ -47,8 +47,8 @@ func TestServerInit(t *testing.T) {
 	t.Log("step3: read config")
 
 	// 4. init system log
-	loggers.InitLogger(config.G_config.LogRoot, "system.log")
-	t.Log("step4: init system log, log_root: ", config.G_config.LogRoot)
+	loggers.InitLogger(config.GConfig.LogRoot, "system.log")
+	t.Log("step4: init system log, log_root: ", config.GConfig.LogRoot)
 
 	// 5. self-signed certification initialization
 	initialiaztion.Cert_init()
