@@ -30,8 +30,7 @@ func Init() *sync.WaitGroup {
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]config initialization finished")
 
 	//logger object initialization
-	loggers.InitLogger(config.GConfig.LogRoot, "access.log")
-	loggers.InitLogger(config.GConfig.LogRoot, "error.log")
+	loggers.InitLogger(config.GConfig.LogRoot)
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]log initialization finished")
 
 	// cert  initialization

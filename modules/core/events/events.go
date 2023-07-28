@@ -43,7 +43,7 @@ func Handle_event(ev Event) {
 
 	// read data (bytes and str) from socket
 	byte_row, str_row := read_data(ev)
-	// save requte infomation to ev.Req_
+	// save requte information to ev.Req_
 	ev.Req_ = request.Req_init()
 	if byte_row == nil || str_row == "" { // client closed
 		return
@@ -53,7 +53,7 @@ func Handle_event(ev Event) {
 		ev.Req_.Parse_host(ev.Lis_info)
 	}
 
-	message.PrintInfo("Events ", ev.Conn.RemoteAddr().String(), " "+ev.Req_.Method, " "+ev.Req_.Path)
+	message.PrintAccess(ev.Conn.RemoteAddr().String(), "Events ", ev.Conn.RemoteAddr().String(), " "+ev.Req_.Method, " "+ev.Req_.Path)
 
 	for _, d := range ev.Lis_info.Data {
 		switch d.Proxy {

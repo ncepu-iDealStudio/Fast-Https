@@ -51,24 +51,24 @@ func AddMsgHandler(msg string, f func(args ...any) error) {
 
 func initMsgHandler() {
 	AddMsgHandler("exit", func(args ...any) error {
-		var log = loggers.GetLogger()
-		rwMutex.Lock()
-		log.Infoln("程序终止！")
+		var log = loggers.GetLogger().SystemLog()
+		rwMutex.RLock()
+		log.Infoln("Fast-https server exit!")
 		close(outputChan.In)
 		return nil
 	})
 	AddMsgHandler("info", func(args ...any) error {
-		var log = loggers.GetLogger()
+		var log = loggers.GetLogger().SystemLog()
 		log.Infoln(args)
 		return nil
 	})
 	AddMsgHandler("err", func(args ...any) error {
-		var log = loggers.GetLogger()
+		var log = loggers.GetLogger().ErrorLog()
 		log.Errorln(color.RedString("", args))
 		return nil
 	})
 	AddMsgHandler("warn", func(args ...any) error {
-		var log = loggers.GetLogger()
+		var log = loggers.GetLogger().SystemLog()
 		log.Warnln(args)
 		return nil
 	})
@@ -81,6 +81,12 @@ func initMsgHandler() {
 				PrintErr("error:", err)
 			}
 		}
+		return nil
+	})
+	AddMsgHandler("access", func(args ...any) error {
+		var log = loggers.GetLogger().AccessLog()
+		message := args[0].(map[string]interface{})
+		log.WithField("host", message["host"]).Infoln(message["message"])
 		return nil
 	})
 }

@@ -68,3 +68,22 @@ func PrintRecover(a any) {
 		}
 	}
 }
+
+// PrintAccess
+//
+//	@Description: print access log
+//	@param host: access host
+//	@param a: any other log message
+func PrintAccess(host string, a ...interface{}) {
+	context := map[string]any{
+		"host":    host,
+		"message": a,
+	}
+	if rwMutex.TryRLock() {
+		defer rwMutex.RUnlock()
+		outputChan.In <- message{
+			Context: context,
+			Type:    "access",
+		}
+	}
+}
