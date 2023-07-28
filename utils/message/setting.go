@@ -1,8 +1,3 @@
-// coding: utf-8
-// @Author : lryself
-// @Date : 2022/3/21 22:21
-// @Software: GoLand
-
 package message
 
 import (
