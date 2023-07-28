@@ -1,5 +1,8 @@
 modules/core/server/build/*
 modules/core/server/build/CMakeFiles/*
+logs/*
 out/*
 .vscode/*
 *.out
+go.mod
+go.sum
