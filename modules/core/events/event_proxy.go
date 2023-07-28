@@ -13,7 +13,7 @@ func get_data_from_server(ev Event, proxyaddr string, data []byte) ([]byte, int)
 	conn, err := net.Dial("tcp", proxyaddr)
 	if err != nil {
 
-		message.PrintWarn("Can't connect to "+proxyaddr, err.Error())
+		message.PrintWarn("[Proxy event]: Can't connect to "+proxyaddr, err.Error())
 		return nil, 1 // no server
 	}
 	_, err = conn.Write(data)

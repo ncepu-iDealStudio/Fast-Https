@@ -5,6 +5,7 @@ import (
 	"fast-https/modules/cache"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
+	"fast-https/utils/message"
 	"strconv"
 	"strings"
 	"time"
@@ -21,16 +22,21 @@ const (
 // will pause when TCP buffer is None.
 func Static_event(d listener.ListenData, path string, ev Event) {
 	if ev.Req_.Connection == "keep-alive" {
-		res := get_res_bytes(d, path, ev.Req_.Connection)
-		write_bytes(ev, res)
-		Handle_event(ev) // recursion
+		res, flag := get_res_bytes(d, path, ev.Req_.Connection)
+		if flag == 1 {
+			write_bytes(ev, res)
+			Handle_event(ev) // recursion
+		} else if flag == 0 {
+			write_bytes_close(ev, res)
+		}
+
 	} else {
-		res := get_res_bytes(d, path, ev.Req_.Connection)
+		res, _ := get_res_bytes(d, path, ev.Req_.Connection)
 		write_bytes_close(ev, res)
 	}
 }
 
-func get_res_bytes(lisdata listener.ListenData, path string, connection string) []byte {
+func get_res_bytes(lisdata listener.ListenData, path string, connection string) ([]byte, uint8) {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }
@@ -51,7 +57,7 @@ func get_res_bytes(lisdata listener.ListenData, path string, connection string) 
 		res.Set_header("Connection", connection)
 
 		res.Set_body(file_data)
-		return res.Generate_response()
+		return res.Generate_response(), 1 // find source
 	}
 
 	for _, item := range lisdata.StaticIndex { // Find files in default Index array
@@ -69,11 +75,11 @@ func get_res_bytes(lisdata listener.ListenData, path string, connection string) 
 			res.Set_header("Connection", connection)
 
 			res.Set_body(file_data)
-			return res.Generate_response()
+			return res.Generate_response(), 1 // find source
 		}
 	}
-
-	return response.Default_not_found
+	message.PrintWarn("[Static event]: ", path, " Not Found")
+	return response.Default_not_found, 0 // not found source
 }
 
 // get this endpoint's content type
