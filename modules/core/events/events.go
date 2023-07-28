@@ -16,6 +16,7 @@ type Event struct {
 	Conn     net.Conn
 	Lis_info listener.ListenInfo
 	Req_     *request.Req
+	Res_     *response.Response
 	Timer    *timer.Timer
 }
 
@@ -52,7 +53,7 @@ func Handle_event(ev Event) {
 		ev.Req_.Parse_host(ev.Lis_info)
 	}
 
-	message.PrintInfo("Events ", ev.Conn.RemoteAddr(), " "+ev.Req_.Method, " "+ev.Req_.Path)
+	message.PrintInfo("Events ", ev.Conn.RemoteAddr().String(), " "+ev.Req_.Method, " "+ev.Req_.Path)
 
 	for _, d := range ev.Lis_info.Data {
 		switch d.Proxy {
@@ -79,7 +80,7 @@ func Handle_event(ev Event) {
 				// according to user's confgure and requets endporint handle events
 				res, err := Proxy_event(ev, byte_row, d.Proxy_addr, d.Proxy)
 				if err == 1 { // target no response
-					write_bytes_close(ev, response.Default_server_error)
+					write_bytes_close(ev, response.Default_server_error())
 					return
 				}
 				if ev.Req_.Connection == "close" {
@@ -94,7 +95,7 @@ func Handle_event(ev Event) {
 			}
 		}
 	}
-	write_bytes_close(ev, response.Default_not_found)
+	write_bytes_close(ev, response.Default_not_found())
 }
 
 // read data from EventFd
