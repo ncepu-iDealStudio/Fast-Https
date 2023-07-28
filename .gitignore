@@ -1,10 +1,13 @@
 modules/core/server/build/*
 modules/core/server/build/CMakeFiles/*
+dist/*
+dist_windows/*
+monitor/monitor.exe
 logs/*
 out/*
 .vscode/*
 *.out
+fast-https.exe
+fast-https
 go.mod
 go.sum
-dist/*
-dist_windows/*
