@@ -1,6 +1,7 @@
 package request
 
 import (
+	"fast-https/modules/core/listener"
 	"strings"
 
 	"github.com/chenhg5/collection"
@@ -45,6 +46,15 @@ func Req_init() *Req {
 	}
 }
 
+// parse Host
+func (r *Req) Parse_host(lis_info listener.ListenInfo) {
+	if lis_info.Port == "80" {
+		r.Host = r.Host + ":80"
+	} else if lis_info.Port == "443" {
+		r.Host = r.Host + ":443"
+	}
+}
+
 // parse row tcp str to a req object
 func (r *Req) Http_parse(request string) int {
 
@@ -53,14 +63,14 @@ func (r *Req) Http_parse(request string) int {
 	}
 	requestLine := strings.Split(request, "\r\n")
 	if requestLine == nil {
-		return UNKNOW_INVALID // invlaid request
+		return UNKNOW_INVALID // invalid request
 	}
 	parts := strings.Split(requestLine[0], " ")
 	if parts == nil || len(parts) < 3 {
-		return FIRST_LINE_INVALID // invlaid first line
+		return FIRST_LINE_INVALID // invalid first line
 	}
 	if !collection.Collect(http_method).Contains(parts[0]) {
-		return METHOD_INVALID // invlaid method
+		return METHOD_INVALID // invalid method
 	}
 
 	r.Method = parts[0]
