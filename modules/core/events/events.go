@@ -151,3 +151,11 @@ func write_bytes(ev Event, data []byte) {
 		data = data[n:]
 	}
 }
+
+// only close the connection
+func close(ev Event) {
+	err := ev.Conn.Close()
+	if err != nil {
+		message.PrintErr("Error Close:", err)
+	}
+}
