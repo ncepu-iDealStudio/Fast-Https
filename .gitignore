@@ -11,3 +11,6 @@ fast-https.exe
 fast-https
 go.mod
 go.sum
+config/cert/*.pem
+httpdoc/root/root.crt
+httpdoc/root/root.key
