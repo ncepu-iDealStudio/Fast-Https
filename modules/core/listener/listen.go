@@ -69,7 +69,7 @@ func Process_ports() []string {
 }
 
 // sort confgure from "path"
-func Process_data() {
+func Process_listen_data() {
 	for _, server := range config.GConfig.Servers {
 		for _, paths := range server.Path {
 
@@ -95,7 +95,7 @@ func Process_data() {
 // listen some ports
 func Listen() []ListenInfo {
 	Process_ports()
-	Process_data()
+	Process_listen_data()
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 {
