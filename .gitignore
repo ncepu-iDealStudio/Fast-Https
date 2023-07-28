@@ -6,3 +6,5 @@ out/*
 *.out
 go.mod
 go.sum
+dist/*
+dist_windows/*
