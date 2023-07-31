@@ -22,16 +22,18 @@ const (
 // will pause when TCP buffer is None.
 func Static_event(d listener.ListenData, path string, ev Event) {
 	if ev.Req_.Connection == "keep-alive" {
-		res := get_res_bytes(d, path, ev.Req_.Connection, ev)
+		res := get_res_bytes(d, path, ev.Req_.Connection, &ev)
 		write_bytes(ev, res)
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), ev.Log, " "+ev.Req_.Headers["User-Agent"])
 		Handle_event(ev) // recursion
 	} else {
-		res := get_res_bytes(d, path, ev.Req_.Connection, ev)
+		res := get_res_bytes(d, path, ev.Req_.Connection, &ev)
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), ev.Log, " "+ev.Req_.Headers["User-Agent"])
 		write_bytes_close(ev, res)
 	}
 }
 
-func get_res_bytes(lisdata listener.ListenData, path string, connection string, ev Event) []byte {
+func get_res_bytes(lisdata listener.ListenData, path string, connection string, ev *Event) []byte {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }
@@ -52,6 +54,8 @@ func get_res_bytes(lisdata listener.ListenData, path string, connection string, 
 		ev.Res_.Set_header("Connection", connection)
 
 		ev.Res_.Set_body(file_data)
+
+		ev.Log += " 200 " + strconv.Itoa(len(file_data))
 		return ev.Res_.Generate_response() // find source
 	}
 
@@ -70,10 +74,13 @@ func get_res_bytes(lisdata listener.ListenData, path string, connection string, 
 			ev.Res_.Set_header("Connection", connection)
 
 			ev.Res_.Set_body(file_data)
+			ev.Log += " 200 " + strconv.Itoa(len(file_data))
+
 			return ev.Res_.Generate_response() // find source
 		}
 	}
-	message.PrintWarn("[Static event]: ", path, " Not Found")
+
+	ev.Log += " 404 50"
 	return response.Default_not_found() // not found source
 }
 

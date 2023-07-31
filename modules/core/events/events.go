@@ -18,6 +18,7 @@ type Event struct {
 	Req_     *request.Req
 	Res_     *response.Response
 	Timer    *timer.Timer
+	Log      string
 }
 
 // for static requests which not end with "/"
@@ -53,7 +54,7 @@ func Handle_event(ev Event) {
 		ev.Req_.Parse_host(ev.Lis_info)
 	}
 
-	message.PrintAccess(ev.Conn.RemoteAddr().String(), "Events ", ev.Conn.RemoteAddr().String(), " "+ev.Req_.Method, " "+ev.Req_.Path)
+	ev.Log = " Events" + " " + ev.Conn.RemoteAddr().String() + " " + ev.Req_.Method + " " + ev.Req_.Path
 
 	for _, d := range ev.Lis_info.Data {
 		switch d.Proxy {
