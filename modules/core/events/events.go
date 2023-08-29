@@ -8,7 +8,9 @@ import (
 	"fast-https/utils/message"
 	"io"
 	"net"
+	"reflect"
 	"strings"
+	"unsafe"
 )
 
 // each request event is saved in this struct
@@ -113,6 +115,11 @@ func read_data(ev Event) ([]byte, string) {
 			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
+		opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+		if opErr.Err.Error() == "i/o timeout" {
+			message.PrintWarn("write timeout")
+			return nil, ""
+		}
 		message.PrintErr("Error reading from client:", err)
 	}
 	str_row := string(buffer[:n])
@@ -141,10 +148,18 @@ func write_bytes(ev Event, data []byte) {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
+
+			opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+			if opErr.Err.Error() == "i/o timeout" {
+				message.PrintWarn("write timeout")
+				return
+			}
+
 			message.PrintErr("Error writing to client:", err)
 			return
 		}
 		data = data[n:]
+
 	}
 }
 

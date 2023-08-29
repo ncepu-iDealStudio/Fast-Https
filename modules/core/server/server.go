@@ -6,12 +6,15 @@ import (
 	"fast-https/output"
 	"fast-https/utils/message"
 	"net"
+	"time"
 )
 
 // listen and serve one port
 func serve_one_port(listener listener.ListenInfo) {
 	for {
 		conn, err := listener.Lfd.Accept()
+		now := time.Now()
+		conn.SetDeadline(now.Add(time.Second * 20))
 
 		each_event := events.Event{}
 		each_event.Conn = conn
