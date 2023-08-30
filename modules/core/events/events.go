@@ -5,50 +5,40 @@ import (
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
-	"fast-https/utils/message"
+	"fmt"
 	"io"
 	"net"
-	"reflect"
 	"strings"
-	"unsafe"
 )
 
 // each request event is saved in this struct
 type Event struct {
-	Conn     net.Conn
-	Lis_info listener.ListenInfo
-	Req_     *request.Req
-	Res_     *response.Response
-	Timer    *timer.Timer
-	Log      string
-}
-
-// for static requests which not end with "/"
-// attention: if backends use API interface, they
-// must end with "/"
-func _event_301(ev Event, path string) {
-	res := []byte("HTTP/1.1 301 Moved Permanently\r\n" +
-		"Location: " + path + "\r\n" +
-		"Connection: close\r\n" +
-		"\r\n")
-	write_bytes_close(ev, res)
+	Conn      net.Conn
+	ProxyConn net.Conn
+	Lis_info  listener.ListenInfo
+	Req_      *request.Req
+	Res_      *response.Response
+	Timer     *timer.Timer
+	Log       string
 }
 
 // distribute event
 // LisType(2) tcp proxy
-func Handle_event(ev Event) {
+func Handle_event(ev *Event) {
 
 	// handle tcp proxy
 	if ev.Lis_info.LisType == 2 {
-		Proxy_event_tcp(ev.Conn, ev.Lis_info.Data[0].Proxy_addr)
+		Proxy_event_tcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
 		return
 	}
 
 	// read data (bytes and str) from socket
-	byte_row, str_row := read_data(ev)
+	byte_row, str_row := read_data(*ev)
 	// save requte information to ev.Req_
 	ev.Req_ = request.Req_init()
 	if byte_row == nil || str_row == "" { // client closed
+		// fmt.Println("39 client close")
+		close(*ev)
 		return
 	} else {
 		ev.Req_.Http_parse(str_row)
@@ -56,49 +46,56 @@ func Handle_event(ev Event) {
 		ev.Req_.Parse_host(ev.Lis_info)
 	}
 
-	ev.Log = " Events" + " " + ev.Conn.RemoteAddr().String() + " " + ev.Req_.Method + " " + ev.Req_.Path
+	ev.Log = ev.Conn.RemoteAddr().String() + " " + ev.Req_.Method + " " + ev.Req_.Path
 
-	for _, d := range ev.Lis_info.Data {
-		switch d.Proxy {
+	for _, cfg := range ev.Lis_info.Cfg {
+		switch cfg.Proxy {
 		case 0: // Proxy: 0, static events
-			if ev.Req_.Host == d.ServerName && strings.HasPrefix(ev.Req_.Path, d.Path) {
-				row_file_path := ev.Req_.Path[len(d.Path):]
+			if ev.Req_.Host == cfg.ServerName && strings.HasPrefix(ev.Req_.Path, cfg.Path) {
+				row_file_path := ev.Req_.Path[len(cfg.Path):]
+				if row_file_path == "" && cfg.Path != "/" {
+					// fmt.Println("301")
+					_event_301(*ev, cfg.Path+"/")
+					return
+				}
 
 				// according to user's confgure and requets endporint handle events
-				if d.Path != "/" {
-					if row_file_path == "" {
-						_event_301(ev, d.Path+"/")
-						return
-					}
-					Static_event(d, d.StaticRoot+row_file_path, ev)
+				if cfg.Path != "/" {
+					Static_event(cfg, cfg.StaticRoot+row_file_path, *ev)
 					return
 				} else {
-					Static_event(d, d.StaticRoot+ev.Req_.Path, ev)
+					Static_event(cfg, cfg.StaticRoot+ev.Req_.Path, *ev)
 					return
 				}
 			}
 		case 1, 2: // proxy: 1 or 2,  proxy events
-			if ev.Req_.Host == d.ServerName {
+			if ev.Req_.Host == cfg.ServerName {
+
+				ev.Req_.Set_headers("Host", cfg.Proxy_addr)
+				ev.Req_.Flush()
 
 				// according to user's confgure and requets endporint handle events
-				res, err := Proxy_event(ev, byte_row, d.Proxy_addr, d.Proxy)
+				res, err := Proxy_event(ev, ev.Req_.Byte_row(), cfg.Proxy_addr, cfg.Proxy)
 				if err == 1 { // target no response
-					write_bytes_close(ev, response.Default_server_error())
+					write_bytes_close(*ev, response.Default_server_error())
 					return
 				}
 				if ev.Req_.Connection == "close" {
-					write_bytes_close(ev, res)
+					write_bytes_close(*ev, res)
 					return
 				} else {
-					write_bytes_close(ev, res)
-					// write_bytes(ev, res)
+					_, err := ev.Conn.Write(res)
+					if err != nil {
+						fmt.Println("Error writing to client89:", err)
+						return
+					}
+					Handle_event(ev)
 					return
-					// Handle_event(ev)
 				}
 			}
 		}
 	}
-	write_bytes_close(ev, response.Default_not_found())
+	write_bytes_close(*ev, response.Default_not_found())
 }
 
 // read data from EventFd
@@ -115,12 +112,12 @@ func read_data(ev Event) ([]byte, string) {
 			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
-		opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-		if opErr.Err.Error() == "i/o timeout" {
-			message.PrintWarn("write timeout")
-			return nil, ""
-		}
-		message.PrintErr("Error reading from client:", err)
+		// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+		// if opErr.Err.Error() == "i/o timeout" {
+		// 	message.PrintWarn("write timeout")
+		// 	return nil, ""
+		// }
+		fmt.Println("Error reading from client:", err)
 	}
 	str_row := string(buffer[:n])
 	// buffer = buffer[:n]
@@ -132,14 +129,14 @@ func write_bytes_close(ev Event, data []byte) {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
-			message.PrintErr("Error writing to client:", err)
+			fmt.Println("Error writing to client133:", err)
 			return
 		}
 		data = data[n:]
 	}
 	err := ev.Conn.Close()
 	if err != nil {
-		message.PrintErr("Error Close:", err)
+		fmt.Println("Error Close:", err)
 	}
 }
 
@@ -148,18 +145,15 @@ func write_bytes(ev Event, data []byte) {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
-
-			opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-			if opErr.Err.Error() == "i/o timeout" {
-				message.PrintWarn("write timeout")
-				return
-			}
-
-			message.PrintErr("Error writing to client:", err)
+			// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+			// if opErr.Err.Error() == "i/o timeout" {
+			// 	message.PrintWarn("write timeout")
+			// 	return
+			// }
+			fmt.Println("Error writing to client155:", err)
 			return
 		}
 		data = data[n:]
-
 	}
 }
 
@@ -167,6 +161,6 @@ func write_bytes(ev Event, data []byte) {
 func close(ev Event) {
 	err := ev.Conn.Close()
 	if err != nil {
-		message.PrintErr("Error Close:", err)
+		fmt.Println("Error Close:", err)
 	}
 }

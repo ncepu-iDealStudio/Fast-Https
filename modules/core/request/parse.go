@@ -55,6 +55,34 @@ func (r *Req) Parse_host(lis_info listener.ListenInfo) {
 	}
 }
 
+// reset request's headers
+func (r *Req) Set_headers(key string, val string) {
+	if key == "Host" {
+		r.Host = val
+	}
+	if key == "Connection" {
+		r.Connection = val
+	}
+	r.Headers[key] = val
+	r.Headers["Connection"] = "close"
+}
+
+// flush request struct
+func (r *Req) Flush() {
+
+}
+
+func (r *Req) Byte_row() []byte {
+	rowStr := r.Method + " " +
+		r.Path + " " +
+		r.Protocol + "\r\n"
+	for k, v := range r.Headers {
+		rowStr = rowStr + k + ": " + v + "\r\n"
+	}
+	rowStr = rowStr + "\r\n"
+	return []byte(rowStr)
+}
+
 // parse row tcp str to a req object
 func (r *Req) Http_parse(request string) int {
 
