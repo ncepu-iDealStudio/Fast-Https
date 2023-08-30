@@ -14,10 +14,11 @@ func serve_one_port(listener listener.ListenInfo) {
 	for {
 		conn, err := listener.Lfd.Accept()
 		now := time.Now()
-		conn.SetDeadline(now.Add(time.Second * 20))
+		conn.SetDeadline(now.Add(time.Second * 30))
 
 		each_event := events.Event{}
 		each_event.Conn = conn
+		each_event.ProxyConn = nil
 		each_event.Lis_info = listener
 		each_event.Timer = nil
 
@@ -25,7 +26,7 @@ func serve_one_port(listener listener.ListenInfo) {
 			message.PrintErr("Error accepting connection:", err)
 			continue
 		}
-		go events.Handle_event(each_event)
+		go events.Handle_event(&each_event)
 	}
 }
 
@@ -46,7 +47,6 @@ func ScanPorts() error {
 
 func Run() {
 	output.PrintPortsListenerStart()
-	// service.TestService("0.0.0.0:5000")
 	listens := listener.Listen()
 	for _, value := range listens {
 		go serve_one_port(value)
