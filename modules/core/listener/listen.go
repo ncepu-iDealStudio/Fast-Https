@@ -12,6 +12,10 @@ import (
 	"github.com/chenhg5/collection"
 )
 
+const (
+	STATIC_EVENT = 0
+)
+
 // donmain cert and key
 type SSLkv struct {
 	SslKey   string
@@ -19,7 +23,7 @@ type SSLkv struct {
 }
 
 // struct like confgure "path"
-type ListenData struct {
+type ListenCfg struct {
 	Proxy       uint8 // 0 1 2 3
 	Proxy_addr  string
 	ServerName  string
@@ -32,7 +36,7 @@ type ListenData struct {
 
 // one listen port arg
 type ListenInfo struct {
-	Data    []ListenData
+	Cfg     []ListenCfg
 	Lfd     net.Listener
 	Port    string
 	LisType uint8
@@ -51,7 +55,7 @@ func Process_ports() []string {
 
 			Ports = append(Ports, arr[0])
 
-			lis_temp.Data = nil
+			lis_temp.Cfg = nil
 			lis_temp.Lfd = nil
 			if strings.Contains(each.Listen, "ssl") {
 				lis_temp.LisType = 1 // ssl
@@ -76,7 +80,7 @@ func Process_listen_data() {
 			for index, eachlisten := range Lisinfos {
 				listen := strings.Split(server.Listen, " ")[0]
 				if eachlisten.Port == listen {
-					data := ListenData{}
+					data := ListenCfg{}
 					data.Path = paths.PathName
 					data.ServerName = server.ServerName + ":" + eachlisten.Port
 					data.Proxy = paths.PathType
@@ -85,7 +89,7 @@ func Process_listen_data() {
 					data.Proxy_addr = paths.ProxyData
 					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
 					data.Zip = paths.Zip
-					Lisinfos[index].Data = append(eachlisten.Data, data)
+					Lisinfos[index].Cfg = append(eachlisten.Cfg, data)
 				}
 			}
 		}
@@ -99,7 +103,7 @@ func Listen() []ListenInfo {
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 {
-			Lisinfos[index].Lfd = listen_ssl("0.0.0.0:"+each.Port, each.Data)
+			Lisinfos[index].Lfd = listen_ssl("0.0.0.0:"+each.Port, each.Cfg)
 		} else {
 			Lisinfos[index].Lfd = listen_tcp("0.0.0.0:" + each.Port)
 		}
@@ -119,7 +123,7 @@ func listen_tcp(laddr string) net.Listener {
 }
 
 // ssl listen
-func listen_ssl(laddr string, lisdata []ListenData) net.Listener {
+func listen_ssl(laddr string, lisdata []ListenCfg) net.Listener {
 	message.PrintInfo("listen ", laddr)
 	certs := []tls.Certificate{}
 	var servernames []string

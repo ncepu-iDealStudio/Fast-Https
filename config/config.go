@@ -17,6 +17,8 @@ const (
 	ZIP_GZIP    = 1
 	ZIP_BR      = 2
 	ZIP_GZIP_BR = 10
+
+	CONFIG_FILE = "config/fast-https-dev.conf"
 )
 
 type Global struct {
@@ -264,7 +266,7 @@ func checkBracketsMatching(config string) (bool, string) {
 // process the whole config system
 func process() error {
 	wd, _ := os.Getwd()
-	confPath := filepath.Join(wd, "config/fast-https.conf")
+	confPath := filepath.Join(wd, CONFIG_FILE)
 	content, err := os.ReadFile(confPath)
 	if err != nil {
 		return errors.New(fmt.Sprintf("Failed to read configuration file：%v", err))
