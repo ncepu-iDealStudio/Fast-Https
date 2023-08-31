@@ -2,6 +2,7 @@ package request
 
 import (
 	"fast-https/modules/core/listener"
+	"fmt"
 	"strings"
 
 	"github.com/chenhg5/collection"
@@ -56,7 +57,7 @@ func (r *Req) Parse_host(lis_info listener.ListenInfo) {
 }
 
 // reset request's headers
-func (r *Req) Set_headers(key string, val string) {
+func (r *Req) Set_headers(key string, val string, cfg listener.ListenCfg) {
 	if key == "Host" {
 		r.Host = val
 	}
@@ -64,7 +65,26 @@ func (r *Req) Set_headers(key string, val string) {
 		r.Connection = val
 	}
 	r.Headers[key] = val
-	r.Headers["Connection"] = "close"
+
+	_, ref := r.Headers["Referer"]
+	if ref {
+		ori := r.Headers["Referer"]
+		after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
+		r.Headers["Referer"] = after
+	}
+
+	_, ok := r.Headers["Origin"]
+	if ok {
+		if cfg.Proxy == 1 {
+			r.Headers["Origin"] = "http://" + cfg.Proxy_addr
+		} else if cfg.Proxy == 2 {
+			r.Headers["Origin"] = "https://" + cfg.Proxy_addr
+		} else {
+			fmt.Println("SET header error...")
+		}
+	}
+
+	// r.Headers["Connection"] = "close"
 }
 
 // flush request struct

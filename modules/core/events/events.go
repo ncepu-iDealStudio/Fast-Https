@@ -6,7 +6,6 @@ import (
 	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
 	"fmt"
-	"io"
 	"net"
 	"strings"
 )
@@ -37,7 +36,7 @@ func Handle_event(ev *Event) {
 	// save requte information to ev.Req_
 	ev.Req_ = request.Req_init()
 	if byte_row == nil || str_row == "" { // client closed
-		// fmt.Println("39 client close")
+		fmt.Println("39 client close")
 		close(*ev)
 		return
 	} else {
@@ -71,27 +70,13 @@ func Handle_event(ev *Event) {
 		case 1, 2: // proxy: 1 or 2,  proxy events
 			if ev.Req_.Host == cfg.ServerName {
 
-				ev.Req_.Set_headers("Host", cfg.Proxy_addr)
+				ev.Req_.Set_headers("Host", cfg.Proxy_addr, cfg)
 				ev.Req_.Flush()
+				flush_bytes := ev.Req_.Byte_row()
 
 				// according to user's confgure and requets endporint handle events
-				res, err := Proxy_event(ev, ev.Req_.Byte_row(), cfg.Proxy_addr, cfg.Proxy)
-				if err == 1 { // target no response
-					write_bytes_close(*ev, response.Default_server_error())
-					return
-				}
-				if ev.Req_.Connection == "close" {
-					write_bytes_close(*ev, res)
-					return
-				} else {
-					_, err := ev.Conn.Write(res)
-					if err != nil {
-						fmt.Println("Error writing to client89:", err)
-						return
-					}
-					Handle_event(ev)
-					return
-				}
+				Proxy_event(flush_bytes, cfg.Proxy_addr, cfg.Proxy, *ev)
+				return
 			}
 		}
 	}
@@ -105,9 +90,9 @@ func read_data(ev Event) ([]byte, string) {
 	buffer := make([]byte, 1024*4)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
-		if err == io.EOF { // read None, remoteAddr is closed
-			return nil, ""
-		}
+		// if err == io.EOF { // read None, remoteAddr is closed
+		// 	return nil, ""
+		// }
 		if n == 0 {
 			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
