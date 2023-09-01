@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -62,7 +61,7 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 	ev.ProxyConn, err = net.Dial("tcp", proxyaddr)
 	if err != nil {
 		message.PrintWarn("[Proxy event]: Can't connect to "+proxyaddr, err.Error())
-		write_bytes_close(*ev, response.Default_server_error())
+		write_bytes_close(ev, response.Default_server_error())
 		return nil, 1 // no server
 	}
 	// }
@@ -72,12 +71,12 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 		ev.ProxyConn.Close()
 		message.PrintErr("Proxy Write error")
 	}
-	fmt.Println(string(data))
+	// fmt.Println(string(data))
 
 	var resData []byte
-	tmpByte := make([]byte, 1)
+	tmpByte := make([]byte, 512)
 	for {
-		len, err := ev.ProxyConn.Read(tmpByte)
+		len_once, err := ev.ProxyConn.Read(tmpByte)
 		if err != nil {
 			if err == io.EOF { // read all
 				break
@@ -86,18 +85,17 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 				message.PrintWarn("Proxy Read error ", err)
 			}
 		}
-		if len == 0 {
+		if len_once == 0 {
 			break
 		}
-		resData = append(resData, tmpByte...)
+		resData = append(resData, tmpByte[:len_once]...)
 	}
 
-	if ev.Req_.Connection == "close" {
+	if !ev.Req_.Is_keepalive() { // connection close
 		ev.ProxyConn.Close()
 	}
 
 	// fmt.Println(string(resData))
-
 	message.PrintAccess(ev.Conn.RemoteAddr().String(), " PROXY HTTP Events "+ev.Log, " "+ev.Req_.Headers["User-Agent"])
 	return resData, 0 // no error
 }
@@ -126,9 +124,9 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 	}
 
 	var resData []byte
-	tmpByte := make([]byte, 1)
+	tmpByte := make([]byte, 512)
 	for {
-		len, err := tlsConn.Read(tmpByte)
+		len_once, err := tlsConn.Read(tmpByte)
 		if err != nil {
 			if err == io.EOF { // read all
 				break
@@ -137,45 +135,38 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 				message.PrintWarn("Proxy Read error", err)
 			}
 		}
-		if len == 0 {
+		if len_once == 0 {
 			break
 		}
-		resData = append(resData, tmpByte...)
+		resData = append(resData, tmpByte[:len_once]...)
 	}
 
-	// if ev.Req_.Connection == "close" {
-	// 	tlsConn.Close()
-	// }
-
-	tlsConn.Close()
+	if !ev.Req_.Is_keepalive() {
+		tlsConn.Close()
+	}
 
 	message.PrintAccess(ev.Conn.RemoteAddr().String(), " PROXY HTTPS Events "+ev.Log, " "+ev.Req_.Headers["User-Agent"])
-
 	return resData, 0 // no error
 }
 
-func Proxy_event(req_data []byte, proxyaddr string, Proxy uint8, ev Event) {
-	if Proxy == 1 {
-		if ev.Req_.Connection == "keep-alive" {
-			res, _ := get_data_from_server(&ev, proxyaddr, req_data)
+func Proxy_event(req_data []byte, proxyaddr string, Proxy uint8, ev *Event) {
+	if Proxy == 1 { // http proxy
+		res, _ := get_data_from_server(ev, proxyaddr, req_data)
+		if ev.Req_.Is_keepalive() {
 			write_bytes(ev, res)
-			Handle_event(&ev)
+			Handle_event(ev)
 		} else {
-			res, _ := get_data_from_server(&ev, proxyaddr, req_data)
 			write_bytes_close(ev, res)
 		}
-
 	} else {
-		if ev.Req_.Connection == "keep-alive" {
-			res, _ := get_data_from_ssl_server(&ev, proxyaddr, req_data)
+		res, _ := get_data_from_ssl_server(ev, proxyaddr, req_data)
+		if ev.Req_.Is_keepalive() {
 			write_bytes(ev, res)
-			Handle_event(&ev)
+			Handle_event(ev)
 		} else {
-			res, _ := get_data_from_ssl_server(&ev, proxyaddr, req_data)
 			write_bytes_close(ev, res)
 		}
 	}
-
 }
 
 func Proxy_event_tcp(conn net.Conn, proxyaddr string) {

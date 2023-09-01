@@ -5,9 +5,13 @@ import (
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
+	"fast-https/utils/message"
 	"fmt"
+	"io"
 	"net"
+	"reflect"
 	"strings"
+	"unsafe"
 )
 
 // each request event is saved in this struct
@@ -30,80 +34,74 @@ func Handle_event(ev *Event) {
 		Proxy_event_tcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
 		return
 	}
+	// client close
+	if process_request(ev) == 0 {
+		return
+	}
+	ev.Log = ev.Conn.RemoteAddr().String() + " " + ev.Req_.Method + " " + ev.Req_.Path
+	for _, cfg := range ev.Lis_info.Cfg {
+		switch cfg.Proxy {
+		case 0: // Proxy: 0, static events
+			if ev.Req_.Get_header("Host") == cfg.ServerName && strings.HasPrefix(ev.Req_.Path, cfg.Path) {
+				row_file_path := ev.Req_.Path[len(cfg.Path):]
+				if row_file_path == "" && cfg.Path != "/" {
+					_event_301(ev, cfg.Path+"/")
+					return
+				}
+				// according to user's confgure and requets endporint handle events
+				Static_event(cfg, row_file_path, ev)
+				return
+			}
+		case 1, 2: // proxy: 1 or 2,  proxy events
+			if ev.Req_.Get_header("Host") == cfg.ServerName {
 
+				ev.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
+				ev.Req_.Flush()
+				flush_bytes := ev.Req_.Byte_row()
+
+				// according to user's confgure and requets endporint handle events
+				Proxy_event(flush_bytes, cfg.Proxy_addr, cfg.Proxy, ev)
+				return
+			}
+		}
+	}
+	write_bytes_close(ev, response.Default_not_found())
+}
+
+func process_request(ev *Event) int {
 	// read data (bytes and str) from socket
-	byte_row, str_row := read_data(*ev)
+	byte_row, str_row := read_data(ev)
 	// save requte information to ev.Req_
 	ev.Req_ = request.Req_init()
-	if byte_row == nil || str_row == "" { // client closed
-		fmt.Println("39 client close")
-		close(*ev)
-		return
+	if byte_row == nil { // client closed
+		close(ev)
+		return 0
 	} else {
 		ev.Req_.Http_parse(str_row)
 		ev.Req_.Parse_body(byte_row)
 		// parse host
 		ev.Req_.Parse_host(ev.Lis_info)
 	}
-
-	ev.Log = ev.Conn.RemoteAddr().String() + " " + ev.Req_.Method + " " + ev.Req_.Path
-
-	for _, cfg := range ev.Lis_info.Cfg {
-		switch cfg.Proxy {
-		case 0: // Proxy: 0, static events
-			if ev.Req_.Host == cfg.ServerName && strings.HasPrefix(ev.Req_.Path, cfg.Path) {
-				row_file_path := ev.Req_.Path[len(cfg.Path):]
-				if row_file_path == "" && cfg.Path != "/" {
-					// fmt.Println("301")
-					_event_301(*ev, cfg.Path+"/")
-					return
-				}
-
-				// according to user's confgure and requets endporint handle events
-				if cfg.Path != "/" {
-					Static_event(cfg, cfg.StaticRoot+row_file_path, *ev)
-					return
-				} else {
-					Static_event(cfg, cfg.StaticRoot+ev.Req_.Path, *ev)
-					return
-				}
-			}
-		case 1, 2: // proxy: 1 or 2,  proxy events
-			if ev.Req_.Host == cfg.ServerName {
-
-				ev.Req_.Set_headers("Host", cfg.Proxy_addr, cfg)
-				ev.Req_.Flush()
-				flush_bytes := ev.Req_.Byte_row()
-
-				// according to user's confgure and requets endporint handle events
-				Proxy_event(flush_bytes, cfg.Proxy_addr, cfg.Proxy, *ev)
-				return
-			}
-		}
-	}
-	write_bytes_close(*ev, response.Default_not_found())
+	return 1
 }
 
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
-func read_data(ev Event) ([]byte, string) {
+func read_data(ev *Event) ([]byte, string) {
 	buffer := make([]byte, 1024*4)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
-		// if err == io.EOF { // read None, remoteAddr is closed
-		// 	return nil, ""
-		// }
-		if n == 0 {
+		if err == io.EOF || n == 0 { // read None, remoteAddr is closed
 			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
-		// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-		// if opErr.Err.Error() == "i/o timeout" {
-		// 	message.PrintWarn("write timeout")
-		// 	return nil, ""
-		// }
-		fmt.Println("Error reading from client:", err)
+		opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+		if opErr.Err.Error() == "i/o timeout" {
+			message.PrintWarn("read timeout")
+			return nil, ""
+		}
+		fmt.Println("Error reading from client 104:", err)
 	}
 	str_row := string(buffer[:n])
 	// buffer = buffer[:n]
@@ -111,32 +109,22 @@ func read_data(ev Event) ([]byte, string) {
 }
 
 // write row bytes and close
-func write_bytes_close(ev Event, data []byte) {
-	for len(data) > 0 {
-		n, err := ev.Conn.Write(data)
-		if err != nil {
-			fmt.Println("Error writing to client133:", err)
-			return
-		}
-		data = data[n:]
-	}
-	err := ev.Conn.Close()
-	if err != nil {
-		fmt.Println("Error Close:", err)
-	}
+func write_bytes_close(ev *Event, data []byte) {
+	write_bytes(ev, data)
+	close(ev)
 }
 
 // write row bytes
-func write_bytes(ev Event, data []byte) {
+func write_bytes(ev *Event, data []byte) {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
-			// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-			// if opErr.Err.Error() == "i/o timeout" {
-			// 	message.PrintWarn("write timeout")
-			// 	return
-			// }
-			fmt.Println("Error writing to client155:", err)
+			opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+			if opErr.Err.Error() == "i/o timeout" {
+				message.PrintWarn("write timeout")
+				return
+			}
+			fmt.Println("Error writing to client 155:", err)
 			return
 		}
 		data = data[n:]
@@ -144,7 +132,7 @@ func write_bytes(ev Event, data []byte) {
 }
 
 // only close the connection
-func close(ev Event) {
+func close(ev *Event) {
 	err := ev.Conn.Close()
 	if err != nil {
 		fmt.Println("Error Close:", err)

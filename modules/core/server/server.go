@@ -14,7 +14,7 @@ func serve_one_port(listener listener.ListenInfo) {
 	for {
 		conn, err := listener.Lfd.Accept()
 		now := time.Now()
-		conn.SetDeadline(now.Add(time.Second * 50))
+		conn.SetDeadline(now.Add(time.Second * 30))
 
 		each_event := events.Event{}
 		each_event.Conn = conn

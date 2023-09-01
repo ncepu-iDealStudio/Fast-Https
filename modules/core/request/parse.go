@@ -2,7 +2,6 @@ package request
 
 import (
 	"fast-https/modules/core/listener"
-	"fmt"
 	"strings"
 
 	"github.com/chenhg5/collection"
@@ -22,13 +21,9 @@ type Req struct {
 	Method   string
 	Path     string
 	Protocol string
-
-	Host       string
-	Encoding   []string
-	Connection string // <keep-alive> <close>
-
-	Headers map[string]string
-	Body    []byte
+	Encoding []string
+	Headers  map[string]string
+	Body     []byte
 }
 
 var http_method = []string{
@@ -51,50 +46,57 @@ func Req_init() *Req {
 // parse Host
 func (r *Req) Parse_host(lis_info listener.ListenInfo) {
 	if lis_info.Port == "80" {
-		r.Host = r.Host + ":80"
+		r.Headers["Host"] = r.Headers["Host"] + ":80"
 	} else if lis_info.Port == "443" {
-		r.Host = r.Host + ":443"
+		r.Headers["Host"] = r.Headers["Host"] + ":443"
 	}
 }
 
-// reset request's headers
-func (r *Req) Set_headers(key string, val string, cfg listener.ListenCfg) {
+// reset request's header
+func (r *Req) Set_header(key string, val string, cfg listener.ListenCfg) {
 
-	if key == "Host" {
-		r.Host = val
-	}
-	if key == "Connection" {
-		r.Connection = val
-	}
 	r.Headers[key] = val
 
-	_, ref := r.Headers["Referer"]
-	if ref {
-		ori := r.Headers["Referer"]
-		after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
-		r.Headers["Referer"] = after
-	}
+	// _, ref := r.Headers["Referer"]
+	// if ref {
+	// 	ori := r.Headers["Referer"]
+	// 	after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
+	// 	r.Headers["Referer"] = after
+	// }
 
-	_, ori := r.Headers["Origin"]
-	if ori {
-		if cfg.Proxy == 1 {
-			r.Headers["Origin"] = "http://" + cfg.Proxy_addr
-		} else if cfg.Proxy == 2 {
-			r.Headers["Origin"] = "https://" + cfg.Proxy_addr
-		} else {
-			fmt.Println("SET header error...")
-		}
-	}
+	// _, ori := r.Headers["Origin"]
+	// if ori {
+	// 	if cfg.Proxy == 1 {
+	// 		r.Headers["Origin"] = "http://" + cfg.Proxy_addr
+	// 	} else if cfg.Proxy == 2 {
+	// 		r.Headers["Origin"] = "https://" + cfg.Proxy_addr
+	// 	} else {
+	// 		fmt.Println("SET header error...")
+	// 	}
+	// }
 
 	r.Headers["Connection"] = "close"
-	r.Connection = "close"
 }
 
 // flush request struct
-func (r *Req) Flush() {
+func (r *Req) Flush() {}
 
+// get request header
+func (r *Req) Get_header(key string) string {
+	return r.Headers[key]
 }
 
+// whether the request connection is keep alive
+func (r *Req) Is_keepalive() bool {
+	conn := r.Get_header("Connection")
+	if conn == "keep-alive" {
+		return true
+	} else {
+		return false
+	}
+}
+
+// get request row bytes
 func (r *Req) Byte_row() []byte {
 	rowStr := r.Method + " " +
 		r.Path + " " +
@@ -141,19 +143,12 @@ func (r *Req) Http_parse(request string) int {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 		r.Headers[key] = value
-		if strings.Compare(key, "Host") == 0 {
-			r.Host = value
-		}
-		if strings.Compare(key, "Connection") == 0 {
-			r.Connection = value
-		}
 	}
-
-	// fmt.Println(r)
 
 	return REQUEST_OK // valid
 }
 
+// get request's body
 func (r *Req) Parse_body(tmpByte []byte) {
 	var i int // last byte position before \r\n\r\n
 	var remain_len int

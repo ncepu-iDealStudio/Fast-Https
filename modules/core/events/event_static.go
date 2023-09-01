@@ -20,14 +20,21 @@ const (
 // if Content-Type is close, we write bytes and close this connection
 // Recursion "Handle_event" isn't a problem, because it
 // will pause when TCP buffer is None.
-func Static_event(d listener.ListenCfg, path string, ev Event) {
-	if ev.Req_.Connection == "keep-alive" {
-		res := get_res_bytes(d, path, ev.Req_.Connection, &ev)
+func Static_event(cfg listener.ListenCfg, path string, ev *Event) {
+
+	if cfg.Path != "/" {
+		path = cfg.StaticRoot + path
+	} else {
+		path = cfg.StaticRoot + ev.Req_.Path
+	}
+
+	if ev.Req_.Is_keepalive() {
+		res := get_res_bytes(cfg, path, ev.Req_.Get_header("Connection"), ev)
 		write_bytes(ev, res)
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), " STATIC Events "+ev.Log, " "+ev.Req_.Headers["User-Agent"])
-		Handle_event(&ev) // recursion
+		Handle_event(ev) // recursion
 	} else {
-		res := get_res_bytes(d, path, ev.Req_.Connection, &ev)
+		res := get_res_bytes(cfg, path, ev.Req_.Get_header("Connection"), ev)
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), " STATIC Events "+ev.Log, " "+ev.Req_.Headers["User-Agent"])
 		write_bytes_close(ev, res)
 	}
