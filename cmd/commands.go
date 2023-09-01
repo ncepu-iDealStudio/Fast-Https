@@ -7,15 +7,15 @@ import (
 	"fast-https/modules/core/server"
 	"fast-https/output"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 )
 
 var data []string
@@ -29,11 +29,8 @@ type command struct {
 
 var (
 	// Command structure initialization
-	reloadFlag string
-	startFlag  string
-	stopFlag   string
-	statusFlag string
-	commands   = []command{
+
+	commands = []command{
 		{
 			name:        "reload",
 			description: "Switching Processes",
@@ -121,7 +118,7 @@ func ReloadHandler() error {
 func StopHandler() error {
 	file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
-		fmt.Printf(color.BlueString("output error"))
+		fmt.Println(color.BlueString("output error"))
 	}
 
 	reader1 := bufio.NewReader(file)
@@ -146,7 +143,7 @@ func StopHandler() error {
 	fmt.Println("Process closed")
 	file.Close()
 
-	ioutil.WriteFile("fast-https.pid", []byte{}, 0666)
+	os.WriteFile("fast-https.pid", []byte{}, 0666)
 
 	return nil
 }
