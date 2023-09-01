@@ -28,6 +28,7 @@ type Req struct {
 	Connection string // <keep-alive> <close>
 
 	Headers map[string]string
+	Body    []byte
 }
 
 var http_method = []string{
@@ -58,6 +59,7 @@ func (r *Req) Parse_host(lis_info listener.ListenInfo) {
 
 // reset request's headers
 func (r *Req) Set_headers(key string, val string, cfg listener.ListenCfg) {
+
 	if key == "Host" {
 		r.Host = val
 	}
@@ -73,8 +75,8 @@ func (r *Req) Set_headers(key string, val string, cfg listener.ListenCfg) {
 		r.Headers["Referer"] = after
 	}
 
-	_, ok := r.Headers["Origin"]
-	if ok {
+	_, ori := r.Headers["Origin"]
+	if ori {
 		if cfg.Proxy == 1 {
 			r.Headers["Origin"] = "http://" + cfg.Proxy_addr
 		} else if cfg.Proxy == 2 {
@@ -84,7 +86,8 @@ func (r *Req) Set_headers(key string, val string, cfg listener.ListenCfg) {
 		}
 	}
 
-	// r.Headers["Connection"] = "close"
+	r.Headers["Connection"] = "close"
+	r.Connection = "close"
 }
 
 // flush request struct
@@ -100,7 +103,11 @@ func (r *Req) Byte_row() []byte {
 		rowStr = rowStr + k + ": " + v + "\r\n"
 	}
 	rowStr = rowStr + "\r\n"
-	return []byte(rowStr)
+
+	rowByte := []byte(rowStr)
+	rowByte = append(rowByte, r.Body...)
+
+	return rowByte
 }
 
 // parse row tcp str to a req object
@@ -145,4 +152,27 @@ func (r *Req) Http_parse(request string) int {
 	// fmt.Println(r)
 
 	return REQUEST_OK // valid
+}
+
+func (r *Req) Parse_body(tmpByte []byte) {
+	var i int // last byte position before \r\n\r\n
+	var remain_len int
+	var res []byte
+
+	total_len := len(tmpByte)
+	for i = 0; i < total_len-4; i++ {
+		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) && tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
+			break
+		}
+	}
+
+	remain_len = total_len - i - 4
+
+	if remain_len == 0 {
+		res = (tmpByte[i+4:])
+	} else {
+		res = (tmpByte[i+4:])[:remain_len]
+	}
+
+	r.Body = res
 }

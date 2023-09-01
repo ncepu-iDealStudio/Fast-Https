@@ -41,6 +41,7 @@ func Handle_event(ev *Event) {
 		return
 	} else {
 		ev.Req_.Http_parse(str_row)
+		ev.Req_.Parse_body(byte_row)
 		// parse host
 		ev.Req_.Parse_host(ev.Lis_info)
 	}
