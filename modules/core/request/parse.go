@@ -74,8 +74,6 @@ func (r *Req) Set_header(key string, val string, cfg listener.ListenCfg) {
 	// 		fmt.Println("SET header error...")
 	// 	}
 	// }
-
-	r.Headers["Connection"] = "close"
 }
 
 // flush request struct

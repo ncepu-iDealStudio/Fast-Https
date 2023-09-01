@@ -56,6 +56,7 @@ func Handle_event(ev *Event) {
 			if ev.Req_.Get_header("Host") == cfg.ServerName {
 
 				ev.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
+				ev.Req_.Set_header("Connection", "close", cfg)
 				ev.Req_.Flush()
 				flush_bytes := ev.Req_.Byte_row()
 

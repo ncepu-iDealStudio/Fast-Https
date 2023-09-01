@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func parse_header(ev *Event) ([]byte, []byte, int) {
+func Parse_header(ev *Event) ([]byte, []byte, int) {
 	tmpByte := make([]byte, 1024*1024)
 	header := make([]byte, 1024*1024)
 	var header_str string
