@@ -19,6 +19,10 @@ const (
 	ZIP_GZIP_BR = 10
 
 	CONFIG_FILE = "config/fast-https-dev.conf"
+
+	Host        = 100
+	XRealIp     = 101
+	XForwardFor = 102
 )
 
 type Global struct {
@@ -35,19 +39,22 @@ type ErrorPath struct {
 	Path string
 }
 
+type Header struct {
+	HeaderKey   uint8
+	HeaderValue string
+}
+
 type Path struct {
-	PathName                    string
-	PathType                    uint8
-	Zip                         uint8
-	Root                        string // static file  pathtype = 0
-	Index                       []string
-	Rewrite                     string // rewrite	   pathtype = 4
-	ProxyData                   string // Proxy	       pathtype = 1, 2
-	ProxySetHeaderHost          string
-	ProxySetHeaderXRealIp       string
-	ProxySetHeaderXForwardedFor string
-	Deny                        string
-	Allow                       string
+	PathName       string
+	PathType       uint8
+	Zip            uint8
+	Root           string // static file  pathtype = 0
+	Index          []string
+	Rewrite        string // rewrite	   pathtype = 4
+	ProxyData      string // Proxy	       pathtype = 1, 2
+	ProxySetHeader []Header
+	Deny           string
+	Allow          string
 }
 
 type Server struct {
@@ -269,7 +276,7 @@ func process() error {
 	confPath := filepath.Join(wd, CONFIG_FILE)
 	content, err := os.ReadFile(confPath)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Failed to read configuration file：%v", err))
+		return fmt.Errorf(" Failed to read configuration file：%v", err)
 	}
 
 	//Delete Note
@@ -281,37 +288,37 @@ func process() error {
 	// Check if there are include statements
 	includeRe := regexp.MustCompile(`include\s+([^;]+);`)
 	matches := includeRe.FindAllStringSubmatch(clear_str, -1)
-	if matches != nil {
-		for _, match := range matches {
 
-			includePath := strings.TrimSpace(match[1])
+	for _, match := range matches {
 
-			// Extend include statement
-			expandedPaths, err := expandInclude(includePath)
+		includePath := strings.TrimSpace(match[1])
+
+		// Extend include statement
+		expandedPaths, err := expandInclude(includePath)
+		if err != nil {
+			return err
+		}
+		// Read the extended configuration files one by one
+		for _, path := range expandedPaths {
+			fileContent, err := os.ReadFile(path)
+
 			if err != nil {
-				return err
+				return fmt.Errorf(" Failed to read configuration file:%v", err)
 			}
-			// Read the extended configuration files one by one
-			for _, path := range expandedPaths {
-				fileContent, err := os.ReadFile(path)
 
-				if err != nil {
-					return errors.New(fmt.Sprintf("Failed to read configuration file:%v", err))
-				}
-
-				clear_str_temp := ""
-				for _, line := range strings.Split(string(fileContent), "\n") {
-					clear_str_temp += deleteComment(line) + "\n"
-				}
-
-				// Splice the expanded configuration file content into clear_ In str, for subsequent parsing
-				clear_str += clear_str_temp + "\n"
+			clear_str_temp := ""
+			for _, line := range strings.Split(string(fileContent), "\n") {
+				clear_str_temp += deleteComment(line) + "\n"
 			}
+
+			// Splice the expanded configuration file content into clear_ In str, for subsequent parsing
+			clear_str += clear_str_temp + "\n"
 		}
 	}
+
 	matching, info := checkBracketsMatching(clear_str)
 	if !matching {
-		return errors.New(fmt.Sprintf("Error config:\n%v\n Please check config of server, especially settings of curly brackets.", info))
+		return fmt.Errorf(" Error config:%v Please check config of server, especially settings of curly brackets", info)
 	}
 
 	// Defining Regular Expressions
@@ -383,7 +390,7 @@ func process() error {
 			}
 
 			if len(path[2]) == 0 {
-				return errors.New(fmt.Sprintf("config [%v] is wrong", path))
+				return fmt.Errorf(" config [%v] is wrong", path)
 			}
 			zipMatch := zipRe.FindStringSubmatch(path[2])
 			if len(zipMatch) > 1 {
