@@ -6,29 +6,32 @@ import (
 	"fast-https/utils/message"
 	"io"
 	"net"
-	"strconv"
 	"strings"
 )
 
-func Parse_header(ev *Event) ([]byte, []byte, int) {
-	tmpByte := make([]byte, 1024*1024)
-	header := make([]byte, 1024*1024)
+func Change_header(tmpByte []byte) []byte {
+
+	header := make([]byte, 1024*20)
 	var header_str string
+	var header_new string
+
 	var i int
-	var k int
 	var res []byte
 
-	tmp_len, _ := ev.ProxyConn.Read(tmpByte)
-	for i = 0; i < tmp_len-4; i++ {
+	for i = 0; i < len(tmpByte)-4; i++ {
 		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) && tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
 			break
 		}
 		header[i] = tmpByte[i]
 	}
 
+	body := tmpByte[i+4:]
+
 	header_str = string(header[:i])
-	lines := strings.Split(header_str, "\r\n")[1:]
-	for _, line := range lines {
+
+	lines := strings.Split(header_str, "\r\n")
+	header_new = lines[0] + "\r\n"
+	for _, line := range lines[1:] {
 		if line == "" {
 			break
 		}
@@ -36,18 +39,22 @@ func Parse_header(ev *Event) ([]byte, []byte, int) {
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			if strings.Compare(key, "Content-Length") == 0 {
-				k, _ = strconv.Atoi(value)
+			if strings.Compare(key, "Connection") == 0 {
+				header_new = header_new + "Connection: keep-alive\r\n"
+			} else {
+				header_new = header_new + key + ": " + value + "\r\n"
 			}
 		}
+	}
+	header_new = header_new + "\r\n"
 
-	}
-	if k == 0 {
-		res = (tmpByte[i+4:])
-	} else {
-		res = (tmpByte[i+4:])[:k]
-	}
-	return res, header[:i], 0
+	res = append(res, []byte(header_new)...)
+	res = append(res, body...)
+	res = append(res, []byte("\r\n")...)
+
+	// fmt.Println(string(res))
+
+	return res
 }
 
 // fast-https will send data to real server and get response from target
@@ -57,14 +64,14 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 	}
 
 	var err error
-	// if ev.ProxyConn == nil {
-	ev.ProxyConn, err = net.Dial("tcp", proxyaddr)
-	if err != nil {
-		message.PrintWarn("[Proxy event]: Can't connect to "+proxyaddr, err.Error())
-		write_bytes_close(ev, response.Default_server_error())
-		return nil, 1 // no server
+	if ev.ProxyConn == nil {
+		ev.ProxyConn, err = net.Dial("tcp", proxyaddr)
+		if err != nil {
+			message.PrintWarn("[Proxy event]: Can't connect to "+proxyaddr, err.Error())
+			write_bytes_close(ev, response.Default_server_error())
+			return nil, 1 // no server
+		}
 	}
-	// }
 
 	_, err = ev.ProxyConn.Write(data)
 	if err != nil {
@@ -91,6 +98,8 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 		resData = append(resData, tmpByte[:len_once]...)
 	}
 
+	// resData = Change_header(resData)
+
 	if !ev.Req_.Is_keepalive() { // connection close
 		ev.ProxyConn.Close()
 	}
@@ -107,10 +116,12 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 	}
 
 	var err error
-	ev.ProxyConn, err = net.Dial("tcp", proxyaddr)
-	if err != nil {
-		message.PrintWarn("Can't connect to "+proxyaddr, err.Error())
-		return nil, 1 // no server
+	if ev.ProxyConn == nil {
+		ev.ProxyConn, err = net.Dial("tcp", proxyaddr)
+		if err != nil {
+			message.PrintWarn("Can't connect to "+proxyaddr, err.Error())
+			return nil, 1 // no server
+		}
 	}
 
 	config := tls.Config{InsecureSkipVerify: true}
