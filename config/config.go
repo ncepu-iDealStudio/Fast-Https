@@ -127,7 +127,7 @@ func expandInclude(path string) ([]string, error) {
 	// Find matching files
 	matches, err := filepath.Glob(filepath.Join(dir, file))
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Unable to parse include statement: %v", err))
+		return nil, fmt.Errorf("unable to parse include statement: %v", err)
 	}
 
 	return matches, nil
@@ -160,7 +160,7 @@ func serverContentType() error {
 	confBytes, err := files.ReadFile(confPath)
 
 	if err != nil {
-		return errors.New("Can't open mime.types file.")
+		return errors.New("can't open mime.types file")
 	}
 	var clear_str string
 	if GOs == "windows" {
@@ -199,7 +199,7 @@ func deleteExtraSpace(s string) string {
 	return string(s2)
 }
 
-func parseIndex(indexStr string) []string {
+func ParseIndex(indexStr string) []string {
 	var index []string
 	inString := false
 	inBrace := false
@@ -236,7 +236,7 @@ func parseIndex(indexStr string) []string {
 	return index
 }
 
-func contains(slice []string, str string) bool {
+func Contains(slice []string, str string) bool {
 	for _, s := range slice {
 		if s == str {
 			return true
@@ -474,7 +474,7 @@ func process() error {
 		// Add the parsed HttpServer structure to the Config structure
 		GConfig.Servers = append(GConfig.Servers, server)
 	}
-	fmt.Println(GConfig.Servers)
+	// fmt.Println(GConfig.Servers)
 	// each server end
 	// Parse error_ Page field
 
