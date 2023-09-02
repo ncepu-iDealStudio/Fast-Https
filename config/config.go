@@ -431,12 +431,50 @@ func process() error {
 
 			}
 
+			re := regexp.MustCompile(`proxy_set_header\s+([^;]+);`)
+			lines := strings.Split(path[2], "\n")
+			for _, line := range lines {
+				match := re.FindStringSubmatch(line)
+				if len(match) > 1 {
+					headerParts := strings.SplitN(strings.TrimSpace(match[1]), " ", 2)
+					if len(headerParts) == 2 {
+						headerKey := 100
+						headerKeyTemp := strings.TrimSpace(headerParts[0])
+
+						headerValue := strings.TrimSpace(headerParts[1])
+
+						if headerKeyTemp == "Host" {
+							headerValue = strings.TrimSpace(line[strings.Index(line, "Host")+4:])
+							headerValue = strings.TrimRight(headerValue, ";")
+							headerKey = 100
+						}
+						if headerKeyTemp == "X-Real-Ip" {
+
+							headerValue = strings.TrimSpace(line[strings.Index(line, "X-Real-Ip")+9:])
+							headerValue = strings.TrimRight(headerValue, ";")
+							headerKey = 101
+						}
+						if headerKeyTemp == "X-Forwarded-For" {
+							headerValue = strings.TrimSpace(line[strings.Index(line, "X-Forwarded-For")+15:])
+							headerValue = strings.TrimRight(headerValue, ";")
+							headerKey = 102
+						}
+
+						p.ProxySetHeader = append(p.ProxySetHeader, Header{
+							HeaderKey:   uint8(headerKey),
+							HeaderValue: headerValue,
+						})
+					}
+				}
+			}
+
 			server.Path = append(server.Path, p)
 		}
 
 		// Add the parsed HttpServer structure to the Config structure
 		GConfig.Servers = append(GConfig.Servers, server)
 	}
+	fmt.Println(GConfig.Servers)
 	// each server end
 	// Parse error_ Page field
 
