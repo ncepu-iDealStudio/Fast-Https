@@ -34,11 +34,12 @@ func Handle_event(ev *Event) {
 		Proxy_event_tcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
 		return
 	}
-	// client close
 	if process_request(ev) == 0 {
-		return
+		return // client close
 	}
-	ev.Log = ev.Conn.RemoteAddr().String() + " " + ev.Req_.Method + " " + ev.Req_.Path
+	ev.Log = " " + ev.Req_.Method
+	ev.Log = ev.Log + " " + ev.Req_.Path + " \"" + ev.Req_.Get_header("Host") + "\""
+
 	for _, cfg := range ev.Lis_info.Cfg {
 		switch cfg.Proxy {
 		case 0: // Proxy: 0, static events
@@ -55,7 +56,16 @@ func Handle_event(ev *Event) {
 		case 1, 2: // proxy: 1 or 2,  proxy events
 			if ev.Req_.Get_header("Host") == cfg.ServerName {
 
-				ev.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
+				for _, item := range cfg.ProxySetHeader {
+					if item.HeaderKey == 100 {
+						var str string
+						if item.HeaderValue == "$host" {
+							str = cfg.Proxy_addr
+							ev.Req_.Set_header("Host", str, cfg)
+						}
+					}
+				}
+
 				ev.Req_.Set_header("Connection", "close", cfg)
 				ev.Req_.Flush()
 				flush_bytes := ev.Req_.Byte_row()

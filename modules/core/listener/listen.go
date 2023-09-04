@@ -24,14 +24,15 @@ type SSLkv struct {
 
 // struct like confgure "path"
 type ListenCfg struct {
-	Proxy       uint8 // 0 1 2 3
-	Proxy_addr  string
-	ServerName  string
-	Path        string
-	SSL         SSLkv
-	StaticRoot  string
-	StaticIndex []string
-	Zip         uint8
+	Proxy          uint8 // 0 1 2 3
+	Proxy_addr     string
+	ProxySetHeader []config.Header
+	ServerName     string
+	Path           string
+	SSL            SSLkv
+	StaticRoot     string
+	StaticIndex    []string
+	Zip            uint8
 }
 
 // one listen port arg
@@ -84,9 +85,10 @@ func Process_listen_data() {
 					data.Path = paths.PathName
 					data.ServerName = server.ServerName + ":" + eachlisten.Port
 					data.Proxy = paths.PathType
+					data.Proxy_addr = paths.ProxyData
+					data.ProxySetHeader = paths.ProxySetHeader
 					data.StaticRoot = paths.Root
 					data.StaticIndex = paths.Index
-					data.Proxy_addr = paths.ProxyData
 					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
 					data.Zip = paths.Zip
 					Lisinfos[index].Cfg = append(eachlisten.Cfg, data)

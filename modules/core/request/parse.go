@@ -2,6 +2,7 @@ package request
 
 import (
 	"fast-https/modules/core/listener"
+	"fmt"
 	"strings"
 
 	"github.com/chenhg5/collection"
@@ -57,23 +58,23 @@ func (r *Req) Set_header(key string, val string, cfg listener.ListenCfg) {
 
 	r.Headers[key] = val
 
-	// _, ref := r.Headers["Referer"]
-	// if ref {
-	// 	ori := r.Headers["Referer"]
-	// 	after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
-	// 	r.Headers["Referer"] = after
-	// }
+	_, ref := r.Headers["Referer"]
+	if ref {
+		ori := r.Headers["Referer"]
+		after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
+		r.Headers["Referer"] = after
+	}
 
-	// _, ori := r.Headers["Origin"]
-	// if ori {
-	// 	if cfg.Proxy == 1 {
-	// 		r.Headers["Origin"] = "http://" + cfg.Proxy_addr
-	// 	} else if cfg.Proxy == 2 {
-	// 		r.Headers["Origin"] = "https://" + cfg.Proxy_addr
-	// 	} else {
-	// 		fmt.Println("SET header error...")
-	// 	}
-	// }
+	_, ori := r.Headers["Origin"]
+	if ori {
+		if cfg.Proxy == 1 {
+			r.Headers["Origin"] = "http://" + cfg.Proxy_addr
+		} else if cfg.Proxy == 2 {
+			r.Headers["Origin"] = "https://" + cfg.Proxy_addr
+		} else {
+			fmt.Println("SET header error...")
+		}
+	}
 }
 
 // flush request struct

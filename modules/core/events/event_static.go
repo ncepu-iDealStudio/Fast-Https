@@ -30,17 +30,27 @@ func Static_event(cfg listener.ListenCfg, path string, ev *Event) {
 
 	if ev.Req_.Is_keepalive() {
 		res := get_res_bytes(cfg, path, ev.Req_.Get_header("Connection"), ev)
-		write_bytes(ev, res)
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), " STATIC Events "+ev.Log, " "+ev.Req_.Headers["User-Agent"])
+		if res == -1 {
+			write_bytes(ev, response.Default_not_found())
+		} else {
+			write_bytes(ev, ev.Res_.Generate_response())
+		}
+
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.Req_.Headers["User-Agent"]+"\"")
 		Handle_event(ev) // recursion
 	} else {
 		res := get_res_bytes(cfg, path, ev.Req_.Get_header("Connection"), ev)
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), " STATIC Events "+ev.Log, " "+ev.Req_.Headers["User-Agent"])
-		write_bytes_close(ev, res)
+		if res == -1 {
+			write_bytes(ev, response.Default_not_found())
+		} else {
+			write_bytes(ev, ev.Res_.Generate_response())
+		}
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.Req_.Headers["User-Agent"]+"\"")
+
 	}
 }
 
-func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, ev *Event) []byte {
+func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, ev *Event) int {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }
@@ -63,7 +73,8 @@ func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, e
 		ev.Res_.Set_body(file_data)
 
 		ev.Log += " 200 " + strconv.Itoa(len(file_data))
-		return ev.Res_.Generate_response() // find source
+
+		return 1 // find source
 	}
 
 	for _, item := range lisdata.StaticIndex { // Find files in default Index array
@@ -83,12 +94,12 @@ func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, e
 			ev.Res_.Set_body(file_data)
 			ev.Log += " 200 " + strconv.Itoa(len(file_data))
 
-			return ev.Res_.Generate_response() // find source
+			return 1 // find source
 		}
 	}
 
 	ev.Log += " 404 50"
-	return response.Default_not_found() // not found source
+	return -1
 }
 
 // get this endpoint's content type

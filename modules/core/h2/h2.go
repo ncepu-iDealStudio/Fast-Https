@@ -49,21 +49,16 @@ func Test() {
 	}
 
 	for {
-
 		conn, _ := lis.Accept()
-
 		fmt.Println(conn.RemoteAddr().String())
-
 		for {
 			rBuf := bufio.NewReader(conn)
 			frame, err := http2.ReadFrameHeader(rBuf)
-
 			if err != nil {
 				fmt.Println(err)
 				conn.Close()
 				break
 			}
-
 			// Decode the frame
 			switch frame.Header().Type {
 			case http2.FrameHeaders:
@@ -72,25 +67,20 @@ func Test() {
 			case http2.FrameData:
 				fmt.Println("data", frame.Header())
 			}
-
 		}
 	}
-
 }
 
 func H2() {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello, HTTP/2!")
 	})
-
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: nil,
 	}
-
 	err := server.ListenAndServeTLS("./config/cert/localhost.pem", "./config/cert/localhost-key.pem")
 	if err != nil {
 		log.Fatal(err)
 	}
-
 }
