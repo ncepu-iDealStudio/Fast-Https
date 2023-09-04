@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -110,6 +111,7 @@ func runCommand(args []string) error {
 // ReloadHandler reload server
 func ReloadHandler() error {
 	StopHandler()
+	time.Sleep(time.Second)
 	StartHandler()
 	return nil
 }
@@ -118,7 +120,7 @@ func ReloadHandler() error {
 func StopHandler() error {
 	file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
-		fmt.Println(color.BlueString("output error"))
+		return err
 	}
 
 	reader1 := bufio.NewReader(file)
@@ -131,7 +133,7 @@ func StopHandler() error {
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
 	} else {
-		cmd = exec.Command("kill", "-9", strconv.Itoa(ax))
+		cmd = exec.Command("kill", strconv.Itoa(ax))
 	}
 
 	err = cmd.Run()
@@ -140,10 +142,9 @@ func StopHandler() error {
 		return nil
 	}
 
-	fmt.Println("Process closed")
 	file.Close()
 
-	os.WriteFile("fast-https.pid", []byte{}, 0666)
+	os.Remove("fast-https.pid")
 
 	return nil
 }
