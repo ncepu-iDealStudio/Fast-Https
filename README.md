@@ -2,24 +2,22 @@
 
 #### 介绍
 Fast-Https是一款基于Go语言开发的的多任务，高并发Web服务器产品，支持http1.1/http2.0、HTTPS、RPC等主流的协议和标准；能够实现反向代理的功能。特别的，Web服务器继承了自签名SSL证书的生成功能，能极大方便在测试环境下，解决https访问的问题；
-目前，我们提供了Windows平台和Lnux平台下的安装包，其它平台下的产品陆续推出中；
+目前，我们提供了Windows平台和Linux平台下的安装包，其它平台下的产品陆续推出中；
 
 
 #### 软件架构
-软件架构说明
+Fast-Https采用模块化的方式设计开发，核心服务器模块支持横向扩展，添加新的功能特定支持；
 
 
 #### 安装教程
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1.  在https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0获取相应的版本和安装包；
+2.  将相应的安装包解压到服务器的目标目录下；
+3.  修改配置文件
 
 #### 使用说明
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+见文档：https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?# 《Fast-Https产品说明》
 
 #### 参与贡献
 
