@@ -13,7 +13,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -110,9 +109,9 @@ func runCommand(args []string) error {
 
 // ReloadHandler reload server
 func ReloadHandler() error {
-	StopHandler()
-	time.Sleep(time.Second)
-	StartHandler()
+	// StopHandler()
+	// time.Sleep(time.Second)
+	// StartHandler()
 	return nil
 }
 
