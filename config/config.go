@@ -18,7 +18,7 @@ const (
 	ZIP_BR      = 2
 	ZIP_GZIP_BR = 10
 
-	CONFIG_FILE = "config/fast-https-dev.conf"
+	CONFIG_FILE = "config/fast-https.conf"
 
 	Host        = 100
 	XRealIp     = 101
