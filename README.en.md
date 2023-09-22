@@ -1,36 +1,25 @@
 # Fast Https
 
 #### Description
-一款开源的多任务，高并发Web服务器产品，支持HTTPS，RPC等协议；
+Fast-Https is a high-performance, multi-tasking web server product developed in Go language. It supports popular protocols and standards such as HTTP 1.1, HTTP 2.0, HTTPS, and RPC. It also offers reverse proxy functionality. Notably, the web server includes a built-in feature for generating self-signed SSL certificates, which greatly facilitates addressing the issue of server access based on the HTTPS protocol in testing environments.
+
+Currently, we provide installation packages for both Windows and Linux platforms, with products for other platforms being gradually released.
 
 #### Software Architecture
-Software architecture description
+Fast-Https is designed and developed in a modular manner, where the core server module supports horizontal expansion and the addition of new functionalities through plugins. This enhances the capabilities of the server.
+
 
 #### Installation
-
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1.  You can obtain the corresponding version and installation package at https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0.；
+2.  Extract the corresponding installation package to the target directory on the server.
+3.  Modify the configuration file.
 
 #### Instructions
+see：https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?# 《Fast-Https产品说明》
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
 
 #### Contribution
-
 1.  Fork the repository
 2.  Create Feat_xxx branch
 3.  Commit your code
 4.  Create Pull Request
-
-
-#### Gitee Feature
-
-1.  You can use Readme\_XXX.md to support different languages, such as Readme\_en.md, Readme\_zh.md
-2.  Gitee blog [blog.gitee.com](https://blog.gitee.com)
-3.  Explore open source project [https://gitee.com/explore](https://gitee.com/explore)
-4.  The most valuable open source project [GVP](https://gitee.com/gvp)
-5.  The manual of Gitee [https://gitee.com/help](https://gitee.com/help)
-6.  The most popular members  [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
