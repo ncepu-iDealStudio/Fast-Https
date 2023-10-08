@@ -24,7 +24,7 @@ type SSLkv struct {
 
 // struct like confgure "path"
 type ListenCfg struct {
-	Proxy          uint8 // 0 1 2 3
+	Proxy          uint16 // 0 1 2 3
 	Proxy_addr     string
 	ProxySetHeader []config.Header
 	ServerName     string
@@ -32,7 +32,8 @@ type ListenCfg struct {
 	SSL            SSLkv
 	StaticRoot     string
 	StaticIndex    []string
-	Zip            uint8
+	Zip            uint16
+	ProxyCache     config.Cache
 }
 
 // one listen port arg
@@ -91,6 +92,7 @@ func Process_listen_data() {
 					data.StaticIndex = paths.Index
 					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
 					data.Zip = paths.Zip
+					data.ProxyCache = paths.ProxyCache
 					Lisinfos[index].Cfg = append(eachlisten.Cfg, data)
 				}
 			}

@@ -174,7 +174,7 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 	return finalData, 0 // no error
 }
 
-func Proxy_event(req_data []byte, proxyaddr string, Proxy uint8, ev *Event) {
+func Proxy_event(req_data []byte, proxyaddr string, Proxy uint16, ev *Event) {
 	var res []byte
 	var err int
 	// fmt.Println(string(req_data))

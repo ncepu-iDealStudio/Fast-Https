@@ -1,9 +1,17 @@
 package config
 
 import (
+	"errors"
+	"fast-https/utils/files"
 	"fmt"
-	"github.com/spf13/viper"
 	"log"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
+
+	"github.com/spf13/viper"
 )
 
 const (
@@ -11,8 +19,6 @@ const (
 	ZIP_GZIP    = 1
 	ZIP_BR      = 2
 	ZIP_GZIP_BR = 10
-
-	CONFIG_FILE = "config/fast-https-dev.conf"
 
 	Host        = 100
 	XRealIp     = 101
@@ -90,10 +96,86 @@ func getHeaders(path string) []Header {
 	return headers
 }
 
-func Init() error {
-	process()
-	return nil
+// Define Configuration Structure
+var GConfig Fast_Https
+var GContentTypeMap map[string]string
+var GOs = runtime.GOOS
 
+// Init the whole config module
+func Init() error {
+	err := process()
+	if err != nil {
+		return err
+	}
+	err = serverContentType()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// CheckConfig check whether config is correct
+func CheckConfig() error {
+	err := Init()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ClearConfig() {
+	GConfig = Fast_Https{}
+	GContentTypeMap = map[string]string{}
+}
+
+// content types of server
+func serverContentType() error {
+
+	GContentTypeMap = make(map[string]string)
+	var content_type string
+
+	wd, _ := os.Getwd()
+	confPath := filepath.Join(wd, "config/mime.types")
+	confBytes, err := files.ReadFile(confPath)
+
+	if err != nil {
+		return errors.New("can't open mime.types file")
+	}
+	var clear_str string
+	if GOs == "windows" {
+		clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
+	} else {
+		clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
+	}
+	all_type_arr := strings.Split(deleteExtraSpace(clear_str), ";")
+	for _, one_type := range all_type_arr {
+		arr := strings.Split(one_type, " ")
+
+		for i := 0; i < len(arr); i++ {
+			if i == 0 {
+				content_type = arr[0]
+			} else {
+				GContentTypeMap[arr[i]] = content_type
+			}
+		}
+
+	}
+	return nil
+}
+
+func deleteExtraSpace(s string) string {
+	//Remove excess spaces from the string, and when there are multiple spaces, only one space is retained
+	s1 := strings.Replace(s, "	", " ", -1)       //Replace tab with a space
+	regstr := "\\s{2,}"                          //Regular expressions with two or more spaces
+	reg, _ := regexp.Compile(regstr)             //Compiling Regular Expressions
+	s2 := make([]byte, len(s1))                  //Define character array slicing
+	copy(s2, s1)                                 //Copy String to Slice
+	spc_index := reg.FindStringIndex(string(s2)) //Search in strings
+	for len(spc_index) > 0 {                     //Find Adapt
+		s2 = append(s2[:spc_index[0]+1], s2[spc_index[1]:]...) //Remove excess spaces
+		spc_index = reg.FindStringIndex(string(s2))            //Continue searching in strings
+	}
+	return string(s2)
 }
 
 func process() error {
@@ -206,35 +288,8 @@ func process() error {
 	}
 	fast_https.Servers = servers
 
-	//for i, server := range servers {
-	//	fmt.Printf("Server #%d:\n", i+1)
-	//	fmt.Printf("Listen: %s\n", server.Listen)
-	//	fmt.Printf("ServerName: %s\n", server.ServerName)
-	//	fmt.Printf("SSLCertificate: %s\n", server.SSLCertificate)
-	//	fmt.Printf("SSLCertificateKey: %s\n", server.SSLCertificateKey)
-	//	fmt.Println("Paths:")
-	//	for _, path := range server.Path {
-	//		fmt.Printf("  PathName: %s\n", path.PathName)
-	//		fmt.Printf("  PathType: %d\n", path.PathType)
-	//		fmt.Printf("  Zip: %d\n", path.Zip)
-	//		fmt.Printf("  Root: %s\n", path.Root)
-	//		fmt.Printf("  Index: %v\n", path.Index)
-	//		fmt.Printf("  Rewrite: %s\n", path.Rewrite)
-	//		fmt.Printf("  ProxyData: %s\n", path.ProxyData)
-	//		fmt.Println("  ProxySetHeader:")
-	//		for _, header := range path.ProxySetHeader {
-	//			fmt.Printf("    HeaderKey: %d\n", header.HeaderKey)
-	//			fmt.Printf("    HeaderValue: %s\n", header.HeaderValue)
-	//		}
-	//		fmt.Printf("  ProxyCache:\n")
-	//		fmt.Printf("    Path: %s\n", path.ProxyCache.Path)
-	//		fmt.Printf("    Valid: %v\n", path.ProxyCache.Valid)
-	//		fmt.Printf("    Key: %s\n", path.ProxyCache.Key)
-	//		fmt.Printf("    MaxSize: %d\n", path.ProxyCache.MaxSize)
-	//	}
-	//}
-
 	fmt.Println(fast_https)
+	GConfig = fast_https
 
 	return nil
 

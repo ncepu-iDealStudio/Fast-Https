@@ -20,7 +20,7 @@ func HttpHandle(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(rw, str)
 }
 
-func TestService(port1 string) {
+func TestService(port1 string, str string) {
 	testport1 = port1
 
 	go func() {

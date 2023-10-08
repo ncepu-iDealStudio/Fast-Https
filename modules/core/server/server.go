@@ -4,6 +4,7 @@ import (
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
 	"fast-https/output"
+	"fast-https/service"
 	"fast-https/utils/message"
 	"fmt"
 	"net"
@@ -77,6 +78,7 @@ func (s *Server) serve_one_port(listener listener.ListenInfo) {
 }
 
 func (s *Server) Run() {
+	service.TestService("0.0.0.0:5000", "thsi is 5000")
 
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)
