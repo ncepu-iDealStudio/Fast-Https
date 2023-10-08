@@ -1,0 +1,86 @@
+{
+  "error_log": "logs/error.log notice",
+  "pid": "logs/fast-https.pid",
+  "http": {
+    "include": "mime.types",
+    "default_type": "application/octet-stream",
+    "server": [
+      {
+        "listen": 80,
+        "server_name": "localhost",
+        "location": [
+          {
+            "url": "/",
+            "type": "local",
+            "root": "httpdoc/root",
+            "index": [
+              "index.html",
+              "index.htm"
+            ],
+            "zip": ["br"]
+          },
+          {
+            "url": "/.php$",
+            "type": "proxy",
+            "proxy_pass": "https://59.65.232.222:9090",
+            "proxy_cache": {
+              "path": "/var/cache/nginx levels=1:2 inactive=60m",
+              "valid": ["200:1h", "304:1h", "any:30m"],
+              "key": "$scheme$request_method$host$request_uri",
+              "max_size": 1024
+            },
+            "proxy_set_header": [
+              {
+                "HeaderKey": 1,
+                "HeaderValue": " $host:80"
+              },
+              {
+                "HeaderKey": 2,
+                "HeaderValue": "$remote_addr"
+              },
+              {
+                "HeaderKey": 3,
+                "HeaderValue": " $proxy_add_x_forwarded_for"
+              }
+            ]
+          },
+          {
+            "url": "/rewrite/index",
+            "type": "rewrite",
+            "rewrite": "192.168.2.1:8080"
+          }
+        ]
+      },
+      {
+        "listen": "443 ssl",
+        "server_name": "localhost",
+        "ssl_certificate": "config/cert/localhost.pem",
+        "ssl_certificate_key": "config/cert/localhost-key.pem",
+        "location": [
+          {
+            "url": "/",
+            "proxy_pass": "https://127.0.0.1:9090",
+            "proxy_set_header": [
+              {
+                "HeaderKey": 1,
+                "HeaderValue": " $host:80"
+              },
+              {
+                "HeaderKey": 2,
+                "HeaderValue": "$remote_addr"
+              },
+              {
+                "HeaderKey": 3,
+                "HeaderValue": " $proxy_add_x_forwarded_for"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "include": [
+    "config/www.a.com.json",
+    "config/www.b.com.json"
+  ]
+}
