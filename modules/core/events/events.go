@@ -71,7 +71,7 @@ func Handle_event(ev *Event) {
 				flush_bytes := ev.Req_.Byte_row()
 
 				if cfg.ProxyCache.Key != "" {
-					fmt.Println("proxy cache start")
+					fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
 				}
 
 				// according to user's confgure and requets endporint handle events

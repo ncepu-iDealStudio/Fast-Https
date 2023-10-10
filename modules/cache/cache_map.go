@@ -5,19 +5,12 @@ import (
 	"time"
 )
 
-const BucketsCount = 20
+const BucketsCount = 131
 
 // node节点
 type Node struct {
 	Next *Node
-	Data Value
-}
-
-// node节点存放的实际对象
-type Value struct {
-	Key   string
-	Value []byte
-	time  int64
+	Data CacheNode
 }
 
 // hashMap 桶
@@ -35,10 +28,6 @@ func NewHashMap() HashMap {
 	return hashMap
 }
 
-func Find() {
-
-}
-
 // 自定义hash算法获取key
 func getBucketKey(key string) int {
 	length := len(key)
@@ -50,12 +39,12 @@ func getBucketKey(key string) int {
 }
 
 // 在hashMap桶中新加一个节点
-func (h *HashMap) put(data Value) {
+func (h *HashMap) AddMap(data CacheNode) {
 	//获取index
-	index := getBucketKey(data.Key)
+	index := getBucketKey(data.Md5)
 	node := h.Buckets[index]
 	//判断数组节点是否是空节点
-	if node.Data.Value == nil {
+	if node.Data.Md5 == "" {
 		node.Data = data
 	} else {
 		//发生了hash碰撞,往该槽的链表尾巴处添加存放该数据对象的新节点
@@ -69,19 +58,19 @@ func (h *HashMap) put(data Value) {
 }
 
 // 从hashMap中获取某个key的值
-func (h *HashMap) get(key string) []byte {
+func (h *HashMap) FindInMap(key string) *CacheNode {
 	//获取index
 	index := getBucketKey(key)
-	if h.Buckets[index].Data.Key == key {
-		return h.Buckets[index].Data.Value
+	if h.Buckets[index].Data.Md5 == key {
+		return &h.Buckets[index].Data
 	}
 	if h.Buckets[index].Next == nil {
 		return nil
 	}
 	next := h.Buckets[index].Next
 	for {
-		if next.Data.Key == key {
-			return next.Data.Value
+		if next.Data.Md5 == key {
+			return &next.Data
 		}
 		if next.Next == nil {
 			return nil
@@ -90,22 +79,38 @@ func (h *HashMap) get(key string) []byte {
 	}
 }
 
+func (h *HashMap) DeleteInMap(key string) {
+	// 获取index
+	index := getBucketKey(key)
+	if h.Buckets[index].Data.Md5 == key {
+		h.Buckets[index] = nil // delete this node
+	}
+
+	next := h.Buckets[index].Next
+	for {
+		if next.Next.Next == nil {
+			next.Next = nil
+			break
+		}
+		next = next.Next
+	}
+}
+
 // 创建一个空node
 func NewEmptyNode() *Node {
 	node := &Node{}
-	node.Data.Key = ""
-	node.Data.Value = nil
+	node.Data.Md5 = ""
+	node.Data.Path = ""
+	node.Data.Expire = int(time.Now().Unix())
 	node.Next = nil
-	node.Data.time = time.Now().Unix()
 	return node
 }
 
 func MapTest() {
 	myMap := NewHashMap()
-	str := "this is string"
-	data1 := Value{"001", []byte(str), 1}
-	myMap.put(data1)
-	data2 := Value{"002", []byte(str), 1}
-	myMap.put(data2)
-	fmt.Println(myMap.get("002"))
+	data1 := CacheNode{15, "001", "this is 12"}
+	myMap.AddMap(data1)
+	data2 := CacheNode{12, "002", "this is 15"}
+	myMap.AddMap(data2)
+	fmt.Println(myMap.FindInMap("this is 15"))
 }
