@@ -13,8 +13,7 @@ import (
 )
 
 type CacheContainer struct {
-	RbRoot   *RBRoot
-	CHashMap HashMap
+	RbRoot *RBRoot
 }
 
 type CacheNode struct {
@@ -84,13 +83,12 @@ func GetMd5(str string) string {
 // create a new cache container
 func NewCache() *CacheContainer {
 	return &CacheContainer{
-		RbRoot:   new(RBRoot),
-		CHashMap: NewHashMap(),
+		RbRoot: new(RBRoot),
 	}
 }
 
 func RemoveFromDisk(node CacheNode) {
-
+	// to do
 }
 
 func WriteToDisk(entry *CacheEntry) {
@@ -104,33 +102,18 @@ func WriteToDisk(entry *CacheEntry) {
 	}
 }
 
-// we will try having this func run in a go routine in future
-// But we have to consider data consistency maybe with locks signals ...
-func (CC *CacheContainer) ExpireCache() {
-	curr_time := int(time.Now().Unix())
-	min_node := FindFirst(CC.RbRoot.node)
-	if curr_time < int(min_node.key) {
-		return
-	} else {
-		// remove from hashmap
-		CC.CHashMap.DeleteInMap(min_node.RbCacheNode.Md5)
-		// remove file in desk
-		RemoveFromDisk(*min_node.RbCacheNode)
-		// remove node in rbtree
-		DeleteInRbtree(CC.RbRoot, min_node)
-	}
-	// to do: implent a function that find next to expire
+func (CC *CacheContainer) ReadCache(str string, expire int, path string, data []byte, size int64) {
+	md5 = GetMd5()
 }
 
-func (CC *CacheContainer) PushCache(str string, expire int, path string, data []byte, size int64) {
+func (CC *CacheContainer) WriteCache(str string, expire int, path string, data []byte, size int64) {
 	curr_time := int(time.Now().Unix())
 	// Create a mew cache node
 	var cacheNode CacheNode
 	cacheNode.Expire = curr_time + expire
 	cacheNode.Md5 = GetMd5(str)
 	cacheNode.Path = path
-	// put it in HashMap
-	CC.CHashMap.AddMap(cacheNode)
+
 	// put it in Rbtree
 	var node = &RBNode{
 		key:         Type(curr_time),
@@ -143,7 +126,7 @@ func (CC *CacheContainer) PushCache(str string, expire int, path string, data []
 	entry.Head = CacheHead(cacheNode)
 	entry.Size = size
 
-	WriteToDisk(&entry)
+	WriteToDisk(&entry) // async
 }
 
 func (CC *CacheContainer) LoadCache(dirPath string) {
@@ -153,8 +136,4 @@ func (CC *CacheContainer) LoadCache(dirPath string) {
 	for _, realPath := range pathDec {
 
 	}
-}
-
-func CacheTest() {
-
 }
