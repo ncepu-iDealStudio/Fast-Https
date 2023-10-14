@@ -28,6 +28,7 @@ require (
 require (
 	github.com/andybalholm/brotli v1.0.5
 	github.com/chenhg5/collection v0.0.0-20200925143926-f403b87088f9
+	github.com/emirpasic/gods v1.18.1
 	github.com/fatih/color v1.15.0
 	github.com/getlantern/systray v1.2.2
 	github.com/hashicorp/hcl v1.0.0 // indirect

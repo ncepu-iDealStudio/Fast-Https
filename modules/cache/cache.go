@@ -10,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	rbt "github.com/emirpasic/gods/trees/redblacktree"
 )
 
 type CacheContainer struct {
-	RbRoot *RBRoot
+	RbRoot *rbt.Tree
 }
 
 type CacheNode struct {
@@ -83,7 +85,7 @@ func GetMd5(str string) string {
 // create a new cache container
 func NewCache() *CacheContainer {
 	return &CacheContainer{
-		RbRoot: new(RBRoot),
+		RbRoot: NewRBtree(),
 	}
 }
 
@@ -115,11 +117,11 @@ func (CC *CacheContainer) WriteCache(str string, expire int, path string, data [
 	cacheNode.Path = path
 
 	// put it in Rbtree
-	var node = &RBNode{
-		key:         Type(curr_time),
-		RbCacheNode: &cacheNode,
-	}
-	AddInRbtree(CC.RbRoot, node)
+	// var node = &RBNode{
+	// 	key:         Type(curr_time),
+	// 	RbCacheNode: &cacheNode,
+	// }
+	AddInRbtree(CC.RbRoot, &cacheNode)
 
 	var entry CacheEntry
 	entry.Data = data
