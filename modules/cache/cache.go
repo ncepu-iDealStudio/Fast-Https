@@ -32,8 +32,11 @@ type CacheEntry struct {
 	Data []byte
 }
 
+var CacheChan chan CacheEntry
+
 func init() {
 	fmt.Println("-----[Fast-Https]cache init...")
+	CacheChan = make(chan CacheEntry, 1000)
 }
 
 // get all file-names in specific dir
@@ -93,14 +96,21 @@ func RemoveFromDisk(node CacheNode) {
 	// to do
 }
 
-func WriteToDisk(entry *CacheEntry) {
-	name := entry.Head.Path + entry.Head.Md5 + ".gob"
-	File, _ := os.OpenFile(name, os.O_RDWR|os.O_CREATE, 0777)
-	defer File.Close()
+func WriteToDisk() {
+	// 不断的阻塞的等待channel的消息
+	for {
+		select {
+		case entry := <-CacheChan:
+			name := entry.Head.Path + entry.Head.Md5 + ".gob"
+			File, _ := os.OpenFile(name, os.O_RDWR|os.O_CREATE, 0777)
+			defer File.Close()
 
-	enc := gob.NewEncoder(File)
-	if err := enc.Encode(entry); err != nil {
-		fmt.Println(err)
+			enc := gob.NewEncoder(File)
+			if err := enc.Encode(entry); err != nil {
+				fmt.Println(err)
+			}
+
+		}
 	}
 }
 
@@ -128,7 +138,9 @@ func (CC *CacheContainer) WriteCache(str string, expire int, path string, data [
 	entry.Head = CacheHead(cacheNode)
 	entry.Size = size
 
-	WriteToDisk(&entry) // async
+	//WriteToDisk(&entry) // async
+	//	将消息放入管道
+	CacheChan <- entry
 }
 
 func (CC *CacheContainer) LoadCache(dirPath string) {
