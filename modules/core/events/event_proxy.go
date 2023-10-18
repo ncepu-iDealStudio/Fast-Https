@@ -202,11 +202,11 @@ func Proxy_event(req_data []byte, cfg listener.ListenCfg, ev *Event) {
 			// Server error
 			if err != 0 {
 				write_bytes_close(ev, response.Default_server_error())
+
 				return
 			}
+			CacheData(ev, cfg, "200", res, len(res))
 		}
-
-		CacheData(ev, cfg, "200", res, len(res))
 
 		// proxy server return valid data
 		if ev.Req_.Is_keepalive() {

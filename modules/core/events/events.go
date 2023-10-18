@@ -84,7 +84,7 @@ func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 
 	// to do: config convert cacheProxyKey to []int {1, 2, 3 ...}
 	rule := []int{1, 2, 3}
 	ruleString := ""
-	for item := range rule {
+	for _, item := range rule {
 		switch item {
 		case 1: // request_method
 			{
@@ -97,13 +97,15 @@ func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 
 		case 3: // request_uri
 			{
 				ruleString += ev.Req_.Path
+
 			}
 		}
 	}
+	// fmt.Println("-------------------", ev.Req_.Path)
 	md5 = cache.GetMd5(ruleString)
 
 	// to do: convert ["200:1h", "304:1h", "any:30m"]
-	expire = 10
+	expire = 30
 
 	return
 }
@@ -114,7 +116,6 @@ func CacheData(ev *Event, cfg listener.ListenCfg, resCode string, data []byte, s
 	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime, cfg.ProxyCache.Path, data, size)
 
 	fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
-
 }
 
 func process_request(ev *Event) int {

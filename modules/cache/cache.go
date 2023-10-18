@@ -18,6 +18,7 @@ type CacheContainer struct {
 
 type CacheNode struct {
 	Expire int
+	Valid  int
 	Path   string
 	Md5    string
 }
@@ -89,6 +90,9 @@ func NewCacheContainer() *CacheContainer {
 }
 
 func RemoveFromDisk(node CacheNode) {
+	realPath := node.Path
+	realPath = filepath.Join(realPath, node.Md5)
+	os.Remove(realPath)
 	// to do
 }
 
@@ -119,8 +123,9 @@ func (CC *CacheContainer) WriteCache(str string, expire int, path string, data [
 	// Create a mew cache node
 	var cacheNode CacheNode
 	cacheNode.Expire = curr_time + expire
-	cacheNode.Md5 = GetMd5(str)
+	cacheNode.Md5 = str
 	cacheNode.Path = path
+	cacheNode.Valid = expire
 
 	// put it in Rbtree
 	// var node = &RBNode{
@@ -145,17 +150,23 @@ func (CC *CacheContainer) ReadCache(strMd5 string) (data []byte, flag bool) {
 	data = []byte("")
 
 	cacheNode, flag := CC.RbRoot.GetNodeFromRBtreeByKey(strMd5)
+
 	if flag {
-		file, err := os.OpenFile(cacheNode.Path, os.O_RDWR|os.O_CREATE, 0777)
+		realPath := filepath.Join(cacheNode.Path, strMd5)
+		file, err := os.OpenFile(realPath, os.O_RDWR, 0777)
+
 		if err != nil {
 			fmt.Println(err)
+			return data, false
 		}
 		var entry CacheEntry
 
 		enc := gob.NewDecoder(file)
 		if err := enc.Decode(&entry); err != nil {
-			fmt.Println(err)
+			fmt.Println("encode ", err)
 		}
+		file.Close()
+
 		data = entry.Data
 	}
 
