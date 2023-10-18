@@ -26,15 +26,18 @@ type CacheHead CacheNode
 
 type CacheEntry struct {
 	Head CacheHead
-	Size int64
+	Size int
 	Data []byte
 }
 
 var CacheChan chan CacheEntry
+var GCacheContainer *CacheContainer
 
 func init() {
-	fmt.Println("-----[Fast-Https]cache init...")
+	// fmt.Println("-----[Fast-Https]cache init...")
 	CacheChan = make(chan CacheEntry, 1000)
+	go WriteToDisk()
+	GCacheContainer = NewCacheContainer()
 }
 
 // get all file-names in specific dir
@@ -59,11 +62,6 @@ func GetDirFiles(path string) ([]string, error) {
 
 func Get_data_from_cache(realPath string) []byte {
 
-	// return myMap.get(realPath)
-	// if data == nil {
-	// read_from_disk()
-	// }
-	// myMap.put(xx, xx)
 	data, err := files.ReadFile(realPath)
 	if err != nil {
 		return nil
@@ -84,7 +82,7 @@ func GetMd5(str string) string {
 }
 
 // create a new cache container
-func NewCache() *CacheContainer {
+func NewCacheContainer() *CacheContainer {
 	return &CacheContainer{
 		RbRoot: NewRBtree(),
 	}
@@ -99,24 +97,24 @@ func WriteToDisk() {
 	for {
 		select {
 		case entry := <-CacheChan:
-			name := entry.Head.Path + entry.Head.Md5 + ".gob"
-			File, _ := os.OpenFile(name, os.O_RDWR|os.O_CREATE, 0777)
-			defer File.Close()
+			// name := entry.Head.Path + entry.Head.Md5 + ".gob"
+			realPath := filepath.Join(entry.Head.Path, entry.Head.Md5)
+
+			fmt.Println("writing data to:", realPath)
+			File, _ := os.OpenFile(realPath, os.O_RDWR|os.O_CREATE, 0777)
+			// defer File.Close()
 
 			enc := gob.NewEncoder(File)
 			if err := enc.Encode(entry); err != nil {
 				fmt.Println(err)
 			}
+			File.Close()
 
 		}
 	}
 }
 
-func (CC *CacheContainer) ReadCache(str string, expire int, path string, data []byte, size int64) {
-	md5 = GetMd5()
-}
-
-func (CC *CacheContainer) WriteCache(str string, expire int, path string, data []byte, size int64) {
+func (CC *CacheContainer) WriteCache(str string, expire int, path string, data []byte, size int) {
 	curr_time := int(time.Now().Unix())
 	// Create a mew cache node
 	var cacheNode CacheNode
@@ -129,6 +127,7 @@ func (CC *CacheContainer) WriteCache(str string, expire int, path string, data [
 	// 	key:         Type(curr_time),
 	// 	RbCacheNode: &cacheNode,
 	// }
+	fmt.Println(cacheNode)
 	CC.RbRoot.AddInRbtree(&cacheNode)
 
 	var entry CacheEntry
@@ -139,13 +138,37 @@ func (CC *CacheContainer) WriteCache(str string, expire int, path string, data [
 	//WriteToDisk(&entry) // async
 	//	将消息放入管道
 	CacheChan <- entry
+
 }
 
-func (CC *CacheContainer) LoadCache(dirPath string) {
-	pathDec, _ := GetDirFiles(dirPath)
+func (CC *CacheContainer) ReadCache(strMd5 string) (data []byte, flag bool) {
+	data = []byte("")
 
-	var tmpentry CacheEntry
-	for _, realPath := range pathDec {
+	cacheNode, flag := CC.RbRoot.GetNodeFromRBtreeByKey(strMd5)
+	if flag {
+		file, err := os.OpenFile(cacheNode.Path, os.O_RDWR|os.O_CREATE, 0777)
+		if err != nil {
+			fmt.Println(err)
+		}
+		var entry CacheEntry
 
+		enc := gob.NewDecoder(file)
+		if err := enc.Decode(&entry); err != nil {
+			fmt.Println(err)
+		}
+		data = entry.Data
 	}
+
+	return
+}
+
+// this should run when server init once
+func (CC *CacheContainer) LoadCache() {
+	fmt.Println("cache Load Cache func start ...")
+	// pathDec, _ := GetDirFiles(dirPath)
+
+	// var tmpentry CacheEntry
+	// for _, realPath := range pathDec {
+
+	// }
 }

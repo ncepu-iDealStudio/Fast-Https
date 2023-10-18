@@ -1,5 +1,7 @@
 package cache
 
+import "fmt"
+
 // import "time"
 
 // we will try having this func run in a go routine in future
@@ -21,6 +23,7 @@ func (CC *CacheContainer) ExpireCache() {
 		if !isExpired {
 			continue
 		}
+		fmt.Println("-----" + data.Md5 + " is expired...")
 		RemoveFromDisk(*data)
 		CC.RbRoot.RemoveFromRBtreeByKey(key.(string))
 	}

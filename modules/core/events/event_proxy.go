@@ -2,6 +2,8 @@ package events
 
 import (
 	"crypto/tls"
+	"fast-https/modules/cache"
+	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
 	"io"
@@ -174,26 +176,70 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 	return finalData, 0 // no error
 }
 
-func Proxy_event(req_data []byte, proxyaddr string, Proxy uint16, ev *Event) {
-	var res []byte
-	var err int
-	// fmt.Println(string(req_data))
-	if Proxy == 1 { // http proxy
-		res, err = get_data_from_server(ev, proxyaddr, req_data)
-	} else {
-		res, err = get_data_from_ssl_server(ev, proxyaddr, req_data)
-	}
-	if err != 0 {
-		write_bytes_close(ev, response.Default_server_error())
-		return
+func Proxy_event(req_data []byte, cfg listener.ListenCfg, ev *Event) {
+
+	configCache := true
+	if cfg.ProxyCache.Key == "" {
+
+		configCache = false
 	}
 
-	// proxy server return valid data
-	if ev.Req_.Is_keepalive() {
-		write_bytes(ev, res)
-		Handle_event(ev)
+	if configCache {
+		var res []byte
+		var err int
+
+		flag := false
+		uriStringMd5, _ := ProcessCacheConfig(ev, cfg, "")
+		res, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
+
+		if !flag {
+
+			if cfg.Proxy == 1 { // http proxy
+				res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
+			} else {
+				res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)
+			}
+			// Server error
+			if err != 0 {
+				write_bytes_close(ev, response.Default_server_error())
+				return
+			}
+		}
+
+		CacheData(ev, cfg, "200", res, len(res))
+
+		// proxy server return valid data
+		if ev.Req_.Is_keepalive() {
+			write_bytes(ev, res)
+			Handle_event(ev)
+		} else {
+			write_bytes_close(ev, res)
+		}
+
 	} else {
-		write_bytes_close(ev, res)
+
+		var res []byte
+		var err int
+
+		// fmt.Println(string(req_data))
+		if cfg.Proxy == 1 { // http proxy
+			res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
+		} else {
+			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)
+		}
+		if err != 0 {
+			write_bytes_close(ev, response.Default_server_error())
+			return
+		}
+
+		// proxy server return valid data
+		if ev.Req_.Is_keepalive() {
+			write_bytes(ev, res)
+			Handle_event(ev)
+		} else {
+			write_bytes_close(ev, res)
+		}
+
 	}
 }
 

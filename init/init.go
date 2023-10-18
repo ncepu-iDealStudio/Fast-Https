@@ -37,7 +37,8 @@ func Init() *sync.WaitGroup {
 	Cert_init()
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]certification initialization finished")
 
-	// static load
+	// load cache from desk
+	cache.GCacheContainer.LoadCache()
 	CacheManagerInit()
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]cache manager initialization finished")
 
@@ -45,7 +46,12 @@ func Init() *sync.WaitGroup {
 }
 
 func CacheManagerInit() {
-	go cache.GCacheContainer.ExpireCache()
+	go func() {
+		for {
+			cache.GCacheContainer.ExpireCache()
+			time.Sleep(time.Second)
+		}
+	}()
 }
 
 func MessageInit() *sync.WaitGroup {

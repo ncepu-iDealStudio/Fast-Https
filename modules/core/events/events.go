@@ -1,6 +1,7 @@
 package events
 
 import (
+	"fast-https/modules/cache"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
@@ -70,17 +71,50 @@ func Handle_event(ev *Event) {
 				ev.Req_.Flush()
 				flush_bytes := ev.Req_.Byte_row()
 
-				if cfg.ProxyCache.Key != "" {
-					fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
-				}
-
 				// according to user's confgure and requets endporint handle events
-				Proxy_event(flush_bytes, cfg.Proxy_addr, cfg.Proxy, ev)
+				Proxy_event(flush_bytes, cfg, ev)
 				return
 			}
 		}
 	}
 	write_bytes_close(ev, response.Default_not_found())
+}
+
+func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 string, expire int) {
+	// to do: config convert cacheProxyKey to []int {1, 2, 3 ...}
+	rule := []int{1, 2, 3}
+	ruleString := ""
+	for item := range rule {
+		switch item {
+		case 1: // request_method
+			{
+				ruleString += ev.Req_.Method
+			}
+		case 2: // host
+			{
+				ruleString += ev.Req_.Get_header("Host")
+			}
+		case 3: // request_uri
+			{
+				ruleString += ev.Req_.Path
+			}
+		}
+	}
+	md5 = cache.GetMd5(ruleString)
+
+	// to do: convert ["200:1h", "304:1h", "any:30m"]
+	expire = 10
+
+	return
+}
+
+func CacheData(ev *Event, cfg listener.ListenCfg, resCode string, data []byte, size int) {
+	// according to usr's config, create a key
+	uriStringMd5, expireTime := ProcessCacheConfig(ev, cfg, resCode)
+	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime, cfg.ProxyCache.Path, data, size)
+
+	fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
+
 }
 
 func process_request(ev *Event) int {

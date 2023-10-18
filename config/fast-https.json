@@ -25,9 +25,9 @@
             "type": "proxy",
             "proxy_pass": "http://127.0.0.1:5000",
             "proxy_cache": {
-              "path": "/var/cache/nginx levels=1:2 inactive=60m",
+              "path": "/home/pzc/Project/Fast-https/fast-https",
               "valid": ["200:1h", "304:1h", "any:30m"],
-              "key": "$scheme$request_method$host$request_uri",
+              "key": "$request_method$host$request_uri",
               "max_size": 1024
             }
           }

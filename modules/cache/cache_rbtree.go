@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -26,9 +27,13 @@ func (t *RBtree) AddInRbtree(data *CacheNode) {
 	node := &redblackNode{
 		cacheNode: data,
 	}
+
 	t.mu.Lock()
-	defer t.mu.Unlock()
+
 	t.tree.Put(data.Md5, node)
+	fmt.Println("this33333")
+
+	t.mu.Unlock()
 }
 
 func (t *RBtree) RemoveFromRBtreeByKey(key string) {

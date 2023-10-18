@@ -288,7 +288,7 @@ func process() error {
 	}
 	fast_https.Servers = servers
 
-	fmt.Println(fast_https)
+	// fmt.Println(fast_https)
 	GConfig = fast_https
 
 	return nil
