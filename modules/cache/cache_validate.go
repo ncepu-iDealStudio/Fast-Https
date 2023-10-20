@@ -9,7 +9,6 @@
 package cache
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -24,7 +23,7 @@ func (CC *CacheContainer) ExpireCache() {
 	for _, rbnode := range CC.RbRoot.tree.Values() {
 		data := rbnode.(*redblackNode).cacheNode
 		if curr_time > int(data.Expire) {
-			fmt.Println("-----" + data.Md5 + " is expired...")
+			// fmt.Println("-----" + data.Md5 + " is expired...")
 			RemoveFromDisk(*data)
 			CC.RbRoot.RemoveFromRBtreeByKey(data.Md5)
 		}

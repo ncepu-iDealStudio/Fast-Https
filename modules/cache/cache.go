@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/gob"
 	"encoding/hex"
+	"fast-https/config"
 	"fast-https/utils/files"
 	"fmt"
 	"log"
@@ -93,7 +94,6 @@ func RemoveFromDisk(node CacheNode) {
 	realPath := node.Path
 	realPath = filepath.Join(realPath, node.Md5)
 	os.Remove(realPath)
-	// to do
 }
 
 func WriteToDisk() {
@@ -104,7 +104,7 @@ func WriteToDisk() {
 			// name := entry.Head.Path + entry.Head.Md5 + ".gob"
 			realPath := filepath.Join(entry.Head.Path, entry.Head.Md5)
 
-			fmt.Println("writing data to:", realPath)
+			// fmt.Println("writing data to:", realPath)
 			File, _ := os.OpenFile(realPath, os.O_RDWR|os.O_CREATE, 0777)
 			// defer File.Close()
 
@@ -116,6 +116,21 @@ func WriteToDisk() {
 
 		}
 	}
+}
+
+// this should run once, when server init
+func (CC *CacheContainer) LoadCache() {
+	for _, server := range config.GConfig.Servers {
+		for _, path := range server.Path {
+			files, _ := GetDirFiles(path.ProxyCache.Path)
+			for _, file := range files {
+				node := CacheNode(getCacheHead(file))
+				CC.RbRoot.AddInRbtree(&node)
+			}
+		}
+	}
+
+	fmt.Println("func LoadCache: load disk cache successfully!")
 }
 
 func (CC *CacheContainer) WriteCache(str string, expire int, path string, data []byte, size int) {
@@ -132,7 +147,7 @@ func (CC *CacheContainer) WriteCache(str string, expire int, path string, data [
 	// 	key:         Type(curr_time),
 	// 	RbCacheNode: &cacheNode,
 	// }
-	fmt.Println(cacheNode)
+	// fmt.Println(cacheNode)
 	CC.RbRoot.AddInRbtree(&cacheNode)
 
 	var entry CacheEntry
@@ -173,13 +188,21 @@ func (CC *CacheContainer) ReadCache(strMd5 string) (data []byte, flag bool) {
 	return
 }
 
-// this should run when server init once
-func (CC *CacheContainer) LoadCache() {
-	fmt.Println("cache Load Cache func start ...")
-	// pathDec, _ := GetDirFiles(dirPath)
+func getCacheHead(realPath string) (head CacheHead) {
+	var entry CacheEntry
 
-	// var tmpentry CacheEntry
-	// for _, realPath := range pathDec {
+	file, err := os.OpenFile(realPath, os.O_RDWR, 0777)
+	if err != nil {
+		fmt.Println(err)
+		return CacheHead{}
+	}
+	enc := gob.NewDecoder(file)
+	if err := enc.Decode(&entry); err != nil {
+		fmt.Println("encode ", err)
+	}
+	file.Close()
 
-	// }
+	head = entry.Head
+
+	return
 }
