@@ -19,12 +19,14 @@ const (
 // this struct is saved in Event
 // which contaions event's method,path,servername(headers)
 type Req struct {
-	Method   string
-	Path     string
+	// HTTP first line
+	Method   string `name:"request_method"`
+	Path     string `name:"request_uri"`
 	Protocol string
 	Encoding []string
-	Headers  map[string]string
-	Body     []byte
+	// HTTP Headers
+	Headers map[string]string
+	Body    []byte
 }
 
 var http_method = []string{
@@ -170,3 +172,14 @@ func (r *Req) Parse_body(tmpByte []byte) {
 
 	r.Body = res
 }
+
+// func (r *Req)GetProperty(name string) string  {
+// 	t := reflect.TypeOf(r)
+// 	for i := 0; i < t.NumField(); i++ {
+// 		field := t.Field(i)
+// 		if field.Tag.Get("name") == name{
+// 			res := reflect.ValueOf(field)
+// 			return sf.(string)
+// 		}
+// 	}
+// }

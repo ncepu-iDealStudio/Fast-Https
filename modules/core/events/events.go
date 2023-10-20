@@ -38,8 +38,8 @@ func Handle_event(ev *Event) {
 	if process_request(ev) == 0 {
 		return // client close
 	}
-	ev.Log = " " + ev.Req_.Method
-	ev.Log = ev.Log + " " + ev.Req_.Path + " \"" + ev.Req_.Get_header("Host") + "\""
+	log_append(ev, " "+ev.Req_.Method)
+	log_append(ev, " "+ev.Req_.Path+" \""+ev.Req_.Get_header("Host")+"\"")
 
 	for _, cfg := range ev.Lis_info.Cfg {
 		switch cfg.Proxy {
@@ -80,6 +80,7 @@ func Handle_event(ev *Event) {
 	write_bytes_close(ev, response.Default_not_found())
 }
 
+// to do: improve this function
 func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 string, expire int) {
 	// to do: config convert cacheProxyKey to []int {1, 2, 3 ...}
 	rule := []int{1, 2, 3}
@@ -97,7 +98,6 @@ func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 
 		case 3: // request_uri
 			{
 				ruleString += ev.Req_.Path
-
 			}
 		}
 	}
@@ -105,7 +105,7 @@ func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 
 	md5 = cache.GetMd5(ruleString)
 
 	// to do: convert ["200:1h", "304:1h", "any:30m"]
-	expire = 30
+	expire = 60
 
 	return
 }
@@ -114,8 +114,7 @@ func CacheData(ev *Event, cfg listener.ListenCfg, resCode string, data []byte, s
 	// according to usr's config, create a key
 	uriStringMd5, expireTime := ProcessCacheConfig(ev, cfg, resCode)
 	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime, cfg.ProxyCache.Path, data, size)
-
-	fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
+	// fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
 }
 
 func process_request(ev *Event) int {
@@ -133,6 +132,10 @@ func process_request(ev *Event) int {
 		ev.Req_.Parse_host(ev.Lis_info)
 	}
 	return 1
+}
+
+func log_append(ev *Event, log string) {
+	ev.Log = ev.Log + log
 }
 
 // read data from EventFd
@@ -158,12 +161,6 @@ func read_data(ev *Event) ([]byte, string) {
 	return buffer, str_row // return row str or bytes
 }
 
-// write row bytes and close
-func write_bytes_close(ev *Event, data []byte) {
-	write_bytes(ev, data)
-	close(ev)
-}
-
 // write row bytes
 func write_bytes(ev *Event, data []byte) {
 	for len(data) > 0 {
@@ -187,4 +184,10 @@ func close(ev *Event) {
 	if err != nil {
 		fmt.Println("Error Close:", err)
 	}
+}
+
+// write row bytes and close
+func write_bytes_close(ev *Event, data []byte) {
+	write_bytes(ev, data)
+	close(ev)
 }

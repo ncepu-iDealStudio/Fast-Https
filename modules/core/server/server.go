@@ -98,6 +98,6 @@ func (s *Server) Run() {
 	}
 
 	for !s.Shutdown {
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond)
 	}
 }

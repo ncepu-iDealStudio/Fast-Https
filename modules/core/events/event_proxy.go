@@ -110,7 +110,7 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 
 	finalData, head_code, b_len := Change_header(resData)
 
-	ev.Log = ev.Log + " " + head_code + " " + b_len
+	log_append(ev, " "+head_code+" "+b_len)
 
 	if !ev.Req_.Is_keepalive() { // connection close
 		ev.ProxyConn.Close()
@@ -176,52 +176,51 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 	return finalData, 0 // no error
 }
 
+func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *Event) {
+	var res []byte
+	var err int
+
+	flag := false
+	uriStringMd5, _ := ProcessCacheConfig(ev, cfg, "")
+	res, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
+
+	if !flag {
+
+		if cfg.Proxy == 1 { // http proxy
+			res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
+		} else {
+			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)
+		}
+		// Server error
+		if err != 0 {
+			write_bytes_close(ev, response.Default_server_error())
+			return
+		}
+		CacheData(ev, cfg, "200", res, len(res))
+	}
+
+	// proxy server return valid data
+	if ev.Req_.Is_keepalive() {
+		write_bytes(ev, res)
+		Handle_event(ev)
+	} else {
+		write_bytes_close(ev, res)
+	}
+}
+
 func Proxy_event(req_data []byte, cfg listener.ListenCfg, ev *Event) {
 
 	configCache := true
 	if cfg.ProxyCache.Key == "" {
-
 		configCache = false
 	}
 
 	if configCache {
-		var res []byte
-		var err int
-
-		flag := false
-		uriStringMd5, _ := ProcessCacheConfig(ev, cfg, "")
-		res, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
-
-		if !flag {
-
-			if cfg.Proxy == 1 { // http proxy
-				res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
-			} else {
-				res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)
-			}
-			// Server error
-			if err != 0 {
-				write_bytes_close(ev, response.Default_server_error())
-
-				return
-			}
-			CacheData(ev, cfg, "200", res, len(res))
-		}
-
-		// proxy server return valid data
-		if ev.Req_.Is_keepalive() {
-			write_bytes(ev, res)
-			Handle_event(ev)
-		} else {
-			write_bytes_close(ev, res)
-		}
-
+		proxyNeedCache(req_data, cfg, ev)
 	} else {
-
 		var res []byte
 		var err int
 
-		// fmt.Println(string(req_data))
 		if cfg.Proxy == 1 { // http proxy
 			res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
 		} else {
@@ -231,41 +230,12 @@ func Proxy_event(req_data []byte, cfg listener.ListenCfg, ev *Event) {
 			write_bytes_close(ev, response.Default_server_error())
 			return
 		}
-
 		// proxy server return valid data
 		if ev.Req_.Is_keepalive() {
 			write_bytes(ev, res)
 			Handle_event(ev)
 		} else {
 			write_bytes_close(ev, res)
-		}
-
-	}
-}
-
-func Proxy_event_tcp(conn net.Conn, proxyaddr string) {
-
-	conn2, err := net.Dial("tcp", proxyaddr)
-	if err != nil {
-		message.PrintErr("Can't connect to "+proxyaddr, err.Error())
-	}
-	buffer := make([]byte, 1024)
-
-	for {
-
-		n, err := conn.Read(buffer)
-		if err != nil {
-			if n == 0 {
-				conn2.Close()
-				conn.Close()
-				break
-			}
-		}
-
-		_, err = conn2.Write(buffer[:n])
-		if err != nil {
-			conn2.Close()
-			message.PrintErr("Proxy Write error")
 		}
 
 	}

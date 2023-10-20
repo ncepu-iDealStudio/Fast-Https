@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func WriteCache(str string, expire int, path string, data []byte, size int64) {
+func WriteCache(str string, expire int, path string, data []byte, size int) {
 	curr_time := int(time.Now().Unix())
 	// Create a mew cache node
 	var cacheNode cache.CacheNode
