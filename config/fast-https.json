@@ -10,23 +10,36 @@
         "server_name": "localhost",
         "location": [
           {
-            "url": "/sss",
-            "type": "proxy",
-            "proxy_pass": "http://127.0.0.1:5000"
+            "url": "/x{3}/999",
+            "type": "local",
+            "root": "./httpdoc/root",
+            "index":["index.html", "index.htm"] 
+          }
+        ]
+      },
+      {
+        "listen": 8081,
+        "server_name": "localhost",
+        "location": [
+          {
+            "url": "/",
+            "type": "local",
+            "root": "./httpdoc/root",
+            "index":["index.html", "index.htm"] 
           }
         ]
       },
       {
         "listen": 9090,
-        "server_name": "localhost",
+        "server_name": "192.168.11.89",
         "location": [
           {
-            "url": "/proxy",
+            "url": "/",
             "type": "proxy",
-            "proxy_pass": "http://127.0.0.1:5000",
+            "proxy_pass": "http://club.quwancode.com",
             "proxy_cache": {
-              "path": "/home/pzc/Project/Fast-https/fast-https",
-              "valid": ["200:1h", "304:1h", "any:30m"],
+              "path": "/home/pzc/Project/Fast-https/fast-https/.cache",
+              "valid": ["200:1d", "304:1h", "any:30m"],
               "key": "$request_method$host$request_uri",
               "max_size": 1024
             }
