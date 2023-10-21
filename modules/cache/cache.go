@@ -1,3 +1,11 @@
+/**
+* @Author: Ajax, yizhigopher, 彭博
+* @Description: 对红黑树每个结点进行判断，删去过期结点
+* @File: cache_validate.go
+* @Version: 1.0.0
+* @Date: 2023/10/19 21:38:41
+ */
+
 package cache
 
 import (
@@ -122,15 +130,15 @@ func WriteToDisk() {
 func (CC *CacheContainer) LoadCache() {
 	for _, server := range config.GConfig.Servers {
 		for _, path := range server.Path {
-			files, _ := GetDirFiles(path.ProxyCache.Path)
-			for _, file := range files {
-				node := CacheNode(getCacheHead(file))
-				CC.RbRoot.AddInRbtree(&node)
+			if path.ProxyCache.Path != "" {
+				files, _ := GetDirFiles(path.ProxyCache.Path)
+				for _, file := range files {
+					node := CacheNode(getCacheHead(file))
+					CC.RbRoot.AddInRbtree(&node)
+				}
 			}
 		}
 	}
-
-	fmt.Println("func LoadCache: load disk cache successfully!")
 }
 
 func (CC *CacheContainer) WriteCache(str string, expire int, path string, data []byte, size int) {
