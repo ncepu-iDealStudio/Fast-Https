@@ -172,14 +172,3 @@ func (r *Req) Parse_body(tmpByte []byte) {
 
 	r.Body = res
 }
-
-// func (r *Req)GetProperty(name string) string  {
-// 	t := reflect.TypeOf(r)
-// 	for i := 0; i < t.NumField(); i++ {
-// 		field := t.Field(i)
-// 		if field.Tag.Get("name") == name{
-// 			res := reflect.ValueOf(field)
-// 			return sf.(string)
-// 		}
-// 	}
-// }
