@@ -31,7 +31,7 @@ func (g *Gizmo) FastModule() *modules.ModuleInfo {
 	}
 }
 
-func (g *Gizmo) Handle(ctx *workchain.Context) {
+func (g *Gizmo) Handle(ctx *workchain.WorkChain) {
 	g.Title = "Hello World"
 	fmt.Printf("This is Gizmo process Gizmo is = %v\n", g)
 	ctx.Next()

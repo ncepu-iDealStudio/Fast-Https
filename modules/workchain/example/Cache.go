@@ -32,7 +32,7 @@ func (c *Cache) FastModule() *modules.ModuleInfo {
 	}
 }
 
-func (c *Cache) Handle(ctx *workchain.Context) {
+func (c *Cache) Handle(ctx *workchain.WorkChain) {
 	c.md5 = "12123"
 	c.path = "/fav.ico"
 	fmt.Printf("write cache %v into red-black-tree\n", c)

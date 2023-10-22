@@ -31,7 +31,7 @@ func (e ErrorW) FastModule() *modules.ModuleInfo {
 	}
 }
 
-func (e ErrorW) Handle(ctx *workchain.Context) {
+func (e ErrorW) Handle(ctx *workchain.WorkChain) {
 	fmt.Println(e.err.Error())
 	if e.err != nil {
 		ctx.Abort()

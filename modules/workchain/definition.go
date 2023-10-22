@@ -16,30 +16,30 @@ import (
 // Handler 定义了一条工作链上的每个工作结点的执行方法的定义
 // 我们通过执行ctx.Next()方法，执行工作链上下一个工作节点的Handle()方法
 type Handler interface {
-	Handle(ctx *Context)
+	Handle(ctx *WorkChain)
 }
 
 const abortIndex = math.MaxInt8 >> 1
 
-type Context struct {
+type WorkChain struct {
 	ctx      context.Context
 	index    int8
 	handlers []Handler
 }
 
-func NewContext(c context.Context) *Context {
-	return &Context{
+func NewContext(c context.Context) *WorkChain {
+	return &WorkChain{
 		ctx:      c,
 		index:    -1,
 		handlers: make([]Handler, 0),
 	}
 }
 
-func (c *Context) Use(h ...Handler) {
+func (c *WorkChain) Use(h ...Handler) {
 	c.handlers = append(c.handlers, h...)
 }
 
-func (c *Context) Next() {
+func (c *WorkChain) Next() {
 	c.index++
 	for c.index < int8(len(c.handlers)) {
 		c.handlers[c.index].Handle(c)
@@ -47,10 +47,10 @@ func (c *Context) Next() {
 	}
 }
 
-func (c *Context) Abort() {
+func (c *WorkChain) Abort() {
 	c.index = abortIndex
 }
 
-func (c *Context) Restart() {
+func (c *WorkChain) Restart() {
 	c.index = -1
 }
