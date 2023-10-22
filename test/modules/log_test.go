@@ -9,8 +9,11 @@
 package modules
 
 import (
+	"context"
 	"fast-https/modules"
 	_ "fast-https/modules/logging" // 模块导入
+	"fast-https/modules/workchain"
+	_ "fast-https/modules/workchain/example"
 	"testing"
 )
 
@@ -25,4 +28,14 @@ func TestLogPlugin(t *testing.T) {
 	t.Log("get logger module")
 	// 测试模块的使用
 	module.Warning("this is one test example")
+}
+
+func TestWorkChain(t *testing.T) {
+	c := workchain.NewContext(context.Background())
+	m1, _ := modules.GetModule[workchain.Handler]("fast.process.Gizmo")
+	m2, _ := modules.GetModule[workchain.Handler]("fast.process.error")
+	m3, _ := modules.GetModule[workchain.Handler]("fast.process.cache")
+	c.Use(m3)
+	c.Use(m2, m1) // 定义了一条工作链，工作顺序从左往右，从上往下
+	c.Next()      // 开始执行工作链
 }
