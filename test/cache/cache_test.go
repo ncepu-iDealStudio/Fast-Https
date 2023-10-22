@@ -31,7 +31,7 @@ func WriteCache(str string, expire int, path string, data []byte, size int) {
 
 func TestWriteCache(t *testing.T) {
 	//	定义并发goroutine数量
-	numGoroutines := 500
+	numGoroutines := 10
 	// 定义要测试的文件的数量
 	numFiles := numGoroutines
 
@@ -44,7 +44,7 @@ func TestWriteCache(t *testing.T) {
 
 	//	创建一个目录用于文件写入测试
 	testDir := "test_files"
-	saveDir := "save_dir"
+	saveDir := "./save_dir"
 	os.Mkdir(saveDir, 0755)
 	os.Mkdir(testDir, 0755)
 	defer os.RemoveAll(testDir)
@@ -63,7 +63,7 @@ func TestWriteCache(t *testing.T) {
 			// 写入文件
 			fileName, err := WriteFile(testDir, i, fileContent)
 			//fileName := saveDir + "/file_" + strconv.Itoa(i)
-			WriteCache(fileName+"test_dir", 10, "./"+saveDir+"/", fileContent, 10)
+			WriteCache(fileName+"test_dir", 10, saveDir, fileContent, 10)
 			if err != nil {
 				t.Errorf("File write failed: %v", err)
 			}

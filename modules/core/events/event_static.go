@@ -37,6 +37,7 @@ func Static_event(cfg listener.ListenCfg, path string, ev *Event) {
 		}
 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.Req_.Headers["User-Agent"]+"\"")
+		ev.Log = ""
 		Handle_event(ev) // recursion
 	} else {
 		res := get_res_bytes(cfg, path, ev.Req_.Get_header("Connection"), ev)
@@ -46,7 +47,7 @@ func Static_event(cfg listener.ListenCfg, path string, ev *Event) {
 			write_bytes(ev, ev.Res_.Generate_response())
 		}
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.Req_.Headers["User-Agent"]+"\"")
-
+		ev.Log = ""
 	}
 }
 

@@ -1,11 +1,12 @@
-package cache
+package compress
 
 import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	"github.com/andybalholm/brotli"
 	"io"
+
+	"github.com/andybalholm/brotli"
 )
 
 func CompressBytes_Gzip(data []byte) ([]byte, error) {
@@ -23,7 +24,7 @@ func CompressBytes_Gzip(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return b.Bytes(), nil
 }
 

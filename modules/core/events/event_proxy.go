@@ -166,7 +166,7 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 
 	finalData, head_code, b_len := Change_header(resData)
 
-	ev.Log = ev.Log + " " + head_code + " " + b_len
+	log_append(ev, " "+head_code+" "+b_len)
 
 	if !ev.Req_.Is_keepalive() {
 		tlsConn.Close()

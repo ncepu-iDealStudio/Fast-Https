@@ -11,7 +11,7 @@ import (
 	"io"
 	"net"
 	"reflect"
-	"strings"
+	"regexp"
 	"unsafe"
 )
 
@@ -44,10 +44,16 @@ func Handle_event(ev *Event) {
 	for _, cfg := range ev.Lis_info.Cfg {
 		switch cfg.Proxy {
 		case 0: // Proxy: 0, static events
-			if ev.Req_.Get_header("Host") == cfg.ServerName && strings.HasPrefix(ev.Req_.Path, cfg.Path) {
-				row_file_path := ev.Req_.Path[len(cfg.Path):]
+			// if ev.Req_.Get_header("Host") == cfg.ServerName && strings.HasPrefix(ev.Req_.Path, cfg.Path) {
+
+			re := regexp.MustCompile(cfg.Path)
+			res := re.FindStringIndex(ev.Req_.Path)
+			if ev.Req_.Get_header("Host") == cfg.ServerName && res != nil {
+				fmt.Println("matched", res)
+				row_file_path := ev.Req_.Path[res[1]:]
 				if row_file_path == "" && cfg.Path != "/" {
-					_event_301(ev, cfg.Path+"/")
+					fmt.Println("301")
+					_event_301(ev, ev.Req_.Path[res[0]:res[1]]+"/")
 					return
 				}
 				// according to user's confgure and requets endporint handle events
@@ -55,18 +61,19 @@ func Handle_event(ev *Event) {
 				return
 			}
 		case 1, 2: // proxy: 1 or 2,  proxy events
-			if ev.Req_.Get_header("Host") == cfg.ServerName {
+
+			re := regexp.MustCompile(cfg.Path)
+			res := re.FindStringIndex(ev.Req_.Path)
+			if ev.Req_.Get_header("Host") == cfg.ServerName && res != nil {
 
 				for _, item := range cfg.ProxySetHeader {
 					if item.HeaderKey == 100 {
-						var str string
 						if item.HeaderValue == "$host" {
-							str = cfg.Proxy_addr
-							ev.Req_.Set_header("Host", str, cfg)
+							ev.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
 						}
 					}
 				}
-
+				ev.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
 				ev.Req_.Set_header("Connection", "close", cfg)
 				ev.Req_.Flush()
 				flush_bytes := ev.Req_.Byte_row()
@@ -105,7 +112,7 @@ func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 
 	md5 = cache.GetMd5(ruleString)
 
 	// to do: convert ["200:1h", "304:1h", "any:30m"]
-	expire = 60
+	expire = 60 * 60
 
 	return
 }
