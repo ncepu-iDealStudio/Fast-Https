@@ -110,10 +110,7 @@ func WriteToDisk() {
 		select {
 		case entry := <-CacheChan:
 			// name := entry.Head.Path + entry.Head.Md5 + ".gob"
-			n1 := 1
-			n2 := 2
-			entryHeadMd5Len := len(entry.Head.Md5)
-			savePath := filepath.Join(entry.Head.Path, entry.Head.Md5[entryHeadMd5Len-n1:], entry.Head.Md5[entryHeadMd5Len-n1-n2:entryHeadMd5Len-n1])
+			savePath := entry.Head.Path
 			realPath := filepath.Join(savePath, entry.Head.Md5)
 			if _, err := os.Stat(savePath); os.IsNotExist(err) {
 				err := os.MkdirAll(savePath, 0755)
@@ -121,9 +118,7 @@ func WriteToDisk() {
 					fmt.Println("无法创建目录:", err)
 					return
 				}
-				fmt.Println("目录已创建:", savePath)
-			} else {
-				fmt.Println("目录已存在:", savePath)
+				//fmt.Println("目录已创建:", savePath)
 			}
 
 			// fmt.Println("writing data to:", realPath)
@@ -157,10 +152,15 @@ func (CC *CacheContainer) LoadCache() {
 func (CC *CacheContainer) WriteCache(str string, expire int, path string, data []byte, size int) {
 	curr_time := int(time.Now().Unix())
 	// Create a mew cache node
+
 	var cacheNode CacheNode
 	cacheNode.Expire = curr_time + expire
 	cacheNode.Md5 = str
-	cacheNode.Path = path
+	n1 := 1
+	n2 := 2
+	entryHeadMd5Len := len(cacheNode.Md5)
+	savePath := filepath.Join(path, cacheNode.Md5[entryHeadMd5Len-n1:], cacheNode.Md5[entryHeadMd5Len-n1-n2:entryHeadMd5Len-n1])
+	cacheNode.Path = savePath
 	cacheNode.Valid = expire
 
 	// put it in Rbtree
