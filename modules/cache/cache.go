@@ -110,12 +110,25 @@ func WriteToDisk() {
 		select {
 		case entry := <-CacheChan:
 			// name := entry.Head.Path + entry.Head.Md5 + ".gob"
-			realPath := filepath.Join(entry.Head.Path, entry.Head.Md5)
+			n1 := 1
+			n2 := 2
+			entryHeadMd5Len := len(entry.Head.Md5)
+			savePath := filepath.Join(entry.Head.Path, entry.Head.Md5[entryHeadMd5Len-n1:], entry.Head.Md5[entryHeadMd5Len-n1-n2:entryHeadMd5Len-n1])
+			realPath := filepath.Join(savePath, entry.Head.Md5)
+			if _, err := os.Stat(savePath); os.IsNotExist(err) {
+				err := os.MkdirAll(savePath, 0755)
+				if err != nil {
+					fmt.Println("无法创建目录:", err)
+					return
+				}
+				fmt.Println("目录已创建:", savePath)
+			} else {
+				fmt.Println("目录已存在:", savePath)
+			}
 
 			// fmt.Println("writing data to:", realPath)
 			File, _ := os.OpenFile(realPath, os.O_RDWR|os.O_CREATE, 0777)
 			// defer File.Close()
-
 			enc := gob.NewEncoder(File)
 			if err := enc.Encode(entry); err != nil {
 				fmt.Println(err)
