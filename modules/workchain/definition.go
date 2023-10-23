@@ -22,14 +22,14 @@ type Handler interface {
 const abortIndex = math.MaxInt8 >> 1
 
 type WorkChain struct {
-	ctx      context.Context
+	context.Context
 	index    int8
 	handlers []Handler
 }
 
 func NewContext(c context.Context) *WorkChain {
 	return &WorkChain{
-		ctx:      c,
+		Context:  c,
 		index:    -1,
 		handlers: make([]Handler, 0),
 	}
