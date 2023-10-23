@@ -10,8 +10,11 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
+
+	"github.com/panjf2000/ants"
 )
 
 type Server struct {
@@ -72,8 +75,13 @@ func (s *Server) serve_one_port(listener listener.ListenInfo) {
 		each_event.ProxyConn = nil
 		each_event.Lis_info = listener
 		each_event.Timer = nil
-
-		go events.Handle_event(&each_event)
+		var wg sync.WaitGroup
+		syncCalculateSum := func() {
+			events.Handle_event(&each_event)
+			wg.Done()
+		}
+		wg.Add(1)
+		_ = ants.Submit(syncCalculateSum)
 	}
 }
 
