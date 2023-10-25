@@ -1,6 +1,6 @@
 /**
 * @Author: Ajax, yizhigopher, 彭博
-* @Description: 对红黑树每个结点进行判断，删去过期结点
+* @Description: cache server and manage
 * @File: cache_validate.go
 * @Version: 1.0.0
 * @Date: 2023/10/19 21:38:41
