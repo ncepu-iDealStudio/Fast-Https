@@ -6,12 +6,14 @@ import (
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
+	"fast-https/utils"
 	"fast-https/utils/message"
 	"fmt"
 	"io"
 	"net"
 	"reflect"
 	"regexp"
+	"strings"
 	"unsafe"
 )
 
@@ -89,31 +91,36 @@ func Handle_event(ev *Event) {
 
 // to do: improve this function
 func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 string, expire int) {
-	// to do: config convert cacheProxyKey to []int {1, 2, 3 ...}
-	rule := []int{1, 2, 3}
+	cacheKeyRule := cfg.ProxyCache.Key
+	keys := strings.Split(cacheKeyRule, "$")
+	rule := map[string]string{ // 配置缓存key字段的生成规则
+		"request_method": ev.Req_.Method,
+		"request_uri":    ev.Req_.Path,
+		"host":           ev.Req_.Get_header("Host"),
+	}
+
 	ruleString := ""
-	for _, item := range rule {
-		switch item {
-		case 1: // request_method
-			{
-				ruleString += ev.Req_.Method
-			}
-		case 2: // host
-			{
-				ruleString += ev.Req_.Get_header("Host")
-			}
-		case 3: // request_uri
-			{
-				ruleString += ev.Req_.Path
-			}
+	for _, item := range keys {
+		str, ok := rule[item]
+		if !ok { // 未配置相应字段的生成规则，跳过即可
+			continue
 		}
+		ruleString += str
 	}
 	// fmt.Println("-------------------", ev.Req_.Path)
+	fmt.Println("generate cache key value=", ruleString)
 	md5 = cache.GetMd5(ruleString)
 
-	// to do: convert ["200:1h", "304:1h", "any:30m"]
-	expire = 60 * 60
-
+	// convert ["200:1h", "304:1h", "any:30m"]
+	valid := cfg.ProxyCache.Valid
+	for _, c := range valid {
+		split := strings.Split(c, ":")
+		if split[0] != resCode || split[0] == "any" {
+			expire = utils.ParseTime(split[1])
+			fmt.Println("generate cache expire time=", expire)
+			return
+		}
+	}
 	return
 }
 
