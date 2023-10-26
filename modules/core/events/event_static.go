@@ -25,28 +25,28 @@ func Static_event(cfg listener.ListenCfg, path string, ev *Event) {
 	if cfg.Path != "/" {
 		path = cfg.StaticRoot + path
 	} else {
-		path = cfg.StaticRoot + ev.Req_.Path
+		path = cfg.StaticRoot + ev.RR.Req_.Path
 	}
 
-	if ev.Req_.Is_keepalive() {
-		res := get_res_bytes(cfg, path, ev.Req_.Get_header("Connection"), ev)
+	if ev.RR.Req_.Is_keepalive() {
+		res := get_res_bytes(cfg, path, ev.RR.Req_.Get_header("Connection"), ev)
 		if res == -1 {
 			write_bytes(ev, response.Default_not_found())
 		} else {
-			write_bytes(ev, ev.Res_.Generate_response())
+			write_bytes(ev, ev.RR.Res_.Generate_response())
 		}
 
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.Req_.Headers["User-Agent"]+"\"")
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 		ev.Log = ""
 		Handle_event(ev) // recursion
 	} else {
-		res := get_res_bytes(cfg, path, ev.Req_.Get_header("Connection"), ev)
+		res := get_res_bytes(cfg, path, ev.RR.Req_.Get_header("Connection"), ev)
 		if res == -1 {
 			write_bytes(ev, response.Default_not_found())
 		} else {
-			write_bytes(ev, ev.Res_.Generate_response())
+			write_bytes(ev, ev.RR.Res_.Generate_response())
 		}
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.Req_.Headers["User-Agent"]+"\"")
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 		ev.Log = ""
 	}
 }
@@ -57,21 +57,21 @@ func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, e
 	// }
 	var file_data = cache.Get_data_from_cache(path)
 
-	ev.Res_ = response.Response_init() // Create a res Object
-	ev.Res_.Set_first_line(200, "OK")
-	ev.Res_.Set_header("Server", "Fast-Https")
-	ev.Res_.Set_header("Date", time.Now().String())
+	ev.RR.Res_ = response.Response_init() // Create a res Object
+	ev.RR.Res_.Set_first_line(200, "OK")
+	ev.RR.Res_.Set_header("Server", "Fast-Https")
+	ev.RR.Res_.Set_header("Date", time.Now().String())
 
 	if file_data != nil { // Not Fount
 
-		ev.Res_.Set_header("Content-Type", get_content_type(path))
-		ev.Res_.Set_header("Content-Length", strconv.Itoa(len(file_data)))
+		ev.RR.Res_.Set_header("Content-Type", get_content_type(path))
+		ev.RR.Res_.Set_header("Content-Length", strconv.Itoa(len(file_data)))
 		if lisdata.Zip == 1 {
-			ev.Res_.Set_header("Content-Encoding", "gzip")
+			ev.RR.Res_.Set_header("Content-Encoding", "gzip")
 		}
-		ev.Res_.Set_header("Connection", connection)
+		ev.RR.Res_.Set_header("Connection", connection)
 
-		ev.Res_.Set_body(file_data)
+		ev.RR.Res_.Set_body(file_data)
 
 		ev.Log += " 200 " + strconv.Itoa(len(file_data))
 
@@ -85,14 +85,14 @@ func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, e
 
 		if file_data != nil {
 
-			ev.Res_.Set_header("Content-Type", get_content_type(path))
-			ev.Res_.Set_header("Content-Length", strconv.Itoa(len(file_data)))
+			ev.RR.Res_.Set_header("Content-Type", get_content_type(path))
+			ev.RR.Res_.Set_header("Content-Length", strconv.Itoa(len(file_data)))
 			if lisdata.Zip == 1 {
-				ev.Res_.Set_header("Content-Encoding", "gzip")
+				ev.RR.Res_.Set_header("Content-Encoding", "gzip")
 			}
-			ev.Res_.Set_header("Connection", connection)
+			ev.RR.Res_.Set_header("Connection", connection)
 
-			ev.Res_.Set_body(file_data)
+			ev.RR.Res_.Set_body(file_data)
 			ev.Log += " 200 " + strconv.Itoa(len(file_data))
 
 			return 1 // find source

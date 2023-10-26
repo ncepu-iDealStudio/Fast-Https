@@ -62,6 +62,7 @@ func (s *Server) set_conn_cfg(conn *net.Conn) {
 
 // listen and serve one port
 func (s *Server) serve_one_port(listener listener.ListenInfo) {
+	var wg sync.WaitGroup
 	for !s.Shutdown {
 		conn, err := listener.Lfd.Accept()
 		if err != nil {
@@ -72,10 +73,9 @@ func (s *Server) serve_one_port(listener listener.ListenInfo) {
 
 		each_event := events.Event{}
 		each_event.Conn = conn
-		each_event.ProxyConn = nil
 		each_event.Lis_info = listener
 		each_event.Timer = nil
-		var wg sync.WaitGroup
+
 		syncCalculateSum := func() {
 			events.Handle_event(&each_event)
 			wg.Done()

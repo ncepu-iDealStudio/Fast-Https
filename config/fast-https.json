@@ -39,7 +39,7 @@
             "proxy_pass": "http://club.quwancode.com",
             "proxy_cache": {
               "path": "/home/pzc/Project/Fast-https/fast-https/.cache",
-              "valid": ["200:1d", "304:1h", "any:30m"],
+              "valid": ["200:1h", "304:1h", "any:30m"],
               "key": "$request_method$host$request_uri",
               "max_size": 1024
             }

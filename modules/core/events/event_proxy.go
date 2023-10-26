@@ -69,20 +69,20 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 	}
 
 	var err error
-	if ev.ProxyConn == nil {
-		ev.ProxyConn, err = net.Dial("tcp", proxyaddr)
+	if ev.RR.ProxyConn == nil {
+		ev.RR.ProxyConn, err = net.Dial("tcp", proxyaddr)
 		if err != nil {
 			message.PrintWarn("[Proxy event]: Can't connect to "+proxyaddr, err.Error())
 			return nil, 1 // no server
 		}
 		now := time.Now()
-		ev.ProxyConn.SetDeadline(now.Add(time.Second * 20)) // proxy server time out
+		ev.RR.ProxyConn.SetDeadline(now.Add(time.Second * 20)) // proxy server time out
 	}
 
-	_, err = ev.ProxyConn.Write(data)
+	_, err = ev.RR.ProxyConn.Write(data)
 	if err != nil {
-		ev.ProxyConn.Close() // close proxy connection
-		close(ev)            // close event connection
+		ev.RR.ProxyConn.Close() // close proxy connection
+		close(ev)               // close event connection
 		message.PrintWarn("[Proxy event]: Can't write to "+proxyaddr, err.Error())
 		return nil, 2 // can't write
 	}
@@ -91,12 +91,12 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 	var resData []byte
 	tmpByte := make([]byte, 512)
 	for {
-		len_once, err := ev.ProxyConn.Read(tmpByte)
+		len_once, err := ev.RR.ProxyConn.Read(tmpByte)
 		if err != nil {
 			if err == io.EOF { // read all
 				break
 			} else {
-				ev.ProxyConn.Close()
+				ev.RR.ProxyConn.Close()
 				close(ev)
 				message.PrintWarn("[Proxy event]: Can't read from "+proxyaddr, err.Error())
 				return nil, 3 // can't read
@@ -112,11 +112,11 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 
 	log_append(ev, " "+head_code+" "+b_len)
 
-	if !ev.Req_.Is_keepalive() { // connection close
-		ev.ProxyConn.Close()
+	if !ev.RR.Req_.Is_keepalive() { // connection close
+		ev.RR.ProxyConn.Close()
 	}
 
-	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+ev.Log, "\""+ev.Req_.Headers["User-Agent"]+"\"")
+	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	return finalData, 0 // no error
 }
 
@@ -127,8 +127,8 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 	}
 
 	var err error
-	if ev.ProxyConn == nil {
-		ev.ProxyConn, err = net.Dial("tcp", proxyaddr)
+	if ev.RR.ProxyConn == nil {
+		ev.RR.ProxyConn, err = net.Dial("tcp", proxyaddr)
 		if err != nil {
 			message.PrintWarn("Can't connect to "+proxyaddr, err.Error())
 			return nil, 1 // no server
@@ -136,7 +136,7 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 	}
 
 	config := tls.Config{InsecureSkipVerify: true}
-	tlsConn := tls.Client(ev.ProxyConn, &config)
+	tlsConn := tls.Client(ev.RR.ProxyConn, &config)
 
 	_, err = tlsConn.Write(data)
 	if err != nil {
@@ -168,11 +168,11 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 
 	log_append(ev, " "+head_code+" "+b_len)
 
-	if !ev.Req_.Is_keepalive() {
+	if !ev.RR.Req_.Is_keepalive() {
 		tlsConn.Close()
 	}
 
-	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTPS Event"+ev.Log, "\""+ev.Req_.Headers["User-Agent"]+"\"")
+	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTPS Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	return finalData, 0 // no error
 }
 
@@ -200,7 +200,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *Event) {
 	}
 
 	// proxy server return valid data
-	if ev.Req_.Is_keepalive() {
+	if ev.RR.Req_.Is_keepalive() {
 		write_bytes(ev, res)
 		Handle_event(ev)
 	} else {
@@ -231,7 +231,7 @@ func Proxy_event(req_data []byte, cfg listener.ListenCfg, ev *Event) {
 			return
 		}
 		// proxy server return valid data
-		if ev.Req_.Is_keepalive() {
+		if ev.RR.Req_.Is_keepalive() {
 			write_bytes(ev, res)
 			Handle_event(ev)
 		} else {
