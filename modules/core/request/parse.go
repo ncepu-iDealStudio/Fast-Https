@@ -47,7 +47,7 @@ func Req_init() *Req {
 }
 
 // parse Host
-func (r *Req) Parse_host(lis_info listener.ListenInfo) {
+func (r *Req) Parse_host(lis_info listener.Listener) {
 	if lis_info.Port == "80" {
 		r.Headers["Host"] = r.Headers["Host"] + ":80"
 	} else if lis_info.Port == "443" {

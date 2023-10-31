@@ -19,15 +19,19 @@ import (
 
 // request and response circle
 type RRcircle struct {
-	Req_      *request.Req
-	Res_      *response.Response
-	ProxyConn net.Conn
+	Req_         *request.Req
+	Res_         *response.Response
+	ProxyConn    net.Conn
+	CircleNum    int
+	OriginPath   string
+	PathLocation []int
+	// Handler
 }
 
 // each request event is saved in this struct
 type Event struct {
 	Conn     net.Conn
-	Lis_info listener.ListenInfo
+	Lis_info listener.Listener
 	Timer    *timer.Timer
 	Log      string
 	Type     uint64
@@ -37,6 +41,7 @@ type Event struct {
 // distribute event
 // LisType(2) tcp proxy
 func Handle_event(ev *Event) {
+
 	// handle tcp proxy
 	if ev.Lis_info.LisType == 2 {
 		Proxy_event_tcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
@@ -51,23 +56,26 @@ func Handle_event(ev *Event) {
 	for _, cfg := range ev.Lis_info.Cfg {
 		switch cfg.Proxy {
 		case 0: // Proxy: 0, static events
-			re := regexp.MustCompile(cfg.Path)
+			re := regexp.MustCompile(cfg.Path) // we can compile this when load config
 			res := re.FindStringIndex(ev.RR.Req_.Path)
+
 			if ev.RR.Req_.Get_header("Host") == cfg.ServerName && res != nil {
 
-				row_file_path := ev.RR.Req_.Path[res[1]:]
-				if row_file_path == "" && cfg.Path != "/" {
-					fmt.Println("301")
+				originPath := ev.RR.Req_.Path[res[1]:]
+				ev.RR.OriginPath = originPath
+				if originPath == "" && cfg.Path != "/" {
 					_event_301(ev, ev.RR.Req_.Path[res[0]:res[1]]+"/")
 					return
 				}
+
 				// according to user's confgure and requets endporint handle events
-				Static_event(cfg, row_file_path, ev)
+				Static_event(cfg, ev)
 				return
 			}
 		case 1, 2: // proxy: 1 or 2,  proxy events
 			re := regexp.MustCompile(cfg.Path)
 			res := re.FindStringIndex(ev.RR.Req_.Path)
+
 			if ev.RR.Req_.Get_header("Host") == cfg.ServerName && res != nil {
 
 				for _, item := range cfg.ProxySetHeader {
@@ -80,10 +88,9 @@ func Handle_event(ev *Event) {
 				ev.RR.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
 				ev.RR.Req_.Set_header("Connection", "close", cfg)
 				ev.RR.Req_.Flush()
-				flush_bytes := ev.RR.Req_.Byte_row()
 
 				// according to user's confgure and requets endporint handle events
-				Proxy_event(flush_bytes, cfg, ev)
+				Proxy_event(cfg, ev)
 				return
 			}
 		}
@@ -170,7 +177,7 @@ func read_data(ev *Event) ([]byte, string) {
 			message.PrintWarn("read timeout")
 			return nil, ""
 		}
-		fmt.Println("Error reading from client 104:", err)
+		fmt.Println("Error reading from client 176:", err)
 	}
 	str_row := string(buffer[:n])
 	// buffer = buffer[:n]
@@ -187,7 +194,7 @@ func write_bytes(ev *Event, data []byte) {
 				message.PrintWarn("write timeout")
 				return
 			}
-			fmt.Println("Error writing to client 155:", err)
+			fmt.Println("Error writing to client 193:", err)
 			return
 		}
 		data = data[n:]

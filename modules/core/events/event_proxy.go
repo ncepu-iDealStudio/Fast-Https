@@ -208,7 +208,8 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *Event) {
 	}
 }
 
-func Proxy_event(req_data []byte, cfg listener.ListenCfg, ev *Event) {
+func Proxy_event(cfg listener.ListenCfg, ev *Event) {
+	req_data := ev.RR.Req_.Byte_row()
 
 	configCache := true
 	if cfg.ProxyCache.Key == "" {

@@ -37,19 +37,19 @@ type ListenCfg struct {
 }
 
 // one listen port arg
-type ListenInfo struct {
+type Listener struct {
 	Cfg     []ListenCfg
 	Lfd     net.Listener
 	Port    string
 	LisType uint8
 }
 
-var Lisinfos []ListenInfo
+var Lisinfos []Listener
 
 // sort confgure form "listen"
 func Process_ports() []string {
 	var Ports []string
-	lis_temp := ListenInfo{}
+	lis_temp := Listener{}
 	for _, each := range config.GConfig.Servers {
 
 		arr := strings.Split(each.Listen, " ")
@@ -75,7 +75,7 @@ func Process_ports() []string {
 }
 
 // sort confgure from "path"
-func Process_listen_data() {
+func process_listen_data() {
 	for _, server := range config.GConfig.Servers {
 		for _, paths := range server.Path {
 
@@ -101,9 +101,9 @@ func Process_listen_data() {
 }
 
 // listen some ports
-func Listen() []ListenInfo {
+func Listen() []Listener {
 	Process_ports()
-	Process_listen_data()
+	process_listen_data()
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 {

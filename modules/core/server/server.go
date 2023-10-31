@@ -23,6 +23,7 @@ type Server struct {
 
 // init server
 func Server_init() *Server {
+	//  to do : ScanPorts
 	return &Server{Shutdown: false}
 }
 
@@ -32,12 +33,12 @@ func Scan_ports() error {
 	for _, port := range ports {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {
-			listener.Lisinfos = []listener.ListenInfo{}
+			listener.Lisinfos = []listener.Listener{}
 			return err
 		}
 		conn.Close()
 	}
-	listener.Lisinfos = []listener.ListenInfo{}
+	listener.Lisinfos = []listener.Listener{}
 	return nil
 }
 
@@ -61,7 +62,7 @@ func (s *Server) set_conn_cfg(conn *net.Conn) {
 }
 
 // listen and serve one port
-func (s *Server) serve_one_port(listener listener.ListenInfo) {
+func (s *Server) serve_listener(listener listener.Listener) {
 	var wg sync.WaitGroup
 	for !s.Shutdown {
 		conn, err := listener.Lfd.Accept()
@@ -102,7 +103,7 @@ func (s *Server) Run() {
 	listens := listener.Listen()
 
 	for _, value := range listens {
-		go s.serve_one_port(value)
+		go s.serve_listener(value)
 	}
 
 	for !s.Shutdown {

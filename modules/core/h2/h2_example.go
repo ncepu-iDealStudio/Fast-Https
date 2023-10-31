@@ -13,13 +13,14 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"fmt"
-	"golang.org/x/net/http2/hpack"
 	"net"
 	"time"
+
+	"golang.org/x/net/http2/hpack"
 )
 
-const _key = "./config/cert/localhost.pem"
-const _crt = "./config/cert/localhost-key.pem"
+const _crt = "./config/cert/localhost.pem"
+const _key = "./config/cert/localhost-key.pem"
 
 const (
 	CONN_PREFACE   = 24

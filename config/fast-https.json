@@ -18,6 +18,20 @@
         ]
       },
       {
+        "listen": "443 ssl",
+        "server_name": "localhost",
+        "ssl_certificate": "config/cert/localhost.pem",
+        "ssl_certificate_key": "config/cert/localhost-key.pem",
+        "location": [
+          {
+            "url": "/",
+            "type": "local",
+            "root": "./httpdoc/root",
+            "index":["index.html", "index.htm"] 
+          }
+        ]
+      },
+      {
         "listen": 8081,
         "server_name": "localhost",
         "location": [
@@ -43,19 +57,6 @@
               "key": "$request_method$host$request_uri",
               "max_size": 1024
             }
-          }
-        ]
-      },
-      {
-        "listen": "443 ssl",
-        "server_name": "localhost",
-        "ssl_certificate": "config/cert/localhost.pem",
-        "ssl_certificate_key": "config/cert/localhost-key.pem",
-        "location": [
-          {
-            "url": "/",
-            "type": "proxy",
-            "proxy_pass": "http://127.0.0.1:5000"
           }
         ]
       }

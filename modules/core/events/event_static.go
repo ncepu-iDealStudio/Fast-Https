@@ -20,8 +20,9 @@ const (
 // if Content-Type is close, we write bytes and close this connection
 // Recursion "Handle_event" isn't a problem, because it
 // will pause when TCP buffer is None.
-func Static_event(cfg listener.ListenCfg, path string, ev *Event) {
+func Static_event(cfg listener.ListenCfg, ev *Event) {
 
+	path := ev.RR.OriginPath
 	if cfg.Path != "/" {
 		path = cfg.StaticRoot + path
 	} else {
