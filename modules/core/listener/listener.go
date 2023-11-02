@@ -22,7 +22,7 @@ type SSLkv struct {
 	SslValue string
 }
 
-// struct like confgure "path"
+// struct like confgure "location"
 type ListenCfg struct {
 	Proxy          uint16 // 0 1 2 3
 	Proxy_addr     string
@@ -38,6 +38,7 @@ type ListenCfg struct {
 
 // one listen port arg
 type Listener struct {
+	HostMap map[string]([]ListenCfg)
 	Cfg     []ListenCfg
 	Lfd     net.Listener
 	Port    string
@@ -54,11 +55,11 @@ func Process_ports() []string {
 
 		arr := strings.Split(each.Listen, " ")
 		if !collection.Collect(Ports).Contains(arr[0]) {
-
 			Ports = append(Ports, arr[0])
 
 			lis_temp.Cfg = nil
 			lis_temp.Lfd = nil
+			lis_temp.HostMap = make(map[string][]ListenCfg)
 			if strings.Contains(each.Listen, "ssl") {
 				lis_temp.LisType = 1 // ssl
 			} else if strings.Contains(each.Listen, "tcp") {
@@ -100,10 +101,35 @@ func process_listen_data() {
 	}
 }
 
+func process_host_map() {
+	for _, eachPort := range Lisinfos {
+		processEachPort(eachPort)
+	}
+}
+
+func processEachPort(lisPort Listener) {
+	var nameArray []string
+	for _, item := range lisPort.Cfg {
+		if !collection.Collect(nameArray).Contains(item.ServerName) {
+			nameArray = append(nameArray, item.ServerName)
+		}
+	}
+	for _, name := range nameArray {
+		var tempListenCfgArray []ListenCfg
+		for _, item := range lisPort.Cfg {
+			if name == item.ServerName {
+				tempListenCfgArray = append(tempListenCfgArray, item)
+			}
+		}
+		lisPort.HostMap[name] = tempListenCfgArray
+	}
+}
+
 // listen some ports
 func Listen() []Listener {
 	Process_ports()
 	process_listen_data()
+	process_host_map()
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 {

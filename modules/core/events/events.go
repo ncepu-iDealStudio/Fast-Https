@@ -53,42 +53,25 @@ func Handle_event(ev *Event) {
 	log_append(ev, " "+ev.RR.Req_.Method)
 	log_append(ev, " "+ev.RR.Req_.Path+" \""+ev.RR.Req_.Get_header("Host")+"\"")
 
-	for _, cfg := range ev.Lis_info.Cfg {
-		switch cfg.Proxy {
-		case 0: // Proxy: 0, static events
-			re := regexp.MustCompile(cfg.Path) // we can compile this when load config
-			res := re.FindStringIndex(ev.RR.Req_.Path)
+	findInMap := ev.Lis_info.HostMap[ev.RR.Req_.Get_header("Host")]
+	for _, cfg := range findInMap {
+		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
+		res := re.FindStringIndex(ev.RR.Req_.Path)
+		if res != nil {
+			originPath := ev.RR.Req_.Path[res[1]:]
+			ev.RR.OriginPath = originPath
+			ev.RR.PathLocation = res
 
-			if ev.RR.Req_.Get_header("Host") == cfg.ServerName && res != nil {
-
-				originPath := ev.RR.Req_.Path[res[1]:]
-				ev.RR.OriginPath = originPath
-				if originPath == "" && cfg.Path != "/" {
-					_event_301(ev, ev.RR.Req_.Path[res[0]:res[1]]+"/")
+			switch cfg.Proxy {
+			case 0:
+				if HandelSlash(ev, cfg) {
 					return
 				}
-
 				// according to user's confgure and requets endporint handle events
 				Static_event(cfg, ev)
 				return
-			}
-		case 1, 2: // proxy: 1 or 2,  proxy events
-			re := regexp.MustCompile(cfg.Path)
-			res := re.FindStringIndex(ev.RR.Req_.Path)
-
-			if ev.RR.Req_.Get_header("Host") == cfg.ServerName && res != nil {
-
-				for _, item := range cfg.ProxySetHeader {
-					if item.HeaderKey == 100 {
-						if item.HeaderValue == "$host" {
-							ev.RR.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
-						}
-					}
-				}
-				ev.RR.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
-				ev.RR.Req_.Set_header("Connection", "close", cfg)
-				ev.RR.Req_.Flush()
-
+			case 1, 2:
+				ChangeHead(ev, cfg)
 				// according to user's confgure and requets endporint handle events
 				Proxy_event(cfg, ev)
 				return
@@ -96,6 +79,27 @@ func Handle_event(ev *Event) {
 		}
 	}
 	write_bytes_close(ev, response.Default_not_found())
+}
+
+func HandelSlash(ev *Event, cfg listener.ListenCfg) (flag bool) {
+	if ev.RR.OriginPath == "" && cfg.Path != "/" {
+		_event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
+		return true
+	}
+	return false
+}
+
+func ChangeHead(ev *Event, cfg listener.ListenCfg) {
+	for _, item := range cfg.ProxySetHeader {
+		if item.HeaderKey == 100 {
+			if item.HeaderValue == "$host" {
+				ev.RR.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
+			}
+		}
+	}
+	ev.RR.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
+	ev.RR.Req_.Set_header("Connection", "close", cfg)
+	ev.RR.Req_.Flush()
 }
 
 // to do: improve this function
