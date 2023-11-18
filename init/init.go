@@ -39,7 +39,7 @@ func Init() *sync.WaitGroup {
 
 	// load cache from desk
 	cache.GCacheContainer.LoadCache()
-	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]cache LoadCache: load disk cache successfully!")
+	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]cache loadcache: load disk cache finished")
 	CacheManagerInit()
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]cache manager initialization finished")
 

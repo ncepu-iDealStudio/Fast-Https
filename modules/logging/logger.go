@@ -11,9 +11,10 @@ package logging
 import (
 	"fast-https/modules"
 	"fmt"
-	"github.com/fatih/color"
 	"log"
 	"os"
+
+	"github.com/fatih/color"
 )
 
 // DefaultLogger 是一个日志插件的默认实现，它将日志输出到标准输出。

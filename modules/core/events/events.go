@@ -19,12 +19,13 @@ import (
 
 // request and response circle
 type RRcircle struct {
-	Req_         *request.Req
-	Res_         *response.Response
-	ProxyConn    net.Conn
-	CircleNum    int
+	Req_      *request.Req
+	Res_      *response.Response
+	CircleNum int
+	// uri after re
 	OriginPath   string
 	PathLocation []int
+	ProxyConn    net.Conn
 	// Handler
 }
 
@@ -41,7 +42,6 @@ type Event struct {
 // distribute event
 // LisType(2) tcp proxy
 func Handle_event(ev *Event) {
-
 	// handle tcp proxy
 	if ev.Lis_info.LisType == 2 {
 		Proxy_event_tcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
@@ -53,8 +53,8 @@ func Handle_event(ev *Event) {
 	log_append(ev, " "+ev.RR.Req_.Method)
 	log_append(ev, " "+ev.RR.Req_.Path+" \""+ev.RR.Req_.Get_header("Host")+"\"")
 
-	findInMap := ev.Lis_info.HostMap[ev.RR.Req_.Get_header("Host")]
-	for _, cfg := range findInMap {
+	hosts := ev.Lis_info.HostMap[ev.RR.Req_.Get_header("Host")]
+	for _, cfg := range hosts {
 		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
 		res := re.FindStringIndex(ev.RR.Req_.Path)
 		if res != nil {
@@ -64,14 +64,14 @@ func Handle_event(ev *Event) {
 
 			switch cfg.Proxy {
 			case 0:
-				if HandelSlash(ev, cfg) {
+				if HandelSlash(cfg, ev) {
 					return
 				}
 				// according to user's confgure and requets endporint handle events
 				Static_event(cfg, ev)
 				return
 			case 1, 2:
-				ChangeHead(ev, cfg)
+				ChangeHead(cfg, ev)
 				// according to user's confgure and requets endporint handle events
 				Proxy_event(cfg, ev)
 				return
@@ -81,7 +81,7 @@ func Handle_event(ev *Event) {
 	write_bytes_close(ev, response.Default_not_found())
 }
 
-func HandelSlash(ev *Event, cfg listener.ListenCfg) (flag bool) {
+func HandelSlash(cfg listener.ListenCfg, ev *Event) (flag bool) {
 	if ev.RR.OriginPath == "" && cfg.Path != "/" {
 		_event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return true
@@ -89,7 +89,7 @@ func HandelSlash(ev *Event, cfg listener.ListenCfg) (flag bool) {
 	return false
 }
 
-func ChangeHead(ev *Event, cfg listener.ListenCfg) {
+func ChangeHead(cfg listener.ListenCfg, ev *Event) {
 	for _, item := range cfg.ProxySetHeader {
 		if item.HeaderKey == 100 {
 			if item.HeaderValue == "$host" {
