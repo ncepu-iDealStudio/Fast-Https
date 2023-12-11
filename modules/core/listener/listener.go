@@ -24,16 +24,18 @@ type SSLkv struct {
 
 // struct like confgure "location"
 type ListenCfg struct {
+	SSL        SSLkv
+	ServerName string
+	Path       string
+
 	Proxy          uint16 // 0 1 2 3
 	Proxy_addr     string
 	ProxySetHeader []config.Header
-	ServerName     string
-	Path           string
-	SSL            SSLkv
-	StaticRoot     string
-	StaticIndex    []string
-	Zip            uint16
 	ProxyCache     config.Cache
+
+	StaticRoot  string
+	StaticIndex []string
+	Zip         uint16
 }
 
 // one listen port arg
