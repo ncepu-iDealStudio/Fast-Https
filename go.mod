@@ -5,9 +5,11 @@ go 1.20
 require (
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fufuok/chanx v1.2.0
+	github.com/panjf2000/ants v1.2.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.16.0
+	golang.org/x/time v0.1.0
 )
 
 require (
@@ -22,7 +24,6 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
-	github.com/panjf2000/ants v1.2.1 // indirect
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
 )
 
