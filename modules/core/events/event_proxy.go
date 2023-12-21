@@ -199,6 +199,8 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *core.Event) {
 			return
 		}
 		CacheData(ev, cfg, "200", res, len(res))
+	} else {
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY Event(Cache)"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	}
 
 	// proxy server return valid data
@@ -208,6 +210,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *core.Event) {
 	} else {
 		write_bytes_close(ev, res)
 	}
+
 }
 
 func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {

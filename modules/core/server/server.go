@@ -100,7 +100,7 @@ func (s *Server) serve_listener(listener listener.Listener) {
 }
 
 func (s *Server) Run() {
-	service.TestService("0.0.0.0:5000", "thsi is 5000")
+	service.TestService("0.0.0.0:5000", "this is 5000")
 
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)

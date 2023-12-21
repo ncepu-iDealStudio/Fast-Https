@@ -32,16 +32,18 @@ func Handle_event(ev *core.Event) {
 	log_append(ev, " "+ev.RR.Req_.Method)
 	log_append(ev, " "+ev.RR.Req_.Path+" \""+ev.RR.Req_.Get_header("Host")+"\"")
 
-	if !safe.Insert1(ev.Conn.RemoteAddr().String()) {
-		fmt.Println("too many")
-		write_bytes_close(ev, response.Default_not_found())
-		return
-	}
-
 	cfg, ok := FliterHostPath(ev)
 	if !ok {
-		write_bytes_close(ev, response.Default_not_found())
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "INFORMAL Event(404)"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+
+		ev.Write_bytes_close(response.Default_not_found())
 	} else {
+
+		if !safe.Gcl.Insert1(ev.Conn.RemoteAddr().String()) {
+			message.PrintWarn(ev.Conn.RemoteAddr().String(), "INFORMAL Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+			write_bytes_close(ev, response.Default_not_found())
+			return
+		}
 
 		switch cfg.Proxy {
 		case 0:
