@@ -33,6 +33,8 @@ func Handle_event(ev *core.Event) {
 	log_append(ev, " "+ev.RR.Req_.Path+" \""+ev.RR.Req_.Get_header("Host")+"\"")
 
 	if !safe.Insert1(ev.Conn.RemoteAddr().String()) {
+		fmt.Println("too many")
+		write_bytes_close(ev, response.Default_not_found())
 		return
 	}
 
