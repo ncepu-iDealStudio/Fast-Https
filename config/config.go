@@ -86,7 +86,7 @@ type Fast_Https struct {
 func getHeaders(path string) []Header {
 	headerKeys := viper.GetStringSlice(path)
 	var headers []Header
-	for headerKey, _ := range headerKeys {
+	for headerKey := range headerKeys {
 		header := Header{
 			HeaderKey:   viper.GetUint16(fmt.Sprintf("%s.%d.HeaderKey", path, headerKey)),
 			HeaderValue: viper.GetString(fmt.Sprintf("%s.%d.HeaderValue", path, headerKey)),
@@ -204,7 +204,7 @@ func process() error {
 
 	// 遍历每个服务器块，并解析为 Server 结构体
 	serverKeys := viper.GetStringSlice("http.server")
-	for serverKey, _ := range serverKeys {
+	for serverKey := range serverKeys {
 		server := Server{
 			Listen:            viper.GetString(fmt.Sprintf("http.server.%d.listen", serverKey)),
 			ServerName:        viper.GetString(fmt.Sprintf("http.server.%d.server_name", serverKey)),
@@ -216,7 +216,7 @@ func process() error {
 		locationKeys := viper.GetStringSlice(pathPrefix)
 
 		var paths []Path
-		for locationKey, _ := range locationKeys {
+		for locationKey := range locationKeys {
 			path := Path{
 
 				PathName: viper.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
