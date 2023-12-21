@@ -2,10 +2,11 @@ package events
 
 import (
 	"fast-https/modules/cache"
+	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
-	"fast-https/modules/core/timer"
+	"fast-https/modules/safe"
 	"fast-https/utils"
 	"fast-https/utils/message"
 	"fmt"
@@ -17,31 +18,9 @@ import (
 	"unsafe"
 )
 
-// request and response circle
-type RRcircle struct {
-	Req_      *request.Req
-	Res_      *response.Response
-	CircleNum int
-	// uri after re
-	OriginPath   string
-	PathLocation []int
-	ProxyConn    net.Conn
-	// Handler
-}
-
-// each request event is saved in this struct
-type Event struct {
-	Conn     net.Conn
-	Lis_info listener.Listener
-	Timer    *timer.Timer
-	Log      string
-	Type     uint64
-	RR       RRcircle
-}
-
 // distribute event
 // LisType(2) tcp proxy
-func Handle_event(ev *Event) {
+func Handle_event(ev *core.Event) {
 	// handle tcp proxy
 	if ev.Lis_info.LisType == 2 {
 		Proxy_event_tcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
@@ -53,35 +32,52 @@ func Handle_event(ev *Event) {
 	log_append(ev, " "+ev.RR.Req_.Method)
 	log_append(ev, " "+ev.RR.Req_.Path+" \""+ev.RR.Req_.Get_header("Host")+"\"")
 
+	if !safe.Insert1(ev.Conn.RemoteAddr().String()) {
+		return
+	}
+
+	cfg, ok := FliterHostPath(ev)
+	if !ok {
+		write_bytes_close(ev, response.Default_not_found())
+	} else {
+
+		switch cfg.Proxy {
+		case 0:
+			if HandelSlash(cfg, ev) {
+				return
+			}
+			// according to user's confgure and requets endporint handle events
+			Static_event(cfg, ev)
+			return
+		case 1, 2:
+			ChangeHead(cfg, ev)
+			// according to user's confgure and requets endporint handle events
+			Proxy_event(cfg, ev)
+			return
+		}
+	}
+
+}
+
+func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 	hosts := ev.Lis_info.HostMap[ev.RR.Req_.Get_header("Host")]
-	for _, cfg := range hosts {
+	var cfg listener.ListenCfg
+	ok := false
+	for _, cfg = range hosts {
 		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
 		res := re.FindStringIndex(ev.RR.Req_.Path)
 		if res != nil {
 			originPath := ev.RR.Req_.Path[res[1]:]
 			ev.RR.OriginPath = originPath
 			ev.RR.PathLocation = res
-
-			switch cfg.Proxy {
-			case 0:
-				if HandelSlash(cfg, ev) {
-					return
-				}
-				// according to user's confgure and requets endporint handle events
-				Static_event(cfg, ev)
-				return
-			case 1, 2:
-				ChangeHead(cfg, ev)
-				// according to user's confgure and requets endporint handle events
-				Proxy_event(cfg, ev)
-				return
-			}
+			ok = true
+			break
 		}
 	}
-	write_bytes_close(ev, response.Default_not_found())
+	return cfg, ok
 }
 
-func HandelSlash(cfg listener.ListenCfg, ev *Event) (flag bool) {
+func HandelSlash(cfg listener.ListenCfg, ev *core.Event) (flag bool) {
 	if ev.RR.OriginPath == "" && cfg.Path != "/" {
 		_event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return true
@@ -89,7 +85,7 @@ func HandelSlash(cfg listener.ListenCfg, ev *Event) (flag bool) {
 	return false
 }
 
-func ChangeHead(cfg listener.ListenCfg, ev *Event) {
+func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
 	for _, item := range cfg.ProxySetHeader {
 		if item.HeaderKey == 100 {
 			if item.HeaderValue == "$host" {
@@ -103,7 +99,7 @@ func ChangeHead(cfg listener.ListenCfg, ev *Event) {
 }
 
 // to do: improve this function
-func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 string, expire int) {
+func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg, resCode string) (md5 string, expire int) {
 	cacheKeyRule := cfg.ProxyCache.Key
 	keys := strings.Split(cacheKeyRule, "$")
 	rule := map[string]string{ // 配置缓存key字段的生成规则
@@ -137,20 +133,20 @@ func ProcessCacheConfig(ev *Event, cfg listener.ListenCfg, resCode string) (md5 
 	return
 }
 
-func CacheData(ev *Event, cfg listener.ListenCfg, resCode string, data []byte, size int) {
+func CacheData(ev *core.Event, cfg listener.ListenCfg, resCode string, data []byte, size int) {
 	// according to usr's config, create a key
 	uriStringMd5, expireTime := ProcessCacheConfig(ev, cfg, resCode)
 	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime, cfg.ProxyCache.Path, data, size)
 	// fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
 }
 
-func process_request(ev *Event) int {
+func process_request(ev *core.Event) int {
 	// read data (bytes and str) from socket
 	byte_row, str_row := read_data(ev)
 	// save requte information to ev.RR.Req_
 	ev.RR.Req_ = request.Req_init()
 	if byte_row == nil { // client closed
-		close(ev)
+		ev.Close()
 		return 0
 	} else {
 		ev.RR.Req_.Http_parse(str_row)
@@ -161,14 +157,18 @@ func process_request(ev *Event) int {
 	return 1
 }
 
-func log_append(ev *Event, log string) {
+func log_append(ev *core.Event, log string) {
 	ev.Log = ev.Log + log
+}
+
+func log_clear(ev *core.Event) {
+	ev.Log = ""
 }
 
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
-func read_data(ev *Event) ([]byte, string) {
+func read_data(ev *core.Event) ([]byte, string) {
 	buffer := make([]byte, 1024*4)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
@@ -188,33 +188,8 @@ func read_data(ev *Event) ([]byte, string) {
 	return buffer, str_row // return row str or bytes
 }
 
-// write row bytes
-func write_bytes(ev *Event, data []byte) {
-	for len(data) > 0 {
-		n, err := ev.Conn.Write(data)
-		if err != nil {
-			opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-			if opErr.Err.Error() == "i/o timeout" {
-				message.PrintWarn("write timeout")
-				return
-			}
-			fmt.Println("Error writing to client 193:", err)
-			return
-		}
-		data = data[n:]
-	}
-}
-
-// only close the connection
-func close(ev *Event) {
-	err := ev.Conn.Close()
-	if err != nil {
-		fmt.Println("Error Close:", err)
-	}
-}
-
 // write row bytes and close
-func write_bytes_close(ev *Event, data []byte) {
-	write_bytes(ev, data)
-	close(ev)
+func write_bytes_close(ev *core.Event, data []byte) {
+	ev.Write_bytes(data)
+	ev.Close()
 }

@@ -1,24 +1,26 @@
 package safe
 
 import (
-	"fmt"
-	"golang.org/x/time/rate"
+	"fast-https/modules/core"
+	"fast-https/modules/core/response"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
-func BucketTest1() {
-	limit := rate.Every(300 * time.Millisecond)
-	limiter := rate.NewLimiter(limit, 5)
+// read global config
 
-	for i := 0; i < 10; i++ {
-		// 检查是否允许进行下一个事件
-		if limiter.Allow() {
-			fmt.Println("允许插入", i+1)
-		} else {
-			fmt.Println("拒绝插入", i+1)
-		}
+var g_limit = rate.Every(300 * time.Millisecond)
+var g_limiter = rate.NewLimiter(g_limit, 5)
 
-		// 模拟事件处理时间
-		time.Sleep(time.Millisecond * 100)
+func Bucket(ev *core.Event) bool {
+
+	// 检查是否允许进行下一个事件
+	if g_limiter.Allow() {
+		return true
+	} else {
+		// write <403> and close
+		ev.Write_bytes_close(response.Default_too_many())
+		return false
 	}
 }

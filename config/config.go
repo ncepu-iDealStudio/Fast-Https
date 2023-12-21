@@ -42,6 +42,18 @@ type Cache struct {
 	MaxSize int // 1023MB
 }
 
+type PathLimit struct {
+	Size    int
+	Rate    int
+	Burst   int
+	Nodelay bool
+}
+
+type ServerLimit struct {
+	BlackList string
+	Rate      int
+}
+
 type Path struct {
 	PathName       string
 	PathType       uint16
@@ -52,6 +64,7 @@ type Path struct {
 	ProxyData      string
 	ProxySetHeader []Header
 	ProxyCache     Cache
+	Limit          PathLimit
 }
 
 type Server struct {
@@ -59,6 +72,7 @@ type Server struct {
 	ServerName        string
 	SSLCertificate    string
 	SSLCertificateKey string
+	Limit             ServerLimit
 	Path              []Path
 }
 

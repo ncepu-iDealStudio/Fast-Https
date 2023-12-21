@@ -1,6 +1,8 @@
 package safe
 
 import (
+	"fast-https/modules/core"
+
 	"fmt"
 	"net"
 	"strings"
@@ -129,6 +131,15 @@ func (b *Blacklist) isInBlacklist(ipOrRange string) bool {
 		}
 	}
 	return false
+}
+
+// api
+func (b *Blacklist) IsInBlacklist(ev *core.Event) bool {
+	if b.isInBlacklist(ev.Conn.RemoteAddr().String()) {
+		return true
+	} else {
+		return false
+	}
 }
 
 // 解析 IP 列表并返回 IP 地址列表

@@ -1,8 +1,10 @@
 package server
 
 import (
+	"fast-https/modules/core"
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
+	"fast-https/modules/safe"
 	"fast-https/output"
 	"fast-https/service"
 	"fast-https/utils/message"
@@ -64,7 +66,11 @@ func (s *Server) set_conn_cfg(conn *net.Conn) {
 // listen and serve one port
 func (s *Server) serve_listener(listener listener.Listener) {
 	var wg sync.WaitGroup
+
+	blacklist := safe.NewBlacklist()
+
 	for !s.Shutdown {
+
 		conn, err := listener.Lfd.Accept()
 		if err != nil {
 			message.PrintErr("Error accepting connection:", err)
@@ -72,10 +78,17 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		}
 		s.set_conn_cfg(&conn)
 
-		each_event := events.Event{}
+		each_event := core.Event{}
 		each_event.Conn = conn
 		each_event.Lis_info = listener
 		each_event.Timer = nil
+
+		if !safe.Bucket(&each_event) {
+			continue
+		}
+		if blacklist.IsInBlacklist(&each_event) {
+			continue
+		}
 
 		syncCalculateSum := func() {
 			events.Handle_event(&each_event)

@@ -33,6 +33,8 @@ type ListenCfg struct {
 	ProxySetHeader []config.Header
 	ProxyCache     config.Cache
 
+	Limit config.PathLimit
+
 	StaticRoot  string
 	StaticIndex []string
 	Zip         uint16
@@ -45,6 +47,7 @@ type Listener struct {
 	Lfd     net.Listener
 	Port    string
 	LisType uint8
+	Limit   config.ServerLimit
 }
 
 var Lisinfos []Listener
@@ -62,6 +65,7 @@ func Process_ports() []string {
 			lis_temp.Cfg = nil
 			lis_temp.Lfd = nil
 			lis_temp.HostMap = make(map[string][]ListenCfg)
+			lis_temp.Limit = each.Limit
 			if strings.Contains(each.Listen, "ssl") {
 				lis_temp.LisType = 1 // ssl
 			} else if strings.Contains(each.Listen, "tcp") {
@@ -91,6 +95,7 @@ func process_listen_data() {
 					data.Proxy = paths.PathType
 					data.Proxy_addr = paths.ProxyData
 					data.ProxySetHeader = paths.ProxySetHeader
+					data.Limit = paths.Limit
 					data.StaticRoot = paths.Root
 					data.StaticIndex = paths.Index
 					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}

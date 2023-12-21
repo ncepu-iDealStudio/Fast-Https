@@ -3,6 +3,8 @@ package events
 import (
 	"crypto/tls"
 	"fast-https/modules/cache"
+
+	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
@@ -63,7 +65,7 @@ func Change_header(tmpByte []byte) ([]byte, string, string) {
 }
 
 // fast-https will send data to real server and get response from target
-func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int) {
+func get_data_from_server(ev *core.Event, proxyaddr string, data []byte) ([]byte, int) {
 	if !strings.Contains(proxyaddr, ":") {
 		proxyaddr = proxyaddr + ":80"
 	}
@@ -82,7 +84,7 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 	_, err = ev.RR.ProxyConn.Write(data)
 	if err != nil {
 		ev.RR.ProxyConn.Close() // close proxy connection
-		close(ev)               // close event connection
+		ev.Close()              // close event connection
 		message.PrintWarn("[Proxy event]: Can't write to "+proxyaddr, err.Error())
 		return nil, 2 // can't write
 	}
@@ -97,7 +99,7 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 				break
 			} else {
 				ev.RR.ProxyConn.Close()
-				close(ev)
+				ev.Close()
 				message.PrintWarn("[Proxy event]: Can't read from "+proxyaddr, err.Error())
 				return nil, 3 // can't read
 			}
@@ -121,7 +123,7 @@ func get_data_from_server(ev *Event, proxyaddr string, data []byte) ([]byte, int
 }
 
 // fast-https will send data to real server and get response from target
-func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte, int) {
+func get_data_from_ssl_server(ev *core.Event, proxyaddr string, data []byte) ([]byte, int) {
 	if !strings.Contains(proxyaddr, ":") {
 		proxyaddr = proxyaddr + ":443"
 	}
@@ -176,7 +178,7 @@ func get_data_from_ssl_server(ev *Event, proxyaddr string, data []byte) ([]byte,
 	return finalData, 0 // no error
 }
 
-func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *Event) {
+func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *core.Event) {
 	var res []byte
 	var err int
 
@@ -201,14 +203,14 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *Event) {
 
 	// proxy server return valid data
 	if ev.RR.Req_.Is_keepalive() {
-		write_bytes(ev, res)
+		ev.Write_bytes(res)
 		Handle_event(ev)
 	} else {
 		write_bytes_close(ev, res)
 	}
 }
 
-func Proxy_event(cfg listener.ListenCfg, ev *Event) {
+func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req_.Byte_row()
 
 	configCache := true
@@ -233,7 +235,7 @@ func Proxy_event(cfg listener.ListenCfg, ev *Event) {
 		}
 		// proxy server return valid data
 		if ev.RR.Req_.Is_keepalive() {
-			write_bytes(ev, res)
+			ev.Write_bytes(res)
 			Handle_event(ev)
 		} else {
 			write_bytes_close(ev, res)

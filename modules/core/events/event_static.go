@@ -3,6 +3,7 @@ package events
 import (
 	"fast-https/config"
 	"fast-https/modules/cache"
+	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
@@ -20,7 +21,7 @@ const (
 // if Content-Type is close, we write bytes and close this connection
 // Recursion "Handle_event" isn't a problem, because it
 // will pause when TCP buffer is None.
-func Static_event(cfg listener.ListenCfg, ev *Event) {
+func Static_event(cfg listener.ListenCfg, ev *core.Event) {
 
 	path := ev.RR.OriginPath
 	if cfg.Path != "/" {
@@ -32,9 +33,9 @@ func Static_event(cfg listener.ListenCfg, ev *Event) {
 	if ev.RR.Req_.Is_keepalive() {
 		res := get_res_bytes(cfg, path, ev.RR.Req_.Get_header("Connection"), ev)
 		if res == -1 {
-			write_bytes(ev, response.Default_not_found())
+			ev.Write_bytes(response.Default_not_found())
 		} else {
-			write_bytes(ev, ev.RR.Res_.Generate_response())
+			ev.Write_bytes(ev.RR.Res_.Generate_response())
 		}
 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
@@ -43,16 +44,16 @@ func Static_event(cfg listener.ListenCfg, ev *Event) {
 	} else {
 		res := get_res_bytes(cfg, path, ev.RR.Req_.Get_header("Connection"), ev)
 		if res == -1 {
-			write_bytes(ev, response.Default_not_found())
+			ev.Write_bytes(response.Default_not_found())
 		} else {
-			write_bytes(ev, ev.RR.Res_.Generate_response())
+			ev.Write_bytes(ev.RR.Res_.Generate_response())
 		}
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 		ev.Log = ""
 	}
 }
 
-func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, ev *Event) int {
+func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, ev *core.Event) int {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }
@@ -118,7 +119,7 @@ func get_content_type(path string) string {
 		sep := "?"
 		index := strings.Index(pointAfter, sep)
 		if index != -1 { // if "?" exists
-			pointAfter = pointAfter[:index] // delete chars from "?"
+			pointAfter = pointAfter[:index] // delete chars from "?" to the end of string
 		}
 		secondFind := config.GContentTypeMap[pointAfter]
 		if secondFind != "" {
