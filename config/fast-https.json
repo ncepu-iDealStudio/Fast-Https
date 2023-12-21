@@ -8,10 +8,16 @@
       {
         "listen": 8080,
         "server_name": "localhost",
+        "blaklist": ["192.168.1.1-192.168.1.99", "59.65.232.244,59.66.66.66", "88.88.8.8"],
         "location": [
           {
             "url": "/x{3}/999",
             "type": "local",
+            "limit": {
+              "mem":10,
+              "rate":20,
+              "burst":20
+            },
             "root": "./httpdoc/root",
             "index":["index.html", "index.htm"] 
           }
@@ -37,7 +43,8 @@
         "location": [
           {
             "url": "/",
-            "type": "local",
+            "type": "proxy",
+            "proxy_pass": "http://127.0.0.1:5000",
             "root": "./httpdoc/root",
             "index":["index.html", "index.htm"] 
           }
@@ -45,7 +52,7 @@
       },
       {
         "listen": 9090,
-        "server_name": "192.168.11.89",
+        "server_name": "localhost",
         "location": [
           {
             "url": "/",
