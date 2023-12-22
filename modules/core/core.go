@@ -34,6 +34,14 @@ type Event struct {
 	RR       RRcircle
 }
 
+func NewEvent(l listener.Listener, conn net.Conn) *Event {
+	return &Event{
+		Conn:     conn,
+		Lis_info: l,
+		Timer:    nil,
+	}
+}
+
 func (ev *Event) Log_append(log string) {
 	ev.Log = ev.Log + log
 }

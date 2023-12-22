@@ -101,5 +101,5 @@ func (cl *CountLimit) Insert1(ipstr string) bool {
 func CountHandler(rr core.RRcircle) {
 	message.PrintWarn(rr.Ev.Conn.RemoteAddr().String(), "INFORMAL Event"+rr.Ev.Log,
 		"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
-	rr.Ev.Write_bytes_close(response.Default_not_found())
+	rr.Ev.Write_bytes_close(response.Default_too_many())
 }

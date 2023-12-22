@@ -78,21 +78,21 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		}
 		s.set_conn_cfg(&conn)
 
-		each_event := core.Event{}
+		each_event := core.NewEvent(listener, conn)
 		each_event.Conn = conn
 		each_event.Lis_info = listener
 		each_event.Timer = nil
-		each_event.RR.Ev = &each_event // include each other
+		each_event.RR.Ev = each_event // include each other
 
-		if !safe.Bucket(&each_event) {
+		if !safe.Bucket(each_event) {
 			continue
 		}
-		if blacklist.IsInBlacklist(&each_event) {
+		if blacklist.IsInBlacklist(each_event) {
 			continue
 		}
 
 		syncCalculateSum := func() {
-			events.Handle_event(&each_event)
+			events.Handle_event(each_event)
 			wg.Done()
 		}
 		wg.Add(1)
