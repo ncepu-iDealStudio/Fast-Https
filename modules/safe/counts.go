@@ -1,11 +1,15 @@
 package safe
 
 import (
-	"fmt"
+	"fast-https/modules/core"
+	"fast-https/modules/core/response"
+	"fast-https/utils/message"
 	"time"
 )
 
 const defaultTimeLength = 1
+
+var Gcl = NewCountLimit(1000, 5)
 
 type CountLimit struct {
 	rate int
@@ -40,19 +44,19 @@ func (l *countIP) Allow(ipstr string) bool {
 		// 到时间了 重置计数器
 		l.Reset(now)
 		l.count++
-		fmt.Println("重置计数器之后", ipstr, "插入成功，现在count：", l.count)
+		// fmt.Println("重置计数器之后", ipstr, "插入成功，现在count：", l.count)
 
 		return true
 	} else {
 		if l.count == l.rate {
 			//达到请求个数限制
 			//拒绝访问
-			fmt.Println(ipstr, "拒绝插入")
+			// fmt.Println(ipstr, "拒绝插入")
 			return false
 		} else {
 			//没有达到速率限制，计数加1
 			l.count++
-			fmt.Println(ipstr, "插入成功，现在count：", l.count)
+			// fmt.Println(ipstr, "插入成功，现在count：", l.count)
 			return true
 		}
 
@@ -66,8 +70,6 @@ func NewCountLimit(num int, rate int) *CountLimit {
 		rate: rate,
 	}
 }
-
-var Gcl = NewCountLimit(1000, 5)
 
 func (cl *CountLimit) Insert1(ipstr string) bool {
 	// 获取 gMap 中的 countIP 结构体值
@@ -94,4 +96,10 @@ func (cl *CountLimit) Insert1(ipstr string) bool {
 
 	// 进行其他操作
 	return flag
+}
+
+func CountHandler(rr core.RRcircle) {
+	message.PrintWarn(rr.Ev.Conn.RemoteAddr().String(), "INFORMAL Event"+rr.Ev.Log,
+		"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
+	rr.Ev.Write_bytes_close(response.Default_not_found())
 }

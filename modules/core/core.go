@@ -21,7 +21,7 @@ type RRcircle struct {
 	OriginPath   string
 	PathLocation []int
 	ProxyConn    net.Conn
-	// Handler
+	Ev           *Event
 }
 
 // each request event is saved in this struct
@@ -34,6 +34,14 @@ type Event struct {
 	RR       RRcircle
 }
 
+func (ev *Event) Log_append(log string) {
+	ev.Log = ev.Log + log
+}
+
+func (ev *Event) Log_clear() {
+	ev.Log = ""
+}
+
 func (ev *Event) Write_bytes(data []byte) {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
@@ -43,7 +51,7 @@ func (ev *Event) Write_bytes(data []byte) {
 				message.PrintWarn("write timeout")
 				return
 			}
-			fmt.Println("Error writing to client 193:", err)
+			fmt.Println("Error writing to client 46:", err)
 			return
 		}
 		data = data[n:]
@@ -54,7 +62,7 @@ func (ev *Event) Write_bytes(data []byte) {
 func (ev *Event) Close() {
 	err := ev.Conn.Close()
 	if err != nil {
-		fmt.Println("Error Close:", err)
+		fmt.Println("Error Close 57:", err)
 	}
 }
 

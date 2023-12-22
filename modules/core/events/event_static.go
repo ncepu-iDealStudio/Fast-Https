@@ -38,8 +38,9 @@ func Static_event(cfg listener.ListenCfg, ev *core.Event) {
 			ev.Write_bytes(ev.RR.Res_.Generate_response())
 		}
 
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		log_clear(ev)
+		message.PrintAccess(ev.Conn.RemoteAddr().String(),
+			"STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+		ev.Log_clear()
 		Handle_event(ev) // recursion
 	} else {
 		res := get_res_bytes(cfg, path, ev.RR.Req_.Get_header("Connection"), ev)
@@ -48,12 +49,14 @@ func Static_event(cfg listener.ListenCfg, ev *core.Event) {
 		} else {
 			ev.Write_bytes(ev.RR.Res_.Generate_response())
 		}
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		log_clear(ev)
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log,
+			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+		ev.Log_clear()
 	}
 }
 
-func get_res_bytes(lisdata listener.ListenCfg, path string, connection string, ev *core.Event) int {
+func get_res_bytes(lisdata listener.ListenCfg, path string, connection string,
+	ev *core.Event) int {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }
@@ -119,7 +122,8 @@ func get_content_type(path string) string {
 		sep := "?"
 		index := strings.Index(pointAfter, sep)
 		if index != -1 { // if "?" exists
-			pointAfter = pointAfter[:index] // delete chars from "?" to the end of string
+			// delete chars from "?" to the end of string
+			pointAfter = pointAfter[:index]
 		}
 		secondFind := config.GContentTypeMap[pointAfter]
 		if secondFind != "" {

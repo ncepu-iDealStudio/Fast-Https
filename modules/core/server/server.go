@@ -82,6 +82,7 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		each_event.Conn = conn
 		each_event.Lis_info = listener
 		each_event.Timer = nil
+		each_event.RR.Ev = &each_event // include each other
 
 		if !safe.Bucket(&each_event) {
 			continue

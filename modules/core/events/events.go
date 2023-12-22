@@ -29,19 +29,18 @@ func Handle_event(ev *core.Event) {
 	if process_request(ev) == 0 {
 		return // client close
 	}
-	log_append(ev, " "+ev.RR.Req_.Method)
-	log_append(ev, " "+ev.RR.Req_.Path+" \""+ev.RR.Req_.Get_header("Host")+"\"")
+	ev.Log_append(" " + ev.RR.Req_.Method)
+	ev.Log_append(" " + ev.RR.Req_.Path + " \"" + ev.RR.Req_.Get_header("Host") + "\"")
 
 	cfg, ok := FliterHostPath(ev)
 	if !ok {
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "INFORMAL Event(404)"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "INFORMAL Event(404)"+ev.Log,
+			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 		ev.Write_bytes_close(response.Default_not_found())
 	} else {
 
 		if !safe.Gcl.Insert1(ev.Conn.RemoteAddr().String()) {
-			message.PrintWarn(ev.Conn.RemoteAddr().String(), "INFORMAL Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-			write_bytes_close(ev, response.Default_not_found())
+			safe.CountHandler(ev.RR)
 			return
 		}
 
@@ -60,7 +59,6 @@ func Handle_event(ev *core.Event) {
 			return
 		}
 	}
-
 }
 
 func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
@@ -161,14 +159,6 @@ func process_request(ev *core.Event) int {
 	return 1
 }
 
-func log_append(ev *core.Event, log string) {
-	ev.Log = ev.Log + log
-}
-
-func log_clear(ev *core.Event) {
-	ev.Log = ""
-}
-
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
@@ -190,10 +180,4 @@ func read_data(ev *core.Event) ([]byte, string) {
 	str_row := string(buffer[:n])
 	// buffer = buffer[:n]
 	return buffer, str_row // return row str or bytes
-}
-
-// write row bytes and close
-func write_bytes_close(ev *core.Event, data []byte) {
-	ev.Write_bytes(data)
-	ev.Close()
 }

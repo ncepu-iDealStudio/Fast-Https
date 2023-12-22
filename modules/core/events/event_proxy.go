@@ -25,7 +25,8 @@ func Change_header(tmpByte []byte) ([]byte, string, string) {
 	var res []byte
 
 	for i = 0; i < len(tmpByte)-4; i++ {
-		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) && tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
+		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) &&
+			tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
 			break
 		}
 		header[i] = tmpByte[i]
@@ -65,7 +66,9 @@ func Change_header(tmpByte []byte) ([]byte, string, string) {
 }
 
 // fast-https will send data to real server and get response from target
-func get_data_from_server(ev *core.Event, proxyaddr string, data []byte) ([]byte, int) {
+func get_data_from_server(ev *core.Event, proxyaddr string,
+	data []byte) ([]byte, int) {
+
 	if !strings.Contains(proxyaddr, ":") {
 		proxyaddr = proxyaddr + ":80"
 	}
@@ -112,18 +115,21 @@ func get_data_from_server(ev *core.Event, proxyaddr string, data []byte) ([]byte
 
 	finalData, head_code, b_len := Change_header(resData)
 
-	log_append(ev, " "+head_code+" "+b_len)
+	ev.Log_append(" " + head_code + " " + b_len)
 
 	if !ev.RR.Req_.Is_keepalive() { // connection close
 		ev.RR.ProxyConn.Close()
 	}
 
-	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+ev.Log,
+		"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	return finalData, 0 // no error
 }
 
 // fast-https will send data to real server and get response from target
-func get_data_from_ssl_server(ev *core.Event, proxyaddr string, data []byte) ([]byte, int) {
+func get_data_from_ssl_server(ev *core.Event, proxyaddr string,
+	data []byte) ([]byte, int) {
+
 	if !strings.Contains(proxyaddr, ":") {
 		proxyaddr = proxyaddr + ":443"
 	}
@@ -168,17 +174,19 @@ func get_data_from_ssl_server(ev *core.Event, proxyaddr string, data []byte) ([]
 
 	finalData, head_code, b_len := Change_header(resData)
 
-	log_append(ev, " "+head_code+" "+b_len)
+	ev.Log_append(" " + head_code + " " + b_len)
 
 	if !ev.RR.Req_.Is_keepalive() {
 		tlsConn.Close()
 	}
 
-	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTPS Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTPS Event"+ev.Log,
+		"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	return finalData, 0 // no error
 }
 
-func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *core.Event) {
+func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
+	ev *core.Event) {
 	var res []byte
 	var err int
 
@@ -195,12 +203,13 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *core.Event) {
 		}
 		// Server error
 		if err != 0 {
-			write_bytes_close(ev, response.Default_server_error())
+			ev.Write_bytes_close(response.Default_server_error())
 			return
 		}
 		CacheData(ev, cfg, "200", res, len(res))
 	} else {
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY Event(Cache)"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY Event(Cache)"+ev.Log,
+			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	}
 
 	// proxy server return valid data
@@ -208,7 +217,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg, ev *core.Event) {
 		ev.Write_bytes(res)
 		Handle_event(ev)
 	} else {
-		write_bytes_close(ev, res)
+		ev.Write_bytes_close(res)
 	}
 
 }
@@ -233,7 +242,7 @@ func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {
 			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)
 		}
 		if err != 0 {
-			write_bytes_close(ev, response.Default_server_error())
+			ev.Write_bytes_close(response.Default_server_error())
 			return
 		}
 		// proxy server return valid data
@@ -241,7 +250,7 @@ func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {
 			ev.Write_bytes(res)
 			Handle_event(ev)
 		} else {
-			write_bytes_close(ev, res)
+			ev.Write_bytes_close(res)
 		}
 
 	}
