@@ -220,8 +220,7 @@ func process() error {
 	// 遍历每个服务器块，并解析为 Server 结构体
 	serverKeys := viper.GetStringSlice("http.server")
 	for serverKey := range serverKeys {
-		//pathPrefix := fmt.Sprintf("http.server.%d.location", serverKey)
-		//locationKeys := viper.GetStringSlice(pathPrefix)
+
 		server := Server{
 			Listen:            viper.GetString(fmt.Sprintf("http.server.%d.listen", serverKey)),
 			ServerName:        viper.GetString(fmt.Sprintf("http.server.%d.server_name", serverKey)),
@@ -318,7 +317,7 @@ func process() error {
 	}
 	fast_https.Servers = servers
 
-	fmt.Println(fast_https)
+	//fmt.Println(fast_https)
 	GConfig = fast_https
 
 	return nil
