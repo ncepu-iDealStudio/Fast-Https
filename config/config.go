@@ -247,6 +247,12 @@ func process() error {
 					Key:     viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.key", pathPrefix, locationKey)),
 					MaxSize: viper.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size", pathPrefix, locationKey)),
 				},
+				Limit: PathLimit{
+					Size:    viper.GetInt(fmt.Sprintf("%s.%d.limit.mem", pathPrefix, locationKey)),
+					Rate:    viper.GetInt(fmt.Sprintf("%s.%d.limit.rate", pathPrefix, locationKey)),
+					Burst:   viper.GetInt(fmt.Sprintf("%s.%d.limit.burst", pathPrefix, locationKey)),
+					Nodelay: viper.GetBool(fmt.Sprintf("%s.%d.limit.mem", pathPrefix, locationKey)),
+				},
 			}
 			TempZip := viper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
 			if len(TempZip) > 0 {
