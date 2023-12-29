@@ -5,7 +5,6 @@ import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
-	"fmt"
 	"time"
 )
 
@@ -14,7 +13,6 @@ const defaultTimeLength = 1
 var Gcl CountLimit
 
 func init_counts() {
-	fmt.Println(config.GConfig.Servers[0].Path[0].Limit.Size)
 	Gcl = *NewCountLimit(config.GConfig.Servers[0].Path[0].Limit.Size*1024*1024/16, 4)
 }
 
