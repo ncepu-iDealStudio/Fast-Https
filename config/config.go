@@ -50,8 +50,9 @@ type PathLimit struct {
 }
 
 type ServerLimit struct {
-	BlackList string
+	BlackList []string
 	Rate      int
+	Burst     int
 }
 
 type Path struct {
@@ -219,11 +220,20 @@ func process() error {
 	// 遍历每个服务器块，并解析为 Server 结构体
 	serverKeys := viper.GetStringSlice("http.server")
 	for serverKey := range serverKeys {
+		//pathPrefix := fmt.Sprintf("http.server.%d.location", serverKey)
+		//locationKeys := viper.GetStringSlice(pathPrefix)
 		server := Server{
 			Listen:            viper.GetString(fmt.Sprintf("http.server.%d.listen", serverKey)),
 			ServerName:        viper.GetString(fmt.Sprintf("http.server.%d.server_name", serverKey)),
 			SSLCertificate:    viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate", serverKey)),
 			SSLCertificateKey: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate_key", serverKey)),
+
+			Limit: ServerLimit{
+
+				BlackList: viper.GetStringSlice(fmt.Sprintf("http.server.%d.blaklist", serverKey)),
+				Rate:      viper.GetInt(fmt.Sprintf("http.server.%d.limit", serverKey)),
+				Burst:     viper.GetInt(fmt.Sprintf("http.server.%d.burst", serverKey)),
+			},
 		}
 
 		pathPrefix := fmt.Sprintf("http.server.%d.location", serverKey)
@@ -308,7 +318,7 @@ func process() error {
 	}
 	fast_https.Servers = servers
 
-	// fmt.Println(fast_https)
+	fmt.Println(fast_https)
 	GConfig = fast_https
 
 	return nil

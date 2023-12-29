@@ -1,21 +1,23 @@
 package safe
 
 import (
+	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
-	"time"
-
 	"golang.org/x/time/rate"
+	"time"
 )
 
 // read global config
 
-var g_limit = rate.Every(3 * time.Millisecond)
-var g_limiter = rate.NewLimiter(g_limit, 20)
+var g_limit rate.Limit
+var g_limiter *rate.Limiter
 
-func init() {
-
+func limitInit() {
+	temp := int((1 / config.GConfig.Servers[0].Limit.Rate) * 1000)
+	g_limit = rate.Every(time.Duration(temp) * time.Millisecond)
+	g_limiter = rate.NewLimiter(g_limit, config.GConfig.Servers[0].Limit.Burst)
 }
 
 func Bucket(ev *core.Event) bool {
