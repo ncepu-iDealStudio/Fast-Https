@@ -13,7 +13,7 @@ const defaultTimeLength = 1
 var Gcl CountLimit
 
 func init_counts() {
-	Gcl = *NewCountLimit(0, 400)
+	Gcl = *NewCountLimit(0, config.GConfig.Servers[0].Path[0].Limit.Rate)
 }
 
 type CountLimit struct {
