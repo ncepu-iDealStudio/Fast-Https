@@ -1,19 +1,27 @@
 package safe
 
 import (
+	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
+	"fmt"
 	"time"
 )
 
 const defaultTimeLength = 1
 
-var Gcl = NewCountLimit(1000, 5)
+var Gcl CountLimit
+
+func init_counts() {
+	fmt.Println(config.GConfig.Servers[0].Path[0].Limit.Size)
+	Gcl = *NewCountLimit(config.GConfig.Servers[0].Path[0].Limit.Size*1024*1024/16, 4)
+}
 
 type CountLimit struct {
 	rate int
 	num  int
+	// rw_mutex sync.RWMutex
 	gMap map[string]countIP
 }
 
@@ -73,9 +81,11 @@ func NewCountLimit(num int, rate int) *CountLimit {
 
 func (cl *CountLimit) Insert1(ipstr string) bool {
 	// 获取 gMap 中的 countIP 结构体值
+	// cl.rw_mutex.RLock()
 	a, ok := cl.gMap[ipstr]
 	var flag bool
 	if cl.num > 10000 {
+		// cl.rw_mutex.RUnlock()
 		return true
 	}
 
@@ -91,15 +101,17 @@ func (cl *CountLimit) Insert1(ipstr string) bool {
 		cl.gMap[ipstr] = countIP{int(time.Now().Unix()), int(time.Now().Unix()) + defaultTimeLength, 0, cl.rate}
 		a = cl.gMap[ipstr] // 获取新添加的 countIP 结构体值的引用
 		cl.num++
+		// cl.rw_mutex.RUnlock()
 		return true
 	}
 
+	// cl.rw_mutex.RUnlock()
 	// 进行其他操作
 	return flag
 }
 
 func CountHandler(rr core.RRcircle) {
-	message.PrintWarn(rr.Ev.Conn.RemoteAddr().String(), "INFORMAL Event"+rr.Ev.Log,
+	message.PrintWarn(rr.Ev.Conn.RemoteAddr().String(), " INFORMAL Event(too many)"+rr.Ev.Log,
 		"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
 	rr.Ev.Write_bytes_close(response.Default_too_many())
 }
