@@ -10,7 +10,7 @@
         "server_name": "localhost",
         "limit": 20,
         "burst":20,
-        "blaklist": ["192.168.1.1-192.168.1.99", "59.65.232.244,59.66.66.66", "88.88.8.8"],
+        "blaklist": ["192.168.1.1-192.168.1.99", "59.65.232.244,59.66.66.66", "127.0.0.1"],
         "location": [
           {
             "url": "/x{3}/999",
@@ -61,7 +61,7 @@
             "type": "proxy",
             "proxy_pass": "http://club.quwancode.com",
             "proxy_cache": {
-              "path": "/home/pzc/Project/Fast-https/fast-https/.cache",
+              "path": ".cache",
               "valid": ["200:1h", "304:1h", "any:30m"],
               "key": "$request_method$host$request_uri",
               "max_size": 1024

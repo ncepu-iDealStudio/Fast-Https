@@ -64,8 +64,6 @@ func (s *Server) set_conn_cfg(conn *net.Conn) {
 func (s *Server) serve_listener(listener listener.Listener) {
 	// var wg sync.WaitGroup
 
-	blacklist := safe.NewBlacklist()
-
 	for !s.Shutdown {
 
 		conn, err := listener.Lfd.Accept()
@@ -84,7 +82,8 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		if !safe.Bucket(each_event) {
 			continue
 		}
-		if blacklist.IsInBlacklist(each_event) {
+
+		if safe.IsInBlacklist(each_event) {
 			continue
 		}
 		events.Handle_event(each_event)

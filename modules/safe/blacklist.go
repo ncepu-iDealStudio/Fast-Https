@@ -1,6 +1,7 @@
 package safe
 
 import (
+	"fast-https/config"
 	"fast-https/modules/core"
 
 	"fmt"
@@ -14,6 +15,8 @@ type Blacklist struct {
 	ipRanges []string
 	mu       sync.RWMutex
 }
+
+var g_list Blacklist
 
 // 创建一个新的黑名单
 func NewBlacklist() *Blacklist {
@@ -134,8 +137,9 @@ func (b *Blacklist) isInBlacklist(ipOrRange string) bool {
 }
 
 // api
-func (b *Blacklist) IsInBlacklist(ev *core.Event) bool {
-	if b.isInBlacklist(ev.Conn.RemoteAddr().String()) {
+func IsInBlacklist(ev *core.Event) bool {
+	// fmt.Println(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0])
+	if g_list.isInBlacklist(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
 		return true
 	} else {
 		return false
@@ -194,4 +198,13 @@ func nextIP(ip net.IP) net.IP {
 	}
 
 	return next
+}
+
+func blacklist_init() {
+	g_list = *NewBlacklist()
+	for _, value := range config.GConfig.Servers[0].Limit.BlackList {
+		g_list.Add(value)
+	}
+
+	fmt.Println(g_list.isInBlacklist("127.0.0.1"))
 }
