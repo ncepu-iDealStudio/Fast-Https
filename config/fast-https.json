@@ -8,20 +8,19 @@
       {
         "listen": 8080,
         "server_name": "localhost",
-        "limit": 20,
-        "burst":20,
-        "blaklist": ["192.168.1.1-192.168.1.99", "59.65.232.244,59.66.66.66", "127.0.0.1"],
+        "limit": 10000,
+        "burst": 5000,
+        "blaklist": ["192.168.11.1-192.168.11.150", "192.168.1.151,59.66.66.66", "192.168.1.151"],
         "location": [
           {
-            "url": "/x{3}/999",
-            "type": "local",
+            "url": "/",
+            "type": "proxy",
+            "proxy_pass": "http://127.0.0.1:80",
             "limit": {
               "mem":10,
-              "rate":20,
-              "burst":20
-            },
-            "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"] 
+              "rate":200,
+              "burst":2000
+            }
           }
         ]
       },

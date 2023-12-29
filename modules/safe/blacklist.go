@@ -3,6 +3,7 @@ package safe
 import (
 	"fast-https/config"
 	"fast-https/modules/core"
+	"fast-https/modules/core/response"
 
 	"fmt"
 	"net"
@@ -140,6 +141,7 @@ func (b *Blacklist) isInBlacklist(ipOrRange string) bool {
 func IsInBlacklist(ev *core.Event) bool {
 	// fmt.Println(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0])
 	if g_list.isInBlacklist(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
+		ev.Write_bytes_close(response.Default_black_ban())
 		return true
 	} else {
 		return false
@@ -206,5 +208,5 @@ func blacklist_init() {
 		g_list.Add(value)
 	}
 
-	fmt.Println(g_list.isInBlacklist("127.0.0.1"))
+	// fmt.Println(g_list.isInBlacklist("127.0.0.1"))
 }

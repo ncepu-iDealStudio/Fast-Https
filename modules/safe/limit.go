@@ -5,8 +5,10 @@ import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
-	"golang.org/x/time/rate"
+	"fmt"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // read global config
@@ -15,9 +17,13 @@ var g_limit rate.Limit
 var g_limiter *rate.Limiter
 
 func limitInit() {
-	temp := int((1 / config.GConfig.Servers[0].Limit.Rate) * 1000)
-	g_limit = rate.Every(time.Duration(temp) * time.Millisecond)
+	fmt.Println(config.GConfig.Servers[0].Limit.Rate, config.GConfig.Servers[0].Limit.Burst)
+	temp := float64(1.00 / float64(config.GConfig.Servers[0].Limit.Rate) * 1000)
+	g_limit = rate.Every(time.Duration(int(temp)) * time.Millisecond)
 	g_limiter = rate.NewLimiter(g_limit, config.GConfig.Servers[0].Limit.Burst)
+
+	// g_limit = rate.Every(1 * time.Millisecond)
+	// g_limiter = rate.NewLimiter(g_limit, 50)
 }
 
 func Bucket(ev *core.Event) bool {
@@ -28,6 +34,8 @@ func Bucket(ev *core.Event) bool {
 	} else {
 		// write <403> and close
 		message.PrintWarn(ev.Conn.RemoteAddr().String(), " INFORMAL Event(Bucket)"+ev.Log, "\"")
+		buffer := make([]byte, 1024*4)
+		ev.Conn.Read(buffer)
 		ev.Write_bytes_close(response.Default_too_many())
 		return false
 	}

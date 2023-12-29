@@ -13,7 +13,7 @@ const defaultTimeLength = 1
 var Gcl CountLimit
 
 func init_counts() {
-	Gcl = *NewCountLimit(config.GConfig.Servers[0].Path[0].Limit.Size*1024*1024/16, 4)
+	Gcl = *NewCountLimit(0, 400)
 }
 
 type CountLimit struct {
@@ -80,9 +80,10 @@ func NewCountLimit(num int, rate int) *CountLimit {
 func (cl *CountLimit) Insert1(ipstr string) bool {
 	// 获取 gMap 中的 countIP 结构体值
 	// cl.rw_mutex.RLock()
+	// fmt.Println(ipstr)
 	a, ok := cl.gMap[ipstr]
 	var flag bool
-	if cl.num > 10000 {
+	if cl.num > config.GConfig.Servers[0].Path[0].Limit.Size*1024*1024/16 {
 		// cl.rw_mutex.RUnlock()
 		return true
 	}

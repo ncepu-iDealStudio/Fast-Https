@@ -39,7 +39,7 @@ func Handle_event(ev *core.Event) {
 		ev.Write_bytes_close(response.Default_not_found())
 	} else {
 
-		if !safe.Gcl.Insert1(ev.Conn.RemoteAddr().String()) {
+		if !safe.Gcl.Insert1(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
 			safe.CountHandler(ev.RR)
 			return
 		}
