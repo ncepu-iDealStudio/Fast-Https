@@ -12,11 +12,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
-
-	"github.com/panjf2000/ants"
 )
 
 type Server struct {
@@ -65,7 +62,7 @@ func (s *Server) set_conn_cfg(conn *net.Conn) {
 
 // listen and serve one port
 func (s *Server) serve_listener(listener listener.Listener) {
-	var wg sync.WaitGroup
+	// var wg sync.WaitGroup
 
 	blacklist := safe.NewBlacklist()
 
@@ -90,13 +87,14 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		if blacklist.IsInBlacklist(each_event) {
 			continue
 		}
+		events.Handle_event(each_event)
 
-		syncCalculateSum := func() {
-			events.Handle_event(each_event)
-			wg.Done()
-		}
-		wg.Add(1)
-		_ = ants.Submit(syncCalculateSum)
+		// syncCalculateSum := func() {
+		// 	events.Handle_event(each_event)
+		// 	wg.Done()
+		// }
+		// wg.Add(1)
+		// _ = ants.Submit(syncCalculateSum)
 	}
 }
 
