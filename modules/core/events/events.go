@@ -30,11 +30,13 @@ func Handle_event(ev *core.Event) {
 		return // client close
 	}
 	ev.Log_append(" " + ev.RR.Req_.Method)
-	ev.Log_append(" " + ev.RR.Req_.Path + " \"" + ev.RR.Req_.Get_header("Host") + "\"")
+	ev.Log_append(" " + ev.RR.Req_.Path + " \"" +
+		ev.RR.Req_.Get_header("Host") + "\"")
 
 	cfg, ok := FliterHostPath(ev)
 	if !ok {
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "INFORMAL Event(404)"+ev.Log,
+		message.PrintAccess(ev.Conn.RemoteAddr().String(),
+			"INFORMAL Event(404)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 		ev.Write_bytes_close(response.Default_not_found())
 	} else {
@@ -44,7 +46,7 @@ func Handle_event(ev *core.Event) {
 			return
 		}
 
-		switch cfg.Proxy {
+		switch cfg.Type {
 		case 0:
 			if HandelSlash(cfg, ev) {
 				return
@@ -101,7 +103,9 @@ func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
 }
 
 // to do: improve this function
-func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg, resCode string) (md5 string, expire int) {
+func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg,
+	resCode string) (md5 string, expire int) {
+
 	cacheKeyRule := cfg.ProxyCache.Key
 	keys := strings.Split(cacheKeyRule, "$")
 	rule := map[string]string{ // 配置缓存key字段的生成规则
@@ -135,11 +139,15 @@ func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg, resCode string) 
 	return
 }
 
-func CacheData(ev *core.Event, cfg listener.ListenCfg, resCode string, data []byte, size int) {
+func CacheData(ev *core.Event, cfg listener.ListenCfg,
+	resCode string, data []byte, size int) {
+
 	// according to usr's config, create a key
 	uriStringMd5, expireTime := ProcessCacheConfig(ev, cfg, resCode)
-	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime, cfg.ProxyCache.Path, data, size)
-	// fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
+	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime,
+		cfg.ProxyCache.Path, data, size)
+	// fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path,
+	// cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
 }
 
 func process_request(ev *core.Event) int {

@@ -1,7 +1,7 @@
 package safe
 
 func Init() {
-	init_counts()
-	limitInit()
+	counts_init()
+	limit_init()
 	blacklist_init()
 }

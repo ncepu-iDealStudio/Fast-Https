@@ -196,7 +196,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 
 	if !flag {
 
-		if cfg.Proxy == 1 { // http proxy
+		if cfg.Type == 1 { // http proxy
 			res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
 		} else {
 			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)
@@ -236,7 +236,7 @@ func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {
 		var res []byte
 		var err int
 
-		if cfg.Proxy == 1 { // http proxy
+		if cfg.Type == 1 { // http proxy
 			res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
 		} else {
 			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)

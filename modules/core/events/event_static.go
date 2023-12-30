@@ -40,23 +40,25 @@ func Static_event(cfg listener.ListenCfg, ev *core.Event) {
 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+
 		ev.Log_clear()
 		Handle_event(ev) // recursion
 	} else {
 		res := get_res_bytes(cfg, path, ev.RR.Req_.Get_header("Connection"), ev)
 		if res == -1 {
-			ev.Write_bytes(response.Default_not_found())
+			ev.Write_bytes_close(response.Default_not_found())
 		} else {
-			ev.Write_bytes(ev.RR.Res_.Generate_response())
+			ev.Write_bytes_close(ev.RR.Res_.Generate_response())
 		}
+
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 		ev.Log_clear()
 	}
 }
 
-func get_res_bytes(lisdata listener.ListenCfg, path string, connection string,
-	ev *core.Event) int {
+func get_res_bytes(lisdata listener.ListenCfg, path string,
+	connection string, ev *core.Event) int {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }

@@ -16,7 +16,7 @@ import (
 var g_limit rate.Limit
 var g_limiter *rate.Limiter
 
-func limitInit() {
+func limit_init() {
 	fmt.Println(config.GConfig.Servers[0].Limit.Rate, config.GConfig.Servers[0].Limit.Burst)
 	temp := float64(1.00 / float64(config.GConfig.Servers[0].Limit.Rate) * 1000)
 	g_limit = rate.Every(time.Duration(int(temp)) * time.Millisecond)
@@ -34,7 +34,7 @@ func Bucket(ev *core.Event) bool {
 	} else {
 		// write <403> and close
 		message.PrintWarn(ev.Conn.RemoteAddr().String(), " INFORMAL Event(Bucket)"+ev.Log, "\"")
-		buffer := make([]byte, 1024*4)
+		buffer := make([]byte, 1024)
 		ev.Conn.Read(buffer)
 		ev.Write_bytes_close(response.Default_too_many())
 		return false

@@ -12,7 +12,7 @@ const defaultTimeLength = 1
 
 var Gcl CountLimit
 
-func init_counts() {
+func counts_init() {
 	Gcl = *NewCountLimit(0, config.GConfig.Servers[0].Path[0].Limit.Rate)
 }
 
@@ -110,7 +110,8 @@ func (cl *CountLimit) Insert1(ipstr string) bool {
 }
 
 func CountHandler(rr core.RRcircle) {
-	message.PrintWarn(rr.Ev.Conn.RemoteAddr().String(), " INFORMAL Event(too many)"+rr.Ev.Log,
+	message.PrintWarn(rr.Ev.Conn.RemoteAddr().String(),
+		" INFORMAL Event(too many)"+rr.Ev.Log,
 		"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
 	rr.Ev.Write_bytes_close(response.Default_too_many())
 }
