@@ -154,7 +154,12 @@ func process_request(ev *core.Event) int {
 	// read data (bytes and str) from socket
 	byte_row, str_row := read_data(ev)
 	// save requte information to ev.RR.Req_
-	ev.RR.Req_ = request.Req_init()
+	if !ev.RR.CircleInit {
+		ev.RR.Req_ = request.Req_init()       // Create a request Object
+		ev.RR.Res_ = response.Response_init() // Create a res Object
+		ev.RR.CircleInit = true
+	}
+	// fmt.Printf("%p, %p", ev.RR.Req_, ev)
 	if byte_row == nil { // client closed
 		ev.Close()
 		return 0
@@ -175,7 +180,7 @@ func read_data(ev *core.Event) ([]byte, string) {
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
 		if err == io.EOF || n == 0 { // read None, remoteAddr is closed
-			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
+			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
 		opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))

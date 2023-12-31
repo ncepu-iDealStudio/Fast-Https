@@ -14,9 +14,12 @@ import (
 
 // request and response circle
 type RRcircle struct {
-	Req_      *request.Req
-	Res_      *response.Response
-	CircleNum int
+	Req_ *request.Req
+	Res_ *response.Response
+
+	CircleInit bool
+	IsCircle   bool // default is true
+	CircleNum  int
 	// uri after re
 	OriginPath   string
 	PathLocation []int

@@ -55,6 +55,12 @@ func (s *Server) sig_handler(signal os.Signal) {
 }
 
 // set connection confgure
+/*
+   The Conn interface also has deadline settings; either for the connection as a whole (SetDeadLine())
+   or specific to read or write calls (SetReadDeadLine() and SetWriteDeadLine()).
+   Note that the deadlines are fixed points in (wallclock) time. Unlike timeouts,
+   they don’t reset after a new activity. Each activity on the connection must therefore set a new deadline.
+*/
 func (s *Server) set_conn_cfg(conn *net.Conn) {
 	now := time.Now()
 	(*conn).SetDeadline(now.Add(time.Second * 30))
@@ -78,6 +84,8 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		each_event.Lis_info = listener
 		each_event.Timer = nil
 		each_event.RR.Ev = each_event // include each other
+		each_event.RR.IsCircle = true
+		each_event.RR.CircleInit = false
 
 		if !safe.Bucket(each_event) {
 			continue

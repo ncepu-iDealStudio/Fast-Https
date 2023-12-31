@@ -64,7 +64,6 @@ func get_res_bytes(lisdata listener.ListenCfg, path string,
 	// }
 	var file_data = cache.Get_data_from_cache(path)
 
-	ev.RR.Res_ = response.Response_init() // Create a res Object
 	ev.RR.Res_.Set_first_line(200, "OK")
 	ev.RR.Res_.Set_header("Server", "Fast-Https")
 	ev.RR.Res_.Set_header("Date", time.Now().String())
