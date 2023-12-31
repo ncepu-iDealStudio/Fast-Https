@@ -5,12 +5,9 @@ import (
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
-	"fast-https/utils/message"
 	"fmt"
 	"io"
 	"net"
-	"reflect"
-	"unsafe"
 )
 
 // request and response circle
@@ -25,7 +22,10 @@ type RRcircle struct {
 	OriginPath   string
 	PathLocation []int
 	ProxyConn    net.Conn
-	Ev           *Event
+
+	FliterHandler func(listener.ListenCfg, *Event) bool
+	RRHandler     func(listener.ListenCfg, *Event)
+	Ev            *Event
 }
 
 // each request event is saved in this struct
@@ -36,6 +36,12 @@ type Event struct {
 	Log      string
 	Type     uint64
 	RR       RRcircle
+}
+
+func (rr *RRcircle) RRHandlerInit(fliter func(listener.ListenCfg, *Event) bool,
+	handler func(listener.ListenCfg, *Event)) {
+	rr.FliterHandler = fliter
+	rr.RRHandler = handler
 }
 
 func NewEvent(l listener.Listener, conn net.Conn) *Event {
@@ -54,15 +60,39 @@ func (ev *Event) Log_clear() {
 	ev.Log = ""
 }
 
+// read data from EventFd
+// attention: row str only can be used when parse FirstLine or Headers
+// because request body maybe contaions '\0'
+func (ev *Event) Read_data() ([]byte, string) {
+	buffer := make([]byte, 1024*4)
+	n, err := ev.Conn.Read(buffer)
+	if err != nil {
+		if err == io.EOF || n == 0 { // read None, remoteAddr is closed
+			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
+			return nil, ""
+		}
+		// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+		// if opErr.Err.Error() == "i/o timeout" {
+		// 	message.PrintWarn("read timeout")
+		// 	return nil, ""
+		// }
+		fmt.Println("Error reading from client 176:", err)
+		return nil, ""
+	}
+	str_row := string(buffer[:n])
+	// buffer = buffer[:n]
+	return buffer, str_row // return row str or bytes
+}
+
 func (ev *Event) Write_bytes(data []byte) {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
-			opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-			if opErr.Err.Error() == "i/o timeout" {
-				message.PrintWarn("write timeout")
-				return
-			}
+			// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+			// if opErr.Err.Error() == "i/o timeout" {
+			// 	message.PrintWarn("write timeout")
+			// 	return
+			// }
 			fmt.Println("Error writing to client 46:", err)
 			return
 		}
@@ -81,27 +111,4 @@ func (ev *Event) Close() {
 func (ev *Event) Write_bytes_close(data []byte) {
 	ev.Write_bytes(data)
 	ev.Close()
-}
-
-// read data from EventFd
-// attention: row str only can be used when parse FirstLine or Headers
-// because request body maybe contaions '\0'
-func (ev *Event) Read_data() ([]byte, string) {
-	buffer := make([]byte, 1024*4)
-	n, err := ev.Conn.Read(buffer)
-	if err != nil {
-		if err == io.EOF || n == 0 { // read None, remoteAddr is closed
-			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
-			return nil, ""
-		}
-		// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-		// if opErr.Err.Error() == "i/o timeout" {
-		// 	message.PrintWarn("read timeout")
-		// 	return nil, ""
-		// }
-		fmt.Println("Error reading from client 176:", err)
-	}
-	str_row := string(buffer[:n])
-	// buffer = buffer[:n]
-	return buffer, str_row // return row str or bytes
 }

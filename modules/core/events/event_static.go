@@ -57,8 +57,8 @@ func Static_event(cfg listener.ListenCfg, ev *core.Event) {
 	}
 }
 
-func get_res_bytes(lisdata listener.ListenCfg, path string,
-	connection string, ev *core.Event) int {
+func get_res_bytes(lisdata listener.ListenCfg,
+	path string, connection string, ev *core.Event) int {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }

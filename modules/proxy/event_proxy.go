@@ -1,10 +1,11 @@
-package events
+package proxy
 
 import (
 	"crypto/tls"
 	"fast-https/modules/cache"
-
 	"fast-https/modules/core"
+	"fast-https/utils"
+
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
@@ -185,6 +186,54 @@ func get_data_from_ssl_server(ev *core.Event, proxyaddr string,
 	return finalData, 0 // no error
 }
 
+// to do: improve this function
+func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg,
+	resCode string) (md5 string, expire int) {
+
+	cacheKeyRule := cfg.ProxyCache.Key
+	keys := strings.Split(cacheKeyRule, "$")
+	rule := map[string]string{ // 配置缓存key字段的生成规则
+		"request_method": ev.RR.Req_.Method,
+		"request_uri":    ev.RR.Req_.Path,
+		"host":           ev.RR.Req_.Get_header("Host"),
+	}
+
+	ruleString := ""
+	for _, item := range keys {
+		str, ok := rule[item]
+		if !ok { // 未配置相应字段的生成规则，跳过即可
+			continue
+		}
+		ruleString += str
+	}
+	// fmt.Println("-------------------", ev.RR.Req_.Path)
+	// fmt.Println("generate cache key value=", ruleString)
+	md5 = cache.GetMd5(ruleString)
+
+	// convert ["200:1h", "304:1h", "any:30m"]
+	valid := cfg.ProxyCache.Valid
+	for _, c := range valid {
+		split := strings.Split(c, ":")
+		if split[0] != resCode || split[0] == "any" {
+			expire = utils.ParseTime(split[1])
+			// fmt.Println("generate cache expire time=", expire)
+			return
+		}
+	}
+	return
+}
+
+func CacheData(ev *core.Event, cfg listener.ListenCfg,
+	resCode string, data []byte, size int) {
+
+	// according to usr's config, create a key
+	uriStringMd5, expireTime := ProcessCacheConfig(ev, cfg, resCode)
+	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime,
+		cfg.ProxyCache.Path, data, size)
+	// fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path,
+	// cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
+}
+
 func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 	ev *core.Event) {
 	var res []byte
@@ -215,7 +264,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 	// proxy server return valid data
 	if ev.RR.Req_.Is_keepalive() {
 		ev.Write_bytes(res)
-		Handle_event(ev)
+		// events.Handle_event(ev)
 	} else {
 		ev.Write_bytes_close(res)
 	}
@@ -248,7 +297,7 @@ func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {
 		// proxy server return valid data
 		if ev.RR.Req_.Is_keepalive() {
 			ev.Write_bytes(res)
-			Handle_event(ev)
+			// events.Handle_event(ev)
 		} else {
 			ev.Write_bytes_close(res)
 		}
