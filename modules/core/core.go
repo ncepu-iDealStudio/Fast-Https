@@ -7,6 +7,7 @@ import (
 	"fast-https/modules/core/timer"
 	"fast-https/utils/message"
 	"fmt"
+	"io"
 	"net"
 	"reflect"
 	"unsafe"
@@ -80,4 +81,27 @@ func (ev *Event) Close() {
 func (ev *Event) Write_bytes_close(data []byte) {
 	ev.Write_bytes(data)
 	ev.Close()
+}
+
+// read data from EventFd
+// attention: row str only can be used when parse FirstLine or Headers
+// because request body maybe contaions '\0'
+func (ev *Event) Read_data() ([]byte, string) {
+	buffer := make([]byte, 1024*4)
+	n, err := ev.Conn.Read(buffer)
+	if err != nil {
+		if err == io.EOF || n == 0 { // read None, remoteAddr is closed
+			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
+			return nil, ""
+		}
+		// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+		// if opErr.Err.Error() == "i/o timeout" {
+		// 	message.PrintWarn("read timeout")
+		// 	return nil, ""
+		// }
+		fmt.Println("Error reading from client 176:", err)
+	}
+	str_row := string(buffer[:n])
+	// buffer = buffer[:n]
+	return buffer, str_row // return row str or bytes
 }

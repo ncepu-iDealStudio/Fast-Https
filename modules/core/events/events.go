@@ -9,13 +9,8 @@ import (
 	"fast-https/modules/safe"
 	"fast-https/utils"
 	"fast-https/utils/message"
-	"fmt"
-	"io"
-	"net"
-	"reflect"
 	"regexp"
 	"strings"
-	"unsafe"
 )
 
 // distribute event
@@ -152,7 +147,7 @@ func CacheData(ev *core.Event, cfg listener.ListenCfg,
 
 func process_request(ev *core.Event) int {
 	// read data (bytes and str) from socket
-	byte_row, str_row := read_data(ev)
+	byte_row, str_row := (ev).Read_data()
 	// save requte information to ev.RR.Req_
 	if !ev.RR.CircleInit {
 		ev.RR.Req_ = request.Req_init()       // Create a request Object
@@ -170,27 +165,4 @@ func process_request(ev *core.Event) int {
 		ev.RR.Req_.Parse_host(ev.Lis_info)
 	}
 	return 1
-}
-
-// read data from EventFd
-// attention: row str only can be used when parse FirstLine or Headers
-// because request body maybe contaions '\0'
-func read_data(ev *core.Event) ([]byte, string) {
-	buffer := make([]byte, 1024*4)
-	n, err := ev.Conn.Read(buffer)
-	if err != nil {
-		if err == io.EOF || n == 0 { // read None, remoteAddr is closed
-			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
-			return nil, ""
-		}
-		opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-		if opErr.Err.Error() == "i/o timeout" {
-			message.PrintWarn("read timeout")
-			return nil, ""
-		}
-		fmt.Println("Error reading from client 176:", err)
-	}
-	str_row := string(buffer[:n])
-	// buffer = buffer[:n]
-	return buffer, str_row // return row str or bytes
 }
