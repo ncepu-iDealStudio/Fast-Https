@@ -50,9 +50,8 @@ type PathLimit struct {
 }
 
 type ServerLimit struct {
-	BlackList []string
-	Rate      int
-	Burst     int
+	Rate  int
+	Burst int
 }
 
 type Path struct {
@@ -83,6 +82,7 @@ type Fast_Https struct {
 	LogRoot                   string
 	Servers                   []Server
 	Limit                     ServerLimit
+	BlackList                 []string
 	Include                   []string
 	DefaultType               string
 	ServerNamesHashBucketSize uint16
@@ -214,7 +214,13 @@ func process() error {
 	fast_https.Pid = viper.GetString("pid")
 	fast_https.Include = viper.GetStringSlice("http.include")
 	fast_https.DefaultType = viper.GetString("http.default_type")
+	fast_https.Limit = ServerLimit{
 
+		Rate:  viper.GetInt(fmt.Sprintf("http.servers_limit.limit")),
+		Burst: viper.GetInt(fmt.Sprintf("http.servers_limit.burst")),
+	}
+
+	fast_https.BlackList = viper.GetStringSlice(fmt.Sprintf("http.blaklist"))
 	var servers []Server
 
 	// 遍历每个服务器块，并解析为 Server 结构体
@@ -226,13 +232,6 @@ func process() error {
 			ServerName:        viper.GetString(fmt.Sprintf("http.server.%d.server_name", serverKey)),
 			SSLCertificate:    viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate", serverKey)),
 			SSLCertificateKey: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate_key", serverKey)),
-
-			Limit: ServerLimit{
-
-				BlackList: viper.GetStringSlice(fmt.Sprintf("http.server.%d.blaklist", serverKey)),
-				Rate:      viper.GetInt(fmt.Sprintf("http.server.%d.limit", serverKey)),
-				Burst:     viper.GetInt(fmt.Sprintf("http.server.%d.burst", serverKey)),
-			},
 		}
 
 		pathPrefix := fmt.Sprintf("http.server.%d.location", serverKey)
@@ -317,7 +316,7 @@ func process() error {
 	}
 	fast_https.Servers = servers
 
-	//fmt.Println(fast_https)
+	fmt.Println(fast_https)
 	GConfig = fast_https
 
 	return nil
