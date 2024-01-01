@@ -56,10 +56,11 @@ func (s *Server) sig_handler(signal os.Signal) {
 
 // set connection confgure
 /*
-   The Conn interface also has deadline settings; either for the connection as a whole (SetDeadLine())
-   or specific to read or write calls (SetReadDeadLine() and SetWriteDeadLine()).
-   Note that the deadlines are fixed points in (wallclock) time. Unlike timeouts,
-   they don’t reset after a new activity. Each activity on the connection must therefore set a new deadline.
+   The Conn interface also has deadline settings; either for the connection as
+   a whole (SetDeadLine()) or specific to read or write calls (SetReadDeadLine()
+   and SetWriteDeadLine()). Note that the deadlines are fixed points in (wallclock)
+   time. Unlike timeouts, they don’t reset after a new activity. Each activity on
+   the connection must therefore set a new deadline.
 */
 func (s *Server) set_conn_cfg(conn *net.Conn) {
 	now := time.Now()
@@ -120,6 +121,9 @@ func (s *Server) Run() {
 
 	output.PrintPortsListenerStart()
 	listens := listener.Listen()
+
+	// TODO: improve this
+	safe.Init() // need to be call after listener inited ...
 
 	for _, value := range listens {
 		go s.serve_listener(value)

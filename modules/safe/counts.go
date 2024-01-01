@@ -1,8 +1,8 @@
 package safe
 
 import (
-	"fast-https/config"
 	"fast-https/modules/core"
+	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
 	"time"
@@ -10,24 +10,31 @@ import (
 
 const defaultTimeLength = 1
 
-var Gcl CountLimit
-
-func counts_init() {
-	Gcl = *NewCountLimit(0, config.GConfig.Servers[0].Path[0].Limit.Rate)
-}
-
-type CountLimit struct {
-	rate int
-	num  int
-	// rw_mutex sync.RWMutex
-	gMap map[string]countIP
-}
+var Gcl []CountLimit
 
 type countIP struct {
 	curr   int //现在的开始时间
 	expire int //计数预计结束时间
 	count  int //计数
 	rate   int //最多允许的请求个数
+}
+
+type CountLimit struct {
+	size int
+	rate int
+	num  int
+	// rw_mutex sync.RWMutex
+	gMap map[string]countIP
+}
+
+func counts_init() {
+	// Gcl = *NewCountLimit(0, config.GConfig.Servers[0].Path[0].Limit.Rate)
+	for _, item := range listener.Lisinfos {
+		for _, path := range item.Cfg {
+			tempCountLimit := NewCountLimit(0, path.Limit.Rate, path.Limit.Size*1024*1024/16)
+			Gcl = append(Gcl, *tempCountLimit)
+		}
+	}
 }
 
 func (l *countIP) Set(r int, now time.Time) {
@@ -69,7 +76,7 @@ func (l *countIP) Allow(ipstr string) bool {
 	}
 }
 
-func NewCountLimit(num int, rate int) *CountLimit {
+func NewCountLimit(num int, rate int, size int) *CountLimit {
 	return &CountLimit{
 		gMap: make(map[string]countIP),
 		num:  num,
@@ -77,13 +84,13 @@ func NewCountLimit(num int, rate int) *CountLimit {
 	}
 }
 
-func (cl *CountLimit) Insert1(ipstr string) bool {
+func (cl CountLimit) Insert1(ipstr string) bool {
 	// 获取 gMap 中的 countIP 结构体值
 	// cl.rw_mutex.RLock()
 	// fmt.Println(ipstr)
 	a, ok := cl.gMap[ipstr]
 	var flag bool
-	if cl.num > config.GConfig.Servers[0].Path[0].Limit.Size*1024*1024/16 {
+	if cl.num > cl.size {
 		// cl.rw_mutex.RUnlock()
 		return true
 	}
@@ -97,7 +104,8 @@ func (cl *CountLimit) Insert1(ipstr string) bool {
 		cl.gMap[ipstr] = a
 	} else {
 		// 如果键不存在，初始化 countIP 结构体值
-		cl.gMap[ipstr] = countIP{int(time.Now().Unix()), int(time.Now().Unix()) + defaultTimeLength, 0, cl.rate}
+		cl.gMap[ipstr] = countIP{int(time.Now().Unix()),
+			int(time.Now().Unix()) + defaultTimeLength, 0, cl.rate}
 		a = cl.gMap[ipstr] // 获取新添加的 countIP 结构体值的引用
 		cl.num++
 		// cl.rw_mutex.RUnlock()

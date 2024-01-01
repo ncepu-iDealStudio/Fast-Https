@@ -204,7 +204,7 @@ func nextIP(ip net.IP) net.IP {
 
 func blacklist_init() {
 	g_list = *NewBlacklist()
-	for _, value := range config.GConfig.Servers[0].Limit.BlackList {
+	for _, value := range config.GConfig.Limit.BlackList {
 		g_list.Add(value)
 	}
 

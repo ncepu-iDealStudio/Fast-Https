@@ -4,37 +4,40 @@
   "http": {
     "include": "mime.types",
     "default_type": "application/octet-stream",
+    "servers_limit": {
+      "limit": 1000000,
+      "burst": 5000000
+    },
+    "blaklist": [
+      "192.168.11.1-192.168.11.150", 
+      "192.168.1.151,59.66.66.66", 
+      "192.168.1.151"
+    ],
     "server": [
       {
         "listen": 8080,
         "server_name": "localhost",
-        "limit": 1000000,
-        "burst": 5000000,
-        "blaklist": [
-          "192.168.11.1-192.168.11.150", 
-          "192.168.1.151,59.66.66.66", 
-          "192.168.1.151"
-        ],
+        
         "location": [
           {
-            "url": "/",
+            "url": "/x",
             "type": "local",
             "root": "./httpdoc/root",
             "index":["index.html", "index.htm"] ,
             "limit": {
               "mem":10,
-              "rate":2000000,
-              "burst":200000
+              "rate":2,
+              "burst":2
             }
           },
           {
-            "url": "/",
+            "url": "/y",
             "type": "proxy",
             "proxy_pass": "http://127.0.0.1:80",
             "limit": {
               "mem":10,
-              "rate":200,
-              "burst":2000
+              "rate":5,
+              "burst":5
             }
           }
         ]

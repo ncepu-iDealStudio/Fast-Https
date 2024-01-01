@@ -24,6 +24,7 @@ type SSLkv struct {
 
 // struct like confgure "location"
 type ListenCfg struct {
+	ID         int
 	SSL        SSLkv
 	ServerName string
 	Path       string
@@ -47,7 +48,6 @@ type Listener struct {
 	Lfd     net.Listener
 	Port    string
 	LisType uint8
-	Limit   config.ServerLimit
 }
 
 var Lisinfos []Listener
@@ -65,7 +65,7 @@ func Process_ports() []string {
 			lis_temp.Cfg = nil
 			lis_temp.Lfd = nil
 			lis_temp.HostMap = make(map[string][]ListenCfg)
-			lis_temp.Limit = each.Limit
+			// lis_temp.Limit = each.Limit
 			if strings.Contains(each.Listen, "ssl") {
 				lis_temp.LisType = 1 // ssl
 			} else if strings.Contains(each.Listen, "tcp") {
@@ -83,6 +83,7 @@ func Process_ports() []string {
 
 // sort confgure from "path"
 func process_listen_data() {
+	Id := 0
 	for _, server := range config.GConfig.Servers {
 		for _, paths := range server.Path {
 
@@ -90,6 +91,7 @@ func process_listen_data() {
 				listen := strings.Split(server.Listen, " ")[0]
 				if eachlisten.Port == listen {
 					data := ListenCfg{}
+					data.ID = Id
 					data.Path = paths.PathName
 					data.ServerName = server.ServerName + ":" + eachlisten.Port
 					data.Type = paths.PathType
@@ -102,6 +104,7 @@ func process_listen_data() {
 					data.Zip = paths.Zip
 					data.ProxyCache = paths.ProxyCache
 					Lisinfos[index].Cfg = append(eachlisten.Cfg, data)
+					Id = Id + 1
 				}
 			}
 		}

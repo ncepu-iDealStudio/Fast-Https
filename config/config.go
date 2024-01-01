@@ -73,7 +73,6 @@ type Server struct {
 	ServerName        string
 	SSLCertificate    string
 	SSLCertificateKey string
-	Limit             ServerLimit
 	Path              []Path
 }
 
@@ -83,6 +82,7 @@ type Fast_Https struct {
 	Pid                       string
 	LogRoot                   string
 	Servers                   []Server
+	Limit                     ServerLimit
 	Include                   []string
 	DefaultType               string
 	ServerNamesHashBucketSize uint16

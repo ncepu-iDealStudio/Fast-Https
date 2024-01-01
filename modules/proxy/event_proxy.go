@@ -78,7 +78,8 @@ func get_data_from_server(ev *core.Event, proxyaddr string,
 	if ev.RR.ProxyConn == nil {
 		ev.RR.ProxyConn, err = net.Dial("tcp", proxyaddr)
 		if err != nil {
-			message.PrintWarn("[Proxy event]: Can't connect to "+proxyaddr, err.Error())
+			message.PrintWarn("[Proxy event]: Can't connect to "+
+				proxyaddr, err.Error())
 			return nil, 1 // no server
 		}
 		now := time.Now()
@@ -89,7 +90,8 @@ func get_data_from_server(ev *core.Event, proxyaddr string,
 	if err != nil {
 		ev.RR.ProxyConn.Close() // close proxy connection
 		ev.Close()              // close event connection
-		message.PrintWarn("[Proxy event]: Can't write to "+proxyaddr, err.Error())
+		message.PrintWarn("[Proxy event]: Can't write to "+
+			proxyaddr, err.Error())
 		return nil, 2 // can't write
 	}
 	// fmt.Println(string(data))
@@ -104,7 +106,8 @@ func get_data_from_server(ev *core.Event, proxyaddr string,
 			} else {
 				ev.RR.ProxyConn.Close()
 				ev.Close()
-				message.PrintWarn("[Proxy event]: Can't read from "+proxyaddr, err.Error())
+				message.PrintWarn("[Proxy event]: Can't read from "+
+					proxyaddr, err.Error())
 				return nil, 3 // can't read
 			}
 		}
@@ -122,8 +125,8 @@ func get_data_from_server(ev *core.Event, proxyaddr string,
 		ev.RR.ProxyConn.Close()
 	}
 
-	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+ev.Log,
-		"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+
+		ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	return finalData, 0 // no error
 }
 
@@ -163,7 +166,8 @@ func get_data_from_ssl_server(ev *core.Event, proxyaddr string,
 				break
 			} else {
 				tlsConn.Close()
-				message.PrintWarn("[Proxy event]: Can't read from "+proxyaddr, err.Error())
+				message.PrintWarn("[Proxy event]: Can't read from "+
+					proxyaddr, err.Error())
 				return nil, 3 // can't read
 			}
 		}
@@ -181,8 +185,8 @@ func get_data_from_ssl_server(ev *core.Event, proxyaddr string,
 		tlsConn.Close()
 	}
 
-	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTPS Event"+ev.Log,
-		"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTPS Event"+
+		ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	return finalData, 0 // no error
 }
 
@@ -257,7 +261,8 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 		}
 		CacheData(ev, cfg, "200", res, len(res))
 	} else {
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY Event(Cache)"+ev.Log,
+		message.PrintAccess(ev.Conn.RemoteAddr().String(),
+			"PROXY Event(Cache)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 	}
 
@@ -286,9 +291,11 @@ func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {
 		var err int
 
 		if cfg.Type == 1 { // http proxy
-			res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
+			res, err = get_data_from_server(ev, cfg.Proxy_addr,
+				req_data)
 		} else {
-			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)
+			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr,
+				req_data)
 		}
 		if err != 0 {
 			ev.Write_bytes_close(response.Default_server_error())
