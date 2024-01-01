@@ -21,7 +21,7 @@ const (
 // if Content-Type is close, we write bytes and close this connection
 // Recursion "Handle_event" isn't a problem, because it
 // will pause when TCP buffer is None.
-func Static_event(cfg listener.ListenCfg, ev *core.Event) {
+func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 
 	path := ev.RR.OriginPath
 	if cfg.Path != "/" {
@@ -30,25 +30,25 @@ func Static_event(cfg listener.ListenCfg, ev *core.Event) {
 		path = cfg.StaticRoot + ev.RR.Req_.Path
 	}
 
-	if ev.RR.Req_.Is_keepalive() {
-		res := get_res_bytes(cfg, path, ev.RR.Req_.Get_header("Connection"), ev)
+	if ev.RR.Req_.IsKeepalive() {
+		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
 		if res == -1 {
-			ev.Write_bytes(response.Default_not_found())
+			ev.Write_bytes(response.DefaultNotFound())
 		} else {
-			ev.Write_bytes(ev.RR.Res_.Generate_response())
+			ev.Write_bytes(ev.RR.Res_.GenerateResponse())
 		}
 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 
 		ev.Log_clear()
-		Handle_event(ev) // recursion
+		HandleEvent(ev) // recursion
 	} else {
-		res := get_res_bytes(cfg, path, ev.RR.Req_.Get_header("Connection"), ev)
+		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
 		if res == -1 {
-			ev.Write_bytes_close(response.Default_not_found())
+			ev.Write_bytes_close(response.DefaultNotFound())
 		} else {
-			ev.Write_bytes_close(ev.RR.Res_.Generate_response())
+			ev.Write_bytes_close(ev.RR.Res_.GenerateResponse())
 		}
 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log,
@@ -57,27 +57,27 @@ func Static_event(cfg listener.ListenCfg, ev *core.Event) {
 	}
 }
 
-func get_res_bytes(lisdata listener.ListenCfg,
+func getResBytes(lisdata listener.ListenCfg,
 	path string, connection string, ev *core.Event) int {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }
 	var file_data = cache.Get_data_from_cache(path)
 
-	ev.RR.Res_.Set_first_line(200, "OK")
-	ev.RR.Res_.Set_header("Server", "Fast-Https")
-	ev.RR.Res_.Set_header("Date", time.Now().String())
+	ev.RR.Res_.SetFirstLine(200, "OK")
+	ev.RR.Res_.SetHeader("Server", "Fast-Https")
+	ev.RR.Res_.SetHeader("Date", time.Now().String())
 
 	if file_data != nil { // Not Fount
 
-		ev.RR.Res_.Set_header("Content-Type", get_content_type(path))
-		ev.RR.Res_.Set_header("Content-Length", strconv.Itoa(len(file_data)))
+		ev.RR.Res_.SetHeader("Content-Type", getContentType(path))
+		ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len(file_data)))
 		if lisdata.Zip == 1 {
-			ev.RR.Res_.Set_header("Content-Encoding", "gzip")
+			ev.RR.Res_.SetHeader("Content-Encoding", "gzip")
 		}
-		ev.RR.Res_.Set_header("Connection", connection)
+		ev.RR.Res_.SetHeader("Connection", connection)
 
-		ev.RR.Res_.Set_body(file_data)
+		ev.RR.Res_.SetBody(file_data)
 
 		ev.Log += " 200 " + strconv.Itoa(len(file_data))
 
@@ -91,14 +91,14 @@ func get_res_bytes(lisdata listener.ListenCfg,
 
 		if file_data != nil {
 
-			ev.RR.Res_.Set_header("Content-Type", get_content_type(path))
-			ev.RR.Res_.Set_header("Content-Length", strconv.Itoa(len(file_data)))
+			ev.RR.Res_.SetHeader("Content-Type", getContentType(path))
+			ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len(file_data)))
 			if lisdata.Zip == 1 {
-				ev.RR.Res_.Set_header("Content-Encoding", "gzip")
+				ev.RR.Res_.SetHeader("Content-Encoding", "gzip")
 			}
-			ev.RR.Res_.Set_header("Connection", connection)
+			ev.RR.Res_.SetHeader("Connection", connection)
 
-			ev.RR.Res_.Set_body(file_data)
+			ev.RR.Res_.SetBody(file_data)
 			ev.Log += " 200 " + strconv.Itoa(len(file_data))
 
 			return 1 // find source
@@ -111,7 +111,7 @@ func get_res_bytes(lisdata listener.ListenCfg,
 
 // get this endpoint's content type
 // user can define mime.types in confgure
-func get_content_type(path string) string {
+func getContentType(path string) string {
 	path_type := strings.Split(path, ".")
 
 	if path_type == nil {

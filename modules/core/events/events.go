@@ -14,25 +14,25 @@ import (
 
 // distribute event
 // LisType(2) tcp proxy
-func Handle_event(ev *core.Event) {
+func HandleEvent(ev *core.Event) {
 	// handle tcp proxy
 	if ev.Lis_info.LisType == 2 {
-		Proxy_event_tcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
+		ProxyEventTcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
 		return
 	}
-	if process_request(ev) == 0 {
+	if processRequest(ev) == 0 {
 		return // client close
 	}
 	ev.Log_append(" " + ev.RR.Req_.Method)
 	ev.Log_append(" " + ev.RR.Req_.Path + " \"" +
-		ev.RR.Req_.Get_header("Host") + "\"")
+		ev.RR.Req_.GetHeader("Host") + "\"")
 
 	cfg, ok := FliterHostPath(ev)
 	if !ok {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"INFORMAL Event(404)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		ev.Write_bytes_close(response.Default_not_found())
+		ev.Write_bytes_close(response.DefaultNotFound())
 	} else {
 
 		if !safe.Gcl[cfg.ID].Insert1(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
@@ -46,19 +46,19 @@ func Handle_event(ev *core.Event) {
 				return
 			}
 			// according to user's confgure and requets endporint handle events
-			Static_event(cfg, ev)
+			StaticEvent(cfg, ev)
 			return
 		case 1, 2:
 			ChangeHead(cfg, ev)
 			// according to user's confgure and requets endporint handle events
-			proxy.Proxy_event(cfg, ev)
+			proxy.ProxyEvent(cfg, ev)
 			return
 		}
 	}
 }
 
 func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
-	hosts := ev.Lis_info.HostMap[ev.RR.Req_.Get_header("Host")]
+	hosts := ev.Lis_info.HostMap[ev.RR.Req_.GetHeader("Host")]
 	var cfg listener.ListenCfg
 	ok := false
 	for _, cfg = range hosts {
@@ -77,7 +77,7 @@ func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 
 func HandelSlash(cfg listener.ListenCfg, ev *core.Event) (flag bool) {
 	if ev.RR.OriginPath == "" && cfg.Path != "/" {
-		_event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
+		event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return true
 	}
 	return false
@@ -87,22 +87,22 @@ func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
 	for _, item := range cfg.ProxySetHeader {
 		if item.HeaderKey == 100 {
 			if item.HeaderValue == "$host" {
-				ev.RR.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
+				ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 			}
 		}
 	}
-	ev.RR.Req_.Set_header("Host", cfg.Proxy_addr, cfg)
-	ev.RR.Req_.Set_header("Connection", "close", cfg)
+	ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
+	ev.RR.Req_.SetHeader("Connection", "close", cfg)
 	ev.RR.Req_.Flush()
 }
 
-func process_request(ev *core.Event) int {
+func processRequest(ev *core.Event) int {
 	// read data (bytes and str) from socket
 	byte_row, str_row := (ev).Read_data()
 	// save requte information to ev.RR.Req_
 	if !ev.RR.CircleInit {
-		ev.RR.Req_ = request.Req_init()       // Create a request Object
-		ev.RR.Res_ = response.Response_init() // Create a res Object
+		ev.RR.Req_ = request.ReqInit()       // Create a request Object
+		ev.RR.Res_ = response.ResponseInit() // Create a res Object
 		ev.RR.CircleInit = true
 	}
 	// fmt.Printf("%p, %p", ev.RR.Req_, ev)
@@ -110,10 +110,10 @@ func process_request(ev *core.Event) int {
 		ev.Close()
 		return 0
 	} else {
-		ev.RR.Req_.Http_parse(str_row)
-		ev.RR.Req_.Parse_body(byte_row)
+		ev.RR.Req_.HttpParse(str_row)
+		ev.RR.Req_.ParseBody(byte_row)
 		// parse host
-		ev.RR.Req_.Parse_host(ev.Lis_info)
+		ev.RR.Req_.ParseHost(ev.Lis_info)
 	}
 	return 1
 }

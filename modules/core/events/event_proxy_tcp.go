@@ -5,7 +5,7 @@ import (
 	"net"
 )
 
-func Proxy_event_tcp(conn net.Conn, proxyaddr string) {
+func ProxyEventTcp(conn net.Conn, proxyaddr string) {
 
 	conn2, err := net.Dial("tcp", proxyaddr)
 	if err != nil {

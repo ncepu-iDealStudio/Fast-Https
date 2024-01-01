@@ -53,7 +53,7 @@ type Listener struct {
 var Lisinfos []Listener
 
 // sort confgure form "listen"
-func Process_ports() []string {
+func ProcessPorts() []string {
 	var Ports []string
 	lis_temp := Listener{}
 	for _, each := range config.GConfig.Servers {
@@ -82,7 +82,7 @@ func Process_ports() []string {
 }
 
 // sort confgure from "path"
-func process_listen_data() {
+func processListenData() {
 	Id := 0
 	for _, server := range config.GConfig.Servers {
 		for _, paths := range server.Path {
@@ -111,7 +111,7 @@ func process_listen_data() {
 	}
 }
 
-func process_host_map() {
+func processHostMap() {
 	for _, eachPort := range Lisinfos {
 		processEachPort(eachPort)
 	}
@@ -137,22 +137,22 @@ func processEachPort(lisPort Listener) {
 
 // listen some ports
 func Listen() []Listener {
-	Process_ports()
-	process_listen_data()
-	process_host_map()
+	ProcessPorts()
+	processListenData()
+	processHostMap()
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 {
-			Lisinfos[index].Lfd = listen_ssl("0.0.0.0:"+each.Port, each.Cfg)
+			Lisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg)
 		} else {
-			Lisinfos[index].Lfd = listen_tcp("0.0.0.0:" + each.Port)
+			Lisinfos[index].Lfd = listenTcp("0.0.0.0:" + each.Port)
 		}
 	}
 	return Lisinfos
 }
 
 // tcp listen
-func listen_tcp(laddr string) net.Listener {
+func listenTcp(laddr string) net.Listener {
 	message.PrintInfo("Listen ", laddr)
 
 	listener, err := net.Listen("tcp", laddr)
@@ -163,7 +163,7 @@ func listen_tcp(laddr string) net.Listener {
 }
 
 // ssl listen
-func listen_ssl(laddr string, lisdata []ListenCfg) net.Listener {
+func listenSsl(laddr string, lisdata []ListenCfg) net.Listener {
 	message.PrintInfo("listen ", laddr)
 	certs := []tls.Certificate{}
 	var servernames []string

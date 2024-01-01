@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func Change_header(tmpByte []byte) ([]byte, string, string) {
+func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 
 	header := make([]byte, 1024*20)
 	var header_str string
@@ -67,7 +67,7 @@ func Change_header(tmpByte []byte) ([]byte, string, string) {
 }
 
 // fast-https will send data to real server and get response from target
-func get_data_from_server(ev *core.Event, proxyaddr string,
+func getDataFromServer(ev *core.Event, proxyaddr string,
 	data []byte) ([]byte, int) {
 
 	if !strings.Contains(proxyaddr, ":") {
@@ -117,11 +117,11 @@ func get_data_from_server(ev *core.Event, proxyaddr string,
 		resData = append(resData, tmpByte[:len_once]...)
 	}
 
-	finalData, head_code, b_len := Change_header(resData)
+	finalData, head_code, b_len := ChangeHeader(resData)
 
 	ev.Log_append(" " + head_code + " " + b_len)
 
-	if !ev.RR.Req_.Is_keepalive() { // connection close
+	if !ev.RR.Req_.IsKeepalive() { // connection close
 		ev.RR.ProxyConn.Close()
 	}
 
@@ -131,7 +131,7 @@ func get_data_from_server(ev *core.Event, proxyaddr string,
 }
 
 // fast-https will send data to real server and get response from target
-func get_data_from_ssl_server(ev *core.Event, proxyaddr string,
+func getDataFromSslServer(ev *core.Event, proxyaddr string,
 	data []byte) ([]byte, int) {
 
 	if !strings.Contains(proxyaddr, ":") {
@@ -177,11 +177,11 @@ func get_data_from_ssl_server(ev *core.Event, proxyaddr string,
 		resData = append(resData, tmpByte[:len_once]...)
 	}
 
-	finalData, head_code, b_len := Change_header(resData)
+	finalData, head_code, b_len := ChangeHeader(resData)
 
 	ev.Log_append(" " + head_code + " " + b_len)
 
-	if !ev.RR.Req_.Is_keepalive() {
+	if !ev.RR.Req_.IsKeepalive() {
 		tlsConn.Close()
 	}
 
@@ -199,7 +199,7 @@ func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg,
 	rule := map[string]string{ // 配置缓存key字段的生成规则
 		"request_method": ev.RR.Req_.Method,
 		"request_uri":    ev.RR.Req_.Path,
-		"host":           ev.RR.Req_.Get_header("Host"),
+		"host":           ev.RR.Req_.GetHeader("Host"),
 	}
 
 	ruleString := ""
@@ -250,13 +250,13 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 	if !flag {
 
 		if cfg.Type == 1 { // http proxy
-			res, err = get_data_from_server(ev, cfg.Proxy_addr, req_data)
+			res, err = getDataFromServer(ev, cfg.Proxy_addr, req_data)
 		} else {
-			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr, req_data)
+			res, err = getDataFromSslServer(ev, cfg.Proxy_addr, req_data)
 		}
 		// Server error
 		if err != 0 {
-			ev.Write_bytes_close(response.Default_server_error())
+			ev.Write_bytes_close(response.DefaultServerError())
 			return
 		}
 		CacheData(ev, cfg, "200", res, len(res))
@@ -267,7 +267,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 	}
 
 	// proxy server return valid data
-	if ev.RR.Req_.Is_keepalive() {
+	if ev.RR.Req_.IsKeepalive() {
 		ev.Write_bytes(res)
 		// events.Handle_event(ev)
 	} else {
@@ -276,8 +276,8 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 
 }
 
-func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {
-	req_data := ev.RR.Req_.Byte_row()
+func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
+	req_data := ev.RR.Req_.ByteRow()
 
 	configCache := true
 	if cfg.ProxyCache.Key == "" {
@@ -291,18 +291,18 @@ func Proxy_event(cfg listener.ListenCfg, ev *core.Event) {
 		var err int
 
 		if cfg.Type == 1 { // http proxy
-			res, err = get_data_from_server(ev, cfg.Proxy_addr,
+			res, err = getDataFromServer(ev, cfg.Proxy_addr,
 				req_data)
 		} else {
-			res, err = get_data_from_ssl_server(ev, cfg.Proxy_addr,
+			res, err = getDataFromSslServer(ev, cfg.Proxy_addr,
 				req_data)
 		}
 		if err != 0 {
-			ev.Write_bytes_close(response.Default_server_error())
+			ev.Write_bytes_close(response.DefaultServerError())
 			return
 		}
 		// proxy server return valid data
-		if ev.RR.Req_.Is_keepalive() {
+		if ev.RR.Req_.IsKeepalive() {
 			ev.Write_bytes(res)
 			// events.Handle_event(ev)
 		} else {

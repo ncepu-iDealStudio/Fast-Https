@@ -28,7 +28,7 @@ func Server_init() *Server {
 
 // ScanPorts scan ports to check whether they've been used
 func Scan_ports() error {
-	ports := listener.Process_ports()
+	ports := listener.ProcessPorts()
 	for _, port := range ports {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {
@@ -95,7 +95,7 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		if safe.IsInBlacklist(each_event) {
 			continue
 		}
-		events.Handle_event(each_event)
+		events.HandleEvent(each_event)
 
 		// syncCalculateSum := func() {
 		// 	events.Handle_event(each_event)

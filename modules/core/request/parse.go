@@ -40,14 +40,14 @@ var http_method = []string{
 	"CONNECT",
 }
 
-func Req_init() *Req {
+func ReqInit() *Req {
 	return &Req{
 		Headers: make(map[string]string),
 	}
 }
 
 // parse Host
-func (r *Req) Parse_host(lis_info listener.Listener) {
+func (r *Req) ParseHost(lis_info listener.Listener) {
 	if lis_info.Port == "80" {
 		r.Headers["Host"] = r.Headers["Host"] + ":80"
 	} else if lis_info.Port == "443" {
@@ -56,7 +56,7 @@ func (r *Req) Parse_host(lis_info listener.Listener) {
 }
 
 // reset request's header
-func (r *Req) Set_header(key string, val string, cfg listener.ListenCfg) {
+func (r *Req) SetHeader(key string, val string, cfg listener.ListenCfg) {
 
 	r.Headers[key] = val
 
@@ -83,13 +83,13 @@ func (r *Req) Set_header(key string, val string, cfg listener.ListenCfg) {
 func (r *Req) Flush() {}
 
 // get request header
-func (r *Req) Get_header(key string) string {
+func (r *Req) GetHeader(key string) string {
 	return r.Headers[key]
 }
 
 // whether the request connection is keep alive
-func (r *Req) Is_keepalive() bool {
-	conn := r.Get_header("Connection")
+func (r *Req) IsKeepalive() bool {
+	conn := r.GetHeader("Connection")
 	if conn == "keep-alive" {
 		return true
 	} else {
@@ -98,7 +98,7 @@ func (r *Req) Is_keepalive() bool {
 }
 
 // get request row bytes
-func (r *Req) Byte_row() []byte {
+func (r *Req) ByteRow() []byte {
 	rowStr := r.Method + " " +
 		r.Path + " " +
 		r.Protocol + "\r\n"
@@ -114,7 +114,7 @@ func (r *Req) Byte_row() []byte {
 }
 
 // parse row tcp str to a req object
-func (r *Req) Http_parse(request string) int {
+func (r *Req) HttpParse(request string) int {
 
 	if request == "" {
 		return NONE
@@ -150,7 +150,7 @@ func (r *Req) Http_parse(request string) int {
 }
 
 // get request's body
-func (r *Req) Parse_body(tmpByte []byte) {
+func (r *Req) ParseBody(tmpByte []byte) {
 	var i int // last byte position before \r\n\r\n
 	var remain_len int
 	var res []byte
