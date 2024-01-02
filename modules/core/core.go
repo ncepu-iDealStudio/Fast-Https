@@ -23,10 +23,20 @@ type RRcircle struct {
 	PathLocation []int
 	ProxyConn    net.Conn
 
-	FliterHandler func(listener.ListenCfg, *Event) bool
-	RRHandler     func(listener.ListenCfg, *Event)
+	CircleHandler RRcircleHandler
 	Ev            *Event
 }
+
+// callback item
+type RRcircleHandler struct {
+	FliterHandler func(listener.ListenCfg, *Event) bool
+	RRHandler     func(listener.ListenCfg, *Event)
+}
+
+// global RRcircle Handler Table
+// I think array is the best struct to
+// store these handlers ...
+var GRRCHT [10]RRcircleHandler
 
 // each request event is saved in this struct
 type Event struct {
@@ -38,10 +48,10 @@ type Event struct {
 	RR       RRcircle
 }
 
-func (rr *RRcircle) RRHandlerInit(fliter func(listener.ListenCfg, *Event) bool,
+func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
 	handler func(listener.ListenCfg, *Event)) {
-	rr.FliterHandler = fliter
-	rr.RRHandler = handler
+	GRRCHT[Type].FliterHandler = fliter
+	GRRCHT[Type].RRHandler = handler
 }
 
 func NewEvent(l listener.Listener, conn net.Conn) *Event {

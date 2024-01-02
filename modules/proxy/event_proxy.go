@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"fast-https/config"
 	"fast-https/modules/cache"
 	"fast-https/modules/core"
 	"fast-https/utils"
@@ -15,6 +16,10 @@ import (
 	"strings"
 	"time"
 )
+
+func init() {
+	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFliterHandler, ProxyEvent)
+}
 
 func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 
@@ -273,9 +278,13 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 	} else {
 		ev.Write_bytes_close(res)
 	}
-
 }
 
+/*
+ ********************************
+ ******interfaces as follows:
+ ********************************
+ */
 func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req_.ByteRow()
 
@@ -310,4 +319,22 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 		}
 
 	}
+}
+
+func ProxyFliterHandler(cfg listener.ListenCfg, ev *core.Event) bool {
+	ChangeHead(cfg, ev)
+	return true
+}
+
+func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
+	for _, item := range cfg.ProxySetHeader {
+		if item.HeaderKey == 100 {
+			if item.HeaderValue == "$host" {
+				ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
+			}
+		}
+	}
+	ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
+	ev.RR.Req_.SetHeader("Connection", "close", cfg)
+	ev.RR.Req_.Flush()
 }

@@ -12,10 +12,6 @@ import (
 	"github.com/chenhg5/collection"
 )
 
-const (
-	STATIC_EVENT = 0
-)
-
 // donmain cert and key
 type SSLkv struct {
 	SslKey   string

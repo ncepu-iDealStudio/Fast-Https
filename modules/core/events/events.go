@@ -1,11 +1,11 @@
 package events
 
 import (
+	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
-	"fast-https/modules/proxy"
 	"fast-https/modules/safe"
 	"fast-https/utils/message"
 	"regexp"
@@ -41,17 +41,19 @@ func HandleEvent(ev *core.Event) {
 		}
 
 		switch cfg.Type {
-		case 0:
+		case config.LOCAL:
 			if HandelSlash(cfg, ev) {
 				return
 			}
 			// according to user's confgure and requets endporint handle events
 			StaticEvent(cfg, ev)
 			return
-		case 1, 2:
-			ChangeHead(cfg, ev)
+		case config.PROXY_HTTP, config.PROXY_HTTPS:
 			// according to user's confgure and requets endporint handle events
-			proxy.ProxyEvent(cfg, ev)
+			ev.RR.CircleHandler.RRHandler = core.GRRCHT[config.PROXY_HTTP].RRHandler
+			ev.RR.CircleHandler.FliterHandler = core.GRRCHT[config.PROXY_HTTP].FliterHandler
+			ev.RR.CircleHandler.FliterHandler(cfg, ev)
+			ev.RR.CircleHandler.RRHandler(cfg, ev)
 			return
 		}
 	}
@@ -81,19 +83,6 @@ func HandelSlash(cfg listener.ListenCfg, ev *core.Event) (flag bool) {
 		return true
 	}
 	return false
-}
-
-func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
-	for _, item := range cfg.ProxySetHeader {
-		if item.HeaderKey == 100 {
-			if item.HeaderValue == "$host" {
-				ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
-			}
-		}
-	}
-	ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
-	ev.RR.Req_.SetHeader("Connection", "close", cfg)
-	ev.RR.Req_.Flush()
 }
 
 func processRequest(ev *core.Event) int {

@@ -14,6 +14,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	_ "fast-https/modules/proxy"
 )
 
 type Server struct {

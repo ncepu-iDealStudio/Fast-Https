@@ -25,6 +25,13 @@ const (
 	XForwardFor = 102
 )
 
+const (
+	LOCAL       = 0
+	PROXY_HTTP  = 1
+	PROXY_HTTPS = 2
+	REWRITE     = 4
+)
+
 type ErrorPath struct {
 	Path404 string
 	Path500 string
