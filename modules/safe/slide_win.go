@@ -21,15 +21,3 @@ func (fd *FrontendDemo) check() bool {
 	deny = []string{"192.168.1.1", "192.168.1.2"}
 	return true
 }
-
-// func main() {
-// 	fd := &FrontendDemo{}
-// 	fd.insert("192.168.1.1")
-// 	fd.insert("192.168.1.2")
-// 	go func() {
-// 		for {
-// 			fd.check()
-// 			time.Sleep(time.Second)
-// 		}
-// 	}()
-// }

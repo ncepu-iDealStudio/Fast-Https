@@ -16,13 +16,10 @@ var g_limit rate.Limit
 var g_limiter *rate.Limiter
 
 func limit_init() {
-	// fmt.Println(config.GConfig.Servers[0].Limit.Rate, config.GConfig.Servers[0].Limit.Burst)
 	temp := float64(1.00 / float64(config.GConfig.Limit.Rate) * 1000)
 	g_limit = rate.Every(time.Duration(int(temp)) * time.Millisecond)
 	g_limiter = rate.NewLimiter(g_limit, config.GConfig.Limit.Burst)
 
-	// g_limit = rate.Every(1 * time.Millisecond)
-	// g_limiter = rate.NewLimiter(g_limit, 50)
 }
 
 func Bucket(ev *core.Event) bool {

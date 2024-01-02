@@ -11,7 +11,7 @@ import (
 	"sync"
 )
 
-// 用于存储黑名单的结构体
+// define the blacklist struct
 type Blacklist struct {
 	ipRanges []string
 	mu       sync.RWMutex
@@ -34,7 +34,7 @@ func (b *Blacklist) GetIPRanges() []string {
 	return b.ipRanges
 }
 
-// 将 IP 或 IP 段添加到黑名单
+// the black list add
 func (b *Blacklist) Add(ipOrRange string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -73,7 +73,7 @@ func (b *Blacklist) Add(ipOrRange string) error {
 	return nil
 }
 
-// 从黑名单中移除 IP 或 IP 段
+// define the Remove ip function
 func (b *Blacklist) Remove(ipOrRange string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
