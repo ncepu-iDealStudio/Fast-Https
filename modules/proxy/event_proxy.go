@@ -261,7 +261,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 		}
 		// Server error
 		if err != 0 {
-			ev.Write_bytes_close(response.DefaultServerError())
+			ev.WriteDataClose(response.DefaultServerError())
 			return
 		}
 		CacheData(ev, cfg, "200", res, len(res))
@@ -273,10 +273,10 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 
 	// proxy server return valid data
 	if ev.RR.Req_.IsKeepalive() {
-		ev.Write_bytes(res)
+		ev.WriteData(res)
 		// events.Handle_event(ev)
 	} else {
-		ev.Write_bytes_close(res)
+		ev.WriteDataClose(res)
 	}
 }
 
@@ -307,15 +307,15 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 				req_data)
 		}
 		if err != 0 {
-			ev.Write_bytes_close(response.DefaultServerError())
+			ev.WriteDataClose(response.DefaultServerError())
 			return
 		}
 		// proxy server return valid data
 		if ev.RR.Req_.IsKeepalive() {
-			ev.Write_bytes(res)
+			ev.WriteData(res)
 			// events.Handle_event(ev)
 		} else {
-			ev.Write_bytes_close(res)
+			ev.WriteDataClose(res)
 		}
 
 	}

@@ -33,9 +33,9 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 	if ev.RR.Req_.IsKeepalive() {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
 		if res == -1 {
-			ev.Write_bytes(response.DefaultNotFound())
+			ev.WriteData(response.DefaultNotFound())
 		} else {
-			ev.Write_bytes(ev.RR.Res_.GenerateResponse())
+			ev.WriteData(ev.RR.Res_.GenerateResponse())
 		}
 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
@@ -46,9 +46,9 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 	} else {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
 		if res == -1 {
-			ev.Write_bytes_close(response.DefaultNotFound())
+			ev.WriteDataClose(response.DefaultNotFound())
 		} else {
-			ev.Write_bytes_close(ev.RR.Res_.GenerateResponse())
+			ev.WriteDataClose(ev.RR.Res_.GenerateResponse())
 		}
 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log,

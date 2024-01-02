@@ -32,7 +32,7 @@ func HandleEvent(ev *core.Event) {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"INFORMAL Event(404)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		ev.Write_bytes_close(response.DefaultNotFound())
+		ev.WriteDataClose(response.DefaultNotFound())
 	} else {
 
 		if !safe.Gcl[cfg.ID].Insert1(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
@@ -87,7 +87,7 @@ func HandelSlash(cfg listener.ListenCfg, ev *core.Event) (flag bool) {
 
 func processRequest(ev *core.Event) int {
 	// read data (bytes and str) from socket
-	byte_row, str_row := (ev).Read_data()
+	byte_row, str_row := (ev).ReadData()
 	// save requte information to ev.RR.Req_
 	if !ev.RR.CircleInit {
 		ev.RR.Req_ = request.ReqInit()       // Create a request Object

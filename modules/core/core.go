@@ -73,7 +73,7 @@ func (ev *Event) Log_clear() {
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
-func (ev *Event) Read_data() ([]byte, string) {
+func (ev *Event) ReadData() ([]byte, string) {
 	buffer := make([]byte, 1024*4)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
@@ -94,7 +94,7 @@ func (ev *Event) Read_data() ([]byte, string) {
 	return buffer, str_row // return row str or bytes
 }
 
-func (ev *Event) Write_bytes(data []byte) {
+func (ev *Event) WriteData(data []byte) {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
@@ -118,7 +118,7 @@ func (ev *Event) Close() {
 	}
 }
 
-func (ev *Event) Write_bytes_close(data []byte) {
-	ev.Write_bytes(data)
+func (ev *Event) WriteDataClose(data []byte) {
+	ev.WriteData(data)
 	ev.Close()
 }

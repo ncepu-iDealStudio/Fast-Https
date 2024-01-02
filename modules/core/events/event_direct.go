@@ -12,5 +12,5 @@ func event_301(ev *core.Event, path string) {
 		"Location: " + path + "\r\n" +
 		"Connection: close\r\n" +
 		"\r\n")
-	ev.Write_bytes_close(res)
+	ev.WriteDataClose(res)
 }
