@@ -5,12 +5,13 @@ import (
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
+	"sync"
 	"time"
 )
 
 const defaultTimeLength = 1
 
-var Gcl []CountLimit
+var Gcl []*CountLimit
 
 type countIP struct {
 	curr   int //现在的开始时间
@@ -23,7 +24,7 @@ type CountLimit struct {
 	size int
 	rate int
 	num  int
-	// rw_mutex sync.RWMutex
+	mu   sync.RWMutex
 	gMap map[string]countIP
 }
 
@@ -32,7 +33,7 @@ func counts_init() {
 	for _, item := range listener.Lisinfos {
 		for _, path := range item.Cfg {
 			tempCountLimit := NewCountLimit(0, path.Limit.Rate, path.Limit.Size*1024*1024/16)
-			Gcl = append(Gcl, *tempCountLimit)
+			Gcl = append(Gcl, tempCountLimit)
 		}
 	}
 }
@@ -81,17 +82,18 @@ func NewCountLimit(num int, rate int, size int) *CountLimit {
 		gMap: make(map[string]countIP),
 		num:  num,
 		rate: rate,
+		size: size,
 	}
 }
 
-func (cl CountLimit) Insert1(ipstr string) bool {
+func (cl *CountLimit) Insert(ipstr string) bool {
 	// 获取 gMap 中的 countIP 结构体值
-	// cl.rw_mutex.RLock()
-	// fmt.Println(ipstr)
+	cl.mu.Lock()
 	a, ok := cl.gMap[ipstr]
+
 	var flag bool
 	if cl.num > cl.size {
-		// cl.rw_mutex.RUnlock()
+		cl.mu.Unlock()
 		return true
 	}
 
@@ -103,17 +105,18 @@ func (cl CountLimit) Insert1(ipstr string) bool {
 		}
 		cl.gMap[ipstr] = a
 	} else {
+
 		// 如果键不存在，初始化 countIP 结构体值
 		cl.gMap[ipstr] = countIP{int(time.Now().Unix()),
 			int(time.Now().Unix()) + defaultTimeLength, 0, cl.rate}
 		a = cl.gMap[ipstr] // 获取新添加的 countIP 结构体值的引用
 		cl.num++
-		// cl.rw_mutex.RUnlock()
+		cl.mu.Unlock()
 		return true
 	}
 
-	// cl.rw_mutex.RUnlock()
 	// 进行其他操作
+	cl.mu.Unlock()
 	return flag
 }
 
