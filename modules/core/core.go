@@ -46,6 +46,12 @@ type Event struct {
 	Log      string
 	Type     uint64
 	RR       RRcircle
+	Reuse    bool
+	IsClose  bool
+}
+
+func (ev *Event) EventReuse() bool {
+	return ev.Reuse
 }
 
 func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
@@ -116,6 +122,7 @@ func (ev *Event) Close() {
 	if err != nil {
 		fmt.Println("Error Close 57:", err)
 	}
+	ev.IsClose = true
 }
 
 func (ev *Event) WriteDataClose(data []byte) {

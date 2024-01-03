@@ -1,7 +1,6 @@
 package events
 
 import (
-	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
@@ -12,9 +11,19 @@ import (
 	"strings"
 )
 
+func HandleEvent(ev *core.Event) {
+	for !ev.IsClose {
+		EventHandler(ev)
+
+		if !ev.EventReuse() {
+			break
+		}
+	}
+}
+
 // distribute event
 // LisType(2) tcp proxy
-func HandleEvent(ev *core.Event) {
+func EventHandler(ev *core.Event) {
 	// handle tcp proxy
 	if ev.Lis_info.LisType == 2 {
 		ProxyEventTcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
@@ -35,27 +44,20 @@ func HandleEvent(ev *core.Event) {
 		ev.WriteDataClose(response.DefaultNotFound())
 	} else {
 
-		if !safe.Gcl[cfg.ID].Insert1(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
+		cl := safe.Gcl[cfg.ID]
+
+		if !cl.Insert(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
 			safe.CountHandler(ev.RR)
 			return
 		}
 
-		switch cfg.Type {
-		case config.LOCAL:
-			if HandelSlash(cfg, ev) {
-				return
-			}
-			// according to user's confgure and requets endporint handle events
-			StaticEvent(cfg, ev)
-			return
-		case config.PROXY_HTTP, config.PROXY_HTTPS:
-			// according to user's confgure and requets endporint handle events
-			ev.RR.CircleHandler.RRHandler = core.GRRCHT[config.PROXY_HTTP].RRHandler
-			ev.RR.CircleHandler.FliterHandler = core.GRRCHT[config.PROXY_HTTP].FliterHandler
-			ev.RR.CircleHandler.FliterHandler(cfg, ev)
-			ev.RR.CircleHandler.RRHandler(cfg, ev)
+		// according to user's confgure and requets endporint handle events
+		ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
+		ev.RR.CircleHandler.FliterHandler = core.GRRCHT[cfg.Type].FliterHandler
+		if !ev.RR.CircleHandler.FliterHandler(cfg, ev) {
 			return
 		}
+		ev.RR.CircleHandler.RRHandler(cfg, ev)
 	}
 }
 
@@ -75,14 +77,6 @@ func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 		}
 	}
 	return cfg, ok
-}
-
-func HandelSlash(cfg listener.ListenCfg, ev *core.Event) (flag bool) {
-	if ev.RR.OriginPath == "" && cfg.Path != "/" {
-		event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
-		return true
-	}
-	return false
 }
 
 func processRequest(ev *core.Event) int {

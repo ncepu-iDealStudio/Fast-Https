@@ -12,10 +12,14 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	_ "fast-https/modules/proxy"
+	_ "fast-https/modules/static"
+
+	"github.com/panjf2000/ants"
 )
 
 type Server struct {
@@ -71,7 +75,7 @@ func (s *Server) set_conn_cfg(conn *net.Conn) {
 
 // listen and serve one port
 func (s *Server) serve_listener(listener listener.Listener) {
-	// var wg sync.WaitGroup
+	var wg sync.WaitGroup
 
 	for !s.Shutdown {
 
@@ -86,6 +90,8 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		each_event.Conn = conn
 		each_event.Lis_info = listener
 		each_event.Timer = nil
+		each_event.Reuse = false
+		each_event.IsClose = false
 		each_event.RR.Ev = each_event // include each other
 		each_event.RR.IsCircle = true
 		each_event.RR.CircleInit = false
@@ -97,14 +103,14 @@ func (s *Server) serve_listener(listener listener.Listener) {
 		if safe.IsInBlacklist(each_event) {
 			continue
 		}
-		events.HandleEvent(each_event)
+		// go events.HandleEvent(each_event)
 
-		// syncCalculateSum := func() {
-		// 	events.Handle_event(each_event)
-		// 	wg.Done()
-		// }
-		// wg.Add(1)
-		// _ = ants.Submit(syncCalculateSum)
+		syncCalculateSum := func() {
+			events.HandleEvent(each_event)
+			wg.Done()
+		}
+		wg.Add(1)
+		_ = ants.Submit(syncCalculateSum)
 	}
 }
 
