@@ -1,4 +1,4 @@
-package events
+package static
 
 import (
 	"fast-https/modules/core"

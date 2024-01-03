@@ -1,4 +1,4 @@
-package events
+package static
 
 import (
 	"fast-https/config"
@@ -15,6 +15,18 @@ import (
 const (
 	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
 )
+
+func init() {
+	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent)
+}
+
+func HandelSlash(cfg listener.ListenCfg, ev *core.Event) bool {
+	if ev.RR.OriginPath == "" && cfg.Path != "/" {
+		event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
+		return false
+	}
+	return true
+}
 
 // handle static events
 // if requests want to keep-alive, we use write bytes,
@@ -42,7 +54,9 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 			"STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 
 		ev.Log_clear()
-		HandleEvent(ev) // recursion
+
+		ev.Reuse = true
+		// HandleEvent(ev) // recursion
 	} else {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
 		if res == -1 {
