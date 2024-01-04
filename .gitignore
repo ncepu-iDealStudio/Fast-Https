@@ -9,6 +9,7 @@ out/*
 *.out
 fast-https.exe
 fast-https
+fast-https.pid
 go.mod
 go.sum
 config/cert/*.pem
