@@ -35,7 +35,7 @@ func Init() *sync.WaitGroup {
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]log initialization finished")
 
 	// cert  initialization
-	Cert_init()
+	CertInit()
 	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]certification initialization finished")
 
 	// load cache from desk

@@ -82,7 +82,7 @@ func runCommand(args []string) error {
 	// missing parameter
 	if len(data) == 1 {
 		fmt.Println(color.RedString("Input is missing a parameter"))
-		fmt.Println(color.RedString("Please re-enter"))
+		fmt.Println(color.RedString("Please try again"))
 		return nil
 	}
 
@@ -101,7 +101,7 @@ func runCommand(args []string) error {
 	// Irregular commands
 	if !found {
 		fmt.Println(color.YellowString("The input command is not a valid command"))
-		fmt.Println(color.YellowString("Please re-enter"))
+		fmt.Println(color.YellowString("Please try again"))
 		return nil
 	}
 
@@ -156,7 +156,7 @@ func StartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	Write_fast_https_pid()
+	WritePid()
 	output.PrintInitialStart()
 	initialization.Init()
 	output.PrintInitialEnd()
@@ -183,15 +183,17 @@ func PreCheckHandler() {
 	config.ClearConfig()
 }
 
-func Write_fast_https_pid() {
+func WritePid() {
 	// Obtain the pid and store it
 	x_pid := os.Getpid()
 
-	file, _ := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-
+	file, err := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		log.Fatal("Open pid file error", err)
+	}
 	defer file.Close()
-	file.WriteString(strconv.Itoa(x_pid) + "\n")
 
+	file.WriteString(strconv.Itoa(x_pid) + "\n")
 	fmt.Println("Fast-Https running [PID]:", x_pid)
 }
 

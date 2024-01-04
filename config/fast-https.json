@@ -1,9 +1,8 @@
 {
-  "error_log": "logs/error.log notice",
-  "pid": "logs/fast-https.pid",
+  "log_root":"./logs",
+  "pid": "./fast-https.pid",
   "http": {
     "include": "mime.types",
-    "default_type": "application/octet-stream",
     "servers_limit": {
       "limit": 1000000,
       "burst": 5000000

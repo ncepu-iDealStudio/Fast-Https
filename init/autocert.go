@@ -34,18 +34,18 @@ const (
 	CERT_DIR = "config/cert"
 )
 
-func Cert_init() {
-	userAndHostname = "pzc@desktop"
+func CertInit() {
+	userAndHostname = "fast-https@ncepu.edu.cn"
 
 	file := filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt"
 	// message.PrintInfo(file)
 	_, err := os.Stat(file)
 
 	if os.IsNotExist(err) {
-		new_root()
+		newRoot()
 	}
 
-	load_ca() // init caCert   init caKey
+	loadCa() // init caCert   init caKey
 	for _, serverconfig := range config.GConfig.Servers {
 
 		certfile := filepath.Join(CERT_DIR, serverconfig.ServerName) + ".pem"
@@ -53,13 +53,12 @@ func Cert_init() {
 		if serverconfig.ServerName != "" && strings.Contains(serverconfig.Listen, "ssl") {
 			_, err = os.Stat(certfile)
 			if os.IsNotExist(err) {
-				new_cert([]string{serverconfig.ServerName})
+				newCert([]string{serverconfig.ServerName})
 				message.PrintInfo(certfile, " created")
 
 			}
 		}
 	}
-
 }
 
 func randomSerialNumber() *big.Int {
@@ -69,7 +68,7 @@ func randomSerialNumber() *big.Int {
 	return serialNumber
 }
 
-func new_root() {
+func newRoot() {
 	priv, err := rsa.GenerateKey(rand.Reader, 3072)
 
 	errHelper.Error(err, "failed to generate the CA key")
@@ -124,7 +123,7 @@ func new_root() {
 	message.PrintInfo("Created a new local CA")
 }
 
-func load_ca() {
+func loadCa() {
 	// message.PrintInfo(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
 
 	certPEMBlock, err := os.ReadFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
@@ -148,7 +147,7 @@ func load_ca() {
 	errHelper.Error(err, "failed to parse the CA key")
 }
 
-func new_cert(hosts []string) {
+func newCert(hosts []string) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	errHelper.Error(err, "failed to generate certificate key")
 	pub := priv.Public()
@@ -198,6 +197,5 @@ func new_cert(hosts []string) {
 	errHelper.Error(err, "failed to save certificate")
 	err = os.WriteFile(filepath.Join(CERT_DIR, hosts[0])+"-key.pem", privPEM, 0600)
 	errHelper.Error(err, "failed to save certificate key")
-
 	// message.PrintInfo("It will expire on %s \n\n", expiration.Format("2 January 2006"))
 }

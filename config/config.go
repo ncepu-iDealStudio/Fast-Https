@@ -110,8 +110,10 @@ func getHeaders(path string) []Header {
 	var headers []Header
 	for headerKey := range headerKeys {
 		header := Header{
-			HeaderKey:   viper.GetUint16(fmt.Sprintf("%s.%d.HeaderKey", path, headerKey)),
-			HeaderValue: viper.GetString(fmt.Sprintf("%s.%d.HeaderValue", path, headerKey)),
+			HeaderKey: viper.GetUint16(fmt.Sprintf("%s.%d.HeaderKey",
+				path, headerKey)),
+			HeaderValue: viper.GetString(fmt.Sprintf("%s.%d.HeaderValue",
+				path, headerKey)),
 		}
 		headers = append(headers, header)
 	}
@@ -186,16 +188,26 @@ func serverContentType() error {
 }
 
 func deleteExtraSpace(s string) string {
-	//Remove excess spaces from the string, and when there are multiple spaces, only one space is retained
-	s1 := strings.Replace(s, "	", " ", -1)       //Replace tab with a space
-	regstr := "\\s{2,}"                          //Regular expressions with two or more spaces
-	reg, _ := regexp.Compile(regstr)             //Compiling Regular Expressions
-	s2 := make([]byte, len(s1))                  //Define character array slicing
-	copy(s2, s1)                                 //Copy String to Slice
-	spc_index := reg.FindStringIndex(string(s2)) //Search in strings
-	for len(spc_index) > 0 {                     //Find Adapt
-		s2 = append(s2[:spc_index[0]+1], s2[spc_index[1]:]...) //Remove excess spaces
-		spc_index = reg.FindStringIndex(string(s2))            //Continue searching in strings
+	//  Remove excess spaces from the string, and when there are
+	// multiple spaces, only one space is retained
+	//Replace tab with a space
+	s1 := strings.Replace(s, "	", " ", -1)
+	//Regular expressions with two or more spaces
+	regstr := "\\s{2,}"
+	//Compiling Regular Expressions
+	reg, _ := regexp.Compile(regstr)
+	//Define character array slicing
+	s2 := make([]byte, len(s1))
+	//Copy String to Slice
+	copy(s2, s1)
+	//Search in strings
+	spc_index := reg.FindStringIndex(string(s2))
+	//Find Adapt
+	for len(spc_index) > 0 {
+		//Remove excess spaces
+		s2 = append(s2[:spc_index[0]+1], s2[spc_index[1]:]...)
+		//Continue searching in strings
+		spc_index = reg.FindStringIndex(string(s2))
 	}
 	return string(s2)
 }
@@ -217,17 +229,18 @@ func process() error {
 		log.Fatal("Error unmarshaling config:", err)
 	}
 
-	fast_https.Error_log = viper.GetString("error_log")
+	// fast_https.Error_log = viper.GetString("error_log")
 	fast_https.Pid = viper.GetString("pid")
+	fast_https.LogRoot = viper.GetString("log_root")
 	fast_https.Include = viper.GetStringSlice("http.include")
 	fast_https.DefaultType = viper.GetString("http.default_type")
 	fast_https.Limit = ServerLimit{
 
-		Rate:  viper.GetInt(fmt.Sprintf("http.servers_limit.limit")),
-		Burst: viper.GetInt(fmt.Sprintf("http.servers_limit.burst")),
+		Rate:  viper.GetInt("http.servers_limit.limit"),
+		Burst: viper.GetInt("http.servers_limit.burst"),
 	}
 
-	fast_https.BlackList = viper.GetStringSlice(fmt.Sprintf("http.blaklist"))
+	fast_https.BlackList = viper.GetStringSlice("http.blaklist")
 	var servers []Server
 
 	// 遍历每个服务器块，并解析为 Server 结构体
@@ -235,10 +248,14 @@ func process() error {
 	for serverKey := range serverKeys {
 
 		server := Server{
-			Listen:            viper.GetString(fmt.Sprintf("http.server.%d.listen", serverKey)),
-			ServerName:        viper.GetString(fmt.Sprintf("http.server.%d.server_name", serverKey)),
-			SSLCertificate:    viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate", serverKey)),
-			SSLCertificateKey: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate_key", serverKey)),
+			Listen: viper.GetString(fmt.Sprintf("http.server.%d.listen",
+				serverKey)),
+			ServerName: viper.GetString(fmt.Sprintf("http.server.%d.server_name",
+				serverKey)),
+			SSLCertificate: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate",
+				serverKey)),
+			SSLCertificateKey: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate_key",
+				serverKey)),
 		}
 
 		pathPrefix := fmt.Sprintf("http.server.%d.location", serverKey)
@@ -249,24 +266,39 @@ func process() error {
 			path := Path{
 
 				PathName: viper.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
-				//PathType:       viper.GetUint16(fmt.Sprintf("%s.%d.path_type", pathPrefix, locationKey)),
-				//Zip:            viper.GetUint16(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey)),
-				Root:           viper.GetString(fmt.Sprintf("%s.%d.root", pathPrefix, locationKey)),
-				Index:          viper.GetStringSlice(fmt.Sprintf("%s.%d.index", pathPrefix, locationKey)),
-				Rewrite:        viper.GetString(fmt.Sprintf("%s.%d.rewrite", pathPrefix, locationKey)),
-				ProxyData:      viper.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey)),
-				ProxySetHeader: getHeaders(fmt.Sprintf("%s.%d.proxy_set_header", pathPrefix, locationKey)),
+				//PathType:       viper.GetUint16(fmt.Sprintf("%s.%d.path_type",
+				// pathPrefix, locationKey)),
+				//Zip:            viper.GetUint16(fmt.Sprintf("%s.%d.zip",
+				// pathPrefix, locationKey)),
+				Root: viper.GetString(fmt.Sprintf("%s.%d.root",
+					pathPrefix, locationKey)),
+				Index: viper.GetStringSlice(fmt.Sprintf("%s.%d.index",
+					pathPrefix, locationKey)),
+				Rewrite: viper.GetString(fmt.Sprintf("%s.%d.rewrite",
+					pathPrefix, locationKey)),
+				ProxyData: viper.GetString(fmt.Sprintf("%s.%d.proxy_pass",
+					pathPrefix, locationKey)),
+				ProxySetHeader: getHeaders(fmt.Sprintf("%s.%d.proxy_set_header",
+					pathPrefix, locationKey)),
 				ProxyCache: Cache{
-					Path:    viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.path", pathPrefix, locationKey)),
-					Valid:   viper.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid", pathPrefix, locationKey)),
-					Key:     viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.key", pathPrefix, locationKey)),
-					MaxSize: viper.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size", pathPrefix, locationKey)),
+					Path: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
+						pathPrefix, locationKey)),
+					Valid: viper.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
+						pathPrefix, locationKey)),
+					Key: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
+						pathPrefix, locationKey)),
+					MaxSize: viper.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
+						pathPrefix, locationKey)),
 				},
 				Limit: PathLimit{
-					Size:    viper.GetInt(fmt.Sprintf("%s.%d.limit.mem", pathPrefix, locationKey)),
-					Rate:    viper.GetInt(fmt.Sprintf("%s.%d.limit.rate", pathPrefix, locationKey)),
-					Burst:   viper.GetInt(fmt.Sprintf("%s.%d.limit.burst", pathPrefix, locationKey)),
-					Nodelay: viper.GetBool(fmt.Sprintf("%s.%d.limit.mem", pathPrefix, locationKey)),
+					Size: viper.GetInt(fmt.Sprintf("%s.%d.limit.mem",
+						pathPrefix, locationKey)),
+					Rate: viper.GetInt(fmt.Sprintf("%s.%d.limit.rate",
+						pathPrefix, locationKey)),
+					Burst: viper.GetInt(fmt.Sprintf("%s.%d.limit.burst",
+						pathPrefix, locationKey)),
+					Nodelay: viper.GetBool(fmt.Sprintf("%s.%d.limit.mem",
+						pathPrefix, locationKey)),
 				},
 			}
 			TempZip := viper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
