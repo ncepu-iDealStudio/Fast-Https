@@ -96,6 +96,7 @@ func (s *Server) serveListener(listener listener.Listener) {
 		each_event.RR.Ev = each_event // include each other
 		each_event.RR.IsCircle = true
 		each_event.RR.CircleInit = false
+		each_event.RR.ProxyConnInit = false
 
 		if !safe.Bucket(each_event) {
 			continue

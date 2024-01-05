@@ -19,9 +19,10 @@ type RRcircle struct {
 	IsCircle   bool // default is true
 	CircleNum  int
 	// uri after re
-	OriginPath   string
-	PathLocation []int
-	ProxyConn    net.Conn
+	OriginPath    string
+	PathLocation  []int
+	ProxyConn     net.Conn
+	ProxyConnInit bool
 
 	CircleHandler RRcircleHandler
 	Ev            *Event
@@ -96,7 +97,7 @@ func (ev *Event) ReadData() ([]byte, string) {
 		return nil, ""
 	}
 	str_row := string(buffer[:n])
-	// buffer = buffer[:n]
+	buffer = buffer[:n]
 	return buffer, str_row // return row str or bytes
 }
 
