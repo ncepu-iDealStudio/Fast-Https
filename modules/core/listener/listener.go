@@ -25,10 +25,11 @@ type ListenCfg struct {
 	ServerName string
 	Path       string
 
-	Type           uint16 // 0 1 2 3
+	Type           uint16 // 0 1 2 3 4
 	Proxy_addr     string
 	ProxySetHeader []config.Header
 	ProxyCache     config.Cache
+	ReWrite        string
 
 	Limit config.PathLimit
 
@@ -98,6 +99,7 @@ func processListenData() {
 					data.StaticIndex = paths.Index
 					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
 					data.Zip = paths.Zip
+					data.ReWrite = paths.Rewrite
 					data.ProxyCache = paths.ProxyCache
 					Lisinfos[index].Cfg = append(eachlisten.Cfg, data)
 					Id = Id + 1

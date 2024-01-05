@@ -17,6 +17,7 @@ import (
 	"time"
 
 	_ "fast-https/modules/proxy"
+	_ "fast-https/modules/rewrite"
 	_ "fast-https/modules/static"
 
 	"github.com/panjf2000/ants"

@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	core.RRHandlerRegister(config.LOCAL, ReWriteFliter, ReWriteEvent)
+	core.RRHandlerRegister(config.REWRITE, ReWriteFliter, ReWriteEvent)
 }
 
 // for static requests which not end with "/"
@@ -31,5 +31,7 @@ func ReWriteFliter(cfg listener.ListenCfg, ev *core.Event) bool {
 // Recursion "Handle_event" isn't a problem, because it
 // will pause when TCP buffer is None.
 func ReWriteEvent(cfg listener.ListenCfg, ev *core.Event) {
-
+	// path := ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]
+	// fmt.Println(path, cfg.ReWrite)
+	rewriteInfo(ev, cfg.ReWrite)
 }
