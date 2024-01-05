@@ -41,13 +41,9 @@ func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 	}
 
 	body := tmpByte[i+4:]
-
 	header_str = string(header[:i])
-
 	lines := strings.Split(header_str, "\r\n")
-
 	head_code := strings.Split(lines[0], " ")[1]
-
 	header_new = lines[0] + "\r\n"
 	for _, line := range lines[1:] {
 		if line == "" {
@@ -68,6 +64,7 @@ func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 
 	res = append(res, []byte(header_new)...)
 	res = append(res, body...)
+	res = append(res, []byte("\r\n")...)
 
 	return res, head_code, strconv.Itoa(len(body))
 }
@@ -138,8 +135,8 @@ func getDataFromServer(ev *core.Event, proxyaddr string,
 		return nil, 2 // can't write
 	}
 
-	resData := make([]byte, 4096)
-	tmpByte := make([]byte, 4096)
+	resData := make([]byte, 4096*20)
+	tmpByte := make([]byte, 4096*20)
 	// needRead := 0
 
 	len_once, err := ev.RR.ProxyConn.Read(tmpByte)
