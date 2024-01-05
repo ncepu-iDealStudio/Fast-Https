@@ -160,7 +160,7 @@ func StartHandler() error {
 	output.PrintInitialStart()
 	initialization.Init()
 	output.PrintInitialEnd()
-	server := server.Server_init()
+	server := server.ServerInit()
 	server.Run()
 	return nil
 }
@@ -174,7 +174,7 @@ func PreCheckHandler() {
 	}
 
 	// check ports
-	err = server.Scan_ports()
+	err = server.ScanPorts()
 	if err != nil {
 		log.Println("Port has been used, An error occurred for the following reason:")
 		log.Fatalln(err)

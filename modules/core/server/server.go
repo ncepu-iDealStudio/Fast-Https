@@ -27,13 +27,13 @@ type Server struct {
 }
 
 // init server
-func Server_init() *Server {
+func ServerInit() *Server {
 	//  to do : ScanPorts
 	return &Server{Shutdown: false}
 }
 
 // ScanPorts scan ports to check whether they've been used
-func Scan_ports() error {
+func ScanPorts() error {
 	ports := listener.ProcessPorts()
 	for _, port := range ports {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
@@ -48,7 +48,7 @@ func Scan_ports() error {
 }
 
 // register some signal handlers
-func (s *Server) sig_handler(signal os.Signal) {
+func (s *Server) sigHandler(signal os.Signal) {
 	if signal == syscall.SIGTERM {
 		fmt.Println("Got kill signal. ")
 		s.Shutdown = true
@@ -68,13 +68,13 @@ func (s *Server) sig_handler(signal os.Signal) {
    time. Unlike timeouts, they don’t reset after a new activity. Each activity on
    the connection must therefore set a new deadline.
 */
-func (s *Server) set_conn_cfg(conn *net.Conn) {
+func (s *Server) setConnCfg(conn *net.Conn) {
 	now := time.Now()
 	(*conn).SetDeadline(now.Add(time.Second * 30))
 }
 
 // listen and serve one port
-func (s *Server) serve_listener(listener listener.Listener) {
+func (s *Server) serveListener(listener listener.Listener) {
 	var wg sync.WaitGroup
 
 	for !s.Shutdown {
@@ -84,7 +84,7 @@ func (s *Server) serve_listener(listener listener.Listener) {
 			message.PrintErr("Error accepting connection:", err)
 			continue
 		}
-		s.set_conn_cfg(&conn)
+		s.setConnCfg(&conn)
 
 		each_event := core.NewEvent(listener, conn)
 		each_event.Conn = conn
@@ -123,7 +123,7 @@ func (s *Server) Run() {
 	go func(s *Server) {
 		for {
 			sig_num := <-sigchnl
-			s.sig_handler(sig_num)
+			s.sigHandler(sig_num)
 		}
 	}(s)
 
@@ -134,10 +134,10 @@ func (s *Server) Run() {
 	safe.Init() // need to be call after listener inited ...
 
 	for _, value := range listens {
-		go s.serve_listener(value)
+		go s.serveListener(value)
 	}
 
 	for !s.Shutdown {
-		time.Sleep(time.Millisecond)
+		time.Sleep(time.Millisecond * 10)
 	}
 }
