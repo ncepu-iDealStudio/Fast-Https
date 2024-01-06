@@ -135,24 +135,26 @@ func getDataFromServer(ev *core.Event, proxyaddr string,
 		return nil, 2 // can't write
 	}
 
-	resData := make([]byte, 4096*20)
+	var resData []byte
 	tmpByte := make([]byte, 4096*20)
-	// needRead := 0
-
-	len_once, err := ev.RR.ProxyConn.Read(tmpByte)
-	if err != nil {
-		if err == io.EOF { // read all
-		} else {
-			ev.RR.ProxyConn.Close()
-			ev.Close()
-			message.PrintWarn("Proxy event: Can't read from "+
-				proxyaddr, err.Error())
-			return nil, 3 // can't read
+	for {
+		len_once, err := ev.RR.ProxyConn.Read(tmpByte)
+		if err != nil {
+			if err == io.EOF { // read all
+				break
+			} else {
+				ev.RR.ProxyConn.Close()
+				ev.Close()
+				message.PrintWarn("Proxy event: Can't read from "+
+					proxyaddr, err.Error())
+				return nil, 3 // can't read
+			}
 		}
+		resData = append(resData, tmpByte[:len_once]...)
 	}
 
 	// fmt.Println(tmpByte[:len_once])
-	resData = tmpByte[:len_once]
+	// resData = tmpByte[:len_once]
 
 	finalData, head_code, b_len := ChangeHeader(resData)
 
@@ -373,7 +375,7 @@ func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
 			}
 		}
 	}
-	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
-	// ev.RR.Req_.SetHeader("Connection", "close", cfg)
+	ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
+	ev.RR.Req_.SetHeader("Connection", "close", cfg)
 	ev.RR.Req_.Flush()
 }
