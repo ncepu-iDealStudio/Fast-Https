@@ -21,6 +21,7 @@ import (
 
 func init() {
 	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFliterHandler, ProxyEvent)
+	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFliterHandler, ProxyEvent)
 }
 
 func ChangeHeader(tmpByte []byte) ([]byte, string, string) {

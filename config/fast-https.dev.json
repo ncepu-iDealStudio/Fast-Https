@@ -82,11 +82,12 @@
               "max_size": 1024
             },
             "proxy_set_header":  [
-              {"HeaderKey": "Host", 
-              "HeaderValue": "$host"
+              {
+                "HeaderKey": "Host", 
+                "HeaderValue": "$host"
               },{
                 "HeaderKey": "Connection", 
-              "HeaderValue": "close"
+                "HeaderValue": "close"
               }
             ]
           }
