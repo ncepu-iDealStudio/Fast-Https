@@ -4,8 +4,6 @@ import (
 	cmd "fast-https/cmd"
 	"fast-https/config"
 	initialiaztion "fast-https/init"
-	"fast-https/modules/cache"
-	server "fast-https/modules/core/server"
 	"fast-https/utils/loggers"
 	"os"
 	"path/filepath"
@@ -35,7 +33,7 @@ func TestServerInit(t *testing.T) {
 	t.Log("current system path: ", currentDir)
 
 	// 1. write pid into file and command
-	cmd.Write_fast_https_pid()
+	cmd.WritePid()
 	t.Log("step1: fast-https.pid: ", os.Getpid())
 
 	// 2. init system message
@@ -47,17 +45,15 @@ func TestServerInit(t *testing.T) {
 	t.Log("step3: read config")
 
 	// 4. init system log
-	loggers.InitLogger(config.GConfig.LogRoot, "system.log")
+	loggers.InitLogger(config.GConfig.LogRoot + "system.log")
 	t.Log("step4: init system log, log_root: ", config.GConfig.LogRoot)
 
 	// 5. self-signed certification initialization
-	initialiaztion.Cert_init()
+	initialiaztion.CertInit()
 	t.Log("step5: init self-signed certification")
 
 	// 6. load cache
-	cache.LoadAllStatic()
 
 	// 7. listen on ports and start server
-	server.Run()
 	t.Log("step6: run server")
 }

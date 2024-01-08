@@ -15,12 +15,11 @@ func HttpHandle(rw http.ResponseWriter, req *http.Request) {
 	// 	fmt.Println("key:", key)
 	// 	fmt.Println("val:", strings.Join(val, ""))
 	// }
-	str := "<h1> This is a Simple test service on </h1>" + testport1
-
+	str := "<h1> This is a Simple test service on </h1>" + testport1 + "path: " + req.RequestURI
 	fmt.Fprintf(rw, str)
 }
 
-func TestService(port1 string) {
+func TestService(port1 string, str string) {
 	testport1 = port1
 
 	go func() {
@@ -30,5 +29,5 @@ func TestService(port1 string) {
 			log.Fatal("ListenAndServe: ", err)
 		}
 	}()
-	fmt.Println("start test service")
+	// fmt.Println("start test service")
 }
