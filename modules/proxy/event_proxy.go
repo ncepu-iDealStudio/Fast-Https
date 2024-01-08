@@ -373,13 +373,16 @@ func ProxyFliterHandler(cfg listener.ListenCfg, ev *core.Event) bool {
 
 func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
 	for _, item := range cfg.ProxySetHeader {
-		if item.HeaderKey == 100 {
+		if item.HeaderKey == "Host" {
 			if item.HeaderValue == "$host" {
 				ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 			}
 		}
+		if !strings.Contains(item.HeaderValue, "$") {
+			ev.RR.Req_.SetHeader(item.HeaderKey, item.HeaderValue, cfg)
+		}
 	}
-	ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
+	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 	ev.RR.Req_.SetHeader("Connection", "close", cfg)
 	ev.RR.Req_.Flush()
 }

@@ -38,7 +38,7 @@ type ErrorPath struct {
 }
 
 type Header struct {
-	HeaderKey   uint16
+	HeaderKey   string
 	HeaderValue string
 }
 
@@ -110,7 +110,7 @@ func getHeaders(path string) []Header {
 	var headers []Header
 	for headerKey := range headerKeys {
 		header := Header{
-			HeaderKey: viper.GetUint16(fmt.Sprintf("%s.%d.HeaderKey",
+			HeaderKey: viper.GetString(fmt.Sprintf("%s.%d.HeaderKey",
 				path, headerKey)),
 			HeaderValue: viper.GetString(fmt.Sprintf("%s.%d.HeaderValue",
 				path, headerKey)),
@@ -216,7 +216,7 @@ func process() error {
 
 	var fast_https Fast_Https
 
-	viper.SetConfigFile("config/fast-https.dev.json") // 指定要解析的 JSON 文件
+	viper.SetConfigFile("config/fast-https.json") // 指定要解析的 JSON 文件
 
 	err := viper.ReadInConfig()
 	if err != nil {

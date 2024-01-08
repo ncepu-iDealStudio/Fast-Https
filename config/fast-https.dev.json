@@ -80,7 +80,15 @@
               "valid": ["200:1h", "304:1h", "any:30m"],
               "key": "$request_method$host$request_uri",
               "max_size": 1024
-            }
+            },
+            "proxy_set_header":  [
+              {"HeaderKey": "Host", 
+              "HeaderValue": "$host"
+              },{
+                "HeaderKey": "Connection", 
+              "HeaderValue": "close"
+              }
+            ]
           }
         ]
       },
