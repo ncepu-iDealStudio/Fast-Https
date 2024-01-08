@@ -202,24 +202,23 @@ func getDataFromSslServer(ev *core.Event, proxyaddr string,
 		return nil, 2 // cant' write
 	}
 
-	resData := make([]byte, 4096)
-	tmpByte := make([]byte, 4096)
-	// needRead := 0
-
-	len_once, err := ev.RR.ProxyConn.Read(tmpByte)
-	if err != nil {
-		if err == io.EOF { // read all
-		} else {
-			ev.RR.ProxyConn.Close()
-			ev.Close()
-			message.PrintWarn("Proxy event: Can't read from "+
-				proxyaddr, err.Error())
-			return nil, 3 // can't read
+	var resData []byte
+	tmpByte := make([]byte, 4096*20)
+	for {
+		len_once, err := ev.RR.ProxyConn.Read(tmpByte)
+		if err != nil {
+			if err == io.EOF { // read all
+				break
+			} else {
+				ev.RR.ProxyConn.Close()
+				ev.Close()
+				message.PrintWarn("Proxy event: Can't read from "+
+					proxyaddr, err.Error())
+				return nil, 3 // can't read
+			}
 		}
+		resData = append(resData, tmpByte[:len_once]...)
 	}
-
-	// fmt.Println(tmpByte[:len_once])
-	resData = tmpByte[:len_once]
 
 	finalData, head_code, b_len := ChangeHeader(resData)
 
@@ -292,6 +291,10 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 	uriStringMd5, _ := ProcessCacheConfig(ev, cfg, "")
 	res, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
 
+	if ev.RR.Req_.Headers["Cache-Control"] == "no-cache" {
+		flag = false
+	}
+
 	if !flag {
 
 		if cfg.Type == 1 { // http proxy
@@ -305,6 +308,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 			return
 		}
 		CacheData(ev, cfg, "200", res, len(res))
+
 	} else {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"PROXY Event(Cache)"+ev.Log,
