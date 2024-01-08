@@ -20,11 +20,6 @@ const (
 	ZIP_BR      = 2
 	ZIP_GZIP_BR = 10
 
-<<<<<<< HEAD
-	CONFIG_FILE = "config/fast-https.conf"
-
-=======
->>>>>>> develop
 	Host        = 100
 	XRealIp     = 101
 	XForwardFor = 102
