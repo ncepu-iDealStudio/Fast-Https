@@ -24,6 +24,7 @@ import (
 
 type Server struct {
 	Shutdown bool
+	wg       sync.WaitGroup
 }
 
 // init server
@@ -50,11 +51,11 @@ func ScanPorts() error {
 // register some signal handlers
 func (s *Server) sigHandler(signal os.Signal) {
 	if signal == syscall.SIGTERM {
-		fmt.Println("Got kill signal. ")
+		fmt.Println("The server got a kill signal")
 		s.Shutdown = true
 
 	} else if signal == syscall.SIGINT {
-		fmt.Println("Got CTRL+C signal")
+		fmt.Println("The server got a CTRL+C signal")
 		s.Shutdown = true
 
 	}
@@ -75,7 +76,6 @@ func (s *Server) setConnCfg(conn *net.Conn) {
 
 // listen and serve one port
 func (s *Server) serveListener(listener listener.Listener) {
-	var wg sync.WaitGroup
 
 	for !s.Shutdown {
 
@@ -108,10 +108,15 @@ func (s *Server) serveListener(listener listener.Listener) {
 
 		syncCalculateSum := func() {
 			events.HandleEvent(each_event)
-			wg.Done()
+			s.wg.Done()
 		}
-		wg.Add(1)
-		_ = ants.Submit(syncCalculateSum)
+		s.wg.Add(1)
+		submitErr := ants.Submit(syncCalculateSum)
+		if submitErr != nil {
+			message.PrintErr("Error Submit events:", err)
+			break
+		}
+
 	}
 }
 
@@ -138,7 +143,9 @@ func (s *Server) Run() {
 		go s.serveListener(value)
 	}
 
-	for !s.Shutdown {
-		time.Sleep(time.Millisecond * 10)
+	for {
+		<-sigchnl
+		s.wg.Wait()
+		return
 	}
 }
