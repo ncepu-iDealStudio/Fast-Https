@@ -218,7 +218,7 @@ func process() error {
 
 	var fast_https Fast_Https
 
-	viper.SetConfigFile("config/fast-https.json") // 指定要解析的 JSON 文件
+	viper.SetConfigFile("config_dev/fast-https.json") // 指定要解析的 JSON 文件
 
 	err := viper.ReadInConfig()
 	if err != nil {

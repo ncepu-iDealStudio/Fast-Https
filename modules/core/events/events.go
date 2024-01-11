@@ -63,8 +63,9 @@ func EventHandler(ev *core.Event) {
 
 func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 	hosts := ev.Lis_info.HostMap[ev.RR.Req_.GetHeader("Host")]
+	// fmt.Println(hosts)
 	var cfg listener.ListenCfg
-	ok := false
+
 	for _, cfg = range hosts {
 		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
 		res := re.FindStringIndex(ev.RR.Req_.Path)
@@ -72,11 +73,25 @@ func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 			originPath := ev.RR.Req_.Path[res[1]:]
 			ev.RR.OriginPath = originPath
 			ev.RR.PathLocation = res
-			ok = true
-			break
+
+			return cfg, true
 		}
 	}
-	return cfg, ok
+
+	hosts2 := ev.Lis_info.HostMap[":8080"]
+	for _, cfg = range hosts2 {
+		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
+		res := re.FindStringIndex(ev.RR.Req_.Path)
+		if res != nil {
+			originPath := ev.RR.Req_.Path[res[1]:]
+			ev.RR.OriginPath = originPath
+			ev.RR.PathLocation = res
+
+			return cfg, true
+		}
+	}
+
+	return cfg, false
 }
 
 func processRequest(ev *core.Event) int {
