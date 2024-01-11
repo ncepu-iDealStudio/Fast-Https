@@ -14,40 +14,66 @@ const (
 	HTTP_TEST         = "<h1 style='text-align:center;'>This is a test Page</h1>"
 	HTTP_NOTFOUND     = "<h1 style='text-align:center;'>404 Not Found!</h1>"
 	HTTP_SERVER_ERROR = "<h1 style='text-align:center;'>500 Server Error!</h1>"
+	HTTP_TOO_MANY     = "<h1 style='text-align:center;'>403 too many!</h1>"
+	HTTP_BLACK_BAN    = "<h1 style='text-align:center;'>403 BLACK BAN!</h1>"
 )
 
-func Default_test() []byte {
-	res := Response_init()
-	res.Set_first_line(200, "OK")
-	res.Set_header("Server", "Fast-Https")
-	res.Set_header("Date", time.Now().String())
+func DefaultTest() []byte {
+	res := ResponseInit()
+	res.SetFirstLine(200, "OK")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", time.Now().String())
 
-	res.Set_header("Content-Type", "text/html")
-	res.Set_header("Content-Length", strconv.Itoa(len([]byte(HTTP_NOTFOUND))))
-	res.Set_body([]byte(HTTP_NOTFOUND))
-	return res.Generate_response()
+	res.SetHeader("Content-Type", "text/html")
+	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_NOTFOUND))))
+	res.SetBody([]byte(HTTP_NOTFOUND))
+	return res.GenerateResponse()
 }
 
-func Default_not_found() []byte {
-	res := Response_init()
-	res.Set_first_line(404, "NOT FOUND")
-	res.Set_header("Server", "Fast-Https")
-	res.Set_header("Date", time.Now().String())
+func DefaultNotFound() []byte {
+	res := ResponseInit()
+	res.SetFirstLine(404, "NOT FOUND")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", time.Now().String())
 
-	res.Set_header("Content-Type", "text/html")
-	res.Set_header("Content-Length", strconv.Itoa(len([]byte(HTTP_NOTFOUND))))
-	res.Set_body([]byte(HTTP_NOTFOUND))
-	return res.Generate_response()
+	res.SetHeader("Content-Type", "text/html")
+	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_NOTFOUND))))
+	res.SetBody([]byte(HTTP_NOTFOUND))
+	return res.GenerateResponse()
 }
 
-func Default_server_error() []byte {
-	res := Response_init()
-	res.Set_first_line(500, "SERVER ERROR")
-	res.Set_header("Server", "Fast-Https")
-	res.Set_header("Date", time.Now().String())
+func DefaultTooMany() []byte {
+	res := ResponseInit()
+	res.SetFirstLine(403, "NOT TOO MANY")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", time.Now().String())
 
-	res.Set_header("Content-Type", "text/html")
-	res.Set_header("Content-Length", strconv.Itoa(len([]byte(HTTP_SERVER_ERROR))))
-	res.Set_body([]byte(HTTP_SERVER_ERROR))
-	return res.Generate_response()
+	res.SetHeader("Content-Type", "text/html")
+	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_TOO_MANY))))
+	res.SetBody([]byte(HTTP_TOO_MANY))
+	return res.GenerateResponse()
+}
+
+func DefaultServerError() []byte {
+	res := ResponseInit()
+	res.SetFirstLine(500, "SERVER ERROR")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", time.Now().String())
+
+	res.SetHeader("Content-Type", "text/html")
+	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_SERVER_ERROR))))
+	res.SetBody([]byte(HTTP_SERVER_ERROR))
+	return res.GenerateResponse()
+}
+
+func DefaultBlackBan() []byte {
+	res := ResponseInit()
+	res.SetFirstLine(403, "BAN")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", time.Now().String())
+
+	res.SetHeader("Content-Type", "text/html")
+	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_BLACK_BAN))))
+	res.SetBody([]byte(HTTP_BLACK_BAN))
+	return res.GenerateResponse()
 }

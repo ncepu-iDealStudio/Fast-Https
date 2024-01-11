@@ -5,11 +5,12 @@ import (
 	"fast-https/utils"
 	"fast-https/utils/loggers"
 	"fmt"
-	"github.com/fatih/color"
-	"github.com/fufuok/chanx"
 	"os"
 	"runtime"
 	"sync"
+
+	"github.com/fatih/color"
+	"github.com/fufuok/chanx"
 )
 
 var outputChan *chanx.UnboundedChanOf[message]
@@ -42,6 +43,7 @@ func InitMsg() {
 	_, _ = fmt.Fprintf(os.Stdout, "\\033[1;37;40m%s\\033[0m\\n", "系统服务已结束")
 	os.Exit(1)
 }
+
 func AddMsgHandler(msg string, f func(args ...any) error) {
 	msgMapOnce.Do(func() {
 		msgMap = map[string]func(...any) error{}
@@ -87,6 +89,12 @@ func initMsgHandler() {
 		var log = loggers.GetLogger().AccessLog()
 		message := args[0].(map[string]interface{})
 		log.WithField("host", message["host"]).Infoln(message["message"])
+		return nil
+	})
+
+	AddMsgHandler("safe", func(args ...any) error {
+		var log = loggers.GetLogger().SafeLog()
+		log.Warnln(args)
 		return nil
 	})
 }

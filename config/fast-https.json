@@ -1,0 +1,45 @@
+{
+  "log_root":"./logs",
+  "pid": "./fast-https.pid",
+  "http": {
+    "include": "mime.types",
+    "servers_limit": {
+      "limit": 2,
+      "burst": 2
+    },
+    "blaklist": [
+      "127.0.0.1"
+    ],
+    "server": [
+      {
+        "listen": 8080,
+        "server_name": "localhost",
+        
+        "location": [
+          {
+            "url": "/",
+            "type": "local",
+            "root": "./httpdoc/root",
+            "index":["index.html", "index.htm"]
+
+          }
+
+        ]
+      },
+      {
+        "listen": "443 ssl",
+        "server_name": "localhost",
+        "ssl_certificate": "config/cert/localhost.pem",
+        "ssl_certificate_key": "config/cert/localhost-key.pem",
+        "location": [
+          {
+            "url": "/",
+            "type": "local",
+            "root": "./httpdoc/root",
+            "index":["index.html", "index.htm"] 
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -34,7 +34,7 @@ archives:
     # files needed to archive into dir
     files:
       - config/cert/
-      - config/fast-https.conf
+      - config/fast-https.json
       - config/fastcgi.conf
       - config/mime.types
       - docs/*

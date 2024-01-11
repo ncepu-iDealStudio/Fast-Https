@@ -2,6 +2,7 @@ package run
 
 import (
 	"bufio"
+	"fast-https/config"
 	"fast-https/output"
 	"log"
 	"os"
@@ -18,7 +19,9 @@ var logFile *os.File
 
 // StartWindows start the taskBox window
 func StartWindows() {
-	logFile, _ = os.OpenFile("logs/monitor.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	dir := config.GConfig.LogRoot
+	logFile, _ = os.OpenFile(filepath.Join(dir, "/monitor.log"),
+		os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	log.SetOutput(logFile)
 	defer logFile.Close()
 

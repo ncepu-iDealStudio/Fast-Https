@@ -18,6 +18,7 @@ type Logs struct {
 	systemLog *logrus.Logger
 	accessLog *logrus.Logger
 	errorLog  *logrus.Logger
+	safeLog   *logrus.Logger
 }
 
 func (l *Logs) SystemLog() *logrus.Logger {
@@ -32,6 +33,10 @@ func (l *Logs) ErrorLog() *logrus.Logger {
 	return l.errorLog
 }
 
+func (l *Logs) SafeLog() *logrus.Logger {
+	return l.safeLog
+}
+
 func GetLogger() *Logs {
 	return log
 }
@@ -44,6 +49,8 @@ func InitLogger(path string) {
 		log.accessLog.SetFormatter(&AccessLogFormatter{})
 		log.errorLog = loggerToFileAndCmd(path, "error.log")
 		log.errorLog.SetFormatter(&ErrorLogFormatter{})
+		log.safeLog = loggerToFileAndCmd(path, "safe.log")
+		log.safeLog.SetFormatter(&SafeLogFormatter{})
 	})
 }
 

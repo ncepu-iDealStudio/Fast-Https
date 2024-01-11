@@ -1,151 +1,102 @@
 package events
 
 import (
+	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
-	"fast-https/modules/core/timer"
+	"fast-https/modules/safe"
 	"fast-https/utils/message"
-	"fmt"
-	"io"
-	"net"
-	"reflect"
+	"regexp"
 	"strings"
-	"unsafe"
 )
 
-// each request event is saved in this struct
-type Event struct {
-	Conn      net.Conn
-	ProxyConn net.Conn
-	Lis_info  listener.ListenInfo
-	Req_      *request.Req
-	Res_      *response.Response
-	Timer     *timer.Timer
-	Log       string
+func HandleEvent(ev *core.Event) {
+	for !ev.IsClose {
+		EventHandler(ev)
+
+		if !ev.EventReuse() {
+			break
+		}
+	}
 }
 
 // distribute event
 // LisType(2) tcp proxy
-func Handle_event(ev *Event) {
-
+func EventHandler(ev *core.Event) {
 	// handle tcp proxy
 	if ev.Lis_info.LisType == 2 {
-		Proxy_event_tcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
+		ProxyEventTcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
 		return
 	}
-	if process_request(ev) == 0 {
+	if processRequest(ev) == 0 {
 		return // client close
 	}
-	ev.Log = " " + ev.Req_.Method
-	ev.Log = ev.Log + " " + ev.Req_.Path + " \"" + ev.Req_.Get_header("Host") + "\""
+	ev.Log_append(" " + ev.RR.Req_.Method)
+	ev.Log_append(" " + ev.RR.Req_.Path + " \"" +
+		ev.RR.Req_.GetHeader("Host") + "\"")
 
-	for _, cfg := range ev.Lis_info.Cfg {
-		switch cfg.Proxy {
-		case 0: // Proxy: 0, static events
-			if ev.Req_.Get_header("Host") == cfg.ServerName && strings.HasPrefix(ev.Req_.Path, cfg.Path) {
-				row_file_path := ev.Req_.Path[len(cfg.Path):]
-				if row_file_path == "" && cfg.Path != "/" {
-					_event_301(ev, cfg.Path+"/")
-					return
-				}
-				// according to user's confgure and requets endporint handle events
-				Static_event(cfg, row_file_path, ev)
-				return
-			}
-		case 1, 2: // proxy: 1 or 2,  proxy events
-			if ev.Req_.Get_header("Host") == cfg.ServerName {
-
-				for _, item := range cfg.ProxySetHeader {
-					if item.HeaderKey == 100 {
-						var str string
-						if item.HeaderValue == "$host" {
-							str = cfg.Proxy_addr
-							ev.Req_.Set_header("Host", str, cfg)
-						}
-					}
-				}
-
-				ev.Req_.Set_header("Connection", "close", cfg)
-				ev.Req_.Flush()
-				flush_bytes := ev.Req_.Byte_row()
-
-				// according to user's confgure and requets endporint handle events
-				Proxy_event(flush_bytes, cfg.Proxy_addr, cfg.Proxy, ev)
-				return
-			}
-		}
-	}
-	write_bytes_close(ev, response.Default_not_found())
-}
-
-func process_request(ev *Event) int {
-	// read data (bytes and str) from socket
-	byte_row, str_row := read_data(ev)
-	// save requte information to ev.Req_
-	ev.Req_ = request.Req_init()
-	if byte_row == nil { // client closed
-		close(ev)
-		return 0
+	cfg, ok := FliterHostPath(ev)
+	if !ok {
+		message.PrintAccess(ev.Conn.RemoteAddr().String(),
+			"INFORMAL Event(404)"+ev.Log,
+			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+		ev.WriteDataClose(response.DefaultNotFound())
 	} else {
-		ev.Req_.Http_parse(str_row)
-		ev.Req_.Parse_body(byte_row)
-		// parse host
-		ev.Req_.Parse_host(ev.Lis_info)
-	}
-	return 1
-}
 
-// read data from EventFd
-// attention: row str only can be used when parse FirstLine or Headers
-// because request body maybe contaions '\0'
-func read_data(ev *Event) ([]byte, string) {
-	buffer := make([]byte, 1024*4)
-	n, err := ev.Conn.Read(buffer)
-	if err != nil {
-		if err == io.EOF || n == 0 { // read None, remoteAddr is closed
-			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
-			return nil, ""
-		}
-		opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-		if opErr.Err.Error() == "i/o timeout" {
-			message.PrintWarn("read timeout")
-			return nil, ""
-		}
-		fmt.Println("Error reading from client 104:", err)
-	}
-	str_row := string(buffer[:n])
-	// buffer = buffer[:n]
-	return buffer, str_row // return row str or bytes
-}
+		cl := safe.Gcl[cfg.ID]
 
-// write row bytes and close
-func write_bytes_close(ev *Event, data []byte) {
-	write_bytes(ev, data)
-	close(ev)
-}
-
-// write row bytes
-func write_bytes(ev *Event, data []byte) {
-	for len(data) > 0 {
-		n, err := ev.Conn.Write(data)
-		if err != nil {
-			opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-			if opErr.Err.Error() == "i/o timeout" {
-				message.PrintWarn("write timeout")
-				return
-			}
-			fmt.Println("Error writing to client 155:", err)
+		if !cl.Insert(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
+			safe.CountHandler(ev.RR)
 			return
 		}
-		data = data[n:]
+
+		// according to user's confgure and requets endporint handle events
+		ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
+		ev.RR.CircleHandler.FliterHandler = core.GRRCHT[cfg.Type].FliterHandler
+		if !ev.RR.CircleHandler.FliterHandler(cfg, ev) {
+			return
+		}
+		ev.RR.CircleHandler.RRHandler(cfg, ev)
 	}
 }
 
-// only close the connection
-func close(ev *Event) {
-	err := ev.Conn.Close()
-	if err != nil {
-		fmt.Println("Error Close:", err)
+func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
+	hosts := ev.Lis_info.HostMap[ev.RR.Req_.GetHeader("Host")]
+	var cfg listener.ListenCfg
+	ok := false
+	for _, cfg = range hosts {
+		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
+		res := re.FindStringIndex(ev.RR.Req_.Path)
+		if res != nil {
+			originPath := ev.RR.Req_.Path[res[1]:]
+			ev.RR.OriginPath = originPath
+			ev.RR.PathLocation = res
+			ok = true
+			break
+		}
 	}
+	return cfg, ok
+}
+
+func processRequest(ev *core.Event) int {
+	// read data (bytes and str) from socket
+	byte_row, str_row := (ev).ReadData()
+	// save requte information to ev.RR.Req_
+	if !ev.RR.CircleInit {
+		ev.RR.Req_ = request.ReqInit()       // Create a request Object
+		ev.RR.Res_ = response.ResponseInit() // Create a res Object
+		ev.RR.CircleInit = true
+	}
+	// fmt.Printf("%p, %p", ev.RR.Req_, ev)
+	if byte_row == nil { // client closed
+		ev.Close()
+		return 0
+	} else {
+		ev.RR.Req_.HttpParse(str_row)
+		ev.RR.Req_.ParseBody(byte_row)
+		// parse host
+		ev.RR.Req_.ParseHost(ev.Lis_info)
+	}
+	return 1
 }
