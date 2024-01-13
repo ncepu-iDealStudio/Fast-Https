@@ -2,6 +2,15 @@ package response
 
 import (
 	"fmt"
+	"strings"
+)
+
+const (
+	RESPONSE_OK        = 0
+	NONE               = 1
+	UNKNOW_INVALID     = 2
+	FIRST_LINE_INVALID = 3
+	METHOD_INVALID     = 4
 )
 
 // every event will return a Response object
@@ -44,6 +53,39 @@ func (r *Response) GenerateResponse() []byte {
 	res = append(res, r.body...)
 
 	return res
+}
+
+func (r *Response) HttpResParse(request string) int {
+
+	if request == "" {
+		return NONE
+	}
+	requestLine := strings.Split(request, "\r\n")
+	if requestLine == nil {
+		return UNKNOW_INVALID // invalid request
+	}
+	parts := strings.Split(requestLine[0], " ")
+	if parts == nil || len(parts) < 3 {
+		return FIRST_LINE_INVALID // invalid first line
+	}
+
+	lines := strings.Split(request, "\r\n")[1:]
+	for _, line := range lines {
+		if line == "" {
+			break
+		}
+		parts := strings.SplitN(line, ":", 2)
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		r.headers[key] = value
+	}
+
+	return RESPONSE_OK // valid
+}
+
+// get request header
+func (r *Response) GetHeader(key string) string {
+	return r.headers[key]
 }
 
 func Test() {

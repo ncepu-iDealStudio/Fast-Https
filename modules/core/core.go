@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 )
 
 // request and response circle
@@ -81,10 +82,12 @@ func (ev *Event) Log_clear() {
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
 func (ev *Event) ReadData() ([]byte, string) {
+	now := time.Now()
+	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
 	buffer := make([]byte, 1024*4)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
-		if err == io.EOF || n == 0 { // read None, remoteAddr is closed
+		if err == io.EOF { // read None, remoteAddr is closed
 			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
@@ -101,7 +104,9 @@ func (ev *Event) ReadData() ([]byte, string) {
 	return buffer, str_row // return row str or bytes
 }
 
-func (ev *Event) WriteData(data []byte) {
+func (ev *Event) WriteData(data []byte) error {
+	now := time.Now()
+	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
@@ -111,10 +116,12 @@ func (ev *Event) WriteData(data []byte) {
 			// 	return
 			// }
 			fmt.Println("Error writing to client 46:", err)
-			return
+			return err
 		}
 		data = data[n:]
 	}
+
+	return nil
 }
 
 // only close the connection
