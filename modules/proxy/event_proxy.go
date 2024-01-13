@@ -415,9 +415,9 @@ func proxyNoCache(req_data []byte, cfg listener.ListenCfg,
 }
 
 /*
- ********************************
- ******interfaces as follows:
- ********************************
+ *************************************
+ ****** Interfaces are as follows ****
+ *************************************
  */
 func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req_.ByteRow()

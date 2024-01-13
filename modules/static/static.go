@@ -20,57 +20,6 @@ func init() {
 	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent)
 }
 
-func HandelSlash(cfg listener.ListenCfg, ev *core.Event) bool {
-	if ev.RR.OriginPath == "" && cfg.Path != "/" {
-		event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
-		return false
-	}
-	return true
-}
-
-// handle static events
-// if requests want to keep-alive, we use write bytes,
-// if Content-Type is close, we write bytes and close this connection
-// Recursion "Handle_event" isn't a problem, because it
-// will pause when TCP buffer is None.
-func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
-
-	path := ev.RR.OriginPath
-	if cfg.Path != "/" {
-		path = cfg.StaticRoot + path
-	} else {
-		path = cfg.StaticRoot + ev.RR.Req_.Path
-	}
-
-	if ev.RR.Req_.IsKeepalive() {
-		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
-		if res == -1 {
-			ev.WriteData(response.DefaultNotFound())
-		} else {
-			ev.WriteData(ev.RR.Res_.GenerateResponse())
-		}
-
-		message.PrintAccess(ev.Conn.RemoteAddr().String(),
-			"STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-
-		ev.Log_clear()
-
-		ev.Reuse = true
-		// HandleEvent(ev) // recursion
-	} else {
-		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
-		if res == -1 {
-			ev.WriteDataClose(response.DefaultNotFound())
-		} else {
-			ev.WriteDataClose(ev.RR.Res_.GenerateResponse())
-		}
-
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log,
-			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		ev.Log_clear()
-	}
-}
-
 func getResBytes(lisdata listener.ListenCfg,
 	path string, connection string, ev *core.Event) int {
 	// if config.GOs == "windows" {
@@ -148,4 +97,61 @@ func getContentType(path string) string {
 		}
 	}
 	return row
+}
+
+/*
+ *************************************
+ ****** Interfaces are as follows ****
+ *************************************
+ */
+
+func HandelSlash(cfg listener.ListenCfg, ev *core.Event) bool {
+	if ev.RR.OriginPath == "" && cfg.Path != "/" {
+		event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
+		return false
+	}
+	return true
+}
+
+// handle static events
+// if requests want to keep-alive, we use write bytes,
+// if Content-Type is close, we write bytes and close this connection
+// Recursion "Handle_event" isn't a problem, because it
+// will pause when TCP buffer is None.
+func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
+
+	path := ev.RR.OriginPath
+	if cfg.Path != "/" {
+		path = cfg.StaticRoot + path
+	} else {
+		path = cfg.StaticRoot + ev.RR.Req_.Path
+	}
+
+	if ev.RR.Req_.IsKeepalive() {
+		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
+		if res == -1 {
+			ev.WriteData(response.DefaultNotFound())
+		} else {
+			ev.WriteData(ev.RR.Res_.GenerateResponse())
+		}
+
+		message.PrintAccess(ev.Conn.RemoteAddr().String(),
+			"STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+
+		ev.Log_clear()
+
+		ev.Reuse = true
+		// HandleEvent(ev) // recursion
+	} else {
+		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
+		if res == -1 {
+			ev.WriteDataClose(response.DefaultNotFound())
+		} else {
+			ev.WriteDataClose(ev.RR.Res_.GenerateResponse())
+		}
+
+		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log,
+			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+		ev.Log_clear()
+	}
 }
