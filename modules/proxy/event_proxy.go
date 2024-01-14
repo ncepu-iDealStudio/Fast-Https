@@ -373,8 +373,9 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 	if ev.RR.ProxyConnInit == false {
 		ev.RR.ProxyConnInit = true
 		proxy = Newproxy(cfg.Proxy_addr, int(cfg.Type), configCache)
-		proxy.ProxyInit()
 		proxy.proxyHandleAddr()
+		proxy.ProxyInit()
+
 		ev.RR.CircleData = proxy
 	} else {
 		var flag bool
@@ -409,6 +410,6 @@ func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
 		}
 	}
 	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
-	// ev.RR.Req_.SetHeader("Connection", "close", cfg)
+	ev.RR.Req_.SetHeader("Connection", "close", cfg)
 	ev.RR.Req_.Flush()
 }
