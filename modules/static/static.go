@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	HTTP_DEFAULT_CONTENT_TYPE = "text/html"
+	HTTP_DEFAULT_CONTENT_TYPE = "application/octet-stream"
 )
 
 func init() {
@@ -25,6 +25,10 @@ func getResBytes(lisdata listener.ListenCfg,
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
 	// }
+	// Handle request like this :
+	// Simple-Line-Icons4c82.ttf?-i3a2kk
+	path_type := strings.Split(path, "?")
+	path = path_type[0]
 	var file_data = cache.Get_data_from_cache(path)
 
 	ev.RR.Res_.SetFirstLine(200, "OK")
@@ -54,7 +58,7 @@ func getResBytes(lisdata listener.ListenCfg,
 
 		if file_data != nil {
 
-			ev.RR.Res_.SetHeader("Content-Type", getContentType(path))
+			ev.RR.Res_.SetHeader("Content-Type", getContentType(realPath))
 			ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len(file_data)))
 			if lisdata.Zip == 1 {
 				ev.RR.Res_.SetHeader("Content-Encoding", "gzip")

@@ -15,3 +15,4 @@ go.sum
 config/cert/*.pem
 httpdoc/root/root.crt
 httpdoc/root/root.key
+httpdoc/theme/*
