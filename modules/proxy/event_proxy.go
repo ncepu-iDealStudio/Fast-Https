@@ -17,13 +17,45 @@ import (
 	"strings"
 )
 
-const (
-	TRY_READ_LEN = 1024
-)
+type Proxy struct {
+	ProxyAddr      string // TODO: upstream
+	ProxyConn      net.Conn
+	ProxyType      int
+	ProxyNeedCache bool
+}
 
 func init() {
 	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFliterHandler, ProxyEvent)
 	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFliterHandler, ProxyEvent)
+}
+
+func Newproxy(addr string, proxyType int, proxyNeedCache bool) *Proxy {
+	return &Proxy{
+		ProxyType:      proxyType,
+		ProxyNeedCache: proxyNeedCache,
+		ProxyAddr:      addr,
+	}
+}
+
+// connect to the server
+func (p *Proxy) ProxyInit() error {
+	var err error
+	p.ProxyConn, err = net.Dial("tcp", p.ProxyAddr)
+	if err != nil {
+		message.PrintWarn("Proxy event: Can't connect to " + err.Error())
+		return err // no server
+	}
+	now := time.Now()
+	p.ProxyConn.SetDeadline(now.Add(time.Second * 20)) // proxy server time out
+
+	return nil
+}
+
+// TODO: when add upstream, this function need to do more
+func (p *Proxy) proxyHandleAddr() {
+	if !strings.Contains(p.ProxyAddr, ":") {
+		p.ProxyAddr = p.ProxyAddr + ":80"
+	}
 }
 
 func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
@@ -72,87 +104,16 @@ func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 	return res, head_code, strconv.Itoa(len(body))
 }
 
-type ReadOnce struct {
-	TryNum   int
-	finalStr []byte
-}
-
-/*
-  - return -1 str is too short
-    return -2 parse failed no such Header "Content-Length"
-  - if parse successed, return a number that need to be read.
-*/
-func (ro *ReadOnce) tryToParse(tmpData []byte) int {
-
-	tmpLen := len(tmpData)
-	if tmpLen < 4 {
-		// str is too short
-		return -1 // parse failed!
-	}
-	// fmt.Println(tmpData)
-
-	var i int
-	i = strings.Index(string(tmpData), "\r\n\r\n")
-
-	if i == -1 {
-		// parse failed! "no \r\n\r\n"
-		// caller need call this again maybe
-		ro.TryNum = ro.TryNum + 1
-		return -2
-	}
-
-	res := response.ResponseInit()
-	res.HttpResParse(string(tmpData))
-	var contentLength int
-	if res.GetHeader("Content-Length") != "" {
-		// fmt.Println(res.GetHeader("Content-Length"))
-		contentLength, _ = strconv.Atoi(res.GetHeader("Content-Length"))
-	}
-
-	NeedRead := contentLength - (tmpLen - i - 4)
-	return NeedRead
-}
-
-func (ro *ReadOnce) proxyReadOnce(ev *core.Event) error {
-
-	tmpByte := make([]byte, TRY_READ_LEN)
-readAgain:
-
-	len_once, err := ev.RR.ProxyConn.Read(tmpByte)
-	if err != nil {
-		return err // can't read
-	}
-	ro.finalStr = append(ro.finalStr, tmpByte[:len_once]...)
-
-	// TRY_READ_LEN is not enough
-	if len_once == TRY_READ_LEN {
-		size := ro.tryToParse(ro.finalStr)
-		if size > 0 {
-			lengthByteData := make([]byte, size)
-			lenOther, err := ev.RR.ProxyConn.Read(lengthByteData)
-			if err != nil {
-				return err // can't read
-			}
-			ro.finalStr = append(ro.finalStr, lengthByteData[:lenOther]...)
-		} else if size == -2 {
-			// fmt.Println("invalid header")
-			goto readAgain
-		}
-	}
-
-	return nil
-}
-
-func proxyReadAll(ev *core.Event) ([]byte, error) {
+func (p *Proxy) proxyReadAll(ev *core.Event) ([]byte, error) {
 	var resData []byte
 	tmpByte := make([]byte, 1024)
 	for {
-		len_once, err := ev.RR.ProxyConn.Read(tmpByte)
+		len_once, err := p.ProxyConn.Read(tmpByte)
 		if err != nil {
 			if err == io.EOF { // read all
 				break
 			} else {
-				ev.RR.ProxyConn.Close()
+				p.ProxyConn.Close()
 				ev.Close()
 				return nil, err // can't read
 			}
@@ -164,47 +125,31 @@ func proxyReadAll(ev *core.Event) ([]byte, error) {
 }
 
 // fast-https will send data to real server and get response from target
-func getDataFromServer(ev *core.Event, proxyaddr string,
+func (p *Proxy) getDataFromServer(ev *core.Event,
 	req_data []byte) ([]byte, error) {
 
-	// data := []byte("GET / HTTP/1.1\r\nHost: localhost:9090\r\nConnection: keep-alive\r\n\r\n")
-
-	if !strings.Contains(proxyaddr, ":") {
-		proxyaddr = proxyaddr + ":80"
-	}
-
 	var err error
-	// init proxy tcp connection
-	if ev.RR.ProxyConnInit == false {
-		ev.RR.ProxyConnInit = true
-		ev.RR.ProxyConn, err = net.Dial("tcp", proxyaddr)
-		if err != nil {
-			message.PrintWarn("Proxy event: Can't connect to "+
-				proxyaddr, err.Error())
-			return nil, err // no server
-		}
-		now := time.Now()
-		ev.RR.ProxyConn.SetDeadline(now.Add(time.Second * 20)) // proxy server time out
-	}
 
-	_, err = ev.RR.ProxyConn.Write(req_data)
+	_, err = p.ProxyConn.Write(req_data)
 	if err != nil {
-		ev.RR.ProxyConn.Close() // close proxy connection
-		ev.Close()              // close event connection
-		message.PrintWarn("Proxy event: Can't write to "+
-			proxyaddr, err.Error())
+		p.ProxyConn.Close() // close proxy connection
+		ev.Close()          // close event connection
+		message.PrintWarn("Proxy event: Can't write to " + err.Error())
 		return nil, err // can't write
 	}
 
 	var resData []byte
 	if !ev.RR.Req_.IsKeepalive() {
-		resData, err = proxyReadAll(ev)
+		resData, err = p.proxyReadAll(ev)
 		// fmt.Println("-----This is proxyReadAll")
 		if err != nil {
 			message.PrintWarn("Proxy event: Can't read all", err.Error())
 		}
 	} else {
-		ro := ReadOnce{}
+		ro := ReadOnce{
+			TryNum:    0,
+			ProxyConn: p.ProxyConn,
+		}
 		err = ro.proxyReadOnce(ev)
 		// fmt.Println("-----This is proxyReadOnce")
 		if err != nil {
@@ -218,7 +163,7 @@ func getDataFromServer(ev *core.Event, proxyaddr string,
 	ev.Log_append(" " + head_code + " " + b_len)
 
 	if !ev.RR.Req_.IsKeepalive() { // connection close
-		ev.RR.ProxyConn.Close()
+		p.ProxyConn.Close()
 	}
 
 	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+
@@ -229,28 +174,13 @@ func getDataFromServer(ev *core.Event, proxyaddr string,
 }
 
 // fast-https will send data to real server and get response from target
-func getDataFromSslServer(ev *core.Event, proxyaddr string,
+func (p *Proxy) getDataFromSslServer(ev *core.Event,
 	data []byte) ([]byte, error) {
 
-	if !strings.Contains(proxyaddr, ":") {
-		proxyaddr = proxyaddr + ":443"
-	}
-
 	var err error
-	if ev.RR.ProxyConnInit == false {
-		ev.RR.ProxyConnInit = true
-		ev.RR.ProxyConn, err = net.Dial("tcp", proxyaddr)
-		if err != nil {
-			message.PrintWarn("Proxy event: Can't connect to "+
-				proxyaddr, err.Error())
-			return nil, err // no server
-		}
-		// now := time.Now()
-		// (ev.RR.ProxyConn).SetDeadline(now.Add(time.Second * 20)) // proxy server time out
-	}
 
 	config := tls.Config{InsecureSkipVerify: true}
-	tlsConn := tls.Client(ev.RR.ProxyConn, &config)
+	tlsConn := tls.Client(p.ProxyConn, &config)
 
 	_, err = tlsConn.Write(data)
 	if err != nil {
@@ -260,21 +190,23 @@ func getDataFromSslServer(ev *core.Event, proxyaddr string,
 	}
 
 	var resData []byte
-	tmpByte := make([]byte, 4096*20)
-	for {
-		len_once, err := ev.RR.ProxyConn.Read(tmpByte)
+	if !ev.RR.Req_.IsKeepalive() {
+		resData, err = p.proxyReadAll(ev)
+		// fmt.Println("-----This is proxyReadAll")
 		if err != nil {
-			if err == io.EOF { // read all
-				break
-			} else {
-				ev.RR.ProxyConn.Close()
-				ev.Close()
-				message.PrintWarn("Proxy event: Can't read from "+
-					proxyaddr, err.Error())
-				return nil, err // can't read
-			}
+			message.PrintWarn("Proxy event: Can't read all", err.Error())
 		}
-		resData = append(resData, tmpByte[:len_once]...)
+	} else {
+		ro := ReadOnce{
+			TryNum:    0,
+			ProxyConn: p.ProxyConn,
+		}
+		err = ro.proxyReadOnce(ev)
+		// fmt.Println("-----This is proxyReadOnce")
+		if err != nil {
+			message.PrintWarn("Proxy event: Can't read once", err.Error())
+		}
+		resData = ro.finalStr
 	}
 
 	finalData, head_code, b_len := ChangeHeader(resData)
@@ -291,11 +223,25 @@ func getDataFromSslServer(ev *core.Event, proxyaddr string,
 	return finalData, nil // no error
 }
 
+type ProxyCache struct {
+	ProxyCachePath  string
+	ProxyCacheKey   string
+	ProxyCacheValid []string
+}
+
+func NewProxyCache(key string, valid []string, path string) *ProxyCache {
+	return &ProxyCache{
+		ProxyCacheKey:   key,
+		ProxyCacheValid: valid,
+		ProxyCachePath:  path,
+	}
+}
+
 // to do: improve this function
-func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg,
+func (pc *ProxyCache) ProcessCacheConfig(ev *core.Event,
 	resCode string) (md5 string, expire int) {
 
-	cacheKeyRule := cfg.ProxyCache.Key
+	cacheKeyRule := pc.ProxyCacheKey
 	keys := strings.Split(cacheKeyRule, "$")
 	rule := map[string]string{ // 配置缓存key字段的生成规则
 		"request_method": ev.RR.Req_.Method,
@@ -316,7 +262,7 @@ func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg,
 	md5 = cache.GetMd5(ruleString)
 
 	// convert ["200:1h", "304:1h", "any:30m"]
-	valid := cfg.ProxyCache.Valid
+	valid := pc.ProxyCacheValid
 	for _, c := range valid {
 		split := strings.Split(c, ":")
 		if split[0] != resCode || split[0] == "any" {
@@ -328,24 +274,23 @@ func ProcessCacheConfig(ev *core.Event, cfg listener.ListenCfg,
 	return
 }
 
-func CacheData(ev *core.Event, cfg listener.ListenCfg,
-	resCode string, data []byte, size int) {
+func (pc *ProxyCache) CacheData(ev *core.Event, resCode string,
+	data []byte, size int) {
 
 	// according to usr's config, create a key
-	uriStringMd5, expireTime := ProcessCacheConfig(ev, cfg, resCode)
+	uriStringMd5, expireTime := pc.ProcessCacheConfig(ev, resCode)
 	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime,
-		cfg.ProxyCache.Path, data, size)
+		pc.ProxyCachePath, data, size)
 	// fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path,
 	// cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
 }
 
-func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
-	ev *core.Event) {
+func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
 	var res []byte
 	var err error
 
 	flag := false
-	uriStringMd5, _ := ProcessCacheConfig(ev, cfg, "")
+	uriStringMd5, _ := pc.ProcessCacheConfig(ev, "")
 	res, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
 
 	if ev.RR.Req_.Headers["Cache-Control"] == "no-cache" {
@@ -354,12 +299,10 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 
 	if !flag {
 
-		if cfg.Type == config.PROXY_HTTP { // http proxy
-			res, err = getDataFromServer(ev, cfg.Proxy_addr,
-				req_data)
-		} else if cfg.Type == config.PROXY_HTTPS { // https proxy
-			res, err = getDataFromSslServer(ev, cfg.Proxy_addr,
-				req_data)
+		if p.ProxyType == config.PROXY_HTTP { // http proxy
+			res, err = p.getDataFromServer(ev, req_data)
+		} else if p.ProxyType == config.PROXY_HTTPS { // https proxy
+			res, err = p.getDataFromSslServer(ev, req_data)
 		} else {
 			message.PrintErr("invalid path type")
 		}
@@ -368,7 +311,7 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 			ev.WriteDataClose(response.DefaultServerError())
 			return
 		}
-		CacheData(ev, cfg, "200", res, len(res))
+		pc.CacheData(ev, "200", res, len(res))
 
 	} else {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
@@ -386,17 +329,14 @@ func proxyNeedCache(req_data []byte, cfg listener.ListenCfg,
 	}
 }
 
-func proxyNoCache(req_data []byte, cfg listener.ListenCfg,
-	ev *core.Event) {
+func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 	var res []byte
 	var err error
 
-	if cfg.Type == config.PROXY_HTTP { // http proxy
-		res, err = getDataFromServer(ev, cfg.Proxy_addr,
-			req_data)
-	} else if cfg.Type == config.PROXY_HTTPS { // https proxy
-		res, err = getDataFromSslServer(ev, cfg.Proxy_addr,
-			req_data)
+	if p.ProxyType == config.PROXY_HTTP { // http proxy
+		res, err = p.getDataFromServer(ev, req_data)
+	} else if p.ProxyType == config.PROXY_HTTPS { // https proxy
+		res, err = p.getDataFromSslServer(ev, req_data)
 	} else {
 		message.PrintErr("invalid path type")
 	}
@@ -427,10 +367,28 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 		configCache = false
 	}
 
-	if configCache {
-		proxyNeedCache(req_data, cfg, ev)
+	var proxy *Proxy
+
+	// init proxy tcp connection
+	if ev.RR.ProxyConnInit == false {
+		ev.RR.ProxyConnInit = true
+		proxy = Newproxy(cfg.Proxy_addr, int(cfg.Type), configCache)
+		proxy.ProxyInit()
+		proxy.proxyHandleAddr()
+		ev.RR.CircleData = proxy
 	} else {
-		proxyNoCache(req_data, cfg, ev)
+		var flag bool
+		proxy, flag = (ev.RR.CircleData).(*Proxy)
+		if !flag {
+			message.PrintErr("--proxy can not convert circle data to *Proxy")
+		}
+	}
+
+	if configCache {
+		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid, cfg.ProxyCache.Path)
+		proxy.proxyNeedCache(proxyCache, req_data, ev)
+	} else {
+		proxy.proxyNoCache(req_data, ev)
 	}
 }
 

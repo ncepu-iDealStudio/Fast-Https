@@ -6,6 +6,7 @@ import (
 	"fast-https/modules/core/listener"
 	"fast-https/modules/safe"
 	"fast-https/output"
+	"fast-https/service"
 	"fast-https/utils/message"
 	"fmt"
 	"net"
@@ -84,14 +85,18 @@ func (s *Server) serveListener(listener listener.Listener) {
 			message.PrintErr("Error accepting connection:", err)
 			continue
 		}
-		s.setConnCfg(&conn)
+		// s.setConnCfg(&conn)
 
 		each_event := core.NewEvent(listener, conn)
 		each_event.Conn = conn
 		each_event.Lis_info = listener
 		each_event.Timer = nil
 		each_event.Reuse = false
-		each_event.IsClose = false
+
+		each_event.IsClose = false    // not close
+		each_event.ReadReady = true   // need read
+		each_event.WriteReady = false // needn't write
+
 		each_event.RR.Ev = each_event // include each other
 		each_event.RR.IsCircle = true
 		each_event.RR.CircleInit = false
@@ -123,7 +128,7 @@ func (s *Server) serveListener(listener listener.Listener) {
 }
 
 func (s *Server) Run() {
-	// service.TestService("0.0.0.0:5000", "this is 5000")
+	service.TestService("0.0.0.0:5000", "this is 5000")
 
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)
@@ -147,7 +152,7 @@ func (s *Server) Run() {
 
 	for {
 		<-sigchnl
-		s.wg.Wait()
+		// s.wg.Wait()
 		return
 	}
 }

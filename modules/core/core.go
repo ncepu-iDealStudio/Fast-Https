@@ -5,10 +5,12 @@ import (
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
-	"fmt"
+	"fast-https/utils/message"
 	"io"
 	"net"
+	"reflect"
 	"time"
+	"unsafe"
 )
 
 // request and response circle
@@ -22,11 +24,11 @@ type RRcircle struct {
 	// uri after re
 	OriginPath    string
 	PathLocation  []int
-	ProxyConn     net.Conn
 	ProxyConnInit bool
 
 	CircleHandler RRcircleHandler
 	Ev            *Event
+	CircleData    interface{}
 }
 
 // callback item
@@ -49,7 +51,10 @@ type Event struct {
 	Type     uint64
 	RR       RRcircle
 	Reuse    bool
-	IsClose  bool
+
+	IsClose    bool
+	ReadReady  bool
+	WriteReady bool
 }
 
 func (ev *Event) EventReuse() bool {
@@ -88,15 +93,16 @@ func (ev *Event) ReadData() ([]byte, string) {
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
-			// message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
+			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
-		// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-		// if opErr.Err.Error() == "i/o timeout" {
-		// 	message.PrintWarn("read timeout")
-		// 	return nil, ""
-		// }
-		fmt.Println("Error reading from client 176:", err)
+		opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+		if opErr.Err.Error() == "i/o timeout" {
+			message.PrintWarn("read timeout")
+			return nil, ""
+		} else { // other error can not handle temporarily
+			message.PrintErr("Error --core reading from client", err)
+		}
 		return nil, ""
 	}
 	str_row := string(buffer[:n])
@@ -105,30 +111,33 @@ func (ev *Event) ReadData() ([]byte, string) {
 }
 
 func (ev *Event) WriteData(data []byte) error {
-	now := time.Now()
-	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
+	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
-			// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-			// if opErr.Err.Error() == "i/o timeout" {
-			// 	message.PrintWarn("write timeout")
-			// 	return
-			// }
-			fmt.Println("Error writing to client 46:", err)
-			return err
+			opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+			if opErr.Err.Error() == "i/o timeout" {
+				message.PrintWarn("write timeout")
+				return err
+			} else { // other error can not handle temporarily
+				message.PrintErr("Error --core writing to client ", err)
+				return err
+			}
 		}
 		data = data[n:]
 	}
-
 	return nil
 }
 
 // only close the connection
 func (ev *Event) Close() {
-	err := ev.Conn.Close()
-	if err != nil {
-		fmt.Println("Error Close 57:", err)
+	if !ev.IsClose {
+		err := ev.Conn.Close()
+		if err != nil {
+			message.PrintErr("Error --core Close", err)
+		}
+	} else {
+		message.PrintWarn("--core repeat close")
 	}
 	ev.IsClose = true
 }
