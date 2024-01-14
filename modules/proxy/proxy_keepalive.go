@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"crypto/tls"
+	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
@@ -15,9 +17,11 @@ const (
 )
 
 type ReadOnce struct {
-	TryNum    int
-	finalStr  []byte
-	ProxyConn net.Conn
+	TryNum       int
+	finalStr     []byte
+	Type         int
+	ProxyConn    net.Conn
+	ProxyTlsConn *tls.Conn
 }
 
 /*
@@ -65,13 +69,24 @@ func parseChunked() {
 	// \r\n
 }
 
+func (ro *ReadOnce) Read(data []byte) (int, error) {
+	if ro.Type == config.PROXY_HTTP {
+		return ro.ProxyConn.Read(data)
+	} else if ro.Type == config.PROXY_HTTPS {
+		return ro.ProxyTlsConn.Read(data)
+	} else {
+		message.PrintErr("--proxy read error")
+		return 0, nil
+	}
+}
+
 func (ro *ReadOnce) ReadBytes(size int) {
 	totalLen := size
 	for {
 		onceSize := READ_BYTES_LEN - totalLen
 		if onceSize > 0 {
 			lastBuf := make([]byte, READ_BYTES_LEN-onceSize)
-			lastLen, err := ro.ProxyConn.Read(lastBuf)
+			lastLen, err := ro.Read(lastBuf)
 			if err != nil || lastLen != READ_BYTES_LEN-onceSize {
 				message.PrintErr("ReadBytes error", err)
 			}
@@ -79,7 +94,7 @@ func (ro *ReadOnce) ReadBytes(size int) {
 			return
 		} else {
 			tmpBuf := make([]byte, READ_BYTES_LEN)
-			tempLen, err := ro.ProxyConn.Read(tmpBuf)
+			tempLen, err := ro.Read(tmpBuf)
 			if err != nil || tempLen != READ_BYTES_LEN {
 				message.PrintErr("ReadBytes error", err)
 			}
@@ -94,7 +109,8 @@ func (ro *ReadOnce) proxyReadOnce(ev *core.Event) error {
 	tmpByte := make([]byte, TRY_READ_LEN)
 readAgain:
 
-	len_once, err := ro.ProxyConn.Read(tmpByte)
+	len_once, err := ro.Read(tmpByte)
+
 	if err != nil {
 		return err // can't read
 	}
