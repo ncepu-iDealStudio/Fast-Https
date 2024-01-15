@@ -8,7 +8,6 @@ import (
 	"fast-https/output"
 	"fast-https/service"
 	"fast-https/utils/message"
-	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -24,14 +23,14 @@ import (
 )
 
 type Server struct {
-	Shutdown bool
+	Shutdown core.ServerControl
 	wg       sync.WaitGroup
 }
 
 // init server
 func ServerInit() *Server {
 	//  to do : ScanPorts
-	return &Server{Shutdown: false}
+	return &Server{Shutdown: core.ServerControl{Shutdown: false}}
 }
 
 // ScanPorts scan ports to check whether they've been used
@@ -52,12 +51,12 @@ func ScanPorts() error {
 // register some signal handlers
 func (s *Server) sigHandler(signal os.Signal) {
 	if signal == syscall.SIGTERM {
-		fmt.Println("The server got a kill signal")
-		s.Shutdown = true
+		message.PrintInfo("The server got a kill signal")
+		s.Shutdown.Shutdown = true
 
 	} else if signal == syscall.SIGINT {
-		fmt.Println("The server got a CTRL+C signal")
-		s.Shutdown = true
+		message.PrintInfo("The server got a CTRL+C signal")
+		s.Shutdown.Shutdown = true
 
 	}
 }
@@ -78,7 +77,7 @@ func (s *Server) setConnCfg(conn *net.Conn) {
 // listen and serve one port
 func (s *Server) serveListener(listener listener.Listener) {
 
-	for !s.Shutdown {
+	for !s.Shutdown.Shutdown {
 
 		conn, err := listener.Lfd.Accept()
 		if err != nil {
@@ -114,7 +113,7 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// go events.HandleEvent(each_event)
 
 		syncCalculateSum := func() {
-			events.HandleEvent(each_event)
+			events.HandleEvent(each_event, &(s.Shutdown))
 			s.wg.Done()
 		}
 		s.wg.Add(1)
@@ -150,9 +149,9 @@ func (s *Server) Run() {
 		go s.serveListener(value)
 	}
 
-	for {
-		<-sigchnl
-		// s.wg.Wait()
-		return
+	for !s.Shutdown.Shutdown {
+		// <-sigchnl
+		// fmt.Println("got sig")
+		s.wg.Wait()
 	}
 }

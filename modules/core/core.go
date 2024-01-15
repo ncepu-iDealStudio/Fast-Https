@@ -13,6 +13,10 @@ import (
 	"unsafe"
 )
 
+const (
+	READ_BUF_LEN = 4096
+)
+
 // request and response circle
 type RRcircle struct {
 	Req_ *request.Req
@@ -83,21 +87,29 @@ func (ev *Event) Log_clear() {
 	ev.Log = ""
 }
 
+func (ev *Event) CheckIfTimeOut(err error) bool {
+	opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+	if opErr.Err.Error() == "i/o timeout" {
+		return true
+	} else {
+		return false
+	}
+}
+
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
 func (ev *Event) ReadData() ([]byte, string) {
 	now := time.Now()
 	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
-	buffer := make([]byte, 1024*4)
+	buffer := make([]byte, READ_BUF_LEN)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
 			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
 			return nil, ""
 		}
-		opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-		if opErr.Err.Error() == "i/o timeout" {
+		if ev.CheckIfTimeOut(err) {
 			message.PrintWarn("read timeout")
 			return nil, ""
 		} else { // other error can not handle temporarily
@@ -115,8 +127,7 @@ func (ev *Event) WriteData(data []byte) error {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
-			opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-			if opErr.Err.Error() == "i/o timeout" {
+			if ev.CheckIfTimeOut(err) {
 				message.PrintWarn("write timeout")
 				return err
 			} else { // other error can not handle temporarily
@@ -145,4 +156,8 @@ func (ev *Event) Close() {
 func (ev *Event) WriteDataClose(data []byte) {
 	ev.WriteData(data)
 	ev.Close()
+}
+
+type ServerControl struct {
+	Shutdown bool
 }

@@ -38,6 +38,10 @@ func Newproxy(addr string, proxyType int, proxyNeedCache bool) *Proxy {
 	}
 }
 
+func (m *Proxy) Error() string {
+	return "proxy error"
+}
+
 // connect to the server
 func (p *Proxy) ProxyInit() error {
 	var err error
@@ -80,7 +84,7 @@ func (p *Proxy) Read(data []byte) (int, error) {
 		return p.ProxyTlsConn.Read(data)
 	} else {
 		message.PrintErr("--proxy read error")
-		return 0, nil
+		return 0, p
 	}
 }
 
@@ -91,7 +95,7 @@ func (p *Proxy) Write(data []byte) (int, error) {
 		return p.ProxyTlsConn.Write(data)
 	} else {
 		message.PrintErr("--proxy write error")
-		return 0, nil
+		return 0, p
 	}
 }
 
@@ -102,7 +106,7 @@ func (p *Proxy) Close() error {
 		return p.ProxyTlsConn.Close()
 	} else {
 		message.PrintErr("--proxy close error")
-		return nil
+		return p
 	}
 }
 
@@ -313,6 +317,8 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"PROXY Event(Cache)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+
+		ev.Log_clear()
 	}
 
 	// proxy server return valid data

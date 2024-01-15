@@ -11,12 +11,18 @@ import (
 	"strings"
 )
 
-func HandleEvent(ev *core.Event) {
+func HandleEvent(ev *core.Event, shutdown *core.ServerControl) {
 	for !ev.IsClose {
 		EventHandler(ev)
 
 		if !ev.EventReuse() {
 			break
+		}
+
+		if shutdown.Shutdown {
+			message.PrintInfo("server shut down")
+			ev.Close()
+			return
 		}
 	}
 }
