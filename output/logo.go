@@ -1,6 +1,9 @@
 package output
 
-import "fmt"
+import (
+	"fast-https/config"
+	"fmt"
+)
 
 var fastHttpsLogo = `                                        
 
@@ -10,7 +13,7 @@ var fastHttpsLogo = `
 ██╔══╝  ██╔══██║╚════██║   ██║       ██╔══██║   ██║      ██║   ██╔═══╝ ╚════██║
 ██║     ██║  ██║███████║   ██║       ██║  ██║   ██║      ██║   ██║     ███████║
 ╚═╝     ╚═╝  ╚═╝╚══════╝   ╚═╝       ╚═╝  ╚═╝   ╚═╝      ╚═╝   ╚═╝     ╚══════╝
-                                        `
+                                        ` + "\n\t" + config.CURRENT_VERSION
 
 var topLine = `┌──────────────────────────────────────────────────────┐`
 var borderLine = `│`

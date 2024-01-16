@@ -1,12 +1,14 @@
 package loggers
 
 import (
+	"fast-https/config"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"io"
 	"os"
 	"path"
 	"sync"
+
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -43,13 +45,13 @@ func GetLogger() *Logs {
 
 func InitLogger(path string) {
 	logOnce.Do(func() {
-		log.systemLog = loggerToFileAndCmd(path, "system.log")
+		log.systemLog = loggerToFileAndCmd(path, config.SYSTEM_LOG_NAME)
 		log.systemLog.SetFormatter(&SystemLogFormatter{})
-		log.accessLog = loggerToFileAndCmd(path, "access.log")
+		log.accessLog = loggerToFileAndCmd(path, config.ACCESS_LOG_NAME)
 		log.accessLog.SetFormatter(&AccessLogFormatter{})
-		log.errorLog = loggerToFileAndCmd(path, "error.log")
+		log.errorLog = loggerToFileAndCmd(path, config.ERROR_LOG_NAME)
 		log.errorLog.SetFormatter(&ErrorLogFormatter{})
-		log.safeLog = loggerToFileAndCmd(path, "safe.log")
+		log.safeLog = loggerToFileAndCmd(path, config.SAFE_LOG_NAME)
 		log.safeLog.SetFormatter(&SafeLogFormatter{})
 	})
 }

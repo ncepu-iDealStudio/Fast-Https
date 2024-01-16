@@ -20,13 +20,14 @@ const (
 	ZIP_BR      = 2
 	ZIP_GZIP_BR = 10
 
-	CONFIG_FILE = "config/fast-https.conf"
-
 	Host        = 100
 	XRealIp     = 101
 	XForwardFor = 102
 )
 
+/*
+// path type
+*/
 const (
 	LOCAL       = 0
 	PROXY_HTTP  = 1
@@ -107,6 +108,11 @@ type Fast_Https struct {
 	TcpNodelay                string
 }
 
+// Define Configuration Structure
+var GConfig Fast_Https
+var GContentTypeMap map[string]string
+var GOs = runtime.GOOS
+
 func getHeaders(path string) []Header {
 	headerKeys := viper.GetStringSlice(path)
 	var headers []Header
@@ -121,11 +127,6 @@ func getHeaders(path string) []Header {
 	}
 	return headers
 }
-
-// Define Configuration Structure
-var GConfig Fast_Https
-var GContentTypeMap map[string]string
-var GOs = runtime.GOOS
 
 // Init the whole config module
 func Init() error {
@@ -161,18 +162,19 @@ func serverContentType() error {
 	var content_type string
 
 	wd, _ := os.Getwd()
-	confPath := filepath.Join(wd, "config/mime.types")
+	confPath := filepath.Join(wd, MIME_FILE_PATH)
 	confBytes, err := files.ReadFile(confPath)
 
 	if err != nil {
+		log.Fatal("can't open mime.types file")
 		return errors.New("can't open mime.types file")
 	}
 	var clear_str string
-	if GOs == "windows" {
-		clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
-	} else {
-		clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
-	}
+	// if GOs == "windows" {
+	clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
+	// } else {
+	// clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
+	// }
 	all_type_arr := strings.Split(deleteExtraSpace(clear_str), ";")
 	for _, one_type := range all_type_arr {
 		arr := strings.Split(one_type, " ")
@@ -218,7 +220,7 @@ func process() error {
 
 	var fast_https Fast_Https
 
-	viper.SetConfigFile("config_dev/fast-https.json") // 指定要解析的 JSON 文件
+	viper.SetConfigFile(CONFIG_FILE_PATH) // 指定要解析的 JSON 文件
 
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -361,5 +363,4 @@ func process() error {
 	GConfig = fast_https
 
 	return nil
-
 }

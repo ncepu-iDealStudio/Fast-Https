@@ -1,6 +1,7 @@
 package events
 
 import (
+	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
@@ -84,7 +85,7 @@ func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 		}
 	}
 
-	hosts2 := ev.Lis_info.HostMap[":8080"]
+	hosts2 := ev.Lis_info.HostMap[config.DEFAULT_PORT]
 	for _, cfg = range hosts2 {
 		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
 		res := re.FindStringIndex(ev.RR.Req_.Path)

@@ -117,7 +117,7 @@ func ReloadHandler() error {
 
 // StopHandler stop server
 func StopHandler() error {
-	file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
+	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func StopHandler() error {
 
 	file.Close()
 
-	os.Remove("fast-https.pid")
+	os.Remove(config.PID_FILE)
 
 	return nil
 }
@@ -156,11 +156,15 @@ func StartHandler() error {
 	// output logo, make initialization and start server
 	output.PrintLogo()
 	WritePid()
+
 	output.PrintInitialStart()
 	initialization.Init()
 	output.PrintInitialEnd()
+
 	server := server.ServerInit()
 	server.Run()
+
+	// server will clog here
 	return nil
 }
 
@@ -186,7 +190,7 @@ func WritePid() {
 	// Obtain the pid and store it
 	x_pid := os.Getpid()
 
-	file, err := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	file, err := os.OpenFile(config.PID_FILE, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		log.Fatal("Open pid file error", err)
 	}

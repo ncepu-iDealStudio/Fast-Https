@@ -2,7 +2,9 @@ package loggers
 
 import (
 	"bytes"
+	"fast-https/config"
 	"fmt"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,7 +28,7 @@ func (s *SystemLogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	timestamp := entry.Time.Format("2006-01-02 15:04:05")
+	timestamp := entry.Time.Format(config.SERVER_TIME_FORMAT)
 	var newLog string
 	newLog = fmt.Sprintf("%s %s\n", timestamp, entry.Message)
 
@@ -42,7 +44,7 @@ func (a *AccessLogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	timestamp := entry.Time.Format("2006-01-02 15:04:05")
+	timestamp := entry.Time.Format(config.SERVER_TIME_FORMAT)
 	var newLog string
 	newLog = fmt.Sprintf("%s -- [%s] %v\n", entry.Data["host"], timestamp, entry.Message)
 
@@ -58,7 +60,7 @@ func (e *ErrorLogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	timestamp := entry.Time.Format("2006-01-02 15:04:05")
+	timestamp := entry.Time.Format(config.SERVER_TIME_FORMAT)
 	var newLog string
 	newLog = fmt.Sprintf("%s [%s] %v %s\n", timestamp, entry.Level, entry.Caller, entry.Message)
 
@@ -74,7 +76,7 @@ func (e *SafeLogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	timestamp := entry.Time.Format("2006-01-02 15:04:05")
+	timestamp := entry.Time.Format(config.SERVER_TIME_FORMAT)
 	var newLog string
 	newLog = fmt.Sprintf("%s %s\n", timestamp, entry.Message)
 
