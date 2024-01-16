@@ -3,7 +3,6 @@ module fast-https
 go 1.20
 
 require (
-	github.com/fsnotify/fsnotify v1.6.0
 	github.com/fufuok/chanx v1.2.0
 	github.com/panjf2000/ants v1.2.1
 	github.com/sirupsen/logrus v1.9.3
@@ -13,6 +12,7 @@ require (
 )
 
 require (
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
 	github.com/getlantern/errors v0.0.0-20190325191628-abdb3e3e36f7 // indirect
 	github.com/getlantern/golog v0.0.0-20190830074920-4ef2e798c2d7 // indirect
@@ -20,14 +20,12 @@ require (
 	github.com/getlantern/hidden v0.0.0-20190325191715-f02dbb02be55 // indirect
 	github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20231002182017-d307bd883b97 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	golang.org/x/sync v0.4.0 // indirect
 )
 
 require (
@@ -51,7 +49,6 @@ require (
 	golang.org/x/net v0.16.0
 	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
-	google.golang.org/grpc v1.60.1
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

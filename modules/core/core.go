@@ -8,9 +8,7 @@ import (
 	"fast-https/utils/message"
 	"io"
 	"net"
-	"reflect"
 	"time"
-	"unsafe"
 )
 
 const (
@@ -88,8 +86,13 @@ func (ev *Event) Log_clear() {
 }
 
 func (ev *Event) CheckIfTimeOut(err error) bool {
-	opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
-	if opErr.Err.Error() == "i/o timeout" {
+	// opErr := (*net.OpError)(unsafe.Pointer(reflect.ValueOf(err).Pointer()))
+	// if opErr.Err.Error() == "i/o timeout" {
+	// 	return true
+	// } else {
+	// 	return false
+	// }
+	if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 		return true
 	} else {
 		return false
@@ -113,7 +116,7 @@ func (ev *Event) ReadData() ([]byte, string) {
 			message.PrintWarn("read timeout")
 			return nil, ""
 		} else { // other error can not handle temporarily
-			message.PrintErr("Error --core reading from client", err)
+			message.PrintWarn("--core reading from client", err.Error())
 		}
 		return nil, ""
 	}

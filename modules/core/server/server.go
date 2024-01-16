@@ -6,7 +6,6 @@ import (
 	"fast-https/modules/core/listener"
 	"fast-https/modules/safe"
 	"fast-https/output"
-	"fast-https/service"
 	"fast-https/utils/message"
 	"net"
 	"os"
@@ -127,7 +126,7 @@ func (s *Server) serveListener(listener listener.Listener) {
 }
 
 func (s *Server) Run() {
-	service.TestService("0.0.0.0:5000", "this is 5000")
+	// service.TestService("0.0.0.0:5000", "this is 5000")
 
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)
@@ -153,5 +152,6 @@ func (s *Server) Run() {
 		// <-sigchnl
 		// fmt.Println("got sig")
 		s.wg.Wait()
+		time.Sleep(time.Second * 1)
 	}
 }
