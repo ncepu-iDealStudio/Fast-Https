@@ -19,9 +19,7 @@ var logFile *os.File
 
 // StartWindows start the taskBox window
 func StartWindows() {
-	dir := config.GConfig.LogRoot
-	logFile, _ = os.OpenFile(filepath.Join(dir, "/monitor.log"),
-		os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	logFile, _ = os.OpenFile(config.MONIITOR_LOG_FILE_PATH, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	log.SetOutput(logFile)
 	defer logFile.Close()
 
@@ -54,7 +52,6 @@ func stopServer() {
 	if err != nil {
 		log.Println(err)
 	}
-
 }
 
 func reloadServer() {
@@ -98,7 +95,6 @@ func onReady() {
 	systray.SetTooltip("Fast-Https")
 	mStart := systray.AddMenuItem("Start", "Start server")
 	mStop := systray.AddMenuItem("Stop", "Stop server")
-	mReload := systray.AddMenuItem("Reload", "Reload server")
 	systray.AddSeparator()
 	mQuitOrig := systray.AddMenuItem("Quit", "Quit the whole app")
 
@@ -152,17 +148,7 @@ func onReady() {
 				log.Println("Fast-Https Stop...")
 				systray.SetTemplateIcon(output.LogoStopping, output.LogoStopping)
 				stopServer()
-
-			// reload
-			case <-mReload.ClickedCh:
-				if mReload.Checked() {
-					mReload.Uncheck()
-					mReload.Show()
-				}
-				log.Println("Fast-Https Monitor Reload")
-				reloadServer()
 			}
 		}
-
 	}()
 }
