@@ -6,7 +6,7 @@
     "server": [
       {
         "listen": 8080,
-        "server_name": "localhost",
+        "server_name": "",
         "location": [
           {
             "url": "/",
