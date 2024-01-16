@@ -32,3 +32,8 @@ cd .. &&
 goreleaser release -f .goreleaser.windows.yaml --snapshot --clean &&
 goreleaser release -f .goreleaser.yaml --snapshot --clean
 */
+
+/*
+http://127.0.0.1:10000/debug/pprof/
+go tool pprof main http://localhost:10000/debug/pprof/heap   web
+*/

@@ -7,6 +7,7 @@ import (
 	"fast-https/modules/safe"
 	"fast-https/output"
 	"fast-https/utils/message"
+	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -17,8 +18,10 @@ import (
 	_ "fast-https/modules/proxy"
 	_ "fast-https/modules/rewrite"
 	_ "fast-https/modules/static"
+	"net/http"
+	_ "net/http/pprof"
 
-	"github.com/panjf2000/ants"
+	"github.com/panjf2000/ants/v2"
 )
 
 type Server struct {
@@ -127,6 +130,9 @@ func (s *Server) serveListener(listener listener.Listener) {
 
 func (s *Server) Run() {
 	// service.TestService("0.0.0.0:5000", "this is 5000")
+	go func() {
+		log.Println(http.ListenAndServe("0.0.0.0:10000", nil))
+	}()
 
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)
