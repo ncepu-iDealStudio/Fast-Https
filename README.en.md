@@ -9,7 +9,7 @@ Currently, we provide installation packages for both Windows and Linux platforms
 Fast-Https is designed and developed in a modular manner, where the core server module supports horizontal expansion and the addition of new functionalities through plugins. This enhances the capabilities of the server.
 
 #### installation
-1. You can obtain the corresponding version and installation package at https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0；
+1. You can obtain the corresponding version and installation package at https://gitee.com/ncepu-bj/fast-https/releases/tag；
 2. Extract the corresponding installation package to the target directory on the server；
 3. Modify the configuration file；
 
