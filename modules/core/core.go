@@ -114,10 +114,10 @@ func (ev *Event) ReadData() ([]byte, string) {
 			return nil, ""
 		}
 		if ev.CheckIfTimeOut(err) {
-			message.PrintWarn("read timeout")
+			message.PrintWarn("Warn --core read timeout")
 			return nil, ""
 		} else { // other error can not handle temporarily
-			message.PrintWarn("--core reading from client", err.Error())
+			message.PrintErr("Error --core reading from client", err.Error())
 		}
 		return nil, ""
 	}
@@ -132,10 +132,10 @@ func (ev *Event) WriteData(data []byte) error {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
 			if ev.CheckIfTimeOut(err) {
-				message.PrintWarn("write timeout")
+				message.PrintWarn("Warn  --core write timeout")
 				return err
 			} else { // other error can not handle temporarily
-				message.PrintErr("Error --core writing to client ", err)
+				message.PrintWarn("Error --core writing to client ", err)
 				return err
 			}
 		}
@@ -152,7 +152,7 @@ func (ev *Event) Close() {
 			message.PrintErr("Error --core Close", err)
 		}
 	} else {
-		message.PrintWarn("--core repeat close")
+		message.PrintWarn("Warn --core repeat close")
 	}
 	ev.IsClose = true
 }
