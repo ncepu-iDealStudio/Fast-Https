@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"crypto/tls"
+	"errors"
 	"fast-https/config"
 	"fast-https/modules/cache"
 	"fast-https/modules/core"
@@ -23,6 +24,7 @@ type Proxy struct {
 	ProxyTlsConn   *tls.Conn
 	ProxyType      int
 	ProxyNeedCache bool
+	ProxyNeedClose bool
 }
 
 func init() {
@@ -53,6 +55,7 @@ func (p *Proxy) ProxyInit() error {
 		tlsConn := tls.Client(p.ProxyConn, &config)
 		p.ProxyTlsConn = tlsConn
 	}
+	p.ProxyNeedClose = false // keep-alive default
 
 	if err != nil {
 		message.PrintWarn("Proxy event: Can't connect to " + err.Error())
@@ -110,7 +113,7 @@ func (p *Proxy) Close() error {
 	}
 }
 
-func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
+func (p *Proxy) ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 
 	header := make([]byte, 1024*20)
 	var header_str string
@@ -118,8 +121,9 @@ func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 
 	var i int
 	var res []byte
+	tmpByteLen := len(tmpByte)
 
-	for i = 0; i < len(tmpByte)-4; i++ {
+	for i = 0; i < tmpByteLen-4; i++ {
 		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) &&
 			tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
 			break
@@ -142,6 +146,10 @@ func ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 			value := strings.TrimSpace(parts[1])
 			if strings.Compare(key, "Server") == 0 {
 				header_new = header_new + "Server: Fast-Https\r\n"
+			} else if strings.Compare(key, "Connection") == 0 &&
+				strings.Compare(value, "close") == 0 {
+				header_new = header_new + key + ": " + value + "\r\n"
+				p.ProxyNeedClose = true
 			} else {
 				header_new = header_new + key + ": " + value + "\r\n"
 			}
@@ -196,7 +204,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 		resData, err = p.proxyReadAll(ev)
 		// fmt.Println("-----This is proxyReadAll")
 		if err != nil {
-			message.PrintWarn("Proxy event: Can't read all", err.Error())
+			message.PrintWarn("Proxy event: Can't read all ", err.Error())
 		}
 	} else {
 		ro := ReadOnce{
@@ -208,12 +216,17 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 		err = ro.proxyReadOnce(ev)
 		// fmt.Println("-----This is proxyReadOnce")
 		if err != nil {
-			message.PrintWarn("Proxy event: Can't read once", err.Error())
+			message.PrintWarn("Proxy event: Can't read once ", err.Error())
 		}
 		resData = ro.finalStr
 	}
 
-	finalData, head_code, b_len := ChangeHeader(resData)
+	if len(resData) < 4 {
+		message.PrintWarn(ev.Conn.RemoteAddr().String(), " proxy return null")
+		return nil, errors.New("proxy return null")
+	}
+
+	finalData, head_code, b_len := p.ChangeHeader(resData)
 
 	ev.Log_append(" " + head_code + " " + b_len)
 
@@ -340,7 +353,7 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 		return
 	}
 	// proxy server return valid data
-	if ev.RR.Req_.IsKeepalive() {
+	if ev.RR.Req_.IsKeepalive() && !p.ProxyNeedClose {
 		ev.WriteData(res)
 		// events.Handle_event(ev)
 		ev.Reuse = true
@@ -372,7 +385,7 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 		err := proxy.ProxyInit()
 		if err != nil {
 			message.PrintWarn("--proxy can not init circle" + err.Error())
-			ev.Close()
+			ev.WriteDataClose(response.DefaultServerError())
 			return
 		}
 

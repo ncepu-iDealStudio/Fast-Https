@@ -119,6 +119,11 @@ func processRequest(ev *core.Event) int {
 		ev.RR.Req_.ParseBody(byte_row)
 		// parse host
 		ev.RR.Req_.ParseHost(ev.Lis_info)
+		if !ev.RR.Req_.RequestValid() {
+			otherData := make([]byte, core.READ_BODY_BUF_LEN)
+			datasize, _ := ev.Conn.Read(otherData)
+			ev.RR.Req_.TryFixBody(otherData[:datasize])
+		}
 	}
 	return 1
 }
