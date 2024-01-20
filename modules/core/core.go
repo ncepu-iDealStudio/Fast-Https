@@ -83,10 +83,28 @@ func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
 }
 
 func DefaultParseCommandHandler(cfg listener.ListenCfg, ev *Event) {
+	ip := ""
+	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
+	// 如果找到了该字符
+	if index != -1 {
+		// 截取字符串，不包括该字符及其后面的字符
+		ip = ev.Conn.RemoteAddr().String()[:index]
+	}
+
+	xForWardFor := ev.RR.Req_.GetHeader("X-Forwarded-For")
+	if xForWardFor == "" {
+		xForWardFor = ip
+	} else {
+		xForWardFor = xForWardFor + ", " + ip
+	}
+
 	ev.RR.CircleCommandVal.Map = map[string]string{
-		"request_method": ev.RR.Req_.Method,
-		"request_uri":    ev.RR.Req_.Path,
-		"host":           ev.RR.Req_.GetHeader("Host"),
+		"request_method":            ev.RR.Req_.Method,
+		"request_uri":               ev.RR.Req_.Path,
+		"host":                      ev.RR.Req_.GetHeader("Host"),
+		"proxy_host":                cfg.Proxy_addr,
+		"remote_addr":               ip,
+		"proxy_add_x_forwarded_for": xForWardFor,
 	}
 }
 
