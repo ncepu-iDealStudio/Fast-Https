@@ -28,8 +28,8 @@ type Proxy struct {
 }
 
 func init() {
-	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFliterHandler, ProxyEvent)
-	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFliterHandler, ProxyEvent)
+	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFliterHandler, ProxyEvent, nil)
+	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFliterHandler, ProxyEvent, nil)
 }
 
 func Newproxy(addr string, proxyType int, proxyNeedCache bool) *Proxy {
@@ -260,21 +260,9 @@ func (pc *ProxyCache) ProcessCacheConfig(ev *core.Event,
 	resCode string) (md5 string, expire int) {
 
 	cacheKeyRule := pc.ProxyCacheKey
-	keys := strings.Split(cacheKeyRule, "$")
-	rule := map[string]string{ // 配置缓存key字段的生成规则
-		"request_method": ev.RR.Req_.Method,
-		"request_uri":    ev.RR.Req_.Path,
-		"host":           ev.RR.Req_.GetHeader("Host"),
-	}
 
-	ruleString := ""
-	for _, item := range keys {
-		str, ok := rule[item]
-		if !ok { // 未配置相应字段的生成规则，跳过即可
-			continue
-		}
-		ruleString += str
-	}
+	ruleString := ev.GetCommandParsedStr(cacheKeyRule)
+
 	// fmt.Println("-------------------", ev.RR.Req_.Path)
 	// fmt.Println("generate cache key value=", ruleString)
 	md5 = cache.GetMd5(ruleString)

@@ -8,6 +8,7 @@ import (
 	"fast-https/utils/message"
 	"io"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -29,15 +30,21 @@ type RRcircle struct {
 	PathLocation  []int
 	ProxyConnInit bool
 
-	CircleHandler RRcircleHandler
-	Ev            *Event
-	CircleData    interface{}
+	CircleHandler    RRcircleHandler
+	CircleCommandVal RRcircleCommandVal
+	Ev               *Event
+	CircleData       interface{}
+}
+
+type RRcircleCommandVal struct {
+	Map map[string]string
 }
 
 // callback item
 type RRcircleHandler struct {
-	FliterHandler func(listener.ListenCfg, *Event) bool
-	RRHandler     func(listener.ListenCfg, *Event)
+	ParseCommandHandler func(listener.ListenCfg, *Event)
+	FliterHandler       func(listener.ListenCfg, *Event) bool
+	RRHandler           func(listener.ListenCfg, *Event)
 }
 
 // global RRcircle Handler Table
@@ -65,9 +72,30 @@ func (ev *Event) EventReuse() bool {
 }
 
 func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
-	handler func(listener.ListenCfg, *Event)) {
+	handler func(listener.ListenCfg, *Event), cmd func(listener.ListenCfg, *Event)) {
 	GRRCHT[Type].FliterHandler = fliter
 	GRRCHT[Type].RRHandler = handler
+	if cmd != nil {
+		GRRCHT[Type].ParseCommandHandler = cmd
+	} else {
+		GRRCHT[Type].ParseCommandHandler = DefaultParseCommandHandler
+	}
+}
+
+func DefaultParseCommandHandler(cfg listener.ListenCfg, ev *Event) {
+	ev.RR.CircleCommandVal.Map = map[string]string{
+		"request_method": ev.RR.Req_.Method,
+		"request_uri":    ev.RR.Req_.Path,
+		"host":           ev.RR.Req_.GetHeader("Host"),
+	}
+}
+
+func (ev *Event) GetCommandParsedStr(inputString string) string {
+	out := inputString
+	for key, value := range ev.RR.CircleCommandVal.Map {
+		out = strings.Replace(out, "$"+key, value, -1) // 只替换第一次出现的关键词
+	}
+	return out
 }
 
 func NewEvent(l listener.Listener, conn net.Conn) *Event {

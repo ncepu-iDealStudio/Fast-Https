@@ -61,6 +61,8 @@ func EventHandler(ev *core.Event) {
 		// according to user's confgure and requets endporint handle events
 		ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
 		ev.RR.CircleHandler.FliterHandler = core.GRRCHT[cfg.Type].FliterHandler
+		ev.RR.CircleHandler.ParseCommandHandler = core.GRRCHT[cfg.Type].ParseCommandHandler
+		ev.RR.CircleHandler.ParseCommandHandler(cfg, ev)
 		if !ev.RR.CircleHandler.FliterHandler(cfg, ev) {
 			return
 		}

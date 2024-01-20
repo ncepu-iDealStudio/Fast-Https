@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	core.RRHandlerRegister(config.REWRITE, ReWriteFliter, ReWriteEvent)
+	core.RRHandlerRegister(config.REWRITE, ReWriteFliter, ReWriteEvent, nil)
 }
 
 func rewriteInfo(ev *core.Event, path string) {
