@@ -2,10 +2,12 @@ package proxy
 
 import (
 	"crypto/tls"
+	"errors"
 	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -19,6 +21,8 @@ const (
 type ReadOnce struct {
 	TryNum       int
 	finalStr     []byte
+	bodyPosition int
+	body         []byte
 	Type         int
 	ProxyConn    net.Conn
 	ProxyTlsConn *tls.Conn
@@ -54,19 +58,42 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 	if res.GetHeader("Content-Length") != "" {
 		// fmt.Println(res.GetHeader("Content-Length"))
 		contentLength, _ = strconv.Atoi(res.GetHeader("Content-Length"))
+		NeedRead := contentLength - (tmpLen - i - 4)
+		return NeedRead
 	} else if res.GetHeader("Transfer-Encoding") == "chunked" {
-
+		ro.bodyPosition = i + 4
+		ro.body = tmpData[i+4:]
+		return -3
+	} else {
+		// unkonwn
+		return -100
 	}
 
-	NeedRead := contentLength - (tmpLen - i - 4)
-	return NeedRead
 }
 
-func parseChunked() {
-	// 2b81\r\n dddddddddd
-
+func (ro *ReadOnce) parseChunked() {
+	// 2b81\r\n
+	// dddddddddd
 	// 0\r\n
 	// \r\n
+	var p int
+	for {
+		if p = strings.Index(string(ro.body), "0\r\n"); p != -1 { // last block
+			return
+		} else {
+			// if p = strings.Index(string(ro.body), "\r\n"); p == -1 { // body like this  "2b8" or "2b81\r"
+			// }
+			lastBuf := make([]byte, READ_BYTES_LEN)
+			n, err := ro.Read(lastBuf)
+			if err != nil {
+				fmt.Println("parseChuncked failed", err.Error())
+				return
+			} else {
+				ro.body = append(ro.body, lastBuf[:n]...)
+			}
+
+		}
+	}
 }
 
 func (ro *ReadOnce) Read(data []byte) (int, error) {
@@ -115,17 +142,24 @@ readAgain:
 		return err // can't read
 	}
 	ro.finalStr = append(ro.finalStr, tmpByte[:len_once]...)
-
+	// fmt.Println(string(ro.finalStr))
 	// TRY_READ_LEN is not enough
-	if len_once == TRY_READ_LEN {
-		size := ro.tryToParse(ro.finalStr)
-		if size > 0 {
-			ro.ReadBytes(size)
-		} else if size == -2 {
-			// fmt.Println("invalid header")
-			goto readAgain
-		}
+	// if len_once == TRY_READ_LEN {
+	size := ro.tryToParse(ro.finalStr)
+	if size == 0 { // will not need to read
+		return nil
+	} else if size > 0 { // need read data in size
+		ro.ReadBytes(size)
+	} else if size == -2 { // need read header
+		// fmt.Println("invalid header")
+		goto readAgain
+	} else if size == -3 {
+		// ro.parseChunked()
+		return errors.New("response con not parse chuncked")
+	} else {
+		return errors.New("response parse error")
 	}
+	// }
 
 	return nil
 }
