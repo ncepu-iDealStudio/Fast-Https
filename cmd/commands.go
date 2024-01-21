@@ -121,9 +121,8 @@ func StopHandler() error {
 	if err != nil {
 		return err
 	}
-
-	reader1 := bufio.NewReader(file)
-	str, _ := reader1.ReadString('\n')
+	readerBuf := bufio.NewReader(file)
+	str, _ := readerBuf.ReadString('\n')
 	msg := strings.Trim(str, "\r\n")
 	ax, _ := strconv.Atoi(msg)
 	// ax := 21980
