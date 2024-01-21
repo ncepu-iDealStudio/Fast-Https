@@ -8,11 +8,13 @@ import (
 	"fast-https/utils/message"
 	"io"
 	"net"
+	"strings"
 	"time"
 )
 
 const (
-	READ_BUF_LEN = 4096
+	READ_BUF_LEN      = 2048
+	READ_BODY_BUF_LEN = 4096
 )
 
 // request and response circle
@@ -28,15 +30,21 @@ type RRcircle struct {
 	PathLocation  []int
 	ProxyConnInit bool
 
-	CircleHandler RRcircleHandler
-	Ev            *Event
-	CircleData    interface{}
+	CircleHandler    RRcircleHandler
+	CircleCommandVal RRcircleCommandVal
+	Ev               *Event
+	CircleData       interface{}
+}
+
+type RRcircleCommandVal struct {
+	Map map[string]string
 }
 
 // callback item
 type RRcircleHandler struct {
-	FliterHandler func(listener.ListenCfg, *Event) bool
-	RRHandler     func(listener.ListenCfg, *Event)
+	ParseCommandHandler func(listener.ListenCfg, *Event)
+	FliterHandler       func(listener.ListenCfg, *Event) bool
+	RRHandler           func(listener.ListenCfg, *Event)
 }
 
 // global RRcircle Handler Table
@@ -64,9 +72,48 @@ func (ev *Event) EventReuse() bool {
 }
 
 func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
-	handler func(listener.ListenCfg, *Event)) {
+	handler func(listener.ListenCfg, *Event), cmd func(listener.ListenCfg, *Event)) {
 	GRRCHT[Type].FliterHandler = fliter
 	GRRCHT[Type].RRHandler = handler
+	if cmd != nil {
+		GRRCHT[Type].ParseCommandHandler = cmd
+	} else {
+		GRRCHT[Type].ParseCommandHandler = DefaultParseCommandHandler
+	}
+}
+
+func DefaultParseCommandHandler(cfg listener.ListenCfg, ev *Event) {
+	ip := ""
+	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
+	// 如果找到了该字符
+	if index != -1 {
+		// 截取字符串，不包括该字符及其后面的字符
+		ip = ev.Conn.RemoteAddr().String()[:index]
+	}
+
+	xForWardFor := ev.RR.Req_.GetHeader("X-Forwarded-For")
+	if xForWardFor == "" {
+		xForWardFor = ip
+	} else {
+		xForWardFor = xForWardFor + ", " + ip
+	}
+
+	ev.RR.CircleCommandVal.Map = map[string]string{
+		"request_method":            ev.RR.Req_.Method,
+		"request_uri":               ev.RR.Req_.Path,
+		"host":                      ev.RR.Req_.GetHeader("Host"),
+		"proxy_host":                cfg.Proxy_addr,
+		"remote_addr":               ip,
+		"proxy_add_x_forwarded_for": xForWardFor,
+	}
+}
+
+func (ev *Event) GetCommandParsedStr(inputString string) string {
+	out := inputString
+	for key, value := range ev.RR.CircleCommandVal.Map {
+		out = strings.Replace(out, "$"+key, value, -1) // 只替换第一次出现的关键词
+	}
+	return out
 }
 
 func NewEvent(l listener.Listener, conn net.Conn) *Event {
@@ -113,10 +160,10 @@ func (ev *Event) ReadData() ([]byte, string) {
 			return nil, ""
 		}
 		if ev.CheckIfTimeOut(err) {
-			message.PrintWarn("read timeout")
+			message.PrintWarn("Warn --core " + ev.Conn.RemoteAddr().String() + " read timeout")
 			return nil, ""
 		} else { // other error can not handle temporarily
-			message.PrintWarn("--core reading from client", err.Error())
+			message.PrintErr("Error --core "+ev.Conn.RemoteAddr().String()+" reading from client", err.Error())
 		}
 		return nil, ""
 	}
@@ -131,10 +178,10 @@ func (ev *Event) WriteData(data []byte) error {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
 			if ev.CheckIfTimeOut(err) {
-				message.PrintWarn("write timeout")
+				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
 				return err
 			} else { // other error can not handle temporarily
-				message.PrintErr("Error --core writing to client ", err)
+				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err)
 				return err
 			}
 		}
@@ -151,7 +198,7 @@ func (ev *Event) Close() {
 			message.PrintErr("Error --core Close", err)
 		}
 	} else {
-		message.PrintWarn("--core repeat close")
+		message.PrintWarn("Warn --core repeat close")
 	}
 	ev.IsClose = true
 }

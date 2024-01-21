@@ -17,7 +17,7 @@ const (
 )
 
 func init() {
-	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent)
+	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent, nil)
 }
 
 func getResBytes(lisdata listener.ListenCfg,

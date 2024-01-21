@@ -157,7 +157,8 @@ func (r *Req) ParseBody(tmpByte []byte) {
 
 	total_len := len(tmpByte)
 	for i = 0; i < total_len-4; i++ {
-		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) && tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
+		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) &&
+			tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
 			break
 		}
 	}
@@ -171,4 +172,28 @@ func (r *Req) ParseBody(tmpByte []byte) {
 	}
 
 	r.Body = res
+}
+
+func (r *Req) RequestValid() bool {
+	contentType := r.GetHeader("Content-Type")
+	if strings.Index(contentType, "multipart/form-data") != -1 {
+		po := strings.Index(contentType, "boundary=")
+		boundaryStr := contentType[po+len("boundary="):]
+		if strings.Index(string(r.Body), boundaryStr+"--") != -1 {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *Req) TryFixBody(other []byte) bool {
+	r.Body = append(r.Body, other...)
+	if !r.RequestValid() {
+		return false
+	} else {
+		return true
+	}
 }

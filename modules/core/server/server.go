@@ -102,6 +102,7 @@ func (s *Server) serveListener(listener listener.Listener) {
 		each_event.RR.IsCircle = true
 		each_event.RR.CircleInit = false
 		each_event.RR.ProxyConnInit = false
+		each_event.RR.CircleCommandVal.Map = make(map[string]string) // init CircleCommandVal map
 
 		if !safe.Bucket(each_event) {
 			continue

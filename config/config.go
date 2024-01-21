@@ -79,6 +79,7 @@ type Path struct {
 
 type Server struct {
 	Listen            string
+	MaxBodySize       string
 	ServerName        string
 	SSLCertificate    string
 	SSLCertificateKey string
@@ -255,6 +256,8 @@ func process() error {
 			Listen: viper.GetString(fmt.Sprintf("http.server.%d.listen",
 				serverKey)),
 			ServerName: viper.GetString(fmt.Sprintf("http.server.%d.server_name",
+				serverKey)),
+			MaxBodySize: viper.GetString(fmt.Sprintf("http.server.%d.max_body_size",
 				serverKey)),
 			SSLCertificate: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate",
 				serverKey)),
