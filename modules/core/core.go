@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	READ_BUF_LEN      = 2048
-	READ_BODY_BUF_LEN = 4096
+	READ_HEADER_BUF_LEN = 2048
+	READ_BODY_BUF_LEN   = 4096
 )
 
 // request and response circle
@@ -149,27 +149,27 @@ func (ev *Event) CheckIfTimeOut(err error) bool {
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
-func (ev *Event) ReadData() ([]byte, string) {
+func (ev *Event) ReadData() []byte {
 	now := time.Now()
 	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
-	buffer := make([]byte, READ_BUF_LEN)
+	buffer := make([]byte, READ_HEADER_BUF_LEN)
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
 			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
-			return nil, ""
+			return nil
 		}
 		if ev.CheckIfTimeOut(err) {
 			message.PrintWarn("Warn --core " + ev.Conn.RemoteAddr().String() + " read timeout")
-			return nil, ""
+			return nil
 		} else { // other error can not handle temporarily
 			message.PrintErr("Error --core "+ev.Conn.RemoteAddr().String()+" reading from client", err.Error())
 		}
-		return nil, ""
+		return nil
 	}
-	str_row := string(buffer[:n])
+
 	buffer = buffer[:n]
-	return buffer, str_row // return row str or bytes
+	return buffer // return row str or bytes
 }
 
 func (ev *Event) WriteData(data []byte) error {

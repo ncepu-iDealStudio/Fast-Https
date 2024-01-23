@@ -22,7 +22,6 @@ func HandleEvent(ev *core.Event, shutdown *core.ServerControl) {
 
 		if shutdown.Shutdown {
 			message.PrintInfo("server shut down")
-			ev.Close()
 			return
 		}
 	}
@@ -105,7 +104,7 @@ func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 
 func processRequest(ev *core.Event) int {
 	// read data (bytes and str) from socket
-	byte_row, str_row := (ev).ReadData()
+	byte_row := ev.ReadData()
 	// save requte information to ev.RR.Req_
 	if !ev.RR.CircleInit {
 		ev.RR.Req_ = request.ReqInit()       // Create a request Object
@@ -117,11 +116,18 @@ func processRequest(ev *core.Event) int {
 		ev.Close()
 		return 0
 	} else {
-		ev.RR.Req_.HttpParse(str_row)
-		ev.RR.Req_.ParseBody(byte_row)
+
+		if ev.RR.Req_.ParseHeader(byte_row) != request.REQUEST_OK {
+			otherData := make([]byte, core.READ_HEADER_BUF_LEN)
+			datasize, _ := ev.Conn.Read(otherData)
+			byte_row = append(byte_row, otherData[:datasize]...)
+			ev.RR.Req_.ParseHeader(byte_row)
+		}
 		// parse host
 		ev.RR.Req_.ParseHost(ev.Lis_info)
-		if !ev.RR.Req_.RequestValid() {
+
+		ev.RR.Req_.ParseBody(byte_row)
+		if !ev.RR.Req_.RequestBodyValid() {
 			otherData := make([]byte, core.READ_BODY_BUF_LEN)
 			datasize, _ := ev.Conn.Read(otherData)
 			ev.RR.Req_.TryFixBody(otherData[:datasize])
