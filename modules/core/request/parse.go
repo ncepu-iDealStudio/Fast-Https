@@ -152,6 +152,8 @@ func (r *Req) ParseHeader(request_byte []byte) int {
 		}
 		parts := strings.SplitN(line, ":", 2)
 		key := strings.TrimSpace(parts[0])
+		// key = strings.ToTitle(key)
+		key = strings.ToUpper(key[:1]) + key[1:]
 		value := strings.TrimSpace(parts[1])
 		r.Headers[key] = value
 	}

@@ -163,7 +163,7 @@ func (ev *Event) ReadData() []byte {
 			message.PrintWarn("Warn --core " + ev.Conn.RemoteAddr().String() + " read timeout")
 			return nil
 		} else { // other error can not handle temporarily
-			message.PrintErr("Error --core "+ev.Conn.RemoteAddr().String()+" reading from client", err.Error())
+			message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" reading from client", err.Error())
 		}
 		return nil
 	}
