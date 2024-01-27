@@ -60,8 +60,10 @@ type PathLimit struct {
 }
 
 type ServerLimit struct {
-	Rate  int
-	Burst int
+	MaxBodySize   int
+	MaxHeaderSize int
+	Rate          int
+	Burst         int
 }
 
 type Path struct {
@@ -78,8 +80,8 @@ type Path struct {
 }
 
 type Server struct {
-	Listen            string
-	MaxBodySize       string
+	Listen string
+
 	ServerName        string
 	SSLCertificate    string
 	SSLCertificateKey string
@@ -87,10 +89,11 @@ type Server struct {
 }
 
 type Fast_Https struct {
-	ErrorPage                 ErrorPath
-	Error_log                 string
-	Pid                       string
-	LogRoot                   string
+	ErrorPage ErrorPath
+	Error_log string
+	Pid       string
+	LogRoot   string
+
 	Servers                   []Server
 	Limit                     ServerLimit
 	BlackList                 []string
@@ -240,9 +243,10 @@ func process() error {
 	fast_https.Include = viper.GetStringSlice("http.include")
 	fast_https.DefaultType = viper.GetString("http.default_type")
 	fast_https.Limit = ServerLimit{
-
-		Rate:  viper.GetInt("http.servers_limit.limit"),
-		Burst: viper.GetInt("http.servers_limit.burst"),
+		MaxHeaderSize: viper.GetInt("http.servers_limit.max_header_size"),
+		MaxBodySize:   viper.GetInt("http.servers_limit.max_body_size"),
+		Rate:          viper.GetInt("http.servers_limit.limit"),
+		Burst:         viper.GetInt("http.servers_limit.burst"),
 	}
 
 	fast_https.BlackList = viper.GetStringSlice("http.blaklist")
@@ -256,8 +260,6 @@ func process() error {
 			Listen: viper.GetString(fmt.Sprintf("http.server.%d.listen",
 				serverKey)),
 			ServerName: viper.GetString(fmt.Sprintf("http.server.%d.server_name",
-				serverKey)),
-			MaxBodySize: viper.GetString(fmt.Sprintf("http.server.%d.max_body_size",
 				serverKey)),
 			SSLCertificate: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate",
 				serverKey)),
@@ -365,5 +367,16 @@ func process() error {
 	// fmt.Println(fast_https)
 	GConfig = fast_https
 
+	SetDefault()
+
 	return nil
+}
+
+func SetDefault() {
+	if GConfig.Limit.MaxHeaderSize == 0 {
+		GConfig.Limit.MaxHeaderSize = DEFAULT_MAX_HEADER_SIZE
+	}
+	if GConfig.Limit.MaxBodySize == 0 {
+		GConfig.Limit.MaxBodySize = DEFAULT_MAX_BODY_SIZE
+	}
 }

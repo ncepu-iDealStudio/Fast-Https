@@ -9,12 +9,14 @@ const (
 		// use "config/fast-https.json" when release
 	*/
 	PID_FILE               string = "./fast-https.pid"
-	CONFIG_FILE_PATH       string = "./config/fast-https.json"
+	CONFIG_FILE_PATH       string = "./config_dev/fast-https.json"
 	MIME_FILE_PATH         string = "./config/mime.types"
 	MONIITOR_LOG_FILE_PATH string = "./logs/monitor.log"
 
 	/* events */
-	DEFAULT_PORT string = ":8080"
+	DEFAULT_PORT            string = ":8080"
+	DEFAULT_MAX_HEADER_SIZE        = 4096
+	DEFAULT_MAX_BODY_SIZE          = 32 * 1024 // 32K
 
 	/* log message*/
 	SERVER_TIME_FORMAT string = "2006-01-02 15:04:05"
