@@ -181,7 +181,7 @@ func (ev *Event) WriteData(data []byte) error {
 				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
 				return err
 			} else { // other error can not handle temporarily
-				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err)
+				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err.Error())
 				return err
 			}
 		}

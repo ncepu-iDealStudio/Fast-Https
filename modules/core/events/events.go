@@ -10,6 +10,7 @@ import (
 	"fast-https/utils/message"
 	"regexp"
 	"strings"
+	"time"
 )
 
 func HandleEvent(ev *core.Event, shutdown *core.ServerControl) {
@@ -35,7 +36,8 @@ func EventHandler(ev *core.Event) {
 		ProxyEventTcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
 		return
 	}
-	if processRequest(ev) == 0 {
+	if processRequest(ev) != 1 { // 解析失败直接关闭
+		ev.Close()
 		return // client close
 	}
 	ev.Log_append(" " + ev.RR.Req_.Method)
@@ -113,25 +115,58 @@ func processRequest(ev *core.Event) int {
 	}
 	// fmt.Printf("%p, %p", ev.RR.Req_, ev)
 	if byte_row == nil { // client closed
-		ev.Close()
 		return 0
-	} else {
+	}
 
-		if ev.RR.Req_.ParseHeader(byte_row) != request.REQUEST_OK {
-			otherData := make([]byte, core.READ_HEADER_BUF_LEN)
-			datasize, _ := ev.Conn.Read(otherData)
-			byte_row = append(byte_row, otherData[:datasize]...)
-			ev.RR.Req_.ParseHeader(byte_row)
-		}
-		// parse host
-		ev.RR.Req_.ParseHost(ev.Lis_info)
+	header_read_num := len(byte_row)
+	headerOtherData := make([]byte, core.READ_HEADER_BUF_LEN)
+	for {
+		parse := ev.RR.Req_.ParseHeader(byte_row)
+		if parse == request.REQUEST_OK {
+			break
+		} else if parse == request.REQUEST_NEED_READ_MORE { // parse successed !
 
-		ev.RR.Req_.ParseBody(byte_row)
-		if !ev.RR.Req_.RequestBodyValid() {
-			otherData := make([]byte, core.READ_BODY_BUF_LEN)
-			datasize, _ := ev.Conn.Read(otherData)
-			ev.RR.Req_.TryFixBody(otherData[:datasize])
+			ev.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+			datasize, err := ev.Conn.Read(headerOtherData)
+			if err != nil { // read error, like time out
+				message.PrintWarn("read header time out", parse)
+				break
+			}
+			byte_row = append(byte_row, headerOtherData[:datasize]...)
+			header_read_num += datasize
+			if header_read_num > config.GConfig.Limit.MaxHeaderSize {
+				// header bytes beyond config
+				break
+			}
+
+		} else {
+			message.PrintWarn("invalide request", -200)
+			return -200 // invade request
 		}
 	}
+
+	// parse host
+	ev.RR.Req_.ParseHost(ev.Lis_info)
+
+	otherData := make([]byte, core.READ_BODY_BUF_LEN)
+	for {
+		ev.RR.Req_.ParseBody(byte_row)
+		if ev.RR.Req_.RequestBodyValid() {
+			break
+		} else {
+			datasize, err := ev.Conn.Read(otherData)
+			if err != nil { // read error, like time out
+				message.PrintWarn("read body time out")
+				break
+			}
+			byte_row = append(byte_row, otherData[:datasize]...)
+			ev.RR.Req_.TryFixBody(otherData[:datasize])
+			if len(ev.RR.Req_.Body) > config.GConfig.Limit.MaxBodySize {
+				// body bytes beyond config
+				break
+			}
+		}
+	}
+
 	return 1
 }

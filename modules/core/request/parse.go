@@ -3,6 +3,7 @@ package request
 import (
 	"fast-https/modules/core/listener"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/chenhg5/collection"
@@ -15,6 +16,8 @@ const (
 	FIRST_LINE_INVALID     = 3
 	METHOD_INVALID         = 4
 	REQUEST_NEED_READ_MORE = 5
+
+	INVALID_HEADERS = 6
 )
 
 // this struct is saved in Event
@@ -141,16 +144,19 @@ func (r *Req) ParseHeader(request_byte []byte) int {
 	r.Path = parts[1]
 	r.Protocol = parts[2]
 
-	lines := strings.Split(request, "\r\n")[1:]
-	if len(lines) == 0 {
+	lines := requestLine[1:]
+	if len(lines) == 1 {
 		return REQUEST_NEED_READ_MORE
 	}
 
-	for _, line := range lines {
-		if line == "" {
-			break
+	for i := 0; i < len(lines); i++ {
+		if lines[i] == "" && len(lines) > i+1 { // there is "\r\n\r\n", \r\n"
+			return REQUEST_OK // valid
 		}
-		parts := strings.SplitN(line, ":", 2)
+		parts := strings.SplitN(lines[i], ":", 2)
+		if len(parts) == 1 { // No ":"
+			return INVALID_HEADERS // invalid headers
+		}
 		key := strings.TrimSpace(parts[0])
 		// key = strings.ToTitle(key)
 		key = strings.ToUpper(key[:1]) + key[1:]
@@ -158,7 +164,7 @@ func (r *Req) ParseHeader(request_byte []byte) int {
 		r.Headers[key] = value
 	}
 
-	return REQUEST_OK // valid
+	return REQUEST_NEED_READ_MORE // valid
 }
 
 func (r *Req) RequestHeaderValid() bool {
@@ -202,6 +208,17 @@ func (r *Req) RequestBodyValid() bool {
 		if strings.Index(string(r.Body), boundaryStr+"--") != -1 {
 			return true
 		} else {
+			return false
+		}
+	}
+
+	contentLength := r.GetHeader("Content-Length")
+	if contentLength != "" {
+		n, err := strconv.Atoi(contentLength)
+		if err != nil {
+			panic(err)
+		}
+		if len(r.Body) != n { // content length not equal to body length
 			return false
 		}
 	}
