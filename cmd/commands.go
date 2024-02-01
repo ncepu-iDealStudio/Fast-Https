@@ -81,7 +81,7 @@ func runCommand(args []string) error {
 	// missing parameter
 	if len(data) == 1 {
 		fmt.Println(color.RedString("Input is missing a parameter"))
-		fmt.Println(color.RedString("Please re-enter"))
+		fmt.Println(color.RedString("Please try again"))
 		return nil
 	}
 
@@ -100,7 +100,7 @@ func runCommand(args []string) error {
 	// Irregular commands
 	if !found {
 		fmt.Println(color.YellowString("The input command is not a valid command"))
-		fmt.Println(color.YellowString("Please re-enter"))
+		fmt.Println(color.YellowString("Please try again"))
 		return nil
 	}
 
@@ -117,13 +117,12 @@ func ReloadHandler() error {
 
 // StopHandler stop server
 func StopHandler() error {
-	file, err := os.OpenFile("fast-https.pid", os.O_RDWR|os.O_APPEND, 0666)
+	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
 	if err != nil {
 		return err
 	}
-
-	reader1 := bufio.NewReader(file)
-	str, _ := reader1.ReadString('\n')
+	readerBuf := bufio.NewReader(file)
+	str, _ := readerBuf.ReadString('\n')
 	msg := strings.Trim(str, "\r\n")
 	ax, _ := strconv.Atoi(msg)
 	// ax := 21980
@@ -143,7 +142,7 @@ func StopHandler() error {
 
 	file.Close()
 
-	os.Remove("fast-https.pid")
+	os.Remove(config.PID_FILE)
 
 	return nil
 }
@@ -155,12 +154,16 @@ func StartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	Write_fast_https_pid()
+	WritePid()
+
 	output.PrintInitialStart()
 	initialization.Init()
 	output.PrintInitialEnd()
-	server := server.Server_init()
+
+	server := server.ServerInit()
 	server.Run()
+
+	// server will clog here
 	return nil
 }
 
@@ -173,7 +176,7 @@ func PreCheckHandler() {
 	}
 
 	// check ports
-	err = server.Scan_ports()
+	err = server.ScanPorts()
 	if err != nil {
 		log.Println("Port has been used, An error occurred for the following reason:")
 		log.Fatalln(err)
@@ -182,15 +185,17 @@ func PreCheckHandler() {
 	config.ClearConfig()
 }
 
-func Write_fast_https_pid() {
+func WritePid() {
 	// Obtain the pid and store it
 	x_pid := os.Getpid()
 
-	file, _ := os.OpenFile("fast-https.pid", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-
+	file, err := os.OpenFile(config.PID_FILE, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		log.Fatal("Open pid file error", err)
+	}
 	defer file.Close()
-	file.WriteString(strconv.Itoa(x_pid) + "\n")
 
+	file.WriteString(strconv.Itoa(x_pid) + "\n")
 	fmt.Println("Fast-Https running [PID]:", x_pid)
 }
 

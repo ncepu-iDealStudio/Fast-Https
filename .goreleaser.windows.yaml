@@ -35,12 +35,13 @@ archives:
       - goos: windows
         format: zip
     files:
-      - config/cert/
-      - config/fast-https.conf
+      - config/cert/.keep
+      - config/fast-https.json
       - config/fastcgi.conf
       - config/mime.types
       - docs/*
-      - httpdoc/root/*
+      - httpdoc/root/favicon.ico
+      - httpdoc/root/index.html
       - logs/.keep
       - README.md
       - src: "monitor/monitor.exe"

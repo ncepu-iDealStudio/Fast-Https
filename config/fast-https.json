@@ -1,0 +1,35 @@
+{
+  "log_root":"./logs",
+  "pid": "./fast-https.pid",
+  "http": {
+    "include": "mime.types",
+    "server": [
+      {
+        "listen": 8080,
+        "server_name": "",
+        "location": [
+          {
+            "url": "/",
+            "type": "local",
+            "root": "./httpdoc/root",
+            "index":["index.html", "index.htm"]
+          }
+        ]
+      },
+      {
+        "listen": "443 ssl",
+        "server_name": "",
+        "ssl_certificate": "config/cert/localhost.pem",
+        "ssl_certificate_key": "config/cert/localhost-key.pem",
+        "location": [
+          {
+            "url": "/",
+            "type": "local",
+            "root": "./httpdoc/root",
+            "index":["index.html", "index.htm"] 
+          }
+        ]
+      }
+    ]
+  }
+}
