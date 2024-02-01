@@ -91,4 +91,10 @@ func initMsgHandler() {
 		log.WithField("host", message["host"]).Infoln(message["message"])
 		return nil
 	})
+
+	AddMsgHandler("safe", func(args ...any) error {
+		var log = loggers.GetLogger().SafeLog()
+		log.Warnln(args)
+		return nil
+	})
 }

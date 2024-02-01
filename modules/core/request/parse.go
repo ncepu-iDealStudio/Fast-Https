@@ -3,17 +3,21 @@ package request
 import (
 	"fast-https/modules/core/listener"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/chenhg5/collection"
 )
 
 const (
-	REQUEST_OK         = 0
-	NONE               = 1
-	UNKNOW_INVALID     = 2
-	FIRST_LINE_INVALID = 3
-	METHOD_INVALID     = 4
+	REQUEST_OK             = 0
+	NONE                   = 1
+	UNKNOW_INVALID         = 2
+	FIRST_LINE_INVALID     = 3
+	METHOD_INVALID         = 4
+	REQUEST_NEED_READ_MORE = 5
+
+	INVALID_HEADERS = 6
 )
 
 // this struct is saved in Event
@@ -25,8 +29,10 @@ type Req struct {
 	Protocol string
 	Encoding []string
 	// HTTP Headers
-	Headers map[string]string
-	Body    []byte
+	Headers   map[string]string
+	HeaderLen int
+	Body      []byte
+	BodyLen   int
 }
 
 var http_method = []string{
@@ -48,6 +54,9 @@ func ReqInit() *Req {
 
 // parse Host
 func (r *Req) ParseHost(lis_info listener.Listener) {
+	if r.Headers["Host"] == "" {
+		return
+	}
 	if lis_info.Port == "80" {
 		r.Headers["Host"] = r.Headers["Host"] + ":80"
 	} else if lis_info.Port == "443" {
@@ -114,8 +123,8 @@ func (r *Req) ByteRow() []byte {
 }
 
 // parse row tcp str to a req object
-func (r *Req) HttpParse(request string) int {
-
+func (r *Req) ParseHeader(request_byte []byte) int {
+	request := string(request_byte)
 	if request == "" {
 		return NONE
 	}
@@ -135,18 +144,35 @@ func (r *Req) HttpParse(request string) int {
 	r.Path = parts[1]
 	r.Protocol = parts[2]
 
-	lines := strings.Split(request, "\r\n")[1:]
-	for _, line := range lines {
-		if line == "" {
-			break
+	lines := requestLine[1:]
+	if len(lines) == 1 {
+		return REQUEST_NEED_READ_MORE
+	}
+
+	for i := 0; i < len(lines); i++ {
+		if lines[i] == "" && len(lines) > i+1 { // there is "\r\n\r\n", \r\n"
+			return REQUEST_OK // valid
 		}
-		parts := strings.SplitN(line, ":", 2)
+		parts := strings.SplitN(lines[i], ":", 2)
+		if len(parts) == 1 { // No ":"
+			return INVALID_HEADERS // invalid headers
+		}
 		key := strings.TrimSpace(parts[0])
+		// key = strings.ToTitle(key)
+		key = strings.ToUpper(key[:1]) + key[1:]
 		value := strings.TrimSpace(parts[1])
 		r.Headers[key] = value
 	}
 
-	return REQUEST_OK // valid
+	return REQUEST_NEED_READ_MORE // valid
+}
+
+func (r *Req) RequestHeaderValid() bool {
+	return true
+}
+
+func (r *Req) TryFixHeader(other []byte) error {
+	return nil
 }
 
 // get request's body
@@ -157,7 +183,8 @@ func (r *Req) ParseBody(tmpByte []byte) {
 
 	total_len := len(tmpByte)
 	for i = 0; i < total_len-4; i++ {
-		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) && tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
+		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) &&
+			tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
 			break
 		}
 	}
@@ -171,4 +198,39 @@ func (r *Req) ParseBody(tmpByte []byte) {
 	}
 
 	r.Body = res
+}
+
+func (r *Req) RequestBodyValid() bool {
+	contentType := r.GetHeader("Content-Type")
+	if strings.Index(contentType, "multipart/form-data") != -1 {
+		po := strings.Index(contentType, "boundary=")
+		boundaryStr := contentType[po+len("boundary="):]
+		if strings.Index(string(r.Body), boundaryStr+"--") != -1 {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	contentLength := r.GetHeader("Content-Length")
+	if contentLength != "" {
+		n, err := strconv.Atoi(contentLength)
+		if err != nil {
+			panic(err)
+		}
+		if len(r.Body) != n { // content length not equal to body length
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *Req) TryFixBody(other []byte) bool {
+	r.Body = append(r.Body, other...)
+	if !r.RequestBodyValid() {
+		return false
+	} else {
+		return true
+	}
 }

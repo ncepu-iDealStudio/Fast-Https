@@ -15,7 +15,7 @@ func HttpHandle(rw http.ResponseWriter, req *http.Request) {
 	// 	fmt.Println("key:", key)
 	// 	fmt.Println("val:", strings.Join(val, ""))
 	// }
-	str := "<h1> This is a Simple test service on </h1>" + testport1 + "path: " + req.RequestURI
+	str := "<h1> This is a Simple test service on </h1>" + testport1 + " path: " + req.RequestURI
 	fmt.Fprintf(rw, str)
 }
 

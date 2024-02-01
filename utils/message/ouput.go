@@ -87,3 +87,13 @@ func PrintAccess(host string, a ...interface{}) {
 		}
 	}
 }
+
+func PrintSafe(a ...interface{}) {
+	if rwMutex.TryRLock() {
+		defer rwMutex.RUnlock()
+		outputChan.In <- message{
+			Context: fmt.Sprint(a...),
+			Type:    "safe",
+		}
+	}
+}

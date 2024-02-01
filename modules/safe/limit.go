@@ -30,6 +30,8 @@ func Bucket(ev *core.Event) bool {
 	} else {
 		// write <403> and close
 		message.PrintWarn(ev.Conn.RemoteAddr().String(), " INFORMAL Event(Bucket)"+ev.Log, "\"")
+		message.PrintSafe(ev.Conn.RemoteAddr().String(), " INFORMAL Event(Bucket)"+ev.Log, "\"")
+
 		buffer := make([]byte, 1024)
 		ev.Conn.Read(buffer)
 		ev.WriteDataClose(response.DefaultTooMany())

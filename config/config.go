@@ -25,6 +25,9 @@ const (
 	XForwardFor = 102
 )
 
+/*
+// path type
+*/
 const (
 	LOCAL       = 0
 	PROXY_HTTP  = 1
@@ -57,8 +60,10 @@ type PathLimit struct {
 }
 
 type ServerLimit struct {
-	Rate  int
-	Burst int
+	MaxBodySize   int
+	MaxHeaderSize int
+	Rate          int
+	Burst         int
 }
 
 type Path struct {
@@ -75,7 +80,8 @@ type Path struct {
 }
 
 type Server struct {
-	Listen            string
+	Listen string
+
 	ServerName        string
 	SSLCertificate    string
 	SSLCertificateKey string
@@ -83,10 +89,11 @@ type Server struct {
 }
 
 type Fast_Https struct {
-	ErrorPage                 ErrorPath
-	Error_log                 string
-	Pid                       string
-	LogRoot                   string
+	ErrorPage ErrorPath
+	Error_log string
+	Pid       string
+	LogRoot   string
+
 	Servers                   []Server
 	Limit                     ServerLimit
 	BlackList                 []string
@@ -105,6 +112,11 @@ type Fast_Https struct {
 	TcpNodelay                string
 }
 
+// Define Configuration Structure
+var GConfig Fast_Https
+var GContentTypeMap map[string]string
+var GOs = runtime.GOOS
+
 func getHeaders(path string) []Header {
 	headerKeys := viper.GetStringSlice(path)
 	var headers []Header
@@ -119,11 +131,6 @@ func getHeaders(path string) []Header {
 	}
 	return headers
 }
-
-// Define Configuration Structure
-var GConfig Fast_Https
-var GContentTypeMap map[string]string
-var GOs = runtime.GOOS
 
 // Init the whole config module
 func Init() error {
@@ -159,18 +166,19 @@ func serverContentType() error {
 	var content_type string
 
 	wd, _ := os.Getwd()
-	confPath := filepath.Join(wd, "config/mime.types")
+	confPath := filepath.Join(wd, MIME_FILE_PATH)
 	confBytes, err := files.ReadFile(confPath)
 
 	if err != nil {
+		log.Fatal("can't open mime.types file")
 		return errors.New("can't open mime.types file")
 	}
 	var clear_str string
-	if GOs == "windows" {
-		clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
-	} else {
-		clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
-	}
+	// if GOs == "windows" {
+	clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
+	// } else {
+	// clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
+	// }
 	all_type_arr := strings.Split(deleteExtraSpace(clear_str), ";")
 	for _, one_type := range all_type_arr {
 		arr := strings.Split(one_type, " ")
@@ -216,7 +224,7 @@ func process() error {
 
 	var fast_https Fast_Https
 
-	viper.SetConfigFile("config/fast-https.json") // 指定要解析的 JSON 文件
+	viper.SetConfigFile(CONFIG_FILE_PATH) // 指定要解析的 JSON 文件
 
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -235,9 +243,10 @@ func process() error {
 	fast_https.Include = viper.GetStringSlice("http.include")
 	fast_https.DefaultType = viper.GetString("http.default_type")
 	fast_https.Limit = ServerLimit{
-
-		Rate:  viper.GetInt("http.servers_limit.limit"),
-		Burst: viper.GetInt("http.servers_limit.burst"),
+		MaxHeaderSize: viper.GetInt("http.servers_limit.max_header_size"),
+		MaxBodySize:   viper.GetInt("http.servers_limit.max_body_size"),
+		Rate:          viper.GetInt("http.servers_limit.limit"),
+		Burst:         viper.GetInt("http.servers_limit.burst"),
 	}
 
 	fast_https.BlackList = viper.GetStringSlice("http.blaklist")
@@ -358,6 +367,16 @@ func process() error {
 	// fmt.Println(fast_https)
 	GConfig = fast_https
 
-	return nil
+	SetDefault()
 
+	return nil
+}
+
+func SetDefault() {
+	if GConfig.Limit.MaxHeaderSize == 0 {
+		GConfig.Limit.MaxHeaderSize = DEFAULT_MAX_HEADER_SIZE
+	}
+	if GConfig.Limit.MaxBodySize == 0 {
+		GConfig.Limit.MaxBodySize = DEFAULT_MAX_BODY_SIZE
+	}
 }

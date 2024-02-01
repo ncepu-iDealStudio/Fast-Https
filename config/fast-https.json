@@ -6,8 +6,7 @@
     "server": [
       {
         "listen": 8080,
-        "server_name": "localhost",
-        
+        "server_name": "",
         "location": [
           {
             "url": "/",
@@ -15,12 +14,11 @@
             "root": "./httpdoc/root",
             "index":["index.html", "index.htm"]
           }
-
         ]
       },
       {
         "listen": "443 ssl",
-        "server_name": "localhost",
+        "server_name": "",
         "ssl_certificate": "config/cert/localhost.pem",
         "ssl_certificate_key": "config/cert/localhost-key.pem",
         "location": [
