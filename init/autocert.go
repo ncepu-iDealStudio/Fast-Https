@@ -53,7 +53,6 @@ func CertInit() {
 			if os.IsNotExist(err) {
 				newCert([]string{serverconfig.ServerName})
 				message.PrintInfo(certfile, " created")
-
 			}
 		}
 	}
@@ -125,29 +124,38 @@ func loadCa() {
 	// message.PrintInfo(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
 
 	certPEMBlock, err := os.ReadFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
-	message.PrintErr(err, "failed to read the CA certificate")
+	if err != nil {
+		message.PrintErr(err, "failed to read the CA certificate")
+	}
 
 	certDERBlock, _ := pem.Decode(certPEMBlock)
 	if certDERBlock == nil || certDERBlock.Type != "CERTIFICATE" {
 		message.PrintErr("ERROR: failed to read the CA certificate: unexpected content")
 	}
 	caCert, err = x509.ParseCertificate(certDERBlock.Bytes)
-	message.PrintErr(err, "failed to parse the CA certificate")
+	if err != nil {
+		message.PrintErr(err, "failed to parse the CA certificate")
+	}
 
 	keyPEMBlock, err := os.ReadFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".key")
-
-	message.PrintErr(err, "failed to read the CA key")
+	if err != nil {
+		message.PrintErr(err, "failed to read the CA key")
+	}
 	keyDERBlock, _ := pem.Decode(keyPEMBlock)
 	if keyDERBlock == nil || keyDERBlock.Type != "PRIVATE KEY" {
 		message.PrintErr("ERROR: failed to read the CA key: unexpected content")
 	}
 	caKey, err = x509.ParsePKCS8PrivateKey(keyDERBlock.Bytes)
-	message.PrintErr(err, "failed to parse the CA key")
+	if err != nil {
+		message.PrintErr(err, "failed to parse the CA key")
+	}
 }
 
 func newCert(hosts []string) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	message.PrintErr(err, "failed to generate certificate key")
+	if err != nil {
+		message.PrintErr(err, "failed to generate certificate key")
+	}
 	pub := priv.Public()
 
 	expiration := time.Now().AddDate(2, 3, 0)
@@ -184,16 +192,28 @@ func newCert(hosts []string) {
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader, tpl, caCert, pub, caKey)
-	message.PrintErr(err, "failed to generate certificate")
+	if err != nil {
+		message.PrintErr(err, "failed to generate certificate")
+	}
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
+
 	privDER, err := x509.MarshalPKCS8PrivateKey(priv)
-	message.PrintErr(err, "failed to encode certificate key")
+	if err != nil {
+		message.PrintErr(err, "failed to encode certificate key")
+	}
+
 	privPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privDER})
 
 	err = os.WriteFile(filepath.Join(CERT_DIR, hosts[0])+".pem", certPEM, 0644) // hosts is not nil
-	message.PrintErr(err, "failed to save certificate")
+
+	if err != nil {
+		message.PrintErr(err, "failed to save certificate")
+	}
+
 	err = os.WriteFile(filepath.Join(CERT_DIR, hosts[0])+"-key.pem", privPEM, 0600)
-	message.PrintErr(err, "failed to save certificate key")
-	// message.PrintInfo("It will expire on %s \n\n", expiration.Format("2 January 2006"))
+	if err != nil {
+		message.PrintErr(err, "failed to save certificate key")
+		// message.PrintInfo("It will expire on %s \n\n", expiration.Format("2 January 2006"))
+	}
 }

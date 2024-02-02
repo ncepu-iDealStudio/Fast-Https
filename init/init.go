@@ -18,31 +18,31 @@ import (
 func Init() *sync.WaitGroup {
 	// message initialization
 	waitGroup := MessageInit()
-	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]message initialization finished")
+	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]message initialization finished")
 
 	// config initialization
 	err := config.Init()
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]config initialization finished")
+	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]config initialization finished")
 
 	//logger object initialization
 	loggers.InitLogger(config.GConfig.LogRoot)
-	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]log initialization finished")
+	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]log initialization finished")
 
 	// cert  initialization
 	CertInit()
-	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]certification initialization finished")
+	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]certification initialization finished")
 
 	// load cache from desk
 	cache.GCacheContainer.LoadCache()
-	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]cache loadcache load disk cache finished")
+	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]cache loadcache load disk cache finished")
 	CacheManagerInit()
-	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]cache manager initialization finished")
+	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]cache manager initialization finished")
 
 	safe.Init()
-	fmt.Fprintln(os.Stdout, time.Now().Format("2006-01-02 15:04:05"), " [SYSTEM INFO]safe moudle initialization finished")
+	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]safe moudle initialization finished")
 
 	return waitGroup
 }
