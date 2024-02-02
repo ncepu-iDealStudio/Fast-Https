@@ -159,7 +159,8 @@ func (CC *CacheContainer) WriteCache(str string, expire int, path string, data [
 	n1 := 1
 	n2 := 2
 	entryHeadMd5Len := len(cacheNode.Md5)
-	savePath := filepath.Join(path, cacheNode.Md5[entryHeadMd5Len-n1:], cacheNode.Md5[entryHeadMd5Len-n1-n2:entryHeadMd5Len-n1])
+	savePath := filepath.Join(path, cacheNode.Md5[entryHeadMd5Len-n1:],
+		cacheNode.Md5[entryHeadMd5Len-n1-n2:entryHeadMd5Len-n1])
 	cacheNode.Path = savePath
 	cacheNode.Valid = expire
 
@@ -177,7 +178,6 @@ func (CC *CacheContainer) WriteCache(str string, expire int, path string, data [
 	entry.Size = size
 
 	//WriteToDisk(&entry) // async
-	//	将消息放入管道
 	CacheChan <- entry
 
 }

@@ -54,13 +54,13 @@ var GRRCHT [10]RRcircleHandler
 
 // each request event is saved in this struct
 type Event struct {
-	Conn     net.Conn
-	Lis_info listener.Listener
-	Timer    *timer.Timer
-	Log      string
-	Type     uint64
-	RR       RRcircle
-	Reuse    bool
+	Conn    net.Conn
+	LisInfo listener.Listener
+	Timer   *timer.Timer
+	Log     string
+	Type    uint64
+	RR      RRcircle
+	Reuse   bool
 
 	IsClose    bool
 	ReadReady  bool
@@ -102,7 +102,7 @@ func DefaultParseCommandHandler(cfg listener.ListenCfg, ev *Event) {
 		"request_method":            ev.RR.Req_.Method,
 		"request_uri":               ev.RR.Req_.Path,
 		"host":                      ev.RR.Req_.GetHeader("Host"),
-		"proxy_host":                cfg.Proxy_addr,
+		"proxy_host":                cfg.ProxyAddr,
 		"remote_addr":               ip,
 		"proxy_add_x_forwarded_for": xForWardFor,
 	}
@@ -118,9 +118,9 @@ func (ev *Event) GetCommandParsedStr(inputString string) string {
 
 func NewEvent(l listener.Listener, conn net.Conn) *Event {
 	return &Event{
-		Conn:     conn,
-		Lis_info: l,
-		Timer:    nil,
+		Conn:    conn,
+		LisInfo: l,
+		Timer:   nil,
 	}
 }
 

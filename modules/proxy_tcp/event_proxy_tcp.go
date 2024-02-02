@@ -1,10 +1,11 @@
-package events
+package proxy_tcp
 
 import (
 	"fast-https/utils/message"
 	"net"
 )
 
+// This is a simple demo
 func ProxyEventTcp(conn net.Conn, proxyaddr string) {
 
 	conn2, err := net.Dial("tcp", proxyaddr)

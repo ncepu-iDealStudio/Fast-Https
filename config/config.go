@@ -32,6 +32,7 @@ const (
 	LOCAL       = 0
 	PROXY_HTTP  = 1
 	PROXY_HTTPS = 2
+	PROXY_TCP   = 3
 	REWRITE     = 4
 )
 
@@ -224,7 +225,7 @@ func process() error {
 
 	var fast_https Fast_Https
 
-	viper.SetConfigFile(CONFIG_FILE_PATH) // 指定要解析的 JSON 文件
+	viper.SetConfigFile(CONFIG_FILE_PATH)
 
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -252,7 +253,6 @@ func process() error {
 	fast_https.BlackList = viper.GetStringSlice("http.blaklist")
 	var servers []Server
 
-	// 遍历每个服务器块，并解析为 Server 结构体
 	serverKeys := viper.GetStringSlice("http.server")
 	for serverKey := range serverKeys {
 

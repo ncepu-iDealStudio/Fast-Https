@@ -6,6 +6,7 @@ import (
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
+	"fast-https/modules/proxy_tcp"
 	"fast-https/modules/safe"
 	"fast-https/utils/message"
 	"regexp"
@@ -32,11 +33,11 @@ func HandleEvent(ev *core.Event, shutdown *core.ServerControl) {
 // LisType(2) tcp proxy
 func EventHandler(ev *core.Event) {
 	// handle tcp proxy
-	if ev.Lis_info.LisType == 2 {
-		ProxyEventTcp(ev.Conn, ev.Lis_info.Cfg[0].Proxy_addr)
+	if ev.LisInfo.LisType == config.PROXY_TCP {
+		proxy_tcp.ProxyEventTcp(ev.Conn, ev.LisInfo.Cfg[0].ProxyAddr)
 		return
 	}
-	if processRequest(ev) != 1 { // 解析失败直接关闭
+	if processRequest(ev) != 1 { // TODO: handle different cases...
 		ev.Close()
 		return // client close
 	}
@@ -72,7 +73,7 @@ func EventHandler(ev *core.Event) {
 }
 
 func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
-	hosts := ev.Lis_info.HostMap[ev.RR.Req_.GetHeader("Host")]
+	hosts := ev.LisInfo.HostMap[ev.RR.Req_.GetHeader("Host")]
 	// fmt.Println(hosts)
 	var cfg listener.ListenCfg
 
@@ -88,7 +89,7 @@ func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 		}
 	}
 
-	hosts2 := ev.Lis_info.HostMap[config.DEFAULT_PORT]
+	hosts2 := ev.LisInfo.HostMap[config.DEFAULT_PORT]
 	for _, cfg = range hosts2 {
 		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
 		res := re.FindStringIndex(ev.RR.Req_.Path)
@@ -146,7 +147,7 @@ func processRequest(ev *core.Event) int {
 	}
 
 	// parse host
-	ev.RR.Req_.ParseHost(ev.Lis_info)
+	ev.RR.Req_.ParseHost(ev.LisInfo)
 
 	otherData := make([]byte, core.READ_BODY_BUF_LEN)
 	for {

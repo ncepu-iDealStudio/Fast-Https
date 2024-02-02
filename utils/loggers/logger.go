@@ -56,7 +56,6 @@ func InitLogger(path string) {
 	})
 }
 
-// 日志记录到文件
 func loggerToFileAndCmd(logPath string, logName string) *logrus.Logger {
 	// 日志文件
 	fileName := path.Join(logPath, logName)
@@ -111,7 +110,6 @@ func loggerToFileAndCmd(logPath string, logName string) *logrus.Logger {
 	return logger
 }
 
-// 记录日志到控制台
 func loggerToCmd() *logrus.Logger {
 	logger := logrus.New()
 	logger.Out = os.Stdout
