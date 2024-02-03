@@ -15,6 +15,11 @@ import (
 )
 
 func HandleEvent(ev *core.Event, shutdown *core.ServerControl) {
+	// handle tcp proxy
+	if ev.LisInfo.LisType == config.PROXY_TCP {
+		proxy_tcp.ProxyEventTcp(ev.Conn, ev.LisInfo.Cfg[0].ProxyAddr)
+		return
+	}
 	for !ev.IsClose {
 		EventHandler(ev)
 
@@ -32,11 +37,7 @@ func HandleEvent(ev *core.Event, shutdown *core.ServerControl) {
 // distribute event
 // LisType(2) tcp proxy
 func EventHandler(ev *core.Event) {
-	// handle tcp proxy
-	if ev.LisInfo.LisType == config.PROXY_TCP {
-		proxy_tcp.ProxyEventTcp(ev.Conn, ev.LisInfo.Cfg[0].ProxyAddr)
-		return
-	}
+
 	if processRequest(ev) != 1 { // TODO: handle different cases...
 		ev.Close()
 		return // client close

@@ -8,7 +8,6 @@ import (
 	"fast-https/utils/message"
 	"io"
 	"net"
-	"strings"
 	"time"
 )
 
@@ -54,6 +53,9 @@ var GRRCHT [10]RRcircleHandler
 
 // each request event is saved in this struct
 type Event struct {
+	// this server is multi-platform,
+	// crypto/tls package uses the same interfaces
+	// so we use net.Conn
 	Conn    net.Conn
 	LisInfo listener.Listener
 	Timer   *timer.Timer
@@ -67,9 +69,7 @@ type Event struct {
 	WriteReady bool
 }
 
-func (ev *Event) EventReuse() bool {
-	return ev.Reuse
-}
+func (ev *Event) EventReuse() bool { return ev.Reuse }
 
 func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
 	handler func(listener.ListenCfg, *Event), cmd func(listener.ListenCfg, *Event)) {
@@ -82,46 +82,29 @@ func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
 	}
 }
 
-func DefaultParseCommandHandler(cfg listener.ListenCfg, ev *Event) {
-	ip := ""
-	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
-	// 如果找到了该字符
-	if index != -1 {
-		// 截取字符串，不包括该字符及其后面的字符
-		ip = ev.Conn.RemoteAddr().String()[:index]
-	}
-
-	xForWardFor := ev.RR.Req_.GetHeader("X-Forwarded-For")
-	if xForWardFor == "" {
-		xForWardFor = ip
-	} else {
-		xForWardFor = xForWardFor + ", " + ip
-	}
-
-	ev.RR.CircleCommandVal.Map = map[string]string{
-		"request_method":            ev.RR.Req_.Method,
-		"request_uri":               ev.RR.Req_.Path,
-		"host":                      ev.RR.Req_.GetHeader("Host"),
-		"proxy_host":                cfg.ProxyAddr,
-		"remote_addr":               ip,
-		"proxy_add_x_forwarded_for": xForWardFor,
-	}
-}
-
-func (ev *Event) GetCommandParsedStr(inputString string) string {
-	out := inputString
-	for key, value := range ev.RR.CircleCommandVal.Map {
-		out = strings.Replace(out, "$"+key, value, -1) // 只替换第一次出现的关键词
-	}
-	return out
-}
-
 func NewEvent(l listener.Listener, conn net.Conn) *Event {
-	return &Event{
+	each_event := Event{
 		Conn:    conn,
 		LisInfo: l,
 		Timer:   nil,
+		Reuse:   false,
+
+		IsClose:    false, // not close
+		ReadReady:  true,  // need read
+		WriteReady: false, // needn't write
+		RR: RRcircle{
+			Ev:            nil, // include each other
+			IsCircle:      true,
+			CircleInit:    false,
+			ProxyConnInit: false,
+			CircleCommandVal: RRcircleCommandVal{
+				Map: make(map[string]string), // init CircleCommandVal map
+			},
+		},
 	}
+	each_event.RR.Ev = &each_event
+
+	return &each_event
 }
 
 func (ev *Event) Log_append(log string) {

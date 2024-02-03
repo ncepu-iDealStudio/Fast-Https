@@ -86,20 +86,6 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// s.setConnCfg(&conn)
 
 		each_event := core.NewEvent(listener, conn)
-		each_event.Conn = conn
-		each_event.LisInfo = listener
-		each_event.Timer = nil
-		each_event.Reuse = false
-
-		each_event.IsClose = false    // not close
-		each_event.ReadReady = true   // need read
-		each_event.WriteReady = false // needn't write
-
-		each_event.RR.Ev = each_event // include each other
-		each_event.RR.IsCircle = true
-		each_event.RR.CircleInit = false
-		each_event.RR.ProxyConnInit = false
-		each_event.RR.CircleCommandVal.Map = make(map[string]string) // init CircleCommandVal map
 
 		if !safe.Bucket(each_event) {
 			continue
