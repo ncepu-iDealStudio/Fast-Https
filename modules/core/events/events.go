@@ -50,7 +50,14 @@ func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 	}
 
 	cl := safe.Gcl[cfg.ID]
-	if !cl.Insert(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
+	ip := ""
+	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
+	// 如果找到了该字符
+	if index != -1 {
+		// 截取字符串，不包括该字符及其后面的字符
+		ip = ev.Conn.RemoteAddr().String()[:index]
+	}
+	if !cl.Insert(ip) {
 		safe.CountHandler(ev.RR)
 		return
 	}
