@@ -368,7 +368,7 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 	// init proxy tcp connection
 	if ev.RR.ProxyConnInit == false {
 		ev.RR.ProxyConnInit = true
-		proxy = Newproxy(cfg.Proxy_addr, int(cfg.Type), configCache)
+		proxy = Newproxy(cfg.ProxyAddr, int(cfg.Type), configCache)
 		proxy.proxyHandleAddr()
 		err := proxy.ProxyInit()
 		if err != nil {
