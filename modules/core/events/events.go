@@ -3,25 +3,20 @@ package events
 import (
 	"fast-https/config"
 	"fast-https/modules/core"
-	"fast-https/modules/core/listener"
+	"fast-https/modules/core/fliters"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
-	"fast-https/modules/proxy_tcp"
 	"fast-https/modules/safe"
 	"fast-https/utils/message"
-	"regexp"
 	"strings"
 	"time"
 )
 
-func HandleEvent(ev *core.Event, shutdown *core.ServerControl) {
-	// handle tcp proxy
-	if ev.LisInfo.LisType == config.PROXY_TCP {
-		proxy_tcp.ProxyEventTcp(ev.Conn, ev.LisInfo.Cfg[0].ProxyAddr)
-		return
-	}
+func HandleEvent(ev *core.Event, fif *fliters.Fliter, shutdown *core.ServerControl) {
+	fif.Fif.ListenFliter(ev)
+
 	for !ev.IsClose {
-		EventHandler(ev)
+		EventHandler(ev, fif)
 
 		if !ev.EventReuse() {
 			break
@@ -35,10 +30,9 @@ func HandleEvent(ev *core.Event, shutdown *core.ServerControl) {
 }
 
 // distribute event
-// LisType(2) tcp proxy
-func EventHandler(ev *core.Event) {
+func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 
-	if processRequest(ev) != 1 { // TODO: handle different cases...
+	if processRequest(ev, fif) != 1 { // TODO: handle different cases...
 		ev.Close()
 		return // client close
 	}
@@ -46,7 +40,7 @@ func EventHandler(ev *core.Event) {
 	ev.Log_append(" " + ev.RR.Req_.Path + " \"" +
 		ev.RR.Req_.GetHeader("Host") + "\"")
 
-	cfg, ok := FliterHostPath(ev)
+	cfg, ok := fif.Fif.RequestFliter(ev)
 	if !ok {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"INFORMAL Event(404)"+ev.Log,
@@ -73,40 +67,7 @@ func EventHandler(ev *core.Event) {
 	}
 }
 
-func FliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
-	hosts := ev.LisInfo.HostMap[ev.RR.Req_.GetHeader("Host")]
-	// fmt.Println(hosts)
-	var cfg listener.ListenCfg
-
-	for _, cfg = range hosts {
-		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
-		res := re.FindStringIndex(ev.RR.Req_.Path)
-		if res != nil {
-			originPath := ev.RR.Req_.Path[res[1]:]
-			ev.RR.OriginPath = originPath
-			ev.RR.PathLocation = res
-
-			return cfg, true
-		}
-	}
-
-	hosts2 := ev.LisInfo.HostMap[config.DEFAULT_PORT]
-	for _, cfg = range hosts2 {
-		re := regexp.MustCompile(cfg.Path) // we can compile this when load config
-		res := re.FindStringIndex(ev.RR.Req_.Path)
-		if res != nil {
-			originPath := ev.RR.Req_.Path[res[1]:]
-			ev.RR.OriginPath = originPath
-			ev.RR.PathLocation = res
-
-			return cfg, true
-		}
-	}
-
-	return cfg, false
-}
-
-func processRequest(ev *core.Event) int {
+func processRequest(ev *core.Event, fif *fliters.Fliter) int {
 	// read data (bytes and str) from socket
 	byte_row := ev.ReadData()
 	// save requte information to ev.RR.Req_
@@ -145,6 +106,10 @@ func processRequest(ev *core.Event) int {
 			message.PrintWarn("invalide request", -200)
 			return -200 // invade request
 		}
+	}
+
+	if !fif.Fif.HttpParseFliter(&ev.RR) {
+		return -300
 	}
 
 	// parse host
