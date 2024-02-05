@@ -79,9 +79,9 @@ func (r *Req) SetHeader(key string, val string, cfg listener.ListenCfg) {
 	_, ori := r.Headers["Origin"]
 	if ori {
 		if cfg.Type == 1 {
-			r.Headers["Origin"] = "http://" + cfg.Proxy_addr
+			r.Headers["Origin"] = "http://" + cfg.ProxyAddr
 		} else if cfg.Type == 2 {
-			r.Headers["Origin"] = "https://" + cfg.Proxy_addr
+			r.Headers["Origin"] = "https://" + cfg.ProxyAddr
 		} else {
 			fmt.Println("SET header error...")
 		}

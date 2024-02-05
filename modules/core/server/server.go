@@ -4,10 +4,10 @@ import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
+	routinepool "fast-https/modules/core/routine_pool"
 	"fast-https/modules/safe"
 	"fast-https/output"
 	"fast-https/utils/message"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -18,10 +18,7 @@ import (
 	_ "fast-https/modules/proxy"
 	_ "fast-https/modules/rewrite"
 	_ "fast-https/modules/static"
-	"net/http"
 	_ "net/http/pprof"
-
-	"github.com/panjf2000/ants/v2"
 )
 
 type Server struct {
@@ -89,28 +86,12 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// s.setConnCfg(&conn)
 
 		each_event := core.NewEvent(listener, conn)
-		each_event.Conn = conn
-		each_event.Lis_info = listener
-		each_event.Timer = nil
-		each_event.Reuse = false
-
-		each_event.IsClose = false    // not close
-		each_event.ReadReady = true   // need read
-		each_event.WriteReady = false // needn't write
-
-		each_event.RR.Ev = each_event // include each other
-		each_event.RR.IsCircle = true
-		each_event.RR.CircleInit = false
-		each_event.RR.ProxyConnInit = false
-		each_event.RR.CircleCommandVal.Map = make(map[string]string) // init CircleCommandVal map
 
 		if !safe.Bucket(each_event) {
 			continue
 		}
 
 		if safe.IsInBlacklist(each_event) {
-			message.PrintSafe(each_event.Conn.RemoteAddr().String(), " INFORMAL Event(BlackList)"+each_event.Log, "\"")
-
 			continue
 		}
 		// go events.HandleEvent(each_event)
@@ -119,21 +100,21 @@ func (s *Server) serveListener(listener listener.Listener) {
 			events.HandleEvent(each_event, &(s.Shutdown))
 			s.wg.Done()
 		}
-		s.wg.Add(1)
-		submitErr := ants.Submit(syncCalculateSum)
+
+		submitErr := routinepool.ServerPool.Submit(syncCalculateSum)
 		if submitErr != nil {
-			message.PrintErr("Error Submit events:", err)
-			break
+			message.PrintWarn("--server: Submit events:", submitErr)
+			// there is no more routine to handle this request...
+			// just close it
+			each_event.Conn.Close()
+		} else {
+			s.wg.Add(1)
 		}
 
 	}
 }
 
 func (s *Server) Run() {
-	// service.TestService("0.0.0.0:5000", "this is 5000")
-	go func() {
-		log.Println(http.ListenAndServe("0.0.0.0:10000", nil))
-	}()
 
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)

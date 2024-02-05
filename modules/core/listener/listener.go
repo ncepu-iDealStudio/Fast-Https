@@ -26,7 +26,7 @@ type ListenCfg struct {
 	Path       string
 
 	Type           uint16 // 0 1 2 3 4
-	Proxy_addr     string
+	ProxyAddr      string
 	ProxySetHeader []config.Header
 	ProxyCache     config.Cache
 	ReWrite        string
@@ -92,7 +92,7 @@ func processListenData() {
 					data.Path = paths.PathName
 					data.ServerName = server.ServerName + ":" + eachlisten.Port
 					data.Type = paths.PathType
-					data.Proxy_addr = paths.ProxyData
+					data.ProxyAddr = paths.ProxyData
 					data.ProxySetHeader = paths.ProxySetHeader
 					data.Limit = paths.Limit
 					data.StaticRoot = paths.Root

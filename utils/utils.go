@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -11,6 +10,8 @@ import (
 	"sync"
 	"text/template"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 var waitGroup sync.WaitGroup

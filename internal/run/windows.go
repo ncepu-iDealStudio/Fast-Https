@@ -79,7 +79,10 @@ func isProcessRunning(processId string) bool {
 }
 
 func getPid() string {
-	file, _ := os.OpenFile("fast-https.pid", os.O_RDONLY, 0666)
+	file, err := os.OpenFile(config.PID_FILE, os.O_RDONLY, 0666)
+	if err != nil {
+		return ""
+	}
 	defer file.Close()
 	reader := bufio.NewReader(file)
 	pid, _, err := reader.ReadLine()

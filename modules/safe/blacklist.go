@@ -4,6 +4,7 @@ import (
 	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/response"
+	"fast-https/utils/message"
 
 	"fmt"
 	"net"
@@ -142,6 +143,7 @@ func IsInBlacklist(ev *core.Event) bool {
 	// fmt.Println(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0])
 	if g_list.isInBlacklist(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
 		ev.WriteDataClose(response.DefaultBlackBan())
+		message.PrintSafe(ev.Conn.RemoteAddr().String(), " INFORMAL Event(BlackList)"+ev.Log, "\"")
 		return true
 	} else {
 		return false

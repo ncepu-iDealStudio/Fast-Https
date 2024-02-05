@@ -8,6 +8,7 @@ import (
 	"fast-https/output"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -144,6 +145,29 @@ func StopHandler() error {
 
 	os.Remove(config.PID_FILE)
 
+	return nil
+}
+
+// this start handler only when develop
+func DevStartHandler() error {
+	go func() {
+		log.Println(http.ListenAndServe("0.0.0.0:10000", nil))
+	}()
+	// pre check before server start
+	PreCheckHandler()
+
+	// output logo, make initialization and start server
+	output.PrintLogo()
+	WritePid()
+
+	output.PrintInitialStart()
+	initialization.Init()
+	output.PrintInitialEnd()
+
+	server := server.ServerInit()
+	server.Run()
+
+	// server will clog here
 	return nil
 }
 
