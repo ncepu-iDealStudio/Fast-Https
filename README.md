@@ -4,47 +4,16 @@
 Fast-Https是一款基于Go语言开发的的多任务，高并发Web服务器产品，支持http1.1/http2.0、HTTPS、RPC等主流的协议和标准；能够实现反向代理的功能。特别的，Web服务器内置实现了自签名SSL证书的生成功能，能极大方便在测试环境下解决服务器基于https协议访问的问题；
 目前，我们提供了Windows平台和Linux平台下的安装包，其它平台下的产品陆续推出中；
 
-
 #### 软件架构
 Fast-Https采用模块化的方式设计开发，核心服务器模块支持以插件方式横向扩展、添加新的功能，以增强服务器的功能；
-
 
 #### 安装教程
 1.  在https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0获取相应的版本和安装包；
 2.  将相应的安装包解压到服务器的目标目录下；
 3.  修改配置文件
 
-<<<<<<< HEAD
-1. 在https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0获取相应的版本和安装包；
-2. 将相应的安装包解压到服务器的目标目录下；
-3. 修改配置文件
-
-=======
-<<<<<<< HEAD
-1.  在https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0获取相应的版本和安装包；
-2.  将相应的安装包解压到服务器的目标目录下；
-3.  修改配置文件
-=======
-1. 在https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0获取相应的版本和安装包；
-2. 将相应的安装包解压到服务器的目标目录下；
-3. 修改配置文件
->>>>>>> 8552379045af2db83b9fe0c87846363ca0de28c2
->>>>>>> develop
-=======
->>>>>>> develop
-
 #### 使用说明
-
 见文档：https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?# 《Fast-Https产品说明》
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD
-=======
->>>>>>> develop
-=======
-
->>>>>>> develop
 
 #### 自行编译
 1. 编译windows状态栏控制程序
@@ -57,13 +26,6 @@ Fast-Https采用模块化的方式设计开发，核心服务器模块支持以�
 3. 编译windows平台下的发行包
    goreleaser release -f .goreleaser.windows.yaml --snapshot --clean
     
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 8552379045af2db83b9fe0c87846363ca0de28c2
->>>>>>> develop
-=======
->>>>>>> develop
 
 #### 参与贡献
 
