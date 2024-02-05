@@ -46,25 +46,25 @@ func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 			"INFORMAL Event(404)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 		ev.WriteDataClose(response.DefaultNotFound())
-	} else {
-
-		cl := safe.Gcl[cfg.ID]
-
-		if !cl.Insert(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
-			safe.CountHandler(ev.RR)
-			return
-		}
-
-		// according to user's confgure and requets endporint handle events
-		ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
-		ev.RR.CircleHandler.FliterHandler = core.GRRCHT[cfg.Type].FliterHandler
-		ev.RR.CircleHandler.ParseCommandHandler = core.GRRCHT[cfg.Type].ParseCommandHandler
-		ev.RR.CircleHandler.ParseCommandHandler(cfg, ev)
-		if !ev.RR.CircleHandler.FliterHandler(cfg, ev) {
-			return
-		}
-		ev.RR.CircleHandler.RRHandler(cfg, ev)
+		return
 	}
+
+	cl := safe.Gcl[cfg.ID]
+	if !cl.Insert(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
+		safe.CountHandler(ev.RR)
+		return
+	}
+
+	// according to user's confgure and requets endporint handle events
+	ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
+	ev.RR.CircleHandler.FliterHandler = core.GRRCHT[cfg.Type].FliterHandler
+	ev.RR.CircleHandler.ParseCommandHandler = core.GRRCHT[cfg.Type].ParseCommandHandler
+	ev.RR.CircleHandler.ParseCommandHandler(cfg, ev)
+	if !ev.RR.CircleHandler.FliterHandler(cfg, ev) {
+		return
+	}
+	ev.RR.CircleHandler.RRHandler(cfg, ev)
+
 }
 
 func processRequest(ev *core.Event, fif *fliters.Fliter) int {
