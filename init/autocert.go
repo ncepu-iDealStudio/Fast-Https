@@ -61,25 +61,32 @@ func CertInit() {
 func randomSerialNumber() *big.Int {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	message.PrintErr(err, "failed to generate serial number")
+	if err != nil {
+		message.PrintErr(err, "failed to generate serial number")
+	}
+
 	return serialNumber
 }
 
 func newRoot() {
 	priv, err := rsa.GenerateKey(rand.Reader, 3072)
-
-	message.PrintErr(err, "failed to generate the CA key")
+	if err != nil {
+		message.PrintErr(err, "failed to generate the CA key")
+	}
 	pub := priv.Public()
 
 	spkiASN1, err := x509.MarshalPKIXPublicKey(pub)
-	message.PrintErr(err, "failed to encode public key")
-
+	if err != nil {
+		message.PrintErr(err, "failed to encode public key")
+	}
 	var spki struct {
 		Algorithm        pkix.AlgorithmIdentifier
 		SubjectPublicKey asn1.BitString
 	}
 	_, err = asn1.Unmarshal(spkiASN1, &spki)
-	message.PrintErr(err, "failed to decode public key")
+	if err != nil {
+		message.PrintErr(err, "failed to decode public key")
+	}
 
 	skid := sha1.Sum(spki.SubjectPublicKey.Bytes)
 
@@ -104,18 +111,26 @@ func newRoot() {
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader, tpl, tpl, pub, priv)
-	message.PrintErr(err, "failed to generate CA certificate")
+	if err != nil {
+		message.PrintErr(err, "failed to generate CA certificate")
+	}
 
 	privDER, err := x509.MarshalPKCS8PrivateKey(priv)
-	message.PrintErr(err, "failed to encode CA key")
+	if err != nil {
+		message.PrintErr(err, "failed to encode CA key")
+	}
 
 	err = os.WriteFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME)+".key", pem.EncodeToMemory(
 		&pem.Block{Type: "PRIVATE KEY", Bytes: privDER}), 0400)
-	message.PrintErr(err, "failed to save CA key")
+	if err != nil {
+		message.PrintErr(err, "failed to save CA key")
+	}
 
 	err = os.WriteFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME)+".crt", pem.EncodeToMemory(
 		&pem.Block{Type: "CERTIFICATE", Bytes: cert}), 0644)
-	message.PrintErr(err, "failed to save CA certificate")
+	if err != nil {
+		message.PrintErr(err, "failed to save CA certificate")
+	}
 
 	message.PrintInfo("Created a new local CA")
 }
