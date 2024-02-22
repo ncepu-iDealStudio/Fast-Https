@@ -10,9 +10,9 @@ Fast-Https采用模块化的方式设计开发，核心服务器模块支持以�
 
 
 #### 安装教程
-1.  在https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0获取相应的版本和安装包；
-2.  将相应的安装包解压到服务器的目标目录下；
-3.  修改配置文件
+1.  在https://gitee.com/ncepu-bj/fast-https/releases/ 获取相应的版本和安装包;
+2.  将相应的安装包解压到服务器的目标目录下;
+3.  修改配置文件;
 
 
 #### 使用说明
