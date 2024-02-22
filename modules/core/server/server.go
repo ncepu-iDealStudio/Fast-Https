@@ -3,6 +3,7 @@ package server
 import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/events"
+	"fast-https/modules/core/fliters"
 	"fast-https/modules/core/listener"
 	routinepool "fast-https/modules/core/routine_pool"
 	"fast-https/modules/safe"
@@ -86,18 +87,15 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// s.setConnCfg(&conn)
 
 		each_event := core.NewEvent(listener, conn)
+		fif := fliters.NewFliter()
 
-		if !safe.Bucket(each_event) {
-			continue
-		}
-
-		if safe.IsInBlacklist(each_event) {
+		if !fif.Fif.ConnFliter(each_event) {
 			continue
 		}
 		// go events.HandleEvent(each_event)
 
 		syncCalculateSum := func() {
-			events.HandleEvent(each_event, &(s.Shutdown))
+			events.HandleEvent(each_event, fif, &(s.Shutdown))
 			s.wg.Done()
 		}
 
