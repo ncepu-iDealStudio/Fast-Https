@@ -87,7 +87,7 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// s.setConnCfg(&conn)
 
 		each_event := core.NewEvent(listener, conn)
-		fif := fliters.NewFliter()
+		fif := fliters.NewFliter() // Fliter interface
 
 		if !fif.Fif.ConnFliter(each_event) {
 			continue

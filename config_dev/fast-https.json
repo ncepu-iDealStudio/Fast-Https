@@ -21,6 +21,11 @@
           {
             "url": "/x",
             "type": "local",
+            "auth": {
+              "type": "basic",
+              "user": "root",
+              "pswd": "123"
+            },
             "root": "./httpdoc/root",
             "index":["index.html", "index.htm"] ,
             "limit": {
