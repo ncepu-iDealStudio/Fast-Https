@@ -4,7 +4,7 @@ import (
 	"fast-https/config"
 	"fast-https/modules/auth"
 	"fast-https/modules/core"
-	"fast-https/modules/core/fliters"
+	"fast-https/modules/core/filters"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/safe"
@@ -13,8 +13,8 @@ import (
 	"time"
 )
 
-func HandleEvent(ev *core.Event, fif *fliters.Fliter, shutdown *core.ServerControl) {
-	fif.Fif.ListenFliter(ev)
+func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
+	fif.Fif.ListenFilter(ev)
 
 	for !ev.IsClose {
 		EventHandler(ev, fif)
@@ -31,7 +31,7 @@ func HandleEvent(ev *core.Event, fif *fliters.Fliter, shutdown *core.ServerContr
 }
 
 // distribute event
-func EventHandler(ev *core.Event, fif *fliters.Fliter) {
+func EventHandler(ev *core.Event, fif *filters.Filter) {
 
 	if processRequest(ev, fif) != 1 { // TODO: handle different cases...
 		ev.Close()
@@ -41,7 +41,7 @@ func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 	ev.Log_append(" " + ev.RR.Req_.Path + " \"" +
 		ev.RR.Req_.GetHeader("Host") + "\"")
 
-	cfg, ok := fif.Fif.RequestFliter(ev)
+	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"INFORMAL Event(404)"+ev.Log,
@@ -70,17 +70,17 @@ func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 
 	// according to user's confgure and requets endporint handle events
 	ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
-	ev.RR.CircleHandler.FliterHandler = core.GRRCHT[cfg.Type].FliterHandler
+	ev.RR.CircleHandler.FilterHandler = core.GRRCHT[cfg.Type].FilterHandler
 	ev.RR.CircleHandler.ParseCommandHandler = core.GRRCHT[cfg.Type].ParseCommandHandler
 	ev.RR.CircleHandler.ParseCommandHandler(cfg, ev)
-	if !ev.RR.CircleHandler.FliterHandler(cfg, ev) {
+	if !ev.RR.CircleHandler.FilterHandler(cfg, ev) {
 		return
 	}
 	ev.RR.CircleHandler.RRHandler(cfg, ev)
 
 }
 
-func processRequest(ev *core.Event, fif *fliters.Fliter) int {
+func processRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
 	byte_row := ev.ReadData()
 	// save requte information to ev.RR.Req_
@@ -121,7 +121,7 @@ func processRequest(ev *core.Event, fif *fliters.Fliter) int {
 		}
 	}
 
-	if !fif.Fif.HttpParseFliter(&ev.RR) {
+	if !fif.Fif.HttpParseFilter(&ev.RR) {
 		return -300
 	}
 

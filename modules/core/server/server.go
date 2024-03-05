@@ -3,7 +3,7 @@ package server
 import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/events"
-	"fast-https/modules/core/fliters"
+	"fast-https/modules/core/filters"
 	"fast-https/modules/core/listener"
 	routinepool "fast-https/modules/core/routine_pool"
 	"fast-https/modules/safe"
@@ -87,9 +87,9 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// s.setConnCfg(&conn)
 
 		each_event := core.NewEvent(listener, conn)
-		fif := fliters.NewFliter() // Fliter interface
+		fif := filters.NewFilter() // Filter interface
 
-		if !fif.Fif.ConnFliter(each_event) {
+		if !fif.Fif.ConnFilter(each_event) {
 			continue
 		}
 		// go events.HandleEvent(each_event)

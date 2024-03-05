@@ -42,7 +42,7 @@ type RRcircleCommandVal struct {
 // callback item
 type RRcircleHandler struct {
 	ParseCommandHandler func(listener.ListenCfg, *Event)
-	FliterHandler       func(listener.ListenCfg, *Event) bool
+	FilterHandler       func(listener.ListenCfg, *Event) bool
 	RRHandler           func(listener.ListenCfg, *Event)
 }
 
@@ -71,9 +71,9 @@ type Event struct {
 
 func (ev *Event) EventReuse() bool { return ev.Reuse }
 
-func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
+func RRHandlerRegister(Type int, filter func(listener.ListenCfg, *Event) bool,
 	handler func(listener.ListenCfg, *Event), cmd func(listener.ListenCfg, *Event)) {
-	GRRCHT[Type].FliterHandler = fliter
+	GRRCHT[Type].FilterHandler = filter
 	GRRCHT[Type].RRHandler = handler
 	if cmd != nil {
 		GRRCHT[Type].ParseCommandHandler = cmd

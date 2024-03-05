@@ -28,8 +28,8 @@ type Proxy struct {
 }
 
 func init() {
-	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFliterHandler, ProxyEvent, nil)
-	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFliterHandler, ProxyEvent, nil)
+	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFilterHandler, ProxyEvent, nil)
+	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFilterHandler, ProxyEvent, nil)
 }
 
 func Newproxy(addr string, proxyType int, proxyNeedCache bool) *Proxy {
@@ -394,7 +394,7 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 	}
 }
 
-func ProxyFliterHandler(cfg listener.ListenCfg, ev *core.Event) bool {
+func ProxyFilterHandler(cfg listener.ListenCfg, ev *core.Event) bool {
 	ChangeHead(cfg, ev)
 	return true
 }

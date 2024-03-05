@@ -1,4 +1,4 @@
-package fliters
+package filters
 
 import (
 	"fast-https/config"
@@ -9,18 +9,18 @@ import (
 	"regexp"
 )
 
-type FliterInterface struct {
-	ConnFliter      func(*core.Event) bool                       // 这是针对 建立连接的 fliter
-	ListenFliter    func(*core.Event)                            // 这是针对 能够有效建立连接的事件的 fliter
-	HttpParseFliter func(*core.RRcircle) bool                    //这是针对 HTTP请求解析的 fliter
-	RequestFliter   func(*core.Event) (listener.ListenCfg, bool) //这是针对 HTTP请求目的的 fliter
+type FilterInterface struct {
+	ConnFilter      func(*core.Event) bool                       // 这是针对 建立连接的 filter
+	ListenFilter    func(*core.Event)                            // 这是针对 能够有效建立连接的事件的 filter
+	HttpParseFilter func(*core.RRcircle) bool                    //这是针对 HTTP请求解析的 filter
+	RequestFilter   func(*core.Event) (listener.ListenCfg, bool) //这是针对 HTTP请求目的的 filter
 }
 
-type Fliter struct {
-	Fif FliterInterface
+type Filter struct {
+	Fif FilterInterface
 }
 
-func GConnFliter(each_event *core.Event) bool {
+func GConnFilter(each_event *core.Event) bool {
 	if !safe.Bucket(each_event) {
 		return false
 	}
@@ -31,18 +31,18 @@ func GConnFliter(each_event *core.Event) bool {
 	return true
 }
 
-func GListenFliter(ev *core.Event) {
+func GListenFilter(ev *core.Event) {
 	// handle tcp proxy
 	if ev.LisInfo.LisType == config.PROXY_TCP {
 		proxy_tcp.ProxyEventTcp(ev.Conn, ev.LisInfo.Cfg[0].ProxyAddr)
 	}
 }
 
-func GHttpParseFliter(rr *core.RRcircle) bool {
+func GHttpParseFilter(rr *core.RRcircle) bool {
 	return true
 }
 
-func GFliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
+func GFilterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 	hosts := ev.LisInfo.HostMap[ev.RR.Req_.GetHeader("Host")]
 	// fmt.Println(hosts)
 	var cfg listener.ListenCfg
@@ -75,13 +75,13 @@ func GFliterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
 	return cfg, false
 }
 
-func NewFliter() *Fliter {
-	return &Fliter{
-		Fif: FliterInterface{
-			ConnFliter:      GConnFliter,
-			ListenFliter:    GListenFliter,
-			HttpParseFliter: GHttpParseFliter,
-			RequestFliter:   GFliterHostPath,
+func NewFilter() *Filter {
+	return &Filter{
+		Fif: FilterInterface{
+			ConnFilter:      GConnFilter,
+			ListenFilter:    GListenFilter,
+			HttpParseFilter: GHttpParseFilter,
+			RequestFilter:   GFilterHostPath,
 		},
 	}
 }
