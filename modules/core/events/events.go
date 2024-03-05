@@ -2,6 +2,7 @@ package events
 
 import (
 	"fast-https/config"
+	"fast-https/modules/auth"
 	"fast-https/modules/core"
 	"fast-https/modules/core/fliters"
 	"fast-https/modules/core/request"
@@ -48,6 +49,7 @@ func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 		ev.WriteDataClose(response.DefaultNotFound())
 		return
 	}
+	// found specific "servername && url"
 
 	cl := safe.Gcl[cfg.ID]
 	ip := ""
@@ -59,6 +61,10 @@ func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 	}
 	if !cl.Insert(ip) {
 		safe.CountHandler(ev.RR)
+		return
+	}
+
+	if !auth.AuthHandler(&cfg, ev) {
 		return
 	}
 
