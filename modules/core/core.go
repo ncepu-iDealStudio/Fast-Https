@@ -107,11 +107,11 @@ func NewEvent(l listener.Listener, conn net.Conn) *Event {
 	return &each_event
 }
 
-func (ev *Event) Log_append(log string) {
+func (ev *Event) LogAppend(log string) {
 	ev.Log = ev.Log + log
 }
 
-func (ev *Event) Log_clear() {
+func (ev *Event) LogClear() {
 	ev.Log = ""
 }
 

@@ -37,8 +37,8 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 		ev.Close()
 		return // client close
 	}
-	ev.Log_append(" " + ev.RR.Req_.Method)
-	ev.Log_append(" " + ev.RR.Req_.Path + " \"" +
+	ev.LogAppend(" " + ev.RR.Req_.Method)
+	ev.LogAppend(" " + ev.RR.Req_.Path + " \"" +
 		ev.RR.Req_.GetHeader("Host") + "\"")
 
 	cfg, ok := fif.Fif.RequestFilter(ev)

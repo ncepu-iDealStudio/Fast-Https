@@ -181,13 +181,12 @@ func serverContentType() error {
 		log.Fatal("can't open mime.types file")
 		return errors.New("can't open mime.types file")
 	}
-	var clear_str string
 	// if GOs == "windows" {
-	clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
+	clearStr := strings.ReplaceAll(string(confBytes), "\r\n", "")
 	// } else {
 	// clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
 	// }
-	all_type_arr := strings.Split(deleteExtraSpace(clear_str), ";")
+	all_type_arr := strings.Split(deleteExtraSpace(clearStr), ";")
 	for _, one_type := range all_type_arr {
 		arr := strings.Split(one_type, " ")
 
