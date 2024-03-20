@@ -5,13 +5,30 @@ import (
 	"strings"
 )
 
-const (
-	RESPONSE_OK        = 0
-	NONE               = 1
-	UNKNOW_INVALID     = 2
-	FIRST_LINE_INVALID = 3
-	METHOD_INVALID     = 4
+// const (
+// 	RESPONSE_OK        = 0
+// 	NONE               = 1
+// 	UNKNOW_INVALID     = 2
+// 	FIRST_LINE_INVALID = 3
+// 	METHOD_INVALID     = 4
+// )
+
+type ResponError struct {
+	Code    int
+	Message string
+}
+
+var (
+	ResponseOk       = &ResponError{0, "Response OK"}
+	None             = &ResponError{1, "None"}
+	UnknowInvalid    = &ResponError{2, "Unknow invalid"}
+	FirstLineInvalid = &ResponError{3, "First line invalid"}
+	MethodInvalid    = &ResponError{4, "Method invalid"}
 )
+
+func (e *ResponError) Error() string {
+	return fmt.Sprintf("Respon error code: %d, Message: %s", e.Code, e.Message)
+}
 
 // every event will return a Response object
 // except tcp proxy
@@ -55,18 +72,18 @@ func (r *Response) GenerateResponse() []byte {
 	return res
 }
 
-func (r *Response) HttpResParse(request string) int {
+func (r *Response) HttpResParse(request string) error {
 
 	if request == "" {
-		return NONE
+		return None
 	}
 	requestLine := strings.Split(request, "\r\n")
 	if requestLine == nil {
-		return UNKNOW_INVALID // invalid request
+		return UnknowInvalid // invalid request
 	}
 	parts := strings.Split(requestLine[0], " ")
 	if parts == nil || len(parts) < 3 {
-		return FIRST_LINE_INVALID // invalid first line
+		return FirstLineInvalid // invalid first line
 	}
 
 	lines := strings.Split(request, "\r\n")[1:]
@@ -80,7 +97,7 @@ func (r *Response) HttpResParse(request string) int {
 		r.headers[key] = value
 	}
 
-	return RESPONSE_OK // valid
+	return ResponseOk // valid
 }
 
 // get request header

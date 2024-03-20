@@ -9,16 +9,35 @@ import (
 	"github.com/chenhg5/collection"
 )
 
-const (
-	REQUEST_OK             = 0
-	NONE                   = 1
-	UNKNOW_INVALID         = 2
-	FIRST_LINE_INVALID     = 3
-	METHOD_INVALID         = 4
-	REQUEST_NEED_READ_MORE = 5
+// const (
+// 	REQUEST_OK             = 0
+// 	NONE                   = 1
+// 	UNKNOW_INVALID         = 2
+// 	FIRST_LINE_INVALID     = 3
+// 	METHOD_INVALID         = 4
+// 	REQUEST_NEED_READ_MORE = 5
 
-	INVALID_HEADERS = 6
+// 	INVALID_HEADERS = 6
+// )
+
+type RequestError struct {
+	Code    int
+	Message string
+}
+
+var (
+	RequestOk           = &RequestError{0, "Request OK"}
+	None                = &RequestError{1, "None"}
+	UnknowInvalid       = &RequestError{2, "Unknow invalid"}
+	FirstLineInvalid    = &RequestError{3, "First line invalid"}
+	MethodInvalid       = &RequestError{4, "Method invalid"}
+	RequestNeedReadMore = &RequestError{5, "Request need read more"}
+	InvalidHeaders      = &RequestError{6, "Invalid headers"}
 )
+
+func (e *RequestError) Error() string {
+	return fmt.Sprintf("Request error code: %d, Message: %s", e.Code, e.Message)
+}
 
 // this struct is saved in Event
 // which contaions event's method,path,servername(headers)
@@ -123,21 +142,21 @@ func (r *Req) ByteRow() []byte {
 }
 
 // parse row tcp str to a req object
-func (r *Req) ParseHeader(request_byte []byte) int {
+func (r *Req) ParseHeader(request_byte []byte) error {
 	request := string(request_byte)
 	if request == "" {
-		return NONE
+		return None
 	}
 	requestLine := strings.Split(request, "\r\n")
 	if requestLine == nil {
-		return UNKNOW_INVALID // invalid request
+		return UnknowInvalid // invalid request
 	}
 	parts := strings.Split(requestLine[0], " ")
 	if parts == nil || len(parts) < 3 {
-		return FIRST_LINE_INVALID // invalid first line
+		return FirstLineInvalid // invalid first line
 	}
 	if !collection.Collect(http_method).Contains(parts[0]) {
-		return METHOD_INVALID // invalid method
+		return MethodInvalid // invalid method
 	}
 
 	r.Method = parts[0]
@@ -146,16 +165,16 @@ func (r *Req) ParseHeader(request_byte []byte) int {
 
 	lines := requestLine[1:]
 	if len(lines) == 1 {
-		return REQUEST_NEED_READ_MORE
+		return RequestNeedReadMore
 	}
 
 	for i := 0; i < len(lines); i++ {
 		if lines[i] == "" && len(lines) > i+1 { // there is "\r\n\r\n", \r\n"
-			return REQUEST_OK // valid
+			return RequestOk // valid
 		}
 		parts := strings.SplitN(lines[i], ":", 2)
 		if len(parts) == 1 { // No ":"
-			return INVALID_HEADERS // invalid headers
+			return InvalidHeaders // invalid headers
 		}
 		key := strings.TrimSpace(parts[0])
 		// key = strings.ToTitle(key)
@@ -164,7 +183,7 @@ func (r *Req) ParseHeader(request_byte []byte) int {
 		r.Headers[key] = value
 	}
 
-	return REQUEST_NEED_READ_MORE // valid
+	return RequestNeedReadMore // valid
 }
 
 func (r *Req) RequestHeaderValid() bool {

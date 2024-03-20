@@ -98,9 +98,9 @@ func processRequest(ev *core.Event, fif *filters.Filter) int {
 	headerOtherData := make([]byte, core.READ_HEADER_BUF_LEN)
 	for {
 		parse := ev.RR.Req_.ParseHeader(byte_row)
-		if parse == request.REQUEST_OK {
+		if parse == request.RequestOk {
 			break
-		} else if parse == request.REQUEST_NEED_READ_MORE { // parse successed !
+		} else if parse == request.RequestNeedReadMore { // parse successed !
 
 			ev.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 			datasize, err := ev.Conn.Read(headerOtherData)
