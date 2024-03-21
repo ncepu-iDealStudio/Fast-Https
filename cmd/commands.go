@@ -49,7 +49,7 @@ var (
 		},
 		{
 			name:        "status",
-			description: "Check process status",
+			description: "check process status",
 			handler:     statusHandler,
 		},
 	}
@@ -81,8 +81,7 @@ func RootCmd() *cobra.Command {
 func runCommand(args []string) error {
 	// missing parameter
 	if len(data) == 1 {
-		fmt.Println(color.RedString("Input is missing a parameter"))
-		fmt.Println(color.RedString("Please try again"))
+		fmt.Println(color.RedString("usage:"))
 		return nil
 	}
 
@@ -100,8 +99,7 @@ func runCommand(args []string) error {
 
 	// Irregular commands
 	if !found {
-		fmt.Println(color.YellowString("The input command is not a valid command"))
-		fmt.Println(color.YellowString("Please try again"))
+		fmt.Println(color.RedString("usage:"))
 		return nil
 	}
 
@@ -126,25 +124,20 @@ func StopHandler() error {
 	str, _ := readerBuf.ReadString('\n')
 	msg := strings.Trim(str, "\r\n")
 	ax, _ := strconv.Atoi(msg)
-	// ax := 21980
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
 	} else {
-		cmd = exec.Command("kill", strconv.Itoa(ax))
+		cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-9")
 	}
 
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println("Shutdown process failed:", err)
-		return nil
+		fmt.Println("fast-https stop failed:", err)
 	}
-
 	file.Close()
-
 	os.Remove(config.PID_FILE)
-
 	return nil
 }
 
@@ -158,7 +151,7 @@ func DevStartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	WritePid()
+	WritePid(os.Getpid())
 
 	output.PrintInitialStart()
 	initialization.Init()
@@ -178,12 +171,15 @@ func StartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	WritePid()
+	if runtime.GOOS == "windows" {
+		WritePid(os.Getpid())
+	}
 
 	output.PrintInitialStart()
 	initialization.Init()
 	output.PrintInitialEnd()
 
+	Daemon(0, 0) // this func will write pid
 	server := server.ServerInit()
 	server.Run()
 
@@ -209,9 +205,8 @@ func PreCheckHandler() {
 	config.ClearConfig()
 }
 
-func WritePid() {
+func WritePid(x_pid int) {
 	// Obtain the pid and store it
-	x_pid := os.Getpid()
 
 	file, err := os.OpenFile(config.PID_FILE, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
