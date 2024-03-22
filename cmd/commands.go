@@ -34,22 +34,22 @@ var (
 	commands = []command{
 		{
 			name:        "reload",
-			description: "Switching Processes",
+			description: "to reload config",
 			handler:     ReloadHandler,
 		},
 		{
 			name:        "start",
-			description: "start process",
+			description: "to start web server",
 			handler:     StartHandler,
 		},
 		{
 			name:        "stop",
-			description: "Stop process",
+			description: "to Stop web server",
 			handler:     StopHandler,
 		},
 		{
 			name:        "status",
-			description: "check process status",
+			description: "to check web server status",
 			handler:     statusHandler,
 		},
 	}

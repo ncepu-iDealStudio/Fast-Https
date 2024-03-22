@@ -136,6 +136,9 @@ func (p *Proxy) ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 	lines := strings.Split(header_str, "\r\n")
 	head_code := strings.Split(lines[0], " ")[1]
 	header_new = lines[0] + "\r\n"
+	if !strings.Contains(header_str, "Connection") {
+		p.ProxyNeedClose = true
+	}
 	for _, line := range lines[1:] {
 		if line == "" {
 			break
@@ -223,6 +226,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 
 	if len(resData) < 4 {
 		message.PrintWarn(ev.Conn.RemoteAddr().String(), " proxy return null")
+		p.ProxyConn.Close()
 		return nil, errors.New("proxy return null")
 	}
 
