@@ -152,36 +152,26 @@ func (ro *ReadOnce) Read(data []byte) (int, error) {
 	}
 }
 
+// debug by zhangjiayue
 func (ro *ReadOnce) ReadBytes(size int) {
 	totalLen := size
-	stage2_len := 0
-	for {
-		onceSize := READ_BODY_BYTES_LEN - totalLen
-		if onceSize > 0 {
-			lastBuf := make([]byte, READ_BODY_BYTES_LEN-onceSize)
-			lastLen, err := ro.Read(lastBuf)
-			if err != nil || lastLen != READ_BODY_BYTES_LEN-onceSize {
-				message.PrintWarn("ReadBytes erro 1 ", err)
-			}
-			ro.finalStr = append(ro.finalStr, lastBuf...)
-			return
-		} else {
-			tmpBuf := make([]byte, READ_BODY_BYTES_LEN)
-
-			tempLen, err := ro.Read(tmpBuf)
-			if err != nil {
-				message.PrintWarn("ReadBytes error 2 ", err)
-			}
-
-			stage2_len = tempLen
-
-			ro.finalStr = append(ro.finalStr, tmpBuf[:tempLen]...)
+	//ro.ProxyConn.SetReadDeadline(time.Now().Add(time.Second * 100))
+	for totalLen > 0 {
+		readLen := READ_BODY_BYTES_LEN
+		if totalLen < READ_BODY_BYTES_LEN {
+			readLen = totalLen
 		}
-		totalLen -= stage2_len
+		tmpBuf := make([]byte, readLen)
+		tempLen, err := ro.Read(tmpBuf)
+		if err != nil {
+			message.PrintWarn("ReadBytes error", err)
+		}
+		ro.finalStr = append(ro.finalStr, tmpBuf[:tempLen]...)
+		totalLen -= tempLen
 	}
 }
 
-func (ro *ReadOnce) proxyReadOnce(ev *core.Event) error {
+func (ro *ReadOnce) proxyReadOnce(_ *core.Event) error {
 
 	tmpByte := make([]byte, TRY_READ_LEN)
 readAgain:
