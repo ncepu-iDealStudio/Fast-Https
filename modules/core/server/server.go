@@ -29,8 +29,17 @@ type Server struct {
 
 // init server
 func ServerInit() *Server {
+	s := Server{Shutdown: core.ServerControl{Shutdown: false}}
+	sigchnl := make(chan os.Signal, 1)
+	signal.Notify(sigchnl)
+	go func(s *Server) {
+		for {
+			sig_num := <-sigchnl
+			s.sigHandler(sig_num)
+		}
+	}(&s)
 	//  to do : ScanPorts
-	return &Server{Shutdown: core.ServerControl{Shutdown: false}}
+	return &s
 }
 
 // ScanPorts scan ports to check whether they've been used
@@ -113,16 +122,6 @@ func (s *Server) serveListener(listener listener.Listener) {
 }
 
 func (s *Server) Run() {
-
-	sigchnl := make(chan os.Signal, 1)
-	signal.Notify(sigchnl)
-
-	go func(s *Server) {
-		for {
-			sig_num := <-sigchnl
-			s.sigHandler(sig_num)
-		}
-	}(s)
 
 	output.PrintPortsListenerStart()
 	listens := listener.Listen()

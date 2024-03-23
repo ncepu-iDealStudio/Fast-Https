@@ -41,12 +41,12 @@ var (
 			handler:     ServiceUnInstallHandler,
 		},
 		{
-			name:        "run",
+			name:        "start",
 			description: "to start web server",
 			handler:     StartHandler,
 		},
 		{
-			name:        "quit",
+			name:        "stop",
 			description: "to Stop web server",
 			handler:     StopHandler,
 		},
@@ -69,33 +69,31 @@ var (
 	}
 
 	prg = &program{}
-
-	data []string
 )
 
 type program struct{}
 
 func (p *program) Start(s service.Service) error {
-	fmt.Println("fast https 服务运行...")
+	fmt.Println("fast https (p *program) Start ...")
 	return nil
 }
 
 func (p *program) Stop(s service.Service) error {
-	fmt.Println("fast https 服务停止...")
+	fmt.Println("fast https (p *program) Stop ...")
 	return nil
 }
 
 // Root command parameters are methods
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          color.HiYellowString("go"),
-		Short:        "A command-line tool",
-		Long:         color.RedString("This is a help log"),
+		Use:          "fast-https",
+		Short:        "short log",
+		Long:         "long log",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Read terminal input
-			data = os.Args
-			return runCommand(data)
+
+			return runCommand(args)
 		},
 	}
 
@@ -110,16 +108,14 @@ func RootCmd() *cobra.Command {
 // Read terminal input
 func runCommand(args []string) error {
 	// missing parameter
-	if len(data) == 1 {
-		fmt.Println(color.RedString("usage:"))
+	if len(args) == 0 {
+		fmt.Println(color.RedString("This is Dev start mod ..."))
+		DevStartHandler()
 		return nil
 	}
 
-	// Correct command usage
-	var found bool
 	for _, c := range commands {
-		if data[1] == c.name {
-			found = true
+		if args[0] == c.name {
 			if err := c.handler(); err != nil {
 				return err
 			}
@@ -127,24 +123,17 @@ func runCommand(args []string) error {
 		}
 	}
 
-	// Irregular commands
-	if !found {
-		fmt.Println(color.RedString("usage:"))
-		return nil
-	}
-
-	return nil
-}
-
-// ReloadHandler reload server
-func ReloadHandler() error {
-	// StopHandler()
-	// time.Sleep(time.Second)
-	// StartHandler()
 	return nil
 }
 
 func ServiceInstallHandler() error {
+
+	directory, err := os.Getwd() //get the current directory using the built-in function
+	if err != nil {
+		fmt.Println(err) //print the error if obtained
+	}
+
+	srvConfig.WorkingDirectory = directory
 
 	s, err := service.New(prg, srvConfig)
 	if err != nil {
@@ -155,7 +144,7 @@ func ServiceInstallHandler() error {
 	if err != nil {
 		fmt.Println("安装服务失败: ", err.Error())
 	} else {
-		fmt.Println("安装服务成功")
+		fmt.Println("fast-https服务在", directory, "安装成功!")
 	}
 
 	return nil
@@ -172,36 +161,9 @@ func ServiceUnInstallHandler() error {
 	if err != nil {
 		fmt.Println("卸载服务失败: ", err.Error())
 	} else {
-		fmt.Println("卸载服务成功")
+		fmt.Println("fast-https卸载服务成功")
 	}
 
-	return nil
-}
-
-// StopHandler stop server
-func StopHandler() error {
-	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
-	if err != nil {
-		return err
-	}
-	readerBuf := bufio.NewReader(file)
-	str, _ := readerBuf.ReadString('\n')
-	msg := strings.Trim(str, "\r\n")
-	ax, _ := strconv.Atoi(msg)
-
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
-	} else {
-		cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-9")
-	}
-
-	err = cmd.Run()
-	if err != nil {
-		fmt.Println("fast-https stop failed:", err)
-	}
-	file.Close()
-	os.Remove(config.PID_FILE)
 	return nil
 }
 
@@ -251,6 +213,45 @@ func StartHandler() error {
 	return nil
 }
 
+// StopHandler stop server
+func StopHandler() error {
+	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
+	if err != nil {
+		return err
+	}
+	readerBuf := bufio.NewReader(file)
+	str, _ := readerBuf.ReadString('\n')
+	msg := strings.Trim(str, "\r\n")
+	ax, _ := strconv.Atoi(msg)
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
+	} else {
+		cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-9")
+	}
+
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("fast-https stop failed:", err)
+	}
+	file.Close()
+	os.Remove(config.PID_FILE)
+	return nil
+}
+
+// ReloadHandler reload server
+func ReloadHandler() error {
+	// StopHandler()
+	// time.Sleep(time.Second)
+	// StartHandler()
+	return nil
+}
+
+func statusHandler() error {
+	return nil
+}
+
 func PreCheckHandler() {
 	// check config
 	err := config.CheckConfig()
@@ -280,8 +281,4 @@ func WritePid(x_pid int) {
 
 	file.WriteString(strconv.Itoa(x_pid) + "\n")
 	fmt.Println("Fast-Https running [PID]:", x_pid)
-}
-
-func statusHandler() error {
-	return nil
 }
