@@ -16,10 +16,9 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
 )
-
-var data []string
 
 // Command Structure Definition
 type command struct {
@@ -30,22 +29,31 @@ type command struct {
 
 var (
 	// Command structure initialization
-
 	commands = []command{
 		{
-			name:        "reload",
-			description: "to reload config",
-			handler:     ReloadHandler,
+			name:        "install",
+			description: "to install fast-https service",
+			handler:     ServiceInstallHandler,
 		},
 		{
-			name:        "start",
+			name:        "uninstall",
+			description: "to uninstall fast-https service",
+			handler:     ServiceUnInstallHandler,
+		},
+		{
+			name:        "run",
 			description: "to start web server",
 			handler:     StartHandler,
 		},
 		{
-			name:        "stop",
+			name:        "quit",
 			description: "to Stop web server",
 			handler:     StopHandler,
+		},
+		{
+			name:        "reload",
+			description: "to reload config",
+			handler:     ReloadHandler,
 		},
 		{
 			name:        "status",
@@ -53,7 +61,29 @@ var (
 			handler:     statusHandler,
 		},
 	}
+
+	srvConfig = &service.Config{
+		Name:        "fast-https",
+		DisplayName: "Fast-https Web Server",
+		Description: "A high preformance web server and proxy server",
+	}
+
+	prg = &program{}
+
+	data []string
 )
+
+type program struct{}
+
+func (p *program) Start(s service.Service) error {
+	fmt.Println("fast https 服务运行...")
+	return nil
+}
+
+func (p *program) Stop(s service.Service) error {
+	fmt.Println("fast https 服务停止...")
+	return nil
+}
 
 // Root command parameters are methods
 func RootCmd() *cobra.Command {
@@ -111,6 +141,40 @@ func ReloadHandler() error {
 	// StopHandler()
 	// time.Sleep(time.Second)
 	// StartHandler()
+	return nil
+}
+
+func ServiceInstallHandler() error {
+
+	s, err := service.New(prg, srvConfig)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = s.Install()
+	if err != nil {
+		fmt.Println("安装服务失败: ", err.Error())
+	} else {
+		fmt.Println("安装服务成功")
+	}
+
+	return nil
+}
+
+func ServiceUnInstallHandler() error {
+
+	s, err := service.New(prg, srvConfig)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = s.Uninstall()
+	if err != nil {
+		fmt.Println("卸载服务失败: ", err.Error())
+	} else {
+		fmt.Println("卸载服务成功")
+	}
+
 	return nil
 }
 
