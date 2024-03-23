@@ -7,6 +7,7 @@ import (
 	"fast-https/modules/cache"
 	"fast-https/modules/core"
 	"fast-https/utils"
+	"fmt"
 	"time"
 
 	"fast-https/modules/core/listener"
@@ -147,15 +148,15 @@ func (p *Proxy) ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			if strings.Compare(key, "Server") == 0 {
-				header_new = header_new + "Server: Fast-Https\r\n"
-			} else if strings.Compare(key, "Connection") == 0 &&
-				strings.Compare(value, "close") == 0 {
-				header_new = header_new + key + ": " + value + "\r\n"
-				p.ProxyNeedClose = true
-			} else {
-				header_new = header_new + key + ": " + value + "\r\n"
-			}
+			// if strings.Compare(key, "Server") == 0 {
+			// 	header_new = header_new + "Server: Fast-Https\r\n"
+			// } else if strings.Compare(key, "Connection") == 0 &&
+			// 	strings.Compare(value, "close") == 0 {
+			// 	header_new = header_new + key + ": " + value + "\r\n"
+			// 	p.ProxyNeedClose = true
+			// } else {
+			header_new = header_new + key + ": " + value + "\r\n"
+			// }
 		}
 	}
 	header_new = header_new + "\r\n"
@@ -204,10 +205,16 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 
 	var resData []byte
 	if !ev.RR.Req_.IsKeepalive() {
-		resData, err = p.proxyReadAll(ev)
-		// fmt.Println("-----This is proxyReadAll")
-		if err != nil {
-			message.PrintWarn("Proxy event: Can't read all ", err.Error())
+		if ev.Upgrade == "websocket" {
+			web := make([]byte, 1024)
+			p.Read(web)
+			resData = web
+		} else {
+			resData, err = p.proxyReadAll(ev)
+			// fmt.Println("-----This is proxyReadAll")
+			if err != nil {
+				message.PrintWarn("Proxy event: Can't read all ", err.Error())
+			}
 		}
 	} else {
 		ro := ReadOnce{
@@ -234,7 +241,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 
 	ev.LogAppend(" " + head_code + " " + b_len)
 
-	if !ev.RR.Req_.IsKeepalive() { // connection close
+	if !ev.RR.Req_.IsKeepalive() && ev.Upgrade == "" { // connection close
 		p.Close()
 	}
 
@@ -346,6 +353,11 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 	}
 	// proxy server return valid data
 	if ev.RR.Req_.IsKeepalive() && !p.ProxyNeedClose {
+		ev.WriteData(res)
+		// events.Handle_event(ev)
+		ev.Reuse = true
+	} else if ev.Upgrade == "websocket" {
+		fmt.Println("-------------------- websocket -------------")
 		ev.WriteData(res)
 		// events.Handle_event(ev)
 		ev.Reuse = true

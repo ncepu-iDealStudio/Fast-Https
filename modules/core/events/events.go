@@ -14,9 +14,11 @@ import (
 )
 
 func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
-	fif.Fif.ListenFilter(ev)
 
 	for !ev.IsClose {
+		if fif.Fif.ListenFilter(ev) {
+			break
+		}
 		EventHandler(ev, fif)
 
 		if !ev.EventReuse() {
