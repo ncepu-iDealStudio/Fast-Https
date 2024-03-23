@@ -207,8 +207,8 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 	if !ev.RR.Req_.IsKeepalive() {
 		if ev.Upgrade == "websocket" {
 			web := make([]byte, 1024)
-			p.Read(web)
-			resData = web
+			n, _ := p.Read(web)
+			resData = web[:n]
 		} else {
 			resData, err = p.proxyReadAll(ev)
 			// fmt.Println("-----This is proxyReadAll")

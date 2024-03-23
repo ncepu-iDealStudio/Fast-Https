@@ -16,9 +16,11 @@ import (
 func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
 
 	for !ev.IsClose {
+		// websocket and tcp proxy through this
 		if fif.Fif.ListenFilter(ev) {
 			break
 		}
+
 		EventHandler(ev, fif)
 
 		if !ev.EventReuse() {
@@ -27,7 +29,7 @@ func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerContr
 
 		if shutdown.Shutdown {
 			message.PrintInfo("server shut down")
-			return
+			break
 		}
 	}
 }
