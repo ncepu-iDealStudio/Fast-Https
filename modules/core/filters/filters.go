@@ -35,7 +35,7 @@ func GConnFilter(each_event *core.Event) bool {
 func GListenFilter(ev *core.Event) bool {
 	// handle tcp proxy
 	if ev.LisInfo.LisType == config.PROXY_TCP {
-		proxy_tcp.ProxyEventTcp(ev.Conn, ev.LisInfo.Cfg[0].ProxyAddr)
+		proxy_tcp.ProxyEventTcp(ev, ev.LisInfo.Cfg[0].ProxyAddr)
 		return true
 	}
 	if ev.Upgrade == "websocket" {

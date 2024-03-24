@@ -148,15 +148,15 @@ func (p *Proxy) ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 		if len(parts) == 2 {
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
-			// if strings.Compare(key, "Server") == 0 {
-			// 	header_new = header_new + "Server: Fast-Https\r\n"
-			// } else if strings.Compare(key, "Connection") == 0 &&
-			// 	strings.Compare(value, "close") == 0 {
-			// 	header_new = header_new + key + ": " + value + "\r\n"
-			// 	p.ProxyNeedClose = true
-			// } else {
-			header_new = header_new + key + ": " + value + "\r\n"
-			// }
+			if strings.Compare(key, "Server") == 0 {
+				header_new = header_new + "Server: Fast-Https\r\n"
+			} else if strings.Compare(key, "Connection") == 0 &&
+				strings.Compare(value, "close") == 0 {
+				header_new = header_new + key + ": " + value + "\r\n"
+				p.ProxyNeedClose = true
+			} else {
+				header_new = header_new + key + ": " + value + "\r\n"
+			}
 		}
 	}
 	header_new = header_new + "\r\n"
