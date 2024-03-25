@@ -5,6 +5,8 @@ import (
 	"fast-https/modules/auth"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
+	"fast-https/modules/core/h2"
+	frame "fast-https/modules/core/h2/frame"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/safe"
@@ -15,10 +17,34 @@ import (
 
 func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
 
+	Connh2 := h2.NewConn(ev.Conn)
+
+	err := Connh2.ReadMagic()
+	if err != nil {
+		message.PrintWarn(err)
+		Connh2.Close()
+		return
+	}
+
+	Connh2.CallBack = CallBack
+
+	go Connh2.WriteLoop()
+	settingsFrame := frame.NewSettingsFrame(frame.UNSET, 0, h2.DefaultSettings)
+	Connh2.WriteChan <- settingsFrame
+
+	Connh2.ReadLoop(ev, fif)
+
+	Connh2.Close()
+
 	for !ev.IsClose {
 		// websocket and tcp proxy through this
 		if fif.Fif.ListenFilter(ev) {
 			break
+		}
+
+		if parseRequest(ev, fif) != 1 { // TODO: handle different cases...
+			ev.Close()
+			break // client close
 		}
 
 		EventHandler(ev, fif)
@@ -37,10 +63,6 @@ func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerContr
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
 
-	if processRequest(ev, fif) != 1 { // TODO: handle different cases...
-		ev.Close()
-		return // client close
-	}
 	ev.LogAppend(" " + ev.RR.Req_.Method)
 	ev.LogAppend(" " + ev.RR.Req_.Path + " \"" +
 		ev.RR.Req_.GetHeader("Host") + "\"")
@@ -81,10 +103,9 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 		return
 	}
 	ev.RR.CircleHandler.RRHandler(cfg, ev)
-
 }
 
-func processRequest(ev *core.Event, fif *filters.Filter) int {
+func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
 	byte_row := ev.ReadData()
 	// save requte information to ev.RR.Req_

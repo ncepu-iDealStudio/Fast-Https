@@ -180,7 +180,9 @@ func listenSsl(laddr string, lisdata []ListenCfg) net.Listener {
 		servernames = append(servernames, item.ServerName)
 	}
 
-	tlsConfig := &tls.Config{}
+	tlsConfig := &tls.Config{
+		NextProtos: []string{"h2"},
+	}
 	tlsConfig.Certificates = certs
 	tlsConfig.Time = time.Now
 	tlsConfig.Rand = rand.Reader

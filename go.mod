@@ -11,6 +11,9 @@ require (
 )
 
 require (
+	github.com/Jxck/color v0.0.0-20150710091843-32f7aabefa1d // indirect
+	github.com/Jxck/logger v0.0.0-20141016174915-6123e712dcb9 // indirect
+	github.com/Jxck/swrap v0.0.0-20140128093118-70cf15cd69ab // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
 	github.com/getlantern/errors v0.0.0-20190325191628-abdb3e3e36f7 // indirect
@@ -34,6 +37,7 @@ require (
 )
 
 require (
+	github.com/Jxck/hpack v0.0.0-20150713130059-4fb806e55ed9
 	github.com/andybalholm/brotli v1.0.5
 	github.com/chenhg5/collection v0.0.0-20200925143926-f403b87088f9
 	github.com/emirpasic/gods v1.18.1
