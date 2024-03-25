@@ -61,6 +61,7 @@ type Event struct {
 	Timer   *timer.Timer
 	Log     string
 	Type    uint64
+	Upgrade string
 	RR      RRcircle
 	Reuse   bool
 
@@ -178,10 +179,10 @@ func (ev *Event) Close() {
 	if !ev.IsClose {
 		err := ev.Conn.Close()
 		if err != nil {
-			message.PrintErr("Error --core Close", err)
+			message.PrintErr("Error --core Close ", err)
 		}
 	} else {
-		message.PrintWarn("Warn --core repeat close")
+		message.PrintWarn("Warn --core repeat close ")
 	}
 	ev.IsClose = true
 }

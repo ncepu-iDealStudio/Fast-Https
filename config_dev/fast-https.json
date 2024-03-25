@@ -95,6 +95,18 @@
         ]
       },
       {
+        "listen": 6060,
+        "server_name": "localhost",
+        "location": [
+          {
+            "url": "/",
+            "type": "proxy",
+            "proxy_pass": "http://127.0.0.1:7070"
+            
+          }
+        ]
+      },
+      {
         "listen": 7000,
         "server_name": "localhost",
         "location": [
