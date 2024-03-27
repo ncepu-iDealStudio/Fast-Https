@@ -57,6 +57,7 @@ type Event struct {
 	// crypto/tls package uses the same interfaces
 	// so we use net.Conn
 	Conn    net.Conn
+	Stream  interface{}
 	LisInfo listener.Listener
 	Timer   *timer.Timer
 	Log     string

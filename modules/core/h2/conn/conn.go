@@ -1,4 +1,4 @@
-package h2
+package conn
 
 import (
 	"fmt"
@@ -9,6 +9,7 @@ import (
 
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
+	"fast-https/modules/core/h2"
 	. "fast-https/modules/core/h2/frame"
 	. "fast-https/utils/color"
 	. "fast-https/utils/logger"
@@ -26,29 +27,29 @@ type Conn struct {
 	RW           io.ReadWriter
 	HpackContext *hpack.Context
 	LastStreamID uint32
-	Window       *Window
+	Window       *h2.Window
 	Settings     map[SettingsID]int32
 	PeerSettings map[SettingsID]int32
-	Streams      map[uint32]*Stream
+	Streams      map[uint32]*h2.Stream
 	WriteChan    chan Frame
-	CallBack     func(stream *Stream, ev *core.Event, fif *filters.Filter)
+	CallBack     func(stream *h2.Stream, ev *core.Event, fif *filters.Filter)
 }
 
 func NewConn(rw io.ReadWriter) *Conn {
 	conn := &Conn{
 		RW:           rw,
 		HpackContext: hpack.NewContext(uint32(DEFAULT_HEADER_TABLE_SIZE)),
-		Settings:     DefaultSettings,
-		PeerSettings: DefaultSettings,
-		Window:       NewWindowDefault(),
-		Streams:      make(map[uint32]*Stream),
+		Settings:     h2.DefaultSettings,
+		PeerSettings: h2.DefaultSettings,
+		Window:       h2.NewWindowDefault(),
+		Streams:      make(map[uint32]*h2.Stream),
 		WriteChan:    make(chan Frame),
 	}
 	return conn
 }
 
-func (conn *Conn) NewStream(streamid uint32, ev *core.Event, fif *filters.Filter) *Stream {
-	stream := NewStream(
+func (conn *Conn) NewStream(streamid uint32, ev *core.Event, fif *filters.Filter) *h2.Stream {
+	stream := h2.NewStream(
 		streamid,
 		conn.WriteChan,
 		conn.Settings,
@@ -119,7 +120,7 @@ func (conn *Conn) HandleSettings(settingsFrame *SettingsFrame) {
 	}
 
 	// send ACK
-	ack := NewSettingsFrame(ACK, 0, NilSettings)
+	ack := NewSettingsFrame(ACK, 0, h2.NilSettings)
 	conn.WriteChan <- ack
 }
 
@@ -228,7 +229,7 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 			}
 
 			// stream の state を変える
-			err = stream.ChangeState(frame, RECV)
+			err = stream.ChangeState(frame, h2.RECV)
 			if err != nil {
 				Error("%v", err)
 				h2Error, ok := err.(*H2Error)
@@ -239,7 +240,7 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 			}
 
 			// stream が close ならリストから消す
-			if stream.State == CLOSED {
+			if stream.State == h2.CLOSED {
 
 				// ただし、1 秒は window update が来てもいいように待つ
 				// TODO: atomic にする
@@ -301,21 +302,21 @@ func (conn *Conn) WindowConsume(length int32) {
 }
 
 func (conn *Conn) WriteMagic() (err error) {
-	_, err = conn.RW.Write([]byte(CONNECTION_PREFACE))
+	_, err = conn.RW.Write([]byte(h2.CONNECTION_PREFACE))
 	if err != nil {
 		return err
 	}
-	Info("%v %q", Red("send"), CONNECTION_PREFACE)
+	Info("%v %q", Red("send"), h2.CONNECTION_PREFACE)
 	return
 }
 
 func (conn *Conn) ReadMagic() (err error) {
-	magic := make([]byte, len(CONNECTION_PREFACE))
+	magic := make([]byte, len(h2.CONNECTION_PREFACE))
 	_, err = conn.RW.Read(magic)
 	if err != nil {
 		return err
 	}
-	if string(magic) != CONNECTION_PREFACE {
+	if string(magic) != h2.CONNECTION_PREFACE {
 		Info("Invalid Magic String: %q", string(magic))
 		return fmt.Errorf("invalid Magic String")
 	}

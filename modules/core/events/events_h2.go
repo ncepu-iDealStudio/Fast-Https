@@ -6,6 +6,7 @@ import (
 	"fast-https/modules/core/h2"
 	frame "fast-https/modules/core/h2/frame"
 	"fast-https/utils/logger"
+	"fast-https/utils/message"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -26,9 +27,15 @@ func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
 
 	// Handle HTTP using handler
 	EventHandler(ev, fif)
+
+	ev.Stream = stream
 }
 
-func h2Response(stream *h2.Stream, ev *core.Event) {
+func H2Response(ev *core.Event) {
+	stream, flag := (ev.Stream).(*h2.Stream)
+	if !flag {
+		message.PrintErr("--events can not convert ev.Stream data to *h2.Stream")
+	}
 	responseHeader := http.Header{}
 	responseHeader.Add(":status", strconv.Itoa(200))
 
