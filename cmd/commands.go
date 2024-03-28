@@ -205,7 +205,7 @@ func StartHandler() error {
 	initialization.Init()
 	output.PrintInitialEnd()
 
-	Daemon(0, 0) // this func will write pid
+	// Daemon(0, 0) // this func will write pid
 	server := server.ServerInit()
 	server.Run()
 
