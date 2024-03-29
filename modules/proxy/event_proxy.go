@@ -320,7 +320,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 		// Server error
 		if err != nil {
-			ev.WriteDataClose(response.DefaultServerError())
+			ev.WriteResponseClose(response.DefaultServerError())
 			return
 		}
 		pc.CacheData(ev, "200", res, len(res))
@@ -335,11 +335,11 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 	// proxy server return valid data
 	if ev.RR.Req_.IsKeepalive() {
-		ev.WriteData(res)
+		ev.WriteResponse(res)
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else {
-		ev.WriteDataClose(res)
+		ev.WriteResponseClose(res)
 	}
 }
 
@@ -348,21 +348,21 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 	res, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
-		ev.WriteDataClose(response.DefaultServerError())
+		ev.WriteResponseClose(response.DefaultServerError())
 		return
 	}
 	// proxy server return valid data
 	if ev.RR.Req_.IsKeepalive() && !p.ProxyNeedClose {
-		ev.WriteData(res)
+		ev.WriteResponse(res)
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else if ev.Upgrade == "websocket" {
 		fmt.Println("-------------------- websocket -------------")
-		ev.WriteData(res)
+		ev.WriteResponse(res)
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else {
-		ev.WriteDataClose(res)
+		ev.WriteResponseClose(res)
 	}
 }
 
@@ -374,12 +374,12 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req_.ByteRow()
 
+	var proxy *Proxy
+
 	configCache := true
 	if cfg.ProxyCache.Key == "" {
 		configCache = false
 	}
-
-	var proxy *Proxy
 
 	// init proxy tcp connection
 	if ev.RR.ProxyConnInit == false {
@@ -389,7 +389,7 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 		err := proxy.ProxyInit()
 		if err != nil {
 			message.PrintWarn("--proxy can not init circle" + err.Error())
-			ev.WriteDataClose(response.DefaultServerError())
+			ev.WriteResponseClose(response.DefaultServerError())
 			return
 		}
 

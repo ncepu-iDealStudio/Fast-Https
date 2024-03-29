@@ -135,6 +135,7 @@ func (ev *Event) CheckIfTimeOut(err error) bool {
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
+// only for HTTP/1.1
 func (ev *Event) ReadData() []byte {
 	now := time.Now()
 	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
@@ -158,11 +159,12 @@ func (ev *Event) ReadData() []byte {
 	return buffer // return row str or bytes
 }
 
-func (ev *Event) WriteData(data []byte) error {
+func (ev *Event) WriteResponse(data []byte) error {
 	return ev.EventWrite(ev, data)
 }
 
 // only close the connection
+// only for HTTP/1.1
 func (ev *Event) Close() {
 	if !ev.IsClose {
 		err := ev.Conn.Close()
@@ -175,8 +177,8 @@ func (ev *Event) Close() {
 	ev.IsClose = true
 }
 
-func (ev *Event) WriteDataClose(data []byte) {
-	ev.WriteData(data)
+func (ev *Event) WriteResponseClose(data []byte) {
+	ev.WriteResponse(data)
 	ev.Close()
 }
 

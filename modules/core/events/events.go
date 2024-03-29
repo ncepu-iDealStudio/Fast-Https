@@ -52,7 +52,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"INFORMAL Event(404)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		ev.WriteDataClose(response.DefaultNotFound())
+		ev.WriteResponseClose(response.DefaultNotFound())
 		return
 	}
 	// found specific "servername && url"

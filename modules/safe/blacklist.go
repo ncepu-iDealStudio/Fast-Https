@@ -142,7 +142,7 @@ func (b *Blacklist) isInBlacklist(ipOrRange string) bool {
 func IsInBlacklist(ev *core.Event) bool {
 	// fmt.Println(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0])
 	if g_list.isInBlacklist(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
-		ev.WriteDataClose(response.DefaultBlackBan())
+		ev.WriteResponseClose(response.DefaultBlackBan())
 		message.PrintSafe(ev.Conn.RemoteAddr().String(), " INFORMAL Event(BlackList)"+ev.Log, "\"")
 		return true
 	} else {
