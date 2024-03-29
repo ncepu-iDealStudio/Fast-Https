@@ -104,7 +104,7 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// go events.HandleEvent(each_event)
 
 		syncCalculateSum := func() {
-			events.HandleEvent(each_event, fif, &(s.Shutdown))
+			events.H2HandleEvent(each_event, fif, &(s.Shutdown))
 			s.wg.Done()
 		}
 

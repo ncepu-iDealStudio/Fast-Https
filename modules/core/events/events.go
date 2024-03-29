@@ -5,9 +5,6 @@ import (
 	"fast-https/modules/auth"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
-	"fast-https/modules/core/h2"
-	"fast-https/modules/core/h2/conn"
-	frame "fast-https/modules/core/h2/frame"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/safe"
@@ -18,24 +15,7 @@ import (
 
 func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
 
-	Connh2 := conn.NewConn(ev.Conn)
-
-	err := Connh2.ReadMagic()
-	if err != nil {
-		message.PrintWarn(err)
-		Connh2.Close()
-		return
-	}
-
-	Connh2.CallBack = CallBack
-
-	go Connh2.WriteLoop()
-	settingsFrame := frame.NewSettingsFrame(frame.UNSET, 0, h2.DefaultSettings)
-	Connh2.WriteChan <- settingsFrame
-
-	Connh2.ReadLoop(ev, fif)
-
-	Connh2.Close()
+	ev.EventWrite = EventWrite
 
 	for !ev.IsClose {
 		// websocket and tcp proxy through this
@@ -63,7 +43,6 @@ func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerContr
 
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
-
 	ev.LogAppend(" " + ev.RR.Req_.Method)
 	ev.LogAppend(" " + ev.RR.Req_.Path + " \"" +
 		ev.RR.Req_.GetHeader("Host") + "\"")
@@ -109,7 +88,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
 	byte_row := ev.ReadData()
-	// save requte information to ev.RR.Req_
+	// save request information to ev.RR.Req_
 	if !ev.RR.CircleInit {
 		ev.RR.Req_ = request.ReqInit()       // Create a request Object
 		ev.RR.Res_ = response.ResponseInit() // Create a res Object
@@ -175,4 +154,22 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	}
 
 	return 1
+}
+
+func EventWrite(ev *core.Event, data []byte) error {
+	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
+	for len(data) > 0 {
+		n, err := ev.Conn.Write(data)
+		if err != nil {
+			if ev.CheckIfTimeOut(err) {
+				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
+				return err
+			} else { // other error can not handle temporarily
+				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err.Error())
+				return err
+			}
+		}
+		data = data[n:]
+	}
+	return nil
 }

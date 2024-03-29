@@ -4,7 +4,10 @@ import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
 	"fast-https/modules/core/h2"
+	"fast-https/modules/core/h2/conn"
 	frame "fast-https/modules/core/h2/frame"
+	"fast-https/modules/core/request"
+	"fast-https/modules/core/response"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"fmt"
@@ -13,6 +16,29 @@ import (
 
 	"github.com/Jxck/hpack"
 )
+
+func H2HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
+	ev.EventWrite = H2EventWrite
+
+	Connh2 := conn.NewConn(ev.Conn)
+
+	err := Connh2.ReadMagic()
+	if err != nil {
+		message.PrintWarn(err)
+		Connh2.Close()
+		return
+	}
+
+	Connh2.CallBack = CallBack
+
+	go Connh2.WriteLoop()
+	settingsFrame := frame.NewSettingsFrame(frame.UNSET, 0, h2.DefaultSettings)
+	Connh2.WriteChan <- settingsFrame
+
+	Connh2.ReadLoop(ev, fif)
+
+	Connh2.Close()
+}
 
 func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
 	header := stream.Bucket.Headers
@@ -25,13 +51,22 @@ func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
 	fmt.Println(body)
 	fmt.Println(method)
 
+	ev.Stream = stream
+
 	// Handle HTTP using handler
+
+	// save request information to ev.RR.Req_
+	if !ev.RR.CircleInit {
+		ev.RR.Req_ = request.ReqInit()       // Create a request Object
+		ev.RR.Res_ = response.ResponseInit() // Create a res Object
+		ev.RR.CircleInit = true
+	}
 	EventHandler(ev, fif)
 
-	ev.Stream = stream
+	// ev.WriteData([]byte("hello world"))
 }
 
-func H2Response(ev *core.Event) {
+func H2EventWrite(ev *core.Event, data []byte) error {
 	stream, flag := (ev.Stream).(*h2.Stream)
 	if !flag {
 		message.PrintErr("--events can not convert ev.Stream data to *h2.Stream")
@@ -51,7 +86,7 @@ func H2Response(ev *core.Event) {
 
 	// Send response body as DATA Frame
 	// each DataFrame has data in window size
-	data := []byte("hello world")
+
 	maxFrameSize := stream.PeerSettings[frame.SETTINGS_MAX_FRAME_SIZE]
 	rest := int32(len(data))
 	frameSize := rest
@@ -96,4 +131,6 @@ func H2Response(ev *core.Event) {
 	// End Stream in empty DATA Frame
 	endDataFrame := frame.NewDataFrame(frame.END_STREAM, stream.ID, nil, nil)
 	stream.Write(endDataFrame)
+
+	return nil
 }

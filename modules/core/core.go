@@ -66,6 +66,7 @@ type Event struct {
 	RR      RRcircle
 	Reuse   bool
 
+	EventWrite func(*Event, []byte) error
 	IsClose    bool
 	ReadReady  bool
 	WriteReady bool
@@ -158,21 +159,7 @@ func (ev *Event) ReadData() []byte {
 }
 
 func (ev *Event) WriteData(data []byte) error {
-	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
-	for len(data) > 0 {
-		n, err := ev.Conn.Write(data)
-		if err != nil {
-			if ev.CheckIfTimeOut(err) {
-				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
-				return err
-			} else { // other error can not handle temporarily
-				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err.Error())
-				return err
-			}
-		}
-		data = data[n:]
-	}
-	return nil
+	return ev.EventWrite(ev, data)
 }
 
 // only close the connection

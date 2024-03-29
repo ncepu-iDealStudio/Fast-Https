@@ -130,6 +130,7 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 	} else {
 		path = cfg.StaticRoot + ev.RR.Req_.Path
 	}
+	ev.WriteData(ev.RR.Res_.GenerateResponse())
 
 	if ev.RR.Req_.IsKeepalive() {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
