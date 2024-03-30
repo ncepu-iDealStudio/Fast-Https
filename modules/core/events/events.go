@@ -87,7 +87,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 
 func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
-	byte_row := ev.ReadData()
+	byte_row := ev.ReadRequest()
 	// save request information to ev.RR.Req_
 	if !ev.RR.CircleInit {
 		ev.RR.Req_ = request.ReqInit()       // Create a request Object

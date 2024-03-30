@@ -136,7 +136,7 @@ func (ev *Event) CheckIfTimeOut(err error) bool {
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
 // only for HTTP/1.1
-func (ev *Event) ReadData() []byte {
+func (ev *Event) ReadRequest() []byte {
 	now := time.Now()
 	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
 	buffer := make([]byte, READ_HEADER_BUF_LEN)
