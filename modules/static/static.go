@@ -130,10 +130,10 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 	} else {
 		path = cfg.StaticRoot + ev.RR.Req_.Path
 	}
-	ev.WriteResponse(ev.RR.Res_.GenerateResponse())
+	// ev.WriteResponse(ev.RR.Res_.GenerateResponse())
 
 	if ev.RR.Req_.IsKeepalive() {
-		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
+		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
 		if res == -1 {
 			ev.WriteResponse(response.DefaultNotFound())
 		} else {
@@ -148,7 +148,7 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 		ev.Reuse = true
 		// HandleEvent(ev) // recursion
 	} else {
-		res := getResBytes(cfg, path, ev.RR.Req_.GetHeader("Connection"), ev)
+		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
 		if res == -1 {
 			ev.WriteResponseClose(response.DefaultNotFound())
 		} else {

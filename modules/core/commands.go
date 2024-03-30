@@ -24,7 +24,7 @@ func DefaultParseCommandHandler(cfg listener.ListenCfg, ev *Event) {
 	ev.RR.CircleCommandVal.Map = map[string]string{
 		"request_method":            ev.RR.Req_.Method,
 		"request_uri":               ev.RR.Req_.Path,
-		"host":                      ev.RR.Req_.GetHeader("Host"),
+		"host":                      ev.RR.Req_.GetHost(),
 		"proxy_host":                cfg.ProxyAddr,
 		"remote_addr":               ip,
 		"proxy_add_x_forwarded_for": xForWardFor,

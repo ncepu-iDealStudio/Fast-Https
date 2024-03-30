@@ -10,9 +10,9 @@ import (
 	"fast-https/modules/core/response"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
-	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Jxck/hpack"
 )
@@ -42,31 +42,36 @@ func H2HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerCon
 
 func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
 	header := stream.Bucket.Headers
-	body := stream.Bucket.Body
-	method := header.Get(":method")
+	// body := stream.Bucket.Body
+
+	// save request information to ev.RR.Req_
+	if !ev.RR.CircleInit {
+		ev.RR.Req_ = request.ReqInit(true)   // Create a request Object
+		ev.RR.Res_ = response.ResponseInit() // Create a res Object
+		ev.RR.CircleInit = true
+	}
+
+	ev.RR.Req_.Method = header.Get(":method")
+	ev.RR.Req_.Path = header.Get(":path")
+	ev.RR.Req_.Protocol = "HTTP/2"
+	ev.RR.Req_.Headers["Host"] = header.Get(":authority")
 
 	for k, v := range header {
-		fmt.Println(k, v)
+		if !strings.Contains(k, ":") {
+			ev.RR.Req_.Headers[k] = v[0]
+		}
 	}
-	fmt.Println(body)
-	fmt.Println(method)
 
 	ev.Stream = stream
 
 	// Handle HTTP using handler
 
-	// save request information to ev.RR.Req_
-	if !ev.RR.CircleInit {
-		ev.RR.Req_ = request.ReqInit()       // Create a request Object
-		ev.RR.Res_ = response.ResponseInit() // Create a res Object
-		ev.RR.CircleInit = true
-	}
 	EventHandler(ev, fif)
 
 	// ev.WriteData([]byte("hello world"))
 }
 
-func H2EventWrite(ev *core.Event, data []byte) error {
+func H2EventWrite(ev *core.Event, _data []byte) error {
 	stream, flag := (ev.Stream).(*h2.Stream)
 	if !flag {
 		message.PrintErr("--events can not convert ev.Stream data to *h2.Stream")
@@ -88,6 +93,7 @@ func H2EventWrite(ev *core.Event, data []byte) error {
 	// each DataFrame has data in window size
 
 	maxFrameSize := stream.PeerSettings[frame.SETTINGS_MAX_FRAME_SIZE]
+	data := ev.RR.Res_.Body()
 	rest := int32(len(data))
 	frameSize := rest
 

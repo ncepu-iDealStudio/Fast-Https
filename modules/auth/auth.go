@@ -17,7 +17,7 @@ func AuthHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 		return true
 	}
 	req := ev.RR.Req_
-	basic := req.GetHeader("Authorization")
+	basic := req.GetAuthorization()
 	var username string
 	var pswd string
 	if basic != "" {

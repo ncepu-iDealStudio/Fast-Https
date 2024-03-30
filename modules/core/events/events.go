@@ -45,7 +45,7 @@ func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerContr
 func EventHandler(ev *core.Event, fif *filters.Filter) {
 	ev.LogAppend(" " + ev.RR.Req_.Method)
 	ev.LogAppend(" " + ev.RR.Req_.Path + " \"" +
-		ev.RR.Req_.GetHeader("Host") + "\"")
+		ev.RR.Req_.GetHost() + "\"")
 
 	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
@@ -90,7 +90,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	byte_row := ev.ReadRequest()
 	// save request information to ev.RR.Req_
 	if !ev.RR.CircleInit {
-		ev.RR.Req_ = request.ReqInit()       // Create a request Object
+		ev.RR.Req_ = request.ReqInit(false)  // Create a request Object
 		ev.RR.Res_ = response.ResponseInit() // Create a res Object
 		ev.RR.CircleInit = true
 	}

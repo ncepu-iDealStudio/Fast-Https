@@ -179,7 +179,9 @@ func (ev *Event) Close() {
 
 func (ev *Event) WriteResponseClose(data []byte) {
 	ev.WriteResponse(data)
-	ev.Close()
+	if !ev.RR.Req_.H2 { // TODO: impove this
+		ev.Close()
+	}
 }
 
 type ServerControl struct {

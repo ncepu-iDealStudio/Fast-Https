@@ -104,7 +104,11 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// go events.HandleEvent(each_event)
 
 		syncCalculateSum := func() {
-			events.H2HandleEvent(each_event, fif, &(s.Shutdown))
+			if each_event.LisInfo.LisType == 10 {
+				events.H2HandleEvent(each_event, fif, &(s.Shutdown))
+			} else {
+				events.HandleEvent(each_event, fif, &(s.Shutdown))
+			}
 			s.wg.Done()
 		}
 

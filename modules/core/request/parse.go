@@ -52,6 +52,7 @@ type Req struct {
 	HeaderLen int
 	Body      []byte
 	BodyLen   int
+	H2        bool
 }
 
 var http_method = []string{
@@ -65,9 +66,10 @@ var http_method = []string{
 	"CONNECT",
 }
 
-func ReqInit() *Req {
+func ReqInit(h2 bool) *Req {
 	return &Req{
 		Headers: make(map[string]string),
+		H2:      h2,
 	}
 }
 
@@ -115,9 +117,37 @@ func (r *Req) GetHeader(key string) string {
 	return r.Headers[key]
 }
 
+func (r *Req) GetHost() string {
+	return r.Headers["Host"]
+}
+
+func (r *Req) GetConnection() string {
+	return r.Headers["Connection"]
+}
+
+func (r *Req) GetContentType() string {
+	return r.Headers["Content-Type"]
+}
+
+func (r *Req) GetContentLength() string {
+	return r.Headers["Content-Length"]
+}
+
+func (r *Req) GetUpgrade() string {
+	return r.Headers["Upgrade"]
+}
+
+func (r *Req) GetTransferEncoding() string {
+	return r.Headers["Transfer-Encoding"]
+}
+
+func (r *Req) GetAuthorization() string {
+	return r.Headers["Authorization"]
+}
+
 // whether the request connection is keep alive
 func (r *Req) IsKeepalive() bool {
-	conn := r.GetHeader("Connection")
+	conn := r.GetConnection()
 	if conn == "keep-alive" {
 		return true
 	} else {
@@ -220,7 +250,7 @@ func (r *Req) ParseBody(tmpByte []byte) {
 }
 
 func (r *Req) RequestBodyValid() bool {
-	contentType := r.GetHeader("Content-Type")
+	contentType := r.GetContentType()
 	if strings.Index(contentType, "multipart/form-data") != -1 {
 		po := strings.Index(contentType, "boundary=")
 		boundaryStr := contentType[po+len("boundary="):]
@@ -231,7 +261,7 @@ func (r *Req) RequestBodyValid() bool {
 		}
 	}
 
-	contentLength := r.GetHeader("Content-Length")
+	contentLength := r.GetContentLength()
 	if contentLength != "" {
 		n, err := strconv.Atoi(contentLength)
 		if err != nil {
