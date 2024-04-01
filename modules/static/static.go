@@ -6,7 +6,6 @@ import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
-	"fast-https/utils/message"
 	"strconv"
 	"strings"
 	"time"
@@ -46,7 +45,8 @@ func getResBytes(lisdata listener.ListenCfg,
 
 		ev.RR.Res_.SetBody(file_data)
 
-		ev.Log += " 200 " + strconv.Itoa(len(file_data))
+		core.LogOther(&ev.Log, "status", "200")
+		core.LogOther(&ev.Log, "size", strconv.Itoa(len(file_data)))
 
 		return 1 // find source
 	}
@@ -66,13 +66,15 @@ func getResBytes(lisdata listener.ListenCfg,
 			ev.RR.Res_.SetHeader("Connection", connection)
 
 			ev.RR.Res_.SetBody(file_data)
-			ev.Log += " 200 " + strconv.Itoa(len(file_data))
+			core.LogOther(&ev.Log, "status", "200")
+			core.LogOther(&ev.Log, "size", strconv.Itoa(len(file_data)))
 
 			return 1 // find source
 		}
 	}
 
-	ev.Log += " 404 50"
+	core.LogOther(&ev.Log, "status", "404")
+	core.LogOther(&ev.Log, "size", "50")
 	return -1
 }
 
@@ -140,10 +142,8 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 			ev.WriteResponse(ev.RR.Res_.GenerateResponse())
 		}
 
-		message.PrintAccess(ev.Conn.RemoteAddr().String(),
-			"STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-
-		ev.LogClear()
+		core.Log(&ev.Log, ev, "")
+		core.LogClear(&ev.Log)
 
 		ev.Reuse = true
 		// HandleEvent(ev) // recursion
@@ -155,8 +155,7 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 			ev.WriteResponseClose(ev.RR.Res_.GenerateResponse())
 		}
 
-		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log,
-			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		ev.LogClear()
+		core.Log(&ev.Log, ev, "")
+		core.LogClear(&ev.Log)
 	}
 }

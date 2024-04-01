@@ -43,15 +43,10 @@ func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerContr
 
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
-	ev.LogAppend(" " + ev.RR.Req_.Method)
-	ev.LogAppend(" " + ev.RR.Req_.Path + " \"" +
-		ev.RR.Req_.GetHost() + "\"")
 
 	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
-		message.PrintAccess(ev.Conn.RemoteAddr().String(),
-			"INFORMAL Event(404)"+ev.Log,
-			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
+		core.Log(&ev.Log, ev, "")
 		ev.WriteResponseClose(response.DefaultNotFound())
 		return
 	}

@@ -239,16 +239,14 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 
 	finalData, head_code, b_len := p.ChangeHeader(resData)
 
-	ev.LogAppend(" " + head_code + " " + b_len)
-
 	if !ev.RR.Req_.IsKeepalive() && ev.Upgrade == "" { // connection close
 		p.Close()
 	}
+	core.LogOther(&ev.Log, "status", head_code)
+	core.LogOther(&ev.Log, "size", b_len)
+	core.Log(&ev.Log, ev, "")
 
-	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+
-		ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-
-	ev.LogClear()
+	core.LogClear(&ev.Log)
 	return finalData, nil // no error
 }
 
@@ -326,11 +324,8 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 		pc.CacheData(ev, "200", res, len(res))
 
 	} else {
-		message.PrintAccess(ev.Conn.RemoteAddr().String(),
-			"PROXY Event(Cache)"+ev.Log,
-			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-
-		ev.LogClear()
+		core.Log(&ev.Log, ev, "")
+		core.LogClear(&ev.Log)
 	}
 
 	// proxy server return valid data

@@ -105,6 +105,8 @@ type Fast_Https struct {
 	Servers                   []Server
 	Limit                     ServerLimit
 	BlackList                 []string
+	LogSplit                  string
+	LogFormat                 []string
 	Include                   []string
 	DefaultType               string
 	ServerNamesHashBucketSize uint16
@@ -257,6 +259,8 @@ func process() error {
 	}
 
 	fast_https.BlackList = viper.GetStringSlice("http.blaklist")
+	fast_https.LogFormat = viper.GetStringSlice("http.log_format")
+	fast_https.LogSplit = viper.GetString("http.log_split")
 	var servers []Server
 
 	serverKeys := viper.GetStringSlice("http.server")

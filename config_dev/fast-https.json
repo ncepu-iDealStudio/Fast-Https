@@ -7,6 +7,11 @@
       "limit": 1000000,
       "burst": 5000000
     },
+    "log_split": " ",
+    "log_format": [
+      "user_agent", "ip_port", "time", "type", "method", "path",
+      "host", "status", "size", "referer"
+    ],
     "blaklist": [
       "192.168.11.1-192.168.11.150", 
       "192.168.1.151,59.66.66.66", 
@@ -78,7 +83,7 @@
         ]
       },
       {
-        "listen": 9090,
+        "listen": 9099,
         "server_name": "localhost",
         "location": [
           {

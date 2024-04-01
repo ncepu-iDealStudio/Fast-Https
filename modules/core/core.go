@@ -60,7 +60,7 @@ type Event struct {
 	Stream  interface{}
 	LisInfo listener.Listener
 	Timer   *timer.Timer
-	Log     string
+	Log     Logger
 	Type    uint64
 	Upgrade string
 	RR      RRcircle
@@ -91,6 +91,7 @@ func NewEvent(l listener.Listener, conn net.Conn) *Event {
 		LisInfo: l,
 		Timer:   nil,
 		Reuse:   false,
+		Log:     *NewLogger(),
 
 		IsClose:    false, // not close
 		ReadReady:  true,  // need read
@@ -108,14 +109,6 @@ func NewEvent(l listener.Listener, conn net.Conn) *Event {
 	each_event.RR.Ev = &each_event
 
 	return &each_event
-}
-
-func (ev *Event) LogAppend(log string) {
-	ev.Log = ev.Log + log
-}
-
-func (ev *Event) LogClear() {
-	ev.Log = ""
 }
 
 func (ev *Event) CheckIfTimeOut(err error) bool {

@@ -132,6 +132,7 @@ func (s *Server) Run() {
 
 	// TODO: improve this
 	safe.Init() // need to be call after listener inited ...
+	core.Register()
 
 	for _, value := range listens {
 		go s.serveListener(value)
