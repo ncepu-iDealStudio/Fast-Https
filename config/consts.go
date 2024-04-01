@@ -9,7 +9,7 @@ const (
 		// use "config/fast-https.json" when release
 	*/
 	PID_FILE               string = "./fast-https.pid"
-	CONFIG_FILE_PATH       string = "./config_dev/fast-https.json"
+	CONFIG_FILE_PATH       string = "./config/fast-https.json"
 	MIME_FILE_PATH         string = "./config/mime.types"
 	MONIITOR_LOG_FILE_PATH string = "./logs/monitor.log"
 
