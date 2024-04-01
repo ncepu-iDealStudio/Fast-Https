@@ -66,6 +66,9 @@ func ProcessPorts() []string {
 			// lis_temp.Limit = each.Limit
 			if strings.Contains(each.Listen, "ssl") {
 				lis_temp.LisType = 1 // ssl
+				if strings.Contains(each.Listen, "h2") {
+					lis_temp.LisType = 10
+				}
 			} else if strings.Contains(each.Listen, "tcp") {
 				lis_temp.LisType = 2 // tcp proxy
 			} else {
@@ -142,7 +145,7 @@ func Listen() []Listener {
 	processHostMap()
 
 	for index, each := range Lisinfos {
-		if each.LisType == 1 {
+		if each.LisType == 1 || each.LisType == 10 {
 			Lisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg)
 		} else {
 			Lisinfos[index].Lfd = listenTcp("0.0.0.0:" + each.Port)
@@ -180,7 +183,9 @@ func listenSsl(laddr string, lisdata []ListenCfg) net.Listener {
 		servernames = append(servernames, item.ServerName)
 	}
 
-	tlsConfig := &tls.Config{}
+	tlsConfig := &tls.Config{
+		NextProtos: []string{"h2"},
+	}
 	tlsConfig.Certificates = certs
 	tlsConfig.Time = time.Now
 	tlsConfig.Rand = rand.Reader

@@ -136,7 +136,7 @@ var normalTests = []requestTest{
 
 func TestParseHeader(t *testing.T) {
 	for _, test := range normalTests {
-		req := request.ReqInit()
+		req := request.ReqInit(false)
 		err := req.ParseHeader([]byte(test.Row))
 		if err.Error() != test.Err {
 			t.Errorf("ParseHeader() got %s, want %s", err.Error(), test.Err)
@@ -210,7 +210,7 @@ var errorTests = []requestTest{
 
 func TestParseHeaderError(t *testing.T) {
 	for _, test := range errorTests {
-		req := request.ReqInit()
+		req := request.ReqInit(false)
 		err := req.ParseHeader([]byte(test.Row))
 		if err.Error() != test.Err {
 			t.Errorf("ParseHeader() got %s; Want %s", err.Error(), test.Err)
@@ -220,7 +220,7 @@ func TestParseHeaderError(t *testing.T) {
 
 func TestParseBody(t *testing.T) {
 	for _, test := range normalTests {
-		req := request.ReqInit()
+		req := request.ReqInit(false)
 		req.ParseHeader([]byte(test.Row))
 		req.ParseBody([]byte(test.Row))
 		if string(req.Body) != test.Body {

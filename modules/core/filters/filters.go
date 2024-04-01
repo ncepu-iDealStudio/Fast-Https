@@ -46,9 +46,9 @@ func GListenFilter(ev *core.Event) bool {
 }
 
 func GHttpParseFilter(rr *core.RRcircle) bool {
-	conn := rr.Req_.GetHeader("Connection")
+	conn := rr.Req_.GetConnection()
 
-	if conn == "Upgrade" && rr.Req_.GetHeader("Upgrade") == "websocket" {
+	if conn == "Upgrade" && rr.Req_.GetUpgrade() == "websocket" {
 		rr.Ev.Upgrade = "websocket"
 		rr.Ev.Reuse = true
 	}
@@ -56,7 +56,7 @@ func GHttpParseFilter(rr *core.RRcircle) bool {
 }
 
 func GFilterHostPath(ev *core.Event) (listener.ListenCfg, bool) {
-	hosts := ev.LisInfo.HostMap[ev.RR.Req_.GetHeader("Host")]
+	hosts := ev.LisInfo.HostMap[ev.RR.Req_.GetHost()]
 	// fmt.Println(hosts)
 	var cfg listener.ListenCfg
 

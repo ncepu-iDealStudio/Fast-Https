@@ -38,6 +38,14 @@ cloud.google.com/go/storage v1.14.0/go.mod h1:GrKmX003DSIwi9o29oFT7YDnHYwZoctc3f
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
+github.com/Jxck/color v0.0.0-20150710091843-32f7aabefa1d h1:Q3O8p8Fbe8PvEHxnVuBJLrfbXUaBgjCazJzWGhtN5nI=
+github.com/Jxck/color v0.0.0-20150710091843-32f7aabefa1d/go.mod h1:THNSAC5ei1Met3VY1gssexpmnddctUKk7GcN9+Tinw8=
+github.com/Jxck/hpack v0.0.0-20150713130059-4fb806e55ed9 h1:f24S1BqLHtHmXw8r6BNpqHaRzEiFXT4cw305zSXZ4dU=
+github.com/Jxck/hpack v0.0.0-20150713130059-4fb806e55ed9/go.mod h1:mx8YQOFRaSRPMVjABc/DU4JTgR5RLrQq9E0J190BSSY=
+github.com/Jxck/logger v0.0.0-20141016174915-6123e712dcb9 h1:ljasPpIqiDeGp8QKV8ZFixfj5dPUP7bWkDT/ZUuWB4g=
+github.com/Jxck/logger v0.0.0-20141016174915-6123e712dcb9/go.mod h1:8CX4sJDVcvOVu5sdXzx/YX1wYl/3+SGRcvTqFJwo2xA=
+github.com/Jxck/swrap v0.0.0-20140128093118-70cf15cd69ab h1:fGtzzSb6kQu3R72UFio1wW6+DbEzuH00R5X/XQetmmg=
+github.com/Jxck/swrap v0.0.0-20140128093118-70cf15cd69ab/go.mod h1:yzMtW4YETgwMlA7z78Vr5KEIFR20qcZ2gtqzuIQrgiw=
 github.com/andybalholm/brotli v1.0.5 h1:8uQZIdzKmjc/iuPu7O2ioW48L81FgatrcpfFmiq/cCs=
 github.com/andybalholm/brotli v1.0.5/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=

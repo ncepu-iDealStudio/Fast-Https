@@ -47,7 +47,7 @@
         ]
       },
       {
-        "listen": "443 ssl",
+        "listen": "4443 ssl h2",
         "server_name": "localhost",
         "ssl_certificate": "config/cert/localhost.pem",
         "ssl_certificate_key": "config/cert/localhost-key.pem",

@@ -15,7 +15,7 @@ func rewriteInfo(ev *core.Event, path string) {
 		"Location: " + path + "\r\n" +
 		"Connection: close\r\n" +
 		"\r\n")
-	ev.WriteDataClose(res)
+	ev.WriteResponseClose(res)
 }
 
 /*

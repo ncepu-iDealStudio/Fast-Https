@@ -56,6 +56,10 @@ func (r *Response) SetBody(body []byte) {
 	r.Body = body
 }
 
+func (r *Response) GetBody() []byte {
+	return r.Body
+}
+
 // Generate a response data (bytes)
 // attention: this function must return bytes, not str
 // once response contain '\0', it will doesn't work

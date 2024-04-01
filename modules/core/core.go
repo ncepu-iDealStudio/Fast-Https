@@ -57,6 +57,7 @@ type Event struct {
 	// crypto/tls package uses the same interfaces
 	// so we use net.Conn
 	Conn    net.Conn
+	Stream  interface{}
 	LisInfo listener.Listener
 	Timer   *timer.Timer
 	Log     string
@@ -65,6 +66,7 @@ type Event struct {
 	RR      RRcircle
 	Reuse   bool
 
+	EventWrite func(*Event, []byte) error
 	IsClose    bool
 	ReadReady  bool
 	WriteReady bool
@@ -133,7 +135,8 @@ func (ev *Event) CheckIfTimeOut(err error) bool {
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
 // because request body maybe contaions '\0'
-func (ev *Event) ReadData() []byte {
+// only for HTTP/1.1
+func (ev *Event) ReadRequest() []byte {
 	now := time.Now()
 	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
 	buffer := make([]byte, READ_HEADER_BUF_LEN)
@@ -156,25 +159,12 @@ func (ev *Event) ReadData() []byte {
 	return buffer // return row str or bytes
 }
 
-func (ev *Event) WriteData(data []byte) error {
-	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
-	for len(data) > 0 {
-		n, err := ev.Conn.Write(data)
-		if err != nil {
-			if ev.CheckIfTimeOut(err) {
-				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
-				return err
-			} else { // other error can not handle temporarily
-				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err.Error())
-				return err
-			}
-		}
-		data = data[n:]
-	}
-	return nil
+func (ev *Event) WriteResponse(data []byte) error {
+	return ev.EventWrite(ev, data)
 }
 
 // only close the connection
+// only for HTTP/1.1
 func (ev *Event) Close() {
 	if !ev.IsClose {
 		err := ev.Conn.Close()
@@ -187,9 +177,11 @@ func (ev *Event) Close() {
 	ev.IsClose = true
 }
 
-func (ev *Event) WriteDataClose(data []byte) {
-	ev.WriteData(data)
-	ev.Close()
+func (ev *Event) WriteResponseClose(data []byte) {
+	ev.WriteResponse(data)
+	if !ev.RR.Req_.H2 { // TODO: impove this
+		ev.Close()
+	}
 }
 
 type ServerControl struct {

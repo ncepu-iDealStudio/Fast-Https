@@ -15,10 +15,17 @@ import (
 
 func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
 
+	ev.EventWrite = EventWrite
+
 	for !ev.IsClose {
 		// websocket and tcp proxy through this
 		if fif.Fif.ListenFilter(ev) {
 			break
+		}
+
+		if parseRequest(ev, fif) != 1 { // TODO: handle different cases...
+			ev.Close()
+			break // client close
 		}
 
 		EventHandler(ev, fif)
@@ -36,21 +43,16 @@ func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerContr
 
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
-
-	if processRequest(ev, fif) != 1 { // TODO: handle different cases...
-		ev.Close()
-		return // client close
-	}
 	ev.LogAppend(" " + ev.RR.Req_.Method)
 	ev.LogAppend(" " + ev.RR.Req_.Path + " \"" +
-		ev.RR.Req_.GetHeader("Host") + "\"")
+		ev.RR.Req_.GetHost() + "\"")
 
 	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"INFORMAL Event(404)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		ev.WriteDataClose(response.DefaultNotFound())
+		ev.WriteResponseClose(response.DefaultNotFound())
 		return
 	}
 	// found specific "servername && url"
@@ -81,15 +83,14 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 		return
 	}
 	ev.RR.CircleHandler.RRHandler(cfg, ev)
-
 }
 
-func processRequest(ev *core.Event, fif *filters.Filter) int {
+func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
-	byte_row := ev.ReadData()
-	// save requte information to ev.RR.Req_
+	byte_row := ev.ReadRequest()
+	// save request information to ev.RR.Req_
 	if !ev.RR.CircleInit {
-		ev.RR.Req_ = request.ReqInit()       // Create a request Object
+		ev.RR.Req_ = request.ReqInit(false)  // Create a request Object
 		ev.RR.Res_ = response.ResponseInit() // Create a res Object
 		ev.RR.CircleInit = true
 	}
@@ -153,4 +154,22 @@ func processRequest(ev *core.Event, fif *filters.Filter) int {
 	}
 
 	return 1
+}
+
+func EventWrite(ev *core.Event, data []byte) error {
+	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
+	for len(data) > 0 {
+		n, err := ev.Conn.Write(data)
+		if err != nil {
+			if ev.CheckIfTimeOut(err) {
+				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
+				return err
+			} else { // other error can not handle temporarily
+				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err.Error())
+				return err
+			}
+		}
+		data = data[n:]
+	}
+	return nil
 }
