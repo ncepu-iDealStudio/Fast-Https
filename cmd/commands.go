@@ -16,10 +16,9 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
 )
-
-var data []string
 
 // Command Structure Definition
 type command struct {
@@ -30,42 +29,71 @@ type command struct {
 
 var (
 	// Command structure initialization
-
 	commands = []command{
 		{
-			name:        "reload",
-			description: "Switching Processes",
-			handler:     ReloadHandler,
+			name:        "install",
+			description: "to install fast-https service",
+			handler:     ServiceInstallHandler,
+		},
+		{
+			name:        "uninstall",
+			description: "to uninstall fast-https service",
+			handler:     ServiceUnInstallHandler,
 		},
 		{
 			name:        "start",
-			description: "start process",
+			description: "to start web server",
 			handler:     StartHandler,
 		},
 		{
 			name:        "stop",
-			description: "Stop process",
+			description: "to Stop web server",
 			handler:     StopHandler,
 		},
 		{
+			name:        "reload",
+			description: "to reload config",
+			handler:     ReloadHandler,
+		},
+		{
 			name:        "status",
-			description: "Check process status",
+			description: "to check web server status",
 			handler:     statusHandler,
 		},
 	}
+
+	srvConfig = &service.Config{
+		Name:        "fast-https",
+		DisplayName: "Fast-https Web Server",
+		Description: "A high preformance web server and proxy server",
+	}
+
+	prg = &program{}
 )
+
+type program struct{}
+
+func (p *program) Start(s service.Service) error {
+	fmt.Println("fast https (p *program) Start ...")
+	return nil
+}
+
+func (p *program) Stop(s service.Service) error {
+	fmt.Println("fast https (p *program) Stop ...")
+	return nil
+}
 
 // Root command parameters are methods
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          color.HiYellowString("go"),
-		Short:        "A command-line tool",
-		Long:         color.RedString("This is a help log"),
+		Use:          "fast-https",
+		Short:        "short log",
+		Long:         "long log",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Read terminal input
-			data = os.Args
-			return runCommand(data)
+
+			return runCommand(args)
 		},
 	}
 
@@ -80,17 +108,14 @@ func RootCmd() *cobra.Command {
 // Read terminal input
 func runCommand(args []string) error {
 	// missing parameter
-	if len(data) == 1 {
-		fmt.Println(color.RedString("Input is missing a parameter"))
-		fmt.Println(color.RedString("Please try again"))
+	if len(args) == 0 {
+		fmt.Println(color.RedString("This is Dev start mod ..."))
+		DevStartHandler()
 		return nil
 	}
 
-	// Correct command usage
-	var found bool
 	for _, c := range commands {
-		if data[1] == c.name {
-			found = true
+		if args[0] == c.name {
 			if err := c.handler(); err != nil {
 				return err
 			}
@@ -98,52 +123,46 @@ func runCommand(args []string) error {
 		}
 	}
 
-	// Irregular commands
-	if !found {
-		fmt.Println(color.YellowString("The input command is not a valid command"))
-		fmt.Println(color.YellowString("Please try again"))
-		return nil
-	}
-
 	return nil
 }
 
-// ReloadHandler reload server
-func ReloadHandler() error {
-	// StopHandler()
-	// time.Sleep(time.Second)
-	// StartHandler()
-	return nil
-}
+func ServiceInstallHandler() error {
 
-// StopHandler stop server
-func StopHandler() error {
-	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
+	directory, err := os.Getwd() //get the current directory using the built-in function
 	if err != nil {
-		return err
+		fmt.Println(err) //print the error if obtained
 	}
-	readerBuf := bufio.NewReader(file)
-	str, _ := readerBuf.ReadString('\n')
-	msg := strings.Trim(str, "\r\n")
-	ax, _ := strconv.Atoi(msg)
-	// ax := 21980
 
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
+	srvConfig.WorkingDirectory = directory
+
+	s, err := service.New(prg, srvConfig)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = s.Install()
+	if err != nil {
+		fmt.Println("安装服务失败: ", err.Error())
 	} else {
-		cmd = exec.Command("kill", strconv.Itoa(ax))
+		fmt.Println("fast-https服务在", directory, "安装成功!")
 	}
 
-	err = cmd.Run()
+	return nil
+}
+
+func ServiceUnInstallHandler() error {
+
+	s, err := service.New(prg, srvConfig)
 	if err != nil {
-		fmt.Println("Shutdown process failed:", err)
-		return nil
+		fmt.Println(err)
 	}
 
-	file.Close()
-
-	os.Remove(config.PID_FILE)
+	err = s.Uninstall()
+	if err != nil {
+		fmt.Println("卸载服务失败: ", err.Error())
+	} else {
+		fmt.Println("fast-https卸载服务成功")
+	}
 
 	return nil
 }
@@ -158,7 +177,7 @@ func DevStartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	WritePid()
+	WritePid(os.Getpid())
 
 	output.PrintInitialStart()
 	initialization.Init()
@@ -178,16 +197,60 @@ func StartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	WritePid()
+	if runtime.GOOS == "windows" {
+		WritePid(os.Getpid())
+	}
 
 	output.PrintInitialStart()
 	initialization.Init()
 	output.PrintInitialEnd()
 
+	if runtime.GOOS != "windows" {
+		Daemon(0, 0) // this func will write pid
+	}
 	server := server.ServerInit()
 	server.Run()
 
 	// server will clog here
+	return nil
+}
+
+// StopHandler stop server
+func StopHandler() error {
+	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
+	if err != nil {
+		return err
+	}
+	readerBuf := bufio.NewReader(file)
+	str, _ := readerBuf.ReadString('\n')
+	msg := strings.Trim(str, "\r\n")
+	ax, _ := strconv.Atoi(msg)
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
+	} else {
+		cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-9")
+	}
+
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("fast-https stop failed:", err)
+	}
+	file.Close()
+	os.Remove(config.PID_FILE)
+	return nil
+}
+
+// ReloadHandler reload server
+func ReloadHandler() error {
+	// StopHandler()
+	// time.Sleep(time.Second)
+	// StartHandler()
+	return nil
+}
+
+func statusHandler() error {
 	return nil
 }
 
@@ -209,9 +272,8 @@ func PreCheckHandler() {
 	config.ClearConfig()
 }
 
-func WritePid() {
+func WritePid(x_pid int) {
 	// Obtain the pid and store it
-	x_pid := os.Getpid()
 
 	file, err := os.OpenFile(config.PID_FILE, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
@@ -221,8 +283,4 @@ func WritePid() {
 
 	file.WriteString(strconv.Itoa(x_pid) + "\n")
 	fmt.Println("Fast-Https running [PID]:", x_pid)
-}
-
-func statusHandler() error {
-	return nil
 }

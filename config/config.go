@@ -53,6 +53,12 @@ type Cache struct {
 	MaxSize int // 1023MB
 }
 
+type PathAuth struct {
+	AuthType string
+	User     string
+	Pswd     string
+}
+
 type PathLimit struct {
 	Size    int
 	Rate    int
@@ -78,6 +84,7 @@ type Path struct {
 	ProxySetHeader []Header
 	ProxyCache     Cache
 	Limit          PathLimit
+	Auth           PathAuth
 }
 
 type Server struct {
@@ -174,13 +181,12 @@ func serverContentType() error {
 		log.Fatal("can't open mime.types file")
 		return errors.New("can't open mime.types file")
 	}
-	var clear_str string
 	// if GOs == "windows" {
-	clear_str = strings.ReplaceAll(string(confBytes), "\r\n", "")
+	clearStr := strings.ReplaceAll(string(confBytes), "\r\n", "")
 	// } else {
 	// clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
 	// }
-	all_type_arr := strings.Split(deleteExtraSpace(clear_str), ";")
+	all_type_arr := strings.Split(deleteExtraSpace(clearStr), ";")
 	for _, one_type := range all_type_arr {
 		arr := strings.Split(one_type, " ")
 
@@ -309,6 +315,14 @@ func process() error {
 					Nodelay: viper.GetBool(fmt.Sprintf("%s.%d.limit.mem",
 						pathPrefix, locationKey)),
 				},
+				Auth: PathAuth{
+					AuthType: viper.GetString(fmt.Sprintf("%s.%d.auth.type",
+						pathPrefix, locationKey)),
+					User: viper.GetString(fmt.Sprintf("%s.%d.auth.user",
+						pathPrefix, locationKey)),
+					Pswd: viper.GetString(fmt.Sprintf("%s.%d.auth.pswd",
+						pathPrefix, locationKey)),
+				},
 			}
 			TempZip := viper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
 			if len(TempZip) > 0 {
@@ -364,7 +378,7 @@ func process() error {
 	}
 	fast_https.Servers = servers
 
-	// fmt.Println(fast_https)
+	//fmt.Println(fast_https)
 	GConfig = fast_https
 
 	SetDefault()

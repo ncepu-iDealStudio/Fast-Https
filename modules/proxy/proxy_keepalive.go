@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	TRY_READ_LEN   = 2048
-	READ_BYTES_LEN = 4096
+	TRY_READ_LEN        = 2048
+	READ_BYTES_LEN      = 4096
+	READ_BODY_BYTES_LEN = 1024
 )
 
 type ReadOnce struct {
@@ -42,9 +43,7 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 	}
 	// fmt.Println(tmpData)
 
-	var i int
-	i = strings.Index(string(tmpData), "\r\n\r\n")
-
+	i := strings.Index(string(tmpData), "\r\n\r\n")
 	if i == -1 {
 		// parse failed! "no \r\n\r\n"
 		// caller need call this again maybe
@@ -71,6 +70,50 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 
 }
 
+const CHUNCKED_BODY_SIZE = 8192
+
+func Parse(data string) {
+	startIndex := 0
+
+	for {
+		// 查找长度字段的结束位置
+		endLengthIndex := strings.Index(data[startIndex:], "\r\n")
+		if endLengthIndex == -1 {
+			break // 没有找到长度字段，退出循环
+		}
+		endLengthIndex += startIndex // 更新结束位置
+
+		// 获取长度字段
+		lengthStr := data[startIndex:endLengthIndex]
+		length, err := strconv.ParseInt(lengthStr, 16, 64)
+		if err != nil {
+			fmt.Println("解析长度失败:", err)
+			return
+		} else {
+			fmt.Println(length)
+		}
+
+		if length == 0 {
+			break
+		}
+
+		// 计算数据区的结束位置
+		startDataIndex := endLengthIndex + 2
+		endDataIndex := startDataIndex + int(length)
+
+		// 获取数据部分
+		dataPart := data[startDataIndex:endDataIndex]
+
+		// 打印数据内容
+		fmt.Println("数据内容:", dataPart)
+
+		// 更新起始位置，准备处理下一个数据区
+		startIndex = endDataIndex
+	}
+
+	fmt.Println("数据解析完成")
+}
+
 func (ro *ReadOnce) parseChunked() {
 	// 2b81\r\n
 	// dddddddddd
@@ -78,12 +121,13 @@ func (ro *ReadOnce) parseChunked() {
 	// \r\n
 	var p int
 	for {
-		if p = strings.Index(string(ro.body), "0\r\n"); p != -1 { // last block
+		if p = strings.Index(string(ro.body), "0\r\n\r\n"); p != -1 { // last block
+			Parse(string(ro.body))
 			return
 		} else {
 			// if p = strings.Index(string(ro.body), "\r\n"); p == -1 { // body like this  "2b8" or "2b81\r"
 			// }
-			lastBuf := make([]byte, READ_BYTES_LEN)
+			lastBuf := make([]byte, CHUNCKED_BODY_SIZE)
 			n, err := ro.Read(lastBuf)
 			if err != nil {
 				fmt.Println("parseChuncked failed", err.Error())
@@ -94,6 +138,7 @@ func (ro *ReadOnce) parseChunked() {
 
 		}
 	}
+
 }
 
 func (ro *ReadOnce) Read(data []byte) (int, error) {
@@ -107,31 +152,26 @@ func (ro *ReadOnce) Read(data []byte) (int, error) {
 	}
 }
 
+// debug by zhangjiayue
 func (ro *ReadOnce) ReadBytes(size int) {
 	totalLen := size
-	for {
-		onceSize := READ_BYTES_LEN - totalLen
-		if onceSize > 0 {
-			lastBuf := make([]byte, READ_BYTES_LEN-onceSize)
-			lastLen, err := ro.Read(lastBuf)
-			if err != nil || lastLen != READ_BYTES_LEN-onceSize {
-				message.PrintErr("ReadBytes error", err)
-			}
-			ro.finalStr = append(ro.finalStr, lastBuf...)
-			return
-		} else {
-			tmpBuf := make([]byte, READ_BYTES_LEN)
-			tempLen, err := ro.Read(tmpBuf)
-			if err != nil || tempLen != READ_BYTES_LEN {
-				message.PrintErr("ReadBytes error", err)
-			}
-			ro.finalStr = append(ro.finalStr, tmpBuf...)
+	//ro.ProxyConn.SetReadDeadline(time.Now().Add(time.Second * 100))
+	for totalLen > 0 {
+		readLen := READ_BODY_BYTES_LEN
+		if totalLen < READ_BODY_BYTES_LEN {
+			readLen = totalLen
 		}
-		totalLen -= READ_BYTES_LEN
+		tmpBuf := make([]byte, readLen)
+		tempLen, err := ro.Read(tmpBuf)
+		if err != nil {
+			message.PrintWarn("ReadBytes error", err)
+		}
+		ro.finalStr = append(ro.finalStr, tmpBuf[:tempLen]...)
+		totalLen -= tempLen
 	}
 }
 
-func (ro *ReadOnce) proxyReadOnce(ev *core.Event) error {
+func (ro *ReadOnce) proxyReadOnce(_ *core.Event) error {
 
 	tmpByte := make([]byte, TRY_READ_LEN)
 readAgain:
@@ -154,8 +194,8 @@ readAgain:
 		// fmt.Println("invalid header")
 		goto readAgain
 	} else if size == -3 {
-		// ro.parseChunked()
-		return errors.New("response con not parse chuncked")
+		ro.parseChunked()
+		return nil
 	} else {
 		return errors.New("response parse error")
 	}

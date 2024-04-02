@@ -15,7 +15,7 @@ import (
 var g_limit rate.Limit
 var g_limiter *rate.Limiter
 
-func limit_init() {
+func limitInit() {
 	temp := float64(1.00 / float64(config.GConfig.Limit.Rate) * 1000)
 	g_limit = rate.Every(time.Duration(int(temp)) * time.Millisecond)
 	g_limiter = rate.NewLimiter(g_limit, config.GConfig.Limit.Burst)

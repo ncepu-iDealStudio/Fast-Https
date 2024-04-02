@@ -5,38 +5,55 @@ import (
 	"strings"
 )
 
-const (
-	RESPONSE_OK        = 0
-	NONE               = 1
-	UNKNOW_INVALID     = 2
-	FIRST_LINE_INVALID = 3
-	METHOD_INVALID     = 4
+// const (
+// 	RESPONSE_OK        = 0
+// 	NONE               = 1
+// 	UNKNOW_INVALID     = 2
+// 	FIRST_LINE_INVALID = 3
+// 	METHOD_INVALID     = 4
+// )
+
+type ResponError struct {
+	Code    int
+	Message string
+}
+
+var (
+	ResponseOk       = &ResponError{0, "Response OK"}
+	None             = &ResponError{1, "None"}
+	UnknowInvalid    = &ResponError{2, "Unknow invalid"}
+	FirstLineInvalid = &ResponError{3, "First line invalid"}
+	MethodInvalid    = &ResponError{4, "Method invalid"}
 )
+
+func (e *ResponError) Error() string {
+	return fmt.Sprintf("Respon error code: %d, Message: %s", e.Code, e.Message)
+}
 
 // every event will return a Response object
 // except tcp proxy
 type Response struct {
-	firstLine string
-	headers   map[string]string
-	body      []byte
+	FirstLine string
+	Headers   map[string]string
+	Body      []byte
 }
 
 func ResponseInit() *Response {
 	return &Response{
-		headers: make(map[string]string),
+		Headers: make(map[string]string),
 	}
 }
 
 func (r *Response) SetFirstLine(statusCode int, statusText string) {
-	r.firstLine = fmt.Sprintf("HTTP/1.1 %d %s", statusCode, statusText)
+	r.FirstLine = fmt.Sprintf("HTTP/1.1 %d %s", statusCode, statusText)
 }
 
 func (r *Response) SetHeader(key, value string) {
-	r.headers[key] = value
+	r.Headers[key] = value
 }
 
 func (r *Response) SetBody(body []byte) {
-	r.body = body
+	r.Body = body
 }
 
 // Generate a response data (bytes)
@@ -44,29 +61,29 @@ func (r *Response) SetBody(body []byte) {
 // once response contain '\0', it will doesn't work
 func (r *Response) GenerateResponse() []byte {
 	var res []byte
-	response := r.firstLine + HTTP_SPLIT
-	for key, value := range r.headers {
+	response := r.FirstLine + HTTP_SPLIT
+	for key, value := range r.Headers {
 		response += fmt.Sprintf("%s: %s\r\n", key, value)
 	}
 	res = append(res, []byte(response)...)
 	res = append(res, []byte("\r\n")...)
-	res = append(res, r.body...)
+	res = append(res, r.Body...)
 
 	return res
 }
 
-func (r *Response) HttpResParse(request string) int {
+func (r *Response) HttpResParse(request string) error {
 
 	if request == "" {
-		return NONE
+		return None
 	}
 	requestLine := strings.Split(request, "\r\n")
 	if requestLine == nil {
-		return UNKNOW_INVALID // invalid request
+		return UnknowInvalid // invalid request
 	}
 	parts := strings.Split(requestLine[0], " ")
 	if parts == nil || len(parts) < 3 {
-		return FIRST_LINE_INVALID // invalid first line
+		return FirstLineInvalid // invalid first line
 	}
 
 	lines := strings.Split(request, "\r\n")[1:]
@@ -77,15 +94,15 @@ func (r *Response) HttpResParse(request string) int {
 		parts := strings.SplitN(line, ":", 2)
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
-		r.headers[key] = value
+		r.Headers[key] = value
 	}
 
-	return RESPONSE_OK // valid
+	return ResponseOk // valid
 }
 
 // get request header
 func (r *Response) GetHeader(key string) string {
-	return r.headers[key]
+	return r.Headers[key]
 }
 
 func Test() {

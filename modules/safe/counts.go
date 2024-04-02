@@ -28,7 +28,7 @@ type CountLimit struct {
 	gMap map[string]countIP
 }
 
-func counts_init() {
+func countsInit() {
 	// Gcl = *NewCountLimit(0, config.GConfig.Servers[0].Path[0].Limit.Rate)
 	for _, item := range listener.Lisinfos {
 		for _, path := range item.Cfg {

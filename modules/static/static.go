@@ -111,7 +111,7 @@ func getContentType(path string) string {
 
 func HandelSlash(cfg listener.ListenCfg, ev *core.Event) bool {
 	if ev.RR.OriginPath == "" && cfg.Path != "/" {
-		event_301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
+		event301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return false
 	}
 	return true
@@ -142,7 +142,7 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"STATIC Event"+ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 
-		ev.Log_clear()
+		ev.LogClear()
 
 		ev.Reuse = true
 		// HandleEvent(ev) // recursion
@@ -156,6 +156,6 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 
 		message.PrintAccess(ev.Conn.RemoteAddr().String(), "STATIC Event"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		ev.Log_clear()
+		ev.LogClear()
 	}
 }

@@ -3,7 +3,7 @@ package server
 import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/events"
-	"fast-https/modules/core/fliters"
+	"fast-https/modules/core/filters"
 	"fast-https/modules/core/listener"
 	routinepool "fast-https/modules/core/routine_pool"
 	"fast-https/modules/safe"
@@ -29,8 +29,17 @@ type Server struct {
 
 // init server
 func ServerInit() *Server {
+	s := Server{Shutdown: core.ServerControl{Shutdown: false}}
+	sigchnl := make(chan os.Signal, 1)
+	signal.Notify(sigchnl)
+	go func(s *Server) {
+		for {
+			sig_num := <-sigchnl
+			s.sigHandler(sig_num)
+		}
+	}(&s)
 	//  to do : ScanPorts
-	return &Server{Shutdown: core.ServerControl{Shutdown: false}}
+	return &s
 }
 
 // ScanPorts scan ports to check whether they've been used
@@ -87,9 +96,9 @@ func (s *Server) serveListener(listener listener.Listener) {
 		// s.setConnCfg(&conn)
 
 		each_event := core.NewEvent(listener, conn)
-		fif := fliters.NewFliter()
+		fif := filters.NewFilter() // Filter interface
 
-		if !fif.Fif.ConnFliter(each_event) {
+		if !fif.Fif.ConnFilter(each_event) {
 			continue
 		}
 		// go events.HandleEvent(each_event)
@@ -113,16 +122,6 @@ func (s *Server) serveListener(listener listener.Listener) {
 }
 
 func (s *Server) Run() {
-
-	sigchnl := make(chan os.Signal, 1)
-	signal.Notify(sigchnl)
-
-	go func(s *Server) {
-		for {
-			sig_num := <-sigchnl
-			s.sigHandler(sig_num)
-		}
-	}(s)
 
 	output.PrintPortsListenerStart()
 	listens := listener.Listen()

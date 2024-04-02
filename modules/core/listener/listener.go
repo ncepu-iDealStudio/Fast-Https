@@ -32,6 +32,7 @@ type ListenCfg struct {
 	ReWrite        string
 
 	Limit config.PathLimit
+	Auth  config.PathAuth
 
 	StaticRoot  string
 	StaticIndex []string
@@ -95,6 +96,7 @@ func processListenData() {
 					data.ProxyAddr = paths.ProxyData
 					data.ProxySetHeader = paths.ProxySetHeader
 					data.Limit = paths.Limit
+					data.Auth = paths.Auth
 					data.StaticRoot = paths.Root
 					data.StaticIndex = paths.Index
 					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
