@@ -151,8 +151,9 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	return 1
 }
 
-func EventWrite(ev *core.Event, data []byte) error {
+func EventWrite(ev *core.Event, _data []byte) error {
 	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
+	data := ev.RR.Res_.GenerateResponse()
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
