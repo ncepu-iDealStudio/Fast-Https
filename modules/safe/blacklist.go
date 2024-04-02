@@ -3,6 +3,7 @@ package safe
 import (
 	"fast-https/config"
 	"fast-https/modules/core"
+	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fmt"
 	"net"
@@ -142,26 +143,20 @@ func (b *Blacklist) isInBlacklist(ipOrRange string) bool {
 func IsInBlacklist(ev *core.Event) bool {
 	// fmt.Println(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0])
 	if g_list.isInBlacklist(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
-		//response.DefaultTooMany()
-		//ev.RR.Res_.SetFirstLine(403, "NOT TOO MANY")
-		//ev.RR.Res_.SetHeader("Server", "Fast-Https")
-		//ev.RR.Res_.SetHeader("Date", time.Now().String())
-		//
-		//ev.RR.Res_.SetHeader("Content-Type", "text/html")
-		//ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len([]byte(response.HTTP_TOO_MANY))))
-		//ev.RR.Res_.SetBody([]byte(response.HTTP_TOO_MANY))
 
-		res := response.ResponseInit()
-		res.SetFirstLine(403, "NOT TOO MANY")
-		res.SetHeader("Server", "Fast-Https")
-		res.SetHeader("Date", time.Now().String())
+		ev.RR.Res_ = response.ResponseInit()
+		ev.RR.Req_ = request.ReqInit(false)
+		useless_data := make([]byte, 2048)
+		ev.Conn.Read(useless_data)
+		ev.RR.Res_.SetFirstLine(403, "Forbidden")
+		ev.RR.Res_.SetHeader("Server", "Fast-Https")
+		ev.RR.Res_.SetHeader("Date", time.Now().String())
 
-		res.SetHeader("Content-Type", "text/html")
-		res.SetHeader("Content-Length", strconv.Itoa(len([]byte(response.HTTP_TOO_MANY))))
-		res.SetBody([]byte(response.HTTP_TOO_MANY))
+		ev.RR.Res_.SetHeader("Content-Type", "text/html")
+		ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len([]byte(response.HTTP_BLACK_BAN))))
+		ev.RR.Res_.SetHeader("Connection", "close")
+		ev.RR.Res_.SetBody([]byte(response.HTTP_BLACK_BAN))
 
-		ev.RR.Res_ = res
-		//ev.EventWrite = events.EventWrite
 		ev.WriteResponseClose(nil)
 		core.Log(&ev.Log, ev, "")
 		return true

@@ -318,7 +318,8 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 		// Server error
 		if err != nil {
-			ev.WriteResponseClose(response.DefaultServerError())
+			ev.RR.Res_ = response.DefaultServerError()
+			ev.WriteResponseClose(nil)
 			return
 		}
 		pc.CacheData(ev, "200", res, len(res))
@@ -343,7 +344,8 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 	res, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
-		ev.WriteResponseClose(response.DefaultServerError())
+		ev.RR.Res_ = response.DefaultServerError()
+		ev.WriteResponseClose(nil)
 		return
 	}
 	// proxy server return valid data
@@ -384,7 +386,8 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 		err := proxy.ProxyInit()
 		if err != nil {
 			message.PrintWarn("--proxy can not init circle" + err.Error())
-			ev.WriteResponseClose(response.DefaultServerError())
+			ev.RR.Res_ = response.DefaultServerError()
+			ev.WriteResponseClose(nil)
 			return
 		}
 

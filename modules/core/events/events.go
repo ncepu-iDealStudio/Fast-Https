@@ -47,7 +47,8 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
 		core.Log(&ev.Log, ev, "")
-		ev.WriteResponseClose(response.DefaultNotFound())
+		ev.RR.Res_ = response.DefaultNotFound()
+		ev.WriteResponseClose(nil)
 		return
 	}
 	// found specific "servername && url"
@@ -68,7 +69,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 	if !auth.AuthHandler(&cfg, ev) {
 		return
 	}
-
+	ev.Type = cfg.Type
 	// according to user's confgure and requets endporint handle events
 	ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
 	ev.RR.CircleHandler.FilterHandler = core.GRRCHT[cfg.Type].FilterHandler
@@ -151,10 +152,10 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	return 1
 }
 
-func EventWrite(ev *core.Event, data []byte) error {
+func EventWrite(ev *core.Event, _data []byte) error {
 	//fmt.Printf("%p", ev)
 	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
-	//data := ev.RR.Res_.GenerateResponse()
+	data := ev.RR.Res_.GenerateResponse()
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {

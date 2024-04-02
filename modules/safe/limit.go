@@ -33,7 +33,8 @@ func Bucket(ev *core.Event) bool {
 
 		buffer := make([]byte, 1024)
 		ev.Conn.Read(buffer)
-		ev.WriteResponseClose(response.DefaultTooMany())
+		ev.RR.Res_ = response.DefaultTooMany()
+		ev.WriteResponseClose(nil)
 		return false
 	}
 }

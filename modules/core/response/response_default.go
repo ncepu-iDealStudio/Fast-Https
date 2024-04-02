@@ -15,10 +15,10 @@ const (
 	HTTP_NOTFOUND     = "<h1 style='text-align:center;'>404 Not Found!</h1>"
 	HTTP_SERVER_ERROR = "<h1 style='text-align:center;'>500 Server Error!</h1>"
 	HTTP_TOO_MANY     = "<h1 style='text-align:center;'>403 too many!</h1>"
-	HTTP_BLACK_BAN    = "<h1 style='text-align:center;'>403 BLACK BAN!</h1>"
+	HTTP_BLACK_BAN    = "<h1 style='text-align:center;'>403 Forbidden!</h1>"
 )
 
-func DefaultTest() []byte {
+func DefaultTest() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(200, "OK")
 	res.SetHeader("Server", "Fast-Https")
@@ -27,10 +27,10 @@ func DefaultTest() []byte {
 	res.SetHeader("Content-Type", "text/html")
 	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_NOTFOUND))))
 	res.SetBody([]byte(HTTP_NOTFOUND))
-	return res.GenerateResponse()
+	return res
 }
 
-func DefaultNotFound() []byte {
+func DefaultNotFound() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(404, "NOT FOUND")
 	res.SetHeader("Server", "Fast-Https")
@@ -39,10 +39,10 @@ func DefaultNotFound() []byte {
 	res.SetHeader("Content-Type", "text/html")
 	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_NOTFOUND))))
 	res.SetBody([]byte(HTTP_NOTFOUND))
-	return res.GenerateResponse()
+	return res
 }
 
-func DefaultTooMany() []byte {
+func DefaultTooMany() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(403, "NOT TOO MANY")
 	res.SetHeader("Server", "Fast-Https")
@@ -51,10 +51,10 @@ func DefaultTooMany() []byte {
 	res.SetHeader("Content-Type", "text/html")
 	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_TOO_MANY))))
 	res.SetBody([]byte(HTTP_TOO_MANY))
-	return res.GenerateResponse()
+	return res
 }
 
-func DefaultServerError() []byte {
+func DefaultServerError() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(500, "SERVER ERROR")
 	res.SetHeader("Server", "Fast-Https")
@@ -63,10 +63,10 @@ func DefaultServerError() []byte {
 	res.SetHeader("Content-Type", "text/html")
 	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_SERVER_ERROR))))
 	res.SetBody([]byte(HTTP_SERVER_ERROR))
-	return res.GenerateResponse()
+	return res
 }
 
-func DefaultBlackBan() []byte {
+func DefaultBlackBan() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(403, "BAN")
 	res.SetHeader("Server", "Fast-Https")
@@ -75,5 +75,5 @@ func DefaultBlackBan() []byte {
 	res.SetHeader("Content-Type", "text/html")
 	res.SetHeader("Content-Length", strconv.Itoa(len([]byte(HTTP_BLACK_BAN))))
 	res.SetBody([]byte(HTTP_BLACK_BAN))
-	return res.GenerateResponse()
+	return res
 }

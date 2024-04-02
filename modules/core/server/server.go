@@ -97,6 +97,7 @@ func (s *Server) serveListener(listener listener.Listener) {
 
 		each_event := core.NewEvent(listener, conn)
 		fif := filters.NewFilter() // Filter interface
+		each_event.EventWrite = core.EventWriteEarly
 
 		if !fif.Fif.ConnFilter(each_event) {
 			continue
