@@ -1,6 +1,7 @@
 package events
 
 import (
+	"errors"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
 	"fast-https/modules/core/h2"
@@ -11,7 +12,6 @@ import (
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/Jxck/hpack"
@@ -77,7 +77,15 @@ func H2EventWrite(ev *core.Event, _data []byte) error {
 		message.PrintErr("--events can not convert ev.Stream data to *h2.Stream")
 	}
 	responseHeader := http.Header{}
-	responseHeader.Add(":status", strconv.Itoa(200))
+	firstLine := strings.Split(ev.RR.Res_.FirstLine, " ")
+	if len(firstLine) != 3 {
+		return errors.New("h2 event write invalid response first line")
+	}
+	responseHeader.Add(":status", firstLine[1])
+
+	for header, content := range ev.RR.Res_.Headers {
+		responseHeader.Add(header, content)
+	}
 
 	// Send response headers as HEADERS Frame
 	headerList := hpack.ToHeaderList(responseHeader)
