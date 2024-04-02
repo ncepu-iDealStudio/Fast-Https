@@ -41,8 +41,9 @@ func AuthHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	res := response.ResponseInit()
 	res.SetFirstLine(401, "Authorization Required")
 	res.SetHeader("www-Authenticate", "Basic realm=\"Access to the staging site\"")
-
-	ev.WriteResponseClose(res.GenerateResponse())
+	ev.RR.Res_ = res
+	//fmt.Printf("%p", ev)
+	ev.WriteResponseClose(nil)
 	return false
 }
 
