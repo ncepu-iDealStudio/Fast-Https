@@ -143,6 +143,6 @@ func (s *Server) Run() {
 		// <-sigchnl
 		// fmt.Println("got sig")
 		// s.wg.Wait()
-		// time.Sleep(time.Second * 1)
+		time.Sleep(time.Second * 1)
 	}
 }

@@ -9,7 +9,7 @@
     },
     "log_split": " ",
     "log_format": [
-      "user_agent", "ip_port", "time", "type", "method", "path",
+      "_user_agent", "ip_port", "time", "type", "method", "path",
       "host", "status", "size", "referer"
     ],
     "blaklist": [
@@ -63,7 +63,7 @@
           {
             "url": "/",
             "type": "local",
-            "root": "./httpdoc/root",
+            "root": "./httpdoc/theme",
             "index":["index.html", "index.htm"] 
           }
         ]
