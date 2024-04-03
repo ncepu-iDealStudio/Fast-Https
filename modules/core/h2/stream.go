@@ -10,7 +10,7 @@ import (
 	. "fast-https/modules/core/h2/frame"
 	. "fast-https/utils/logger"
 
-	"github.com/Jxck/hpack"
+	"fast-https/modules/core/h2/hpack"
 )
 
 func init() {

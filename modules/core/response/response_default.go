@@ -32,7 +32,7 @@ func DefaultTest() *Response {
 
 func DefaultNotFound() *Response {
 	res := ResponseInit()
-	res.SetFirstLine(404, "NOT FOUND")
+	res.SetFirstLine(404, "NOTFOUND")
 	res.SetHeader("Server", "Fast-Https")
 	res.SetHeader("Date", time.Now().String())
 
@@ -44,7 +44,7 @@ func DefaultNotFound() *Response {
 
 func DefaultTooMany() *Response {
 	res := ResponseInit()
-	res.SetFirstLine(403, "NOT TOO MANY")
+	res.SetFirstLine(403, "NOTTOOMANY")
 	res.SetHeader("Server", "Fast-Https")
 	res.SetHeader("Date", time.Now().String())
 
@@ -56,7 +56,7 @@ func DefaultTooMany() *Response {
 
 func DefaultServerError() *Response {
 	res := ResponseInit()
-	res.SetFirstLine(500, "SERVER ERROR")
+	res.SetFirstLine(500, "SERVERERROR")
 	res.SetHeader("Server", "Fast-Https")
 	res.SetHeader("Date", time.Now().String())
 

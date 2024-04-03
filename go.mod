@@ -3,6 +3,10 @@ module fast-https
 go 1.20
 
 require (
+	github.com/Jxck/assertion v0.0.0-20140506062536-def1e0ae1f89
+	github.com/Jxck/color v0.0.0-20150710091843-32f7aabefa1d
+	github.com/Jxck/logger v0.0.0-20141016174915-6123e712dcb9
+	github.com/Jxck/swrap v0.0.0-20140128093118-70cf15cd69ab
 	github.com/fufuok/chanx v1.2.0
 	github.com/kardianos/service v1.2.2
 	github.com/sirupsen/logrus v1.9.3
@@ -12,9 +16,6 @@ require (
 )
 
 require (
-	github.com/Jxck/color v0.0.0-20150710091843-32f7aabefa1d // indirect
-	github.com/Jxck/logger v0.0.0-20141016174915-6123e712dcb9 // indirect
-	github.com/Jxck/swrap v0.0.0-20140128093118-70cf15cd69ab // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
 	github.com/getlantern/errors v0.0.0-20190325191628-abdb3e3e36f7 // indirect
@@ -48,7 +49,6 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
-	golang.org/x/net v0.16.0
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect

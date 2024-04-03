@@ -1,11 +1,13 @@
 package static
 
 import (
+	"bytes"
 	"fast-https/config"
 	"fast-https/modules/cache"
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -137,7 +139,8 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 	if ev.RR.Req_.IsKeepalive() {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
 		if res == -1 {
-			ev.WriteResponse(response.DefaultNotFound())
+			ev.RR.Res_ = response.DefaultNotFound()
+			ev.WriteResponse(nil)
 		} else {
 			ev.WriteResponse(ev.RR.Res_.GenerateResponse())
 		}
@@ -150,7 +153,8 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 	} else {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
 		if res == -1 {
-			ev.WriteResponseClose(response.DefaultNotFound())
+			ev.RR.Res_ = response.DefaultNotFound()
+			ev.WriteResponseClose(nil)
 		} else {
 			ev.WriteResponseClose(ev.RR.Res_.GenerateResponse())
 		}
@@ -158,4 +162,15 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 		core.Log(&ev.Log, ev, "")
 		core.LogClear(&ev.Log)
 	}
+
+	//fmt.Println(runtime.NumGoroutine(), GetGID())
+}
+
+func GetGID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
 }

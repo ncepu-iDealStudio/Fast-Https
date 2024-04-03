@@ -11,14 +11,14 @@ import (
 	"fast-https/modules/core/response"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
+	"fmt"
 	"net/http"
 	"strings"
 
-	"github.com/Jxck/hpack"
+	"fast-https/modules/core/h2/hpack"
 )
 
 func H2HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
-	ev.EventWrite = H2EventWrite
 
 	Connh2 := conn.NewConn(ev.Conn)
 
@@ -41,32 +41,50 @@ func H2HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerCon
 }
 
 func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
+
+	stream_ev := core.Event{
+		Conn:       ev.Conn,
+		LisInfo:    ev.LisInfo,
+		Timer:      nil,
+		Reuse:      false,
+		Log:        *core.NewLogger(),
+		IsClose:    false, // not close
+		ReadReady:  true,  // need read
+		WriteReady: false, // needn't write
+		RR: core.RRcircle{
+			Ev:            nil, // include each other
+			IsCircle:      true,
+			CircleInit:    false,
+			ProxyConnInit: false,
+			CircleCommandVal: core.RRcircleCommandVal{
+				Map: make(map[string]string), // init CircleCommandVal map
+			},
+		},
+	}
+	stream_ev.RR.Ev = &stream_ev
+
 	header := stream.Bucket.Headers
 	// body := stream.Bucket.Body
+	stream_ev.RR.Req_ = request.ReqInit(true)   // Create a request Object
+	stream_ev.RR.Res_ = response.ResponseInit() // Create a res Object
+	stream_ev.RR.Req_.Method = header.Get(":method")
+	stream_ev.RR.Req_.Path = header.Get(":path")
+	stream_ev.RR.Req_.Protocol = "HTTP/2"
+	stream_ev.RR.Req_.Headers["Host"] = header.Get(":authority")
 
-	// save request information to ev.RR.Req_
-	if !ev.RR.CircleInit {
-		ev.RR.Req_ = request.ReqInit(true)   // Create a request Object
-		ev.RR.Res_ = response.ResponseInit() // Create a res Object
-		ev.RR.CircleInit = true
-	}
-
-	ev.RR.Req_.Method = header.Get(":method")
-	ev.RR.Req_.Path = header.Get(":path")
-	ev.RR.Req_.Protocol = "HTTP/2"
-	ev.RR.Req_.Headers["Host"] = header.Get(":authority")
+	stream_ev.EventWrite = H2EventWrite
+	stream_ev.Stream = stream
 
 	for k, v := range header {
 		if !strings.Contains(k, ":") {
-			ev.RR.Req_.Headers[k] = v[0]
+			stream_ev.RR.Req_.Headers[k] = v[0]
 		}
 	}
 
-	ev.Stream = stream
-
+	fmt.Printf("\tev ptr: %p | stream_ev ptr: %p\n", ev, &stream_ev)
+	fmt.Printf("\tstream ptr: %p\n", stream)
 	// Handle HTTP using handler
-
-	EventHandler(ev, fif)
+	EventHandler(&stream_ev, fif)
 
 	// ev.WriteData([]byte("hello world"))
 }
@@ -79,6 +97,7 @@ func H2EventWrite(ev *core.Event, _data []byte) error {
 	responseHeader := http.Header{}
 	firstLine := strings.Split(ev.RR.Res_.FirstLine, " ")
 	if len(firstLine) != 3 {
+		fmt.Println("-----------ev.RR.Res_.FirstLine-------------")
 		return errors.New("h2 event write invalid response first line")
 	}
 	responseHeader.Add(":status", firstLine[1])
