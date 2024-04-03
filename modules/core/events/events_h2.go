@@ -1,45 +1,33 @@
 package events
 
 import (
-	"errors"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
-	"fast-https/modules/core/h2"
-	"fast-https/modules/core/h2/conn"
-	frame "fast-https/modules/core/h2/frame"
-	"fast-https/modules/core/request"
-	"fast-https/modules/core/response"
-	"fast-https/utils/logger"
-	"fast-https/utils/message"
-	"fmt"
-	"net/http"
-	"strings"
-
-	"fast-https/modules/core/h2/hpack"
 )
 
 func H2HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
 
-	Connh2 := conn.NewConn(ev.Conn)
+	// Connh2 := conn.NewConn(ev.Conn)
 
-	err := Connh2.ReadMagic()
-	if err != nil {
-		message.PrintWarn(err)
-		Connh2.Close()
-		return
-	}
+	// err := Connh2.ReadMagic()
+	// if err != nil {
+	// 	message.PrintWarn(err)
+	// 	Connh2.Close()
+	// 	return
+	// }
 
-	Connh2.CallBack = CallBack
+	// Connh2.CallBack = CallBack
 
-	go Connh2.WriteLoop()
-	settingsFrame := frame.NewSettingsFrame(frame.UNSET, 0, h2.DefaultSettings)
-	Connh2.WriteChan <- settingsFrame
+	// go Connh2.WriteLoop()
+	// settingsFrame := frame.NewSettingsFrame(frame.UNSET, 0, h2.DefaultSettings)
+	// Connh2.WriteChan <- settingsFrame
 
-	Connh2.ReadLoop(ev, fif)
+	// Connh2.ReadLoop(ev, fif)
 
-	Connh2.Close()
+	// Connh2.Close()
 }
 
+/*
 func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
 
 	stream_ev := core.Event{
@@ -167,3 +155,4 @@ func H2EventWrite(ev *core.Event, _data []byte) error {
 
 	return nil
 }
+*/
