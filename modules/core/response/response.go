@@ -85,7 +85,7 @@ func (r *Response) HttpResParse(request string) error {
 	if parts == nil || len(parts) < 3 {
 		return FirstLineInvalid // invalid first line
 	}
-
+	r.FirstLine = parts[0] + " " + parts[1] + " " + parts[2]
 	lines := strings.Split(request, "\r\n")[1:]
 	for _, line := range lines {
 		if line == "" {
@@ -103,6 +103,10 @@ func (r *Response) HttpResParse(request string) error {
 // get request header
 func (r *Response) GetHeader(key string) string {
 	return r.Headers[key]
+}
+
+func (r *Response) DelHeader(key string) {
+	delete(r.Headers, key)
 }
 
 func Test() {
