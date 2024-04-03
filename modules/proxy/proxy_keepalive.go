@@ -127,17 +127,17 @@ func (ro *ReadOnce) parseChunked() {
 	// 0\r\n
 	// \r\n
 	var p int
-	var after_body []byte
-	var total_length int64
+	// var after_body []byte
+	// var total_length int64
 	for {
 		if p = strings.Index(string(ro.body), "0\r\n\r\n"); p != -1 { // last block
 
-			after_body, total_length = Parse(string(ro.body))
+			_, _ = Parse(string(ro.body))
 			// fmt.Println(total_length)
 
-			ro.res.DelHeader("Transfer-Encoding")
-			ro.res.Headers["Content-Length"] = strconv.Itoa(int(total_length))
-			ro.res.Body = after_body
+			// ro.res.DelHeader("Transfer-Encoding")
+			// ro.res.Headers["Content-Length"] = strconv.Itoa(int(total_length))
+			ro.res.Body = ro.body
 			ro.finalStr = ro.res.GenerateResponse()
 			return
 		} else {
