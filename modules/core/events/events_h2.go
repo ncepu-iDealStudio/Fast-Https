@@ -18,9 +18,9 @@ import (
 	"fast-https/modules/core/h2/hpack"
 )
 
-func H2HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
+func H2HandleEvent(ev_conn *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
 
-	Connh2 := conn.NewConn(ev.Conn)
+	Connh2 := conn.NewConn(ev_conn.Conn)
 
 	err := Connh2.ReadMagic()
 	if err != nil {
@@ -35,16 +35,16 @@ func H2HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerCon
 	settingsFrame := frame.NewSettingsFrame(frame.UNSET, 0, h2.DefaultSettings)
 	Connh2.WriteChan <- settingsFrame
 
-	Connh2.ReadLoop(ev, fif)
+	Connh2.ReadLoop(ev_conn, fif)
 
 	Connh2.Close()
 }
 
-func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
+func CallBack(stream *h2.Stream, ev_conn *core.Event, fif *filters.Filter) {
 
 	stream_ev := core.Event{
-		Conn:       ev.Conn,
-		LisInfo:    ev.LisInfo,
+		Conn:       ev_conn.Conn,
+		LisInfo:    ev_conn.LisInfo,
 		Timer:      nil,
 		Reuse:      false,
 		Log:        *core.NewLogger(),
@@ -64,13 +64,14 @@ func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
 	stream_ev.RR.Ev = &stream_ev
 
 	header := stream.Bucket.Headers
-	// body := stream.Bucket.Body
+	body := stream.Bucket.Body
 	stream_ev.RR.Req_ = request.ReqInit(true)   // Create a request Object
 	stream_ev.RR.Res_ = response.ResponseInit() // Create a res Object
 	stream_ev.RR.Req_.Method = header.Get(":method")
 	stream_ev.RR.Req_.Path = header.Get(":path")
 	stream_ev.RR.Req_.Protocol = "HTTP/2"
 	stream_ev.RR.Req_.Headers["Host"] = header.Get(":authority")
+	stream_ev.RR.Req_.Body = body.Bytes()
 
 	stream_ev.EventWrite = H2EventWrite
 	stream_ev.Stream = stream
@@ -81,8 +82,8 @@ func CallBack(stream *h2.Stream, ev *core.Event, fif *filters.Filter) {
 		}
 	}
 
-	fmt.Printf("\tev ptr: %p | stream_ev ptr: %p\n", ev, &stream_ev)
-	fmt.Printf("\tstream ptr: %p\n", stream)
+	//fmt.Printf("\tev ptr: %p | stream_ev ptr: %p\n", ev, &stream_ev)
+	//fmt.Printf("\tstream ptr: %p\n", stream)
 	// Handle HTTP using handler
 	EventHandler(&stream_ev, fif)
 

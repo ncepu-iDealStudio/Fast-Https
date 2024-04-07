@@ -53,11 +53,14 @@ func NewBucket() *Bucket {
 
 type CallBack func(stream *Stream, ev *core.Event, fif *filters.Filter)
 
-func NewStream(id uint32, writeChan chan Frame, settings, peerSettings map[SettingsID]int32, hpackContext *hpack.Context, callback CallBack, ev *core.Event, fif *filters.Filter) *Stream {
+func NewStream(id uint32, writeChan chan Frame, settings, peerSettings map[SettingsID]int32,
+	hpackContext *hpack.Context, callback CallBack, ev *core.Event, fif *filters.Filter) *Stream {
 	stream := &Stream{
-		ID:           id,
-		State:        IDLE,
-		Window:       NewWindow(settings[SETTINGS_INITIAL_WINDOW_SIZE], peerSettings[SETTINGS_INITIAL_WINDOW_SIZE]),
+		ID:    id,
+		State: IDLE,
+		Window: NewWindow(settings[SETTINGS_INITIAL_WINDOW_SIZE],
+			peerSettings[SETTINGS_INITIAL_WINDOW_SIZE]),
+
 		ReadChan:     make(chan Frame),
 		WriteChan:    writeChan,
 		Settings:     settings,
