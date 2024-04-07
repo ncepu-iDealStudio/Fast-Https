@@ -251,7 +251,7 @@ func (stream *Stream) ChangeState(frame Frame, context Context) (err error) {
 
 			msg := fmt.Sprintf("invalid frame type %v at %v state", types, state)
 			Error(Red(msg))
-			return &H2Error{STREAM_CLOSED, msg}
+			return &H2Error{ErrorCode: STREAM_CLOSED, AdditiolanDebugData: msg}
 		}
 	case CLOSED:
 
@@ -273,13 +273,13 @@ func (stream *Stream) ChangeState(frame Frame, context Context) (err error) {
 
 			msg := fmt.Sprintf("invalid frame type %v at %v state", types, state)
 			Error(Red(msg))
-			return &H2Error{STREAM_CLOSED, msg}
+			return &H2Error{ErrorCode: STREAM_CLOSED, AdditiolanDebugData: msg}
 		}
 	}
 
 	msg := fmt.Sprintf("invalid frame type %v at %v state", types, state)
 	Error(Red(msg))
-	return &H2Error{PROTOCOL_ERROR, msg}
+	return &H2Error{ErrorCode: PROTOCOL_ERROR, AdditiolanDebugData: msg}
 }
 
 func (stream *Stream) changeState(state State) {

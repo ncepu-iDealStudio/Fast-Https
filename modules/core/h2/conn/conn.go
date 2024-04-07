@@ -204,7 +204,7 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 
 				msg := fmt.Sprintf("%s FRAME for Stream ID not 0", types)
 				Error("%v", msg)
-				conn.GoAway(0, &H2Error{PROTOCOL_ERROR, msg})
+				conn.GoAway(0, &H2Error{ErrorCode: PROTOCOL_ERROR, AdditiolanDebugData: msg})
 				break // TODO: check this flow is correct or not
 			}
 
