@@ -7,6 +7,7 @@ import (
 	"fast-https/modules/cache"
 	"fast-https/modules/core"
 	"fast-https/utils"
+	"fmt"
 	"time"
 
 	"fast-https/modules/core/listener"
@@ -28,8 +29,8 @@ type Proxy struct {
 }
 
 func init() {
-	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFliterHandler, ProxyEvent, nil)
-	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFliterHandler, ProxyEvent, nil)
+	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFilterHandler, ProxyEvent, nil)
+	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFilterHandler, ProxyEvent, nil)
 }
 
 func Newproxy(addr string, proxyType int, proxyNeedCache bool) *Proxy {
@@ -136,6 +137,9 @@ func (p *Proxy) ChangeHeader(tmpByte []byte) ([]byte, string, string) {
 	lines := strings.Split(header_str, "\r\n")
 	head_code := strings.Split(lines[0], " ")[1]
 	header_new = lines[0] + "\r\n"
+	if !strings.Contains(header_str, "Connection") {
+		p.ProxyNeedClose = true
+	}
 	for _, line := range lines[1:] {
 		if line == "" {
 			break
@@ -201,10 +205,16 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 
 	var resData []byte
 	if !ev.RR.Req_.IsKeepalive() {
-		resData, err = p.proxyReadAll(ev)
-		// fmt.Println("-----This is proxyReadAll")
-		if err != nil {
-			message.PrintWarn("Proxy event: Can't read all ", err.Error())
+		if ev.Upgrade == "websocket" {
+			web := make([]byte, 1024)
+			n, _ := p.Read(web)
+			resData = web[:n]
+		} else {
+			resData, err = p.proxyReadAll(ev)
+			// fmt.Println("-----This is proxyReadAll")
+			if err != nil {
+				message.PrintWarn("Proxy event: Can't read all ", err.Error())
+			}
 		}
 	} else {
 		ro := ReadOnce{
@@ -223,21 +233,22 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 
 	if len(resData) < 4 {
 		message.PrintWarn(ev.Conn.RemoteAddr().String(), " proxy return null")
+		p.ProxyConn.Close()
 		return nil, errors.New("proxy return null")
 	}
 
 	finalData, head_code, b_len := p.ChangeHeader(resData)
 
-	ev.Log_append(" " + head_code + " " + b_len)
+	ev.LogAppend(" " + head_code + " " + b_len)
 
-	if !ev.RR.Req_.IsKeepalive() { // connection close
+	if !ev.RR.Req_.IsKeepalive() && ev.Upgrade == "" { // connection close
 		p.Close()
 	}
 
 	message.PrintAccess(ev.Conn.RemoteAddr().String(), "PROXY HTTP Event"+
 		ev.Log, "\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 
-	ev.Log_clear()
+	ev.LogClear()
 	return finalData, nil // no error
 }
 
@@ -319,7 +330,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 			"PROXY Event(Cache)"+ev.Log,
 			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
 
-		ev.Log_clear()
+		ev.LogClear()
 	}
 
 	// proxy server return valid data
@@ -342,6 +353,11 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 	}
 	// proxy server return valid data
 	if ev.RR.Req_.IsKeepalive() && !p.ProxyNeedClose {
+		ev.WriteData(res)
+		// events.Handle_event(ev)
+		ev.Reuse = true
+	} else if ev.Upgrade == "websocket" {
+		fmt.Println("-------------------- websocket -------------")
 		ev.WriteData(res)
 		// events.Handle_event(ev)
 		ev.Reuse = true
@@ -394,7 +410,7 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 	}
 }
 
-func ProxyFliterHandler(cfg listener.ListenCfg, ev *core.Event) bool {
+func ProxyFilterHandler(cfg listener.ListenCfg, ev *core.Event) bool {
 	ChangeHead(cfg, ev)
 	return true
 }

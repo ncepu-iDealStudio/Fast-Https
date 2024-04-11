@@ -21,6 +21,11 @@
           {
             "url": "/x",
             "type": "local",
+            "auth": {
+              "type": "basic",
+              "user": "root",
+              "pswd": "123"
+            },
             "root": "./httpdoc/root",
             "index":["index.html", "index.htm"] ,
             "limit": {
@@ -56,14 +61,19 @@
         ]
       },
       {
-        "listen": 8081,
+        "listen": 9091,
         "server_name": "localhost",
         "location": [
           {
             "url": "/",
-            "type": "local",
-            "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"] 
+            "type": "proxy",
+            "proxy_pass": "http://127.0.0.1:80",
+            "proxy_set_header" : [
+              {
+                "HeaderKey": "Host",
+                "HeaderValue": "$proxy_host"
+              }
+            ]
           }
         ]
       },
@@ -74,24 +84,25 @@
           {
             "url": "/",
             "type": "proxy",
-            "proxy_pass": "http://127.0.0.1:5000",
+            "proxy_pass": "http://4.227.189.175:10086",
             "proxy_set_header" : [
-              {
-                "HeaderKey": "Connection",
-                "HeaderValue": "close"
-              },
               {
                 "HeaderKey": "Host",
                 "HeaderValue": "$proxy_host"
-              },
-              {
-                "HeaderKey": "X-real-ip",
-                "HeaderValue": "$remote_addr"
-              },{
-                "HeaderKey": "X-Forwarded-For",
-                "HeaderValue": "$proxy_add_x_forwarded_for"
               }
             ]
+          }
+        ]
+      },
+      {
+        "listen": 6060,
+        "server_name": "localhost",
+        "location": [
+          {
+            "url": "/",
+            "type": "proxy",
+            "proxy_pass": "http://127.0.0.1:7070"
+            
           }
         ]
       },

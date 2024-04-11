@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	core.RRHandlerRegister(config.REWRITE, ReWriteFliter, ReWriteEvent, nil)
+	core.RRHandlerRegister(config.REWRITE, ReWriteFilter, ReWriteEvent, nil)
 }
 
 func rewriteInfo(ev *core.Event, path string) {
@@ -24,7 +24,7 @@ func rewriteInfo(ev *core.Event, path string) {
  *************************************
  */
 
-func ReWriteFliter(cfg listener.ListenCfg, ev *core.Event) bool {
+func ReWriteFilter(cfg listener.ListenCfg, ev *core.Event) bool {
 	return true
 }
 

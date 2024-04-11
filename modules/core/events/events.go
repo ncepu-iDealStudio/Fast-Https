@@ -2,8 +2,9 @@ package events
 
 import (
 	"fast-https/config"
+	"fast-https/modules/auth"
 	"fast-https/modules/core"
-	"fast-https/modules/core/fliters"
+	"fast-https/modules/core/filters"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/safe"
@@ -12,10 +13,14 @@ import (
 	"time"
 )
 
-func HandleEvent(ev *core.Event, fif *fliters.Fliter, shutdown *core.ServerControl) {
-	fif.Fif.ListenFliter(ev)
+func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
 
 	for !ev.IsClose {
+		// websocket and tcp proxy through this
+		if fif.Fif.ListenFilter(ev) {
+			break
+		}
+
 		EventHandler(ev, fif)
 
 		if !ev.EventReuse() {
@@ -24,23 +29,23 @@ func HandleEvent(ev *core.Event, fif *fliters.Fliter, shutdown *core.ServerContr
 
 		if shutdown.Shutdown {
 			message.PrintInfo("server shut down")
-			return
+			break
 		}
 	}
 }
 
 // distribute event
-func EventHandler(ev *core.Event, fif *fliters.Fliter) {
+func EventHandler(ev *core.Event, fif *filters.Filter) {
 
 	if processRequest(ev, fif) != 1 { // TODO: handle different cases...
 		ev.Close()
 		return // client close
 	}
-	ev.Log_append(" " + ev.RR.Req_.Method)
-	ev.Log_append(" " + ev.RR.Req_.Path + " \"" +
+	ev.LogAppend(" " + ev.RR.Req_.Method)
+	ev.LogAppend(" " + ev.RR.Req_.Path + " \"" +
 		ev.RR.Req_.GetHeader("Host") + "\"")
 
-	cfg, ok := fif.Fif.RequestFliter(ev)
+	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
 		message.PrintAccess(ev.Conn.RemoteAddr().String(),
 			"INFORMAL Event(404)"+ev.Log,
@@ -48,6 +53,7 @@ func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 		ev.WriteDataClose(response.DefaultNotFound())
 		return
 	}
+	// found specific "servername && url"
 
 	cl := safe.Gcl[cfg.ID]
 	ip := ""
@@ -62,19 +68,23 @@ func EventHandler(ev *core.Event, fif *fliters.Fliter) {
 		return
 	}
 
+	if !auth.AuthHandler(&cfg, ev) {
+		return
+	}
+
 	// according to user's confgure and requets endporint handle events
 	ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
-	ev.RR.CircleHandler.FliterHandler = core.GRRCHT[cfg.Type].FliterHandler
+	ev.RR.CircleHandler.FilterHandler = core.GRRCHT[cfg.Type].FilterHandler
 	ev.RR.CircleHandler.ParseCommandHandler = core.GRRCHT[cfg.Type].ParseCommandHandler
 	ev.RR.CircleHandler.ParseCommandHandler(cfg, ev)
-	if !ev.RR.CircleHandler.FliterHandler(cfg, ev) {
+	if !ev.RR.CircleHandler.FilterHandler(cfg, ev) {
 		return
 	}
 	ev.RR.CircleHandler.RRHandler(cfg, ev)
 
 }
 
-func processRequest(ev *core.Event, fif *fliters.Fliter) int {
+func processRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
 	byte_row := ev.ReadData()
 	// save requte information to ev.RR.Req_
@@ -92,9 +102,9 @@ func processRequest(ev *core.Event, fif *fliters.Fliter) int {
 	headerOtherData := make([]byte, core.READ_HEADER_BUF_LEN)
 	for {
 		parse := ev.RR.Req_.ParseHeader(byte_row)
-		if parse == request.REQUEST_OK {
+		if parse == request.RequestOk {
 			break
-		} else if parse == request.REQUEST_NEED_READ_MORE { // parse successed !
+		} else if parse == request.RequestNeedReadMore { // parse successed !
 
 			ev.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 			datasize, err := ev.Conn.Read(headerOtherData)
@@ -115,7 +125,7 @@ func processRequest(ev *core.Event, fif *fliters.Fliter) int {
 		}
 	}
 
-	if !fif.Fif.HttpParseFliter(&ev.RR) {
+	if !fif.Fif.HttpParseFilter(&ev.RR) {
 		return -300
 	}
 

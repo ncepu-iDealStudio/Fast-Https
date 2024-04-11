@@ -42,7 +42,7 @@ type RRcircleCommandVal struct {
 // callback item
 type RRcircleHandler struct {
 	ParseCommandHandler func(listener.ListenCfg, *Event)
-	FliterHandler       func(listener.ListenCfg, *Event) bool
+	FilterHandler       func(listener.ListenCfg, *Event) bool
 	RRHandler           func(listener.ListenCfg, *Event)
 }
 
@@ -61,6 +61,7 @@ type Event struct {
 	Timer   *timer.Timer
 	Log     string
 	Type    uint64
+	Upgrade string
 	RR      RRcircle
 	Reuse   bool
 
@@ -71,9 +72,9 @@ type Event struct {
 
 func (ev *Event) EventReuse() bool { return ev.Reuse }
 
-func RRHandlerRegister(Type int, fliter func(listener.ListenCfg, *Event) bool,
+func RRHandlerRegister(Type int, filter func(listener.ListenCfg, *Event) bool,
 	handler func(listener.ListenCfg, *Event), cmd func(listener.ListenCfg, *Event)) {
-	GRRCHT[Type].FliterHandler = fliter
+	GRRCHT[Type].FilterHandler = filter
 	GRRCHT[Type].RRHandler = handler
 	if cmd != nil {
 		GRRCHT[Type].ParseCommandHandler = cmd
@@ -107,11 +108,11 @@ func NewEvent(l listener.Listener, conn net.Conn) *Event {
 	return &each_event
 }
 
-func (ev *Event) Log_append(log string) {
+func (ev *Event) LogAppend(log string) {
 	ev.Log = ev.Log + log
 }
 
-func (ev *Event) Log_clear() {
+func (ev *Event) LogClear() {
 	ev.Log = ""
 }
 
@@ -178,10 +179,10 @@ func (ev *Event) Close() {
 	if !ev.IsClose {
 		err := ev.Conn.Close()
 		if err != nil {
-			message.PrintErr("Error --core Close", err)
+			message.PrintErr("Error --core Close ", err)
 		}
 	} else {
-		message.PrintWarn("Warn --core repeat close")
+		message.PrintWarn("Warn --core repeat close ")
 	}
 	ev.IsClose = true
 }

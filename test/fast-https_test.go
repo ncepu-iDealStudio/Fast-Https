@@ -33,7 +33,7 @@ func TestServerInit(t *testing.T) {
 	t.Log("current system path: ", currentDir)
 
 	// 1. write pid into file and command
-	cmd.WritePid()
+	cmd.WritePid(os.Getpid())
 	t.Log("step1: fast-https.pid: ", os.Getpid())
 
 	// 2. init system message

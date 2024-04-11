@@ -1,7 +1,8 @@
-package proxy_tcp
+package websocket
 
 import (
 	"fast-https/modules/core"
+	"fast-https/modules/proxy"
 	"fast-https/utils/message"
 	"fmt"
 	"io"
@@ -9,12 +10,14 @@ import (
 	"time"
 )
 
-// This is a simple demo
-func ProxyEventTcp(ev *core.Event, proxyaddr string) {
+// like a tcp proxy
+// todo: improve buffer
+func WebSocketHandler(ev *core.Event) {
+	// fmt.Println("+++++++++++++++++++++++++")
 
-	conn2, err := net.Dial("tcp", proxyaddr)
-	if err != nil {
-		message.PrintErr("Can't connect to "+proxyaddr, err.Error())
+	proxy, flag := (ev.RR.CircleData).(*proxy.Proxy)
+	if !flag {
+		message.PrintErr("--proxy can not convert circle data to *Proxy")
 	}
 
 	go func() {
@@ -30,23 +33,23 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 					// fmt.Println("time out once 1")
 					continue
 				} else {
-					message.PrintWarn("[1]tcp_proxy: Proxy read error ", err.Error())
-					conn2.Close()
+					message.PrintWarn("[1]websocket: Proxy read error ", err.Error())
+					proxy.ProxyConn.Close()
 					return
 				}
 			}
 
 			// fmt.Println("read from postman:", buffer[:n])
 
-			_, err = conn2.Write(buffer[:n])
+			_, err = proxy.ProxyConn.Write(buffer[:n])
 			if err != nil {
 				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-					fmt.Println("tcp_proxy server closed ...")
+					fmt.Println("websocket server closed ...")
 					ev.Close()
 					return
 				} else {
-					conn2.Close()
-					message.PrintWarn("tcp_proxy: Proxy Write error ", err.Error())
+					proxy.ProxyConn.Close()
+					message.PrintWarn("websocket: Proxy Write error ", err.Error())
 					break
 				}
 			}
@@ -56,8 +59,8 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 	buffer := make([]byte, 1024)
 	for {
 
-		conn2.SetDeadline(time.Now().Add(time.Second * 10))
-		n, err := conn2.Read(buffer)
+		proxy.ProxyConn.SetDeadline(time.Now().Add(time.Second * 10))
+		n, err := proxy.ProxyConn.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
 				fmt.Println("eof 2")
@@ -66,27 +69,28 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 				// fmt.Println("time out once 2")
 				continue
 			} else {
-				message.PrintWarn("tcp_proxy: Proxy read error ", err.Error())
-				conn2.Close()
+				message.PrintWarn("websocket: Proxy read error ", err.Error())
+				proxy.ProxyConn.Close()
 				return
 			}
 
 		}
 
-		// fmt.Println("read from tcp_proxy server", buffer[:n])
+		// fmt.Println("read from websocket server", buffer[:n])
 
 		_, err = ev.Conn.Write(buffer[:n])
 		if err != nil {
 
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				fmt.Println("chrome client closed ...")
-				conn2.Close()
+				fmt.Println("postman client closed ...")
+				proxy.ProxyConn.Close()
 				return
 			} else {
-				message.PrintWarn("tcp_proxy: Proxy Write error ", err.Error())
-				conn2.Close()
+				message.PrintWarn("websocket: Proxy Write error ", err.Error())
+				proxy.ProxyConn.Close()
 				break
 			}
 		}
 	}
+
 }
