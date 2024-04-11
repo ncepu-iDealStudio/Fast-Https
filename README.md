@@ -16,10 +16,11 @@ Fast-Https采用模块化的方式设计开发，核心服务器模块支持以�
 1.  在https://gitee.com/ncepu-bj/fast-https/releases/ 获取相应的版本和安装包;
 2.  将相应的安装包解压到服务器的目标目录下;
 3.  修改配置文件;
->>>>>>> release
+
 
 #### 使用说明
-见文档：https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?# 《Fast-Https产品说明》
+见文档：
+https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg?# 《Fast-Https产品说明与使用文档》
 
 #### 自行编译
 1. 编译windows状态栏控制程序
