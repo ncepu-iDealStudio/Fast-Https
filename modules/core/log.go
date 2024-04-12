@@ -17,7 +17,13 @@ type Logger struct {
 }
 
 func Register() {
+	if config.GConfig.LogSplit == "" {
+		config.GConfig.LogSplit = " "
+	}
 	split = config.GConfig.LogSplit
+	if config.GConfig.LogFormat == nil {
+		config.GConfig.LogFormat = []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}
+	}
 	for _, log := range config.GConfig.LogFormat {
 		switch log {
 		case "ip_port":
