@@ -7,10 +7,8 @@ import (
 	"fast-https/modules/core/response"
 	"fmt"
 	"net"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 )
 
 // define the blacklist struct
@@ -148,15 +146,8 @@ func IsInBlacklist(ev *core.Event) bool {
 		ev.RR.Req_ = request.ReqInit(false)
 		useless_data := make([]byte, 2048)
 		ev.Conn.Read(useless_data)
-		ev.RR.Res_.SetFirstLine(403, "Forbidden")
-		ev.RR.Res_.SetHeader("Server", "Fast-Https")
-		ev.RR.Res_.SetHeader("Date", time.Now().String())
-
-		ev.RR.Res_.SetHeader("Content-Type", "text/html")
-		ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len([]byte(response.HTTP_BLACK_BAN))))
-		ev.RR.Res_.SetHeader("Connection", "close")
-		ev.RR.Res_.SetBody([]byte(response.HTTP_BLACK_BAN))
-
+		res := response.DefaultBlackBan()
+		ev.RR.Res_ = res
 		ev.WriteResponseClose(nil)
 		core.Log(&ev.Log, ev, "")
 		return true

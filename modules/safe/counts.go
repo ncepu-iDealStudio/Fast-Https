@@ -4,7 +4,6 @@ import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -125,13 +124,6 @@ func CountHandler(rr core.RRcircle) {
 	// message.PrintSafe(rr.Ev.Conn.RemoteAddr().String(),
 	// 	" INFORMAL Event(too many)"+rr.Ev.Log,
 	// 	"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
-	rr.Ev.RR.Res_.SetFirstLine(403, "NOT TOO MANY")
-	rr.Ev.RR.Res_.SetHeader("Server", "Fast-Https")
-	rr.Ev.RR.Res_.SetHeader("Date", time.Now().String())
-
-	rr.Ev.RR.Res_.SetHeader("Content-Type", "text/html")
-	rr.Ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len([]byte(response.HTTP_TOO_MANY))))
-	rr.Ev.RR.Res_.SetBody([]byte(response.HTTP_TOO_MANY))
-
+	rr.Ev.RR.Res_ = response.DefaultTooMany()
 	rr.Ev.WriteResponseClose(nil)
 }
