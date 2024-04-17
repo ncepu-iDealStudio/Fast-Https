@@ -56,7 +56,8 @@ func Log(l *Logger, ev *Event, s string) {
 	for _, log := range GLogMap {
 		log(l, s, ev)
 	}
-	message.PrintAccess(l.s)
+	str := l.s
+	message.PrintAccess(str)
 }
 
 // append string after index
