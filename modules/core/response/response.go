@@ -76,6 +76,18 @@ func (r *Response) GenerateResponse() []byte {
 	return res
 }
 
+func (r *Response) GenerateHeaderBytes() []byte {
+	var res []byte
+	response := r.FirstLine + HTTP_SPLIT
+	for key, value := range r.Headers {
+		response += fmt.Sprintf("%s: %s\r\n", key, value)
+	}
+	res = append(res, []byte(response)...)
+	res = append(res, []byte("\r\n")...)
+
+	return res
+}
+
 func (r *Response) HttpResParse(request string) error {
 
 	if request == "" {

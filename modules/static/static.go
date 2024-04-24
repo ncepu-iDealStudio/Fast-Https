@@ -3,10 +3,13 @@ package static
 import (
 	"bytes"
 	"fast-https/config"
-	"fast-https/modules/cache"
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
+	"fast-https/utils/message"
+	"io"
+	"io/fs"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -21,6 +24,24 @@ func init() {
 	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent, nil)
 }
 
+func fileFdSize(pathName string) (file *os.File, size int64) {
+	var err error
+	file, err = os.Open(pathName)
+	if err != nil {
+		message.PrintErr("no such file")
+		return nil, -1
+	}
+
+	var info fs.FileInfo
+	info, err = file.Stat()
+	if err != nil {
+		return nil, -1
+	}
+	size = info.Size()
+
+	return
+}
+
 func getResBytes(lisdata *listener.ListenCfg,
 	path string, connection string, ev *core.Event) int {
 	// if config.GOs == "windows" {
@@ -30,52 +51,89 @@ func getResBytes(lisdata *listener.ListenCfg,
 	// Simple-Line-Icons4c82.ttf?-i3a2kk
 	path_type := strings.Split(path, "?")
 	path = path_type[0]
-	var file_data = cache.Get_data_from_cache(path)
+	// var file_data = cache.Get_data_from_cache(path)
 	// var file_data = []byte("cache.Get_data_from_cache(path)")
+	file, file_size := fileFdSize(path)
 
 	ev.RR.Res_.SetFirstLine(200, "OK")
 	ev.RR.Res_.SetHeader("Server", "Fast-Https")
 	ev.RR.Res_.SetHeader("Date", time.Now().String())
 
-	if file_data != nil {
+	if file != nil {
 
 		ev.RR.Res_.SetHeader("Content-Type", getContentType(path))
-		ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len(file_data)))
+		ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
 		if lisdata.Zip == 1 {
 			ev.RR.Res_.SetHeader("Content-Encoding", "gzip")
 		}
 		ev.RR.Res_.SetHeader("Connection", connection)
 
-		ev.RR.Res_.SetBody(file_data)
+		// write first line and headers
+		ev.Conn.Write(ev.RR.Res_.GenerateHeaderBytes())
+
+		for {
+			// 读取文件内容
+			n, err := file.Read(ev.RR.ReqBuf)
+			if err != nil {
+				if err != io.EOF {
+					file.Close()
+					return -10
+				}
+				break
+			}
+
+			// 发送读取到的内容
+			_, err = ev.Conn.Write(ev.RR.ReqBuf[:n])
+			if err != nil {
+				return -10
+			}
+		}
 
 		// core.LogOther(&ev.Log, "status", "200")
 		// core.LogOther(&ev.Log, "size", strconv.Itoa(len(file_data)))
-
+		file.Close()
 		return 1 // find source
 	} // Not Found
 
+	// /*
 	for _, item := range lisdata.StaticIndex { // Find files in default Index array
 
 		realPath := path + item
-		file_data = cache.Get_data_from_cache(realPath)
+		file, file_size := fileFdSize(realPath)
 
-		if file_data != nil {
+		if file != nil {
 
 			ev.RR.Res_.SetHeader("Content-Type", getContentType(realPath))
-			ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len(file_data)))
+			ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
 			if lisdata.Zip == 1 {
 				ev.RR.Res_.SetHeader("Content-Encoding", "gzip")
 			}
 			ev.RR.Res_.SetHeader("Connection", connection)
 
-			ev.RR.Res_.SetBody(file_data)
+			for {
+				// 读取文件内容
+				n, err := file.Read(ev.RR.ReqBuf)
+				if err != nil {
+					if err != io.EOF {
+						return -10
+					}
+					break
+				}
+
+				// 发送读取到的内容
+				_, err = ev.Conn.Write(ev.RR.ReqBuf[:n])
+				if err != nil {
+					return -10
+				}
+			}
+
 			core.LogOther(&ev.Log, "status", "200")
-			core.LogOther(&ev.Log, "size", strconv.Itoa(len(file_data)))
+			core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
 
 			return 1 // find source
 		}
 	}
-
+	// */
 	core.LogOther(&ev.Log, "status", "404")
 	core.LogOther(&ev.Log, "size", "50")
 	return -1
@@ -141,9 +199,9 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
 		if res == -1 {
 			ev.RR.Res_ = response.DefaultNotFound()
-			ev.WriteResponse(nil)
+			//ev.WriteResponse(nil)
 		} else {
-			ev.WriteResponse(nil)
+			//ev.WriteResponse(nil)
 		}
 
 		// core.Log(&ev.Log, ev, "")
@@ -155,9 +213,9 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
 		if res == -1 {
 			ev.RR.Res_ = response.DefaultNotFound()
-			ev.WriteResponseClose(nil)
+			ev.Close()
 		} else {
-			ev.WriteResponseClose(nil)
+			ev.Close()
 		}
 
 		// core.Log(&ev.Log, ev, "")
