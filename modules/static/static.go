@@ -24,6 +24,7 @@ func init() {
 	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent, nil)
 }
 
+// don't forget closing file.
 func fileFdSize(pathName string) (file *os.File, size int64) {
 	var err error
 	file, err = os.Open(pathName)
@@ -89,13 +90,13 @@ func getResBytes(lisdata *listener.ListenCfg,
 			}
 		}
 
-		// core.LogOther(&ev.Log, "status", "200")
-		// core.LogOther(&ev.Log, "size", strconv.Itoa(len(file_data)))
+		core.LogOther(&ev.Log, "status", "200")
+		core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
+
 		file.Close()
 		return 1 // find source
 	} // Not Found
 
-	// /*
 	for _, item := range lisdata.StaticIndex { // Find files in default Index array
 
 		realPath := path + item
@@ -115,6 +116,7 @@ func getResBytes(lisdata *listener.ListenCfg,
 				n, err := file.Read(ev.RR.ReqBuf)
 				if err != nil {
 					if err != io.EOF {
+						file.Close()
 						return -10
 					}
 					break
@@ -129,11 +131,11 @@ func getResBytes(lisdata *listener.ListenCfg,
 
 			core.LogOther(&ev.Log, "status", "200")
 			core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
-
+			file.Close()
 			return 1 // find source
 		}
 	}
-	// */
+
 	core.LogOther(&ev.Log, "status", "404")
 	core.LogOther(&ev.Log, "size", "50")
 	return -1
@@ -199,28 +201,18 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
 		if res == -1 {
 			ev.RR.Res_ = response.DefaultNotFound()
-			//ev.WriteResponse(nil)
-		} else {
-			//ev.WriteResponse(nil)
 		}
-
-		// core.Log(&ev.Log, ev, "")
-		// core.LogClear(&ev.Log)
-
 		ev.Reuse = true
 		// HandleEvent(ev) // recursion
 	} else {
 		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
 		if res == -1 {
 			ev.RR.Res_ = response.DefaultNotFound()
-			ev.Close()
-		} else {
-			ev.Close()
 		}
-
-		// core.Log(&ev.Log, ev, "")
-		// core.LogClear(&ev.Log)
+		ev.Close()
 	}
+	core.Log(&ev.Log, ev, "")
+	core.LogClear(&ev.Log)
 
 	//fmt.Println(runtime.NumGoroutine(), GetGID())
 }
