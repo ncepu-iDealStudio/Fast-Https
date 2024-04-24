@@ -96,7 +96,7 @@ func (r *Req) ParseHost(lis_info listener.Listener) {
 }
 
 // reset request's header
-func (r *Req) SetHeader(key string, val string, cfg listener.ListenCfg) {
+func (r *Req) SetHeader(key string, val string, cfg *listener.ListenCfg) {
 
 	r.Headers[key] = val
 

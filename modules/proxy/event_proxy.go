@@ -368,7 +368,7 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
  ****** Interfaces are as follows ****
  *************************************
  */
-func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
+func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req_.ByteRow()
 
 	var proxy *Proxy
@@ -408,12 +408,12 @@ func ProxyEvent(cfg listener.ListenCfg, ev *core.Event) {
 	}
 }
 
-func ProxyFilterHandler(cfg listener.ListenCfg, ev *core.Event) bool {
+func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	ChangeHead(cfg, ev)
 	return true
 }
 
-func ChangeHead(cfg listener.ListenCfg, ev *core.Event) {
+func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 	for _, item := range cfg.ProxySetHeader {
 		// if item.HeaderKey == "Host" {
 		// 	if item.HeaderValue == "$host" {

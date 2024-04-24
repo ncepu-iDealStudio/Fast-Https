@@ -18,8 +18,10 @@ const (
 
 // request and response circle
 type RRcircle struct {
-	Req_ *request.Req
-	Res_ *response.Response
+	Req_   *request.Req
+	ReqBuf []byte
+	Res_   *response.Response
+	ResBuf []byte
 
 	CircleInit bool
 	IsCircle   bool // default is true
@@ -41,9 +43,9 @@ type RRcircleCommandVal struct {
 
 // callback item
 type RRcircleHandler struct {
-	ParseCommandHandler func(listener.ListenCfg, *Event)
-	FilterHandler       func(listener.ListenCfg, *Event) bool
-	RRHandler           func(listener.ListenCfg, *Event)
+	ParseCommandHandler func(*listener.ListenCfg, *Event)
+	FilterHandler       func(*listener.ListenCfg, *Event) bool
+	RRHandler           func(*listener.ListenCfg, *Event)
 }
 
 // global RRcircle Handler Table
@@ -58,7 +60,7 @@ type Event struct {
 	// so we use net.Conn
 	Conn    net.Conn
 	Stream  interface{}
-	LisInfo listener.Listener
+	LisInfo *listener.Listener
 	Timer   *timer.Timer
 	Log     Logger
 	Type    uint16
@@ -74,8 +76,8 @@ type Event struct {
 
 func (ev *Event) EventReuse() bool { return ev.Reuse }
 
-func RRHandlerRegister(Type int, filter func(listener.ListenCfg, *Event) bool,
-	handler func(listener.ListenCfg, *Event), cmd func(listener.ListenCfg, *Event)) {
+func RRHandlerRegister(Type int, filter func(*listener.ListenCfg, *Event) bool,
+	handler func(*listener.ListenCfg, *Event), cmd func(*listener.ListenCfg, *Event)) {
 	GRRCHT[Type].FilterHandler = filter
 	GRRCHT[Type].RRHandler = handler
 	if cmd != nil {
@@ -85,7 +87,7 @@ func RRHandlerRegister(Type int, filter func(listener.ListenCfg, *Event) bool,
 	}
 }
 
-func NewEvent(l listener.Listener, conn net.Conn) *Event {
+func NewEvent(l *listener.Listener, conn net.Conn) *Event {
 	each_event := Event{
 		Conn:    conn,
 		LisInfo: l,
@@ -132,7 +134,8 @@ func (ev *Event) CheckIfTimeOut(err error) bool {
 func (ev *Event) ReadRequest() []byte {
 	now := time.Now()
 	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
-	buffer := make([]byte, READ_HEADER_BUF_LEN)
+	ev.RR.ReqBuf = make([]byte, READ_HEADER_BUF_LEN)
+	buffer := ev.RR.ReqBuf
 	n, err := ev.Conn.Read(buffer)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
@@ -181,6 +184,7 @@ func EventWriteEarly(ev *Event, _data []byte) error {
 	//fmt.Printf("%p", ev)
 	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
 	data := ev.RR.Res_.GenerateResponse()
+	// data := []byte("HTTP/1.1 200 OK\r\n\r\nhello world")
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {

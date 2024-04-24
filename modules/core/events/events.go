@@ -5,16 +5,21 @@ import (
 	"fast-https/modules/auth"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
+	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/safe"
 	"fast-https/utils/message"
+	"net"
 	"strings"
 	"time"
 )
 
-func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
+func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerControl) {
+	ev := core.NewEvent(l, conn)
 
+	fif := filters.NewFilter() // Filter interface
+	// ev.EventWrite = core.EventWriteEarly
 	ev.EventWrite = EventWrite
 
 	for !ev.IsClose {
@@ -46,7 +51,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 
 	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
-		core.Log(&ev.Log, ev, "")
+		// core.Log(&ev.Log, ev, "")
 		ev.RR.Res_ = response.DefaultNotFound()
 		ev.WriteResponseClose(nil)
 		return
@@ -66,7 +71,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 		return
 	}
 
-	if !auth.AuthHandler(&cfg, ev) {
+	if !auth.AuthHandler(cfg, ev) {
 		return
 	}
 	ev.Type = cfg.Type
@@ -96,7 +101,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	}
 
 	header_read_num := len(byte_row)
-	headerOtherData := make([]byte, core.READ_HEADER_BUF_LEN)
+	// headerOtherData := make([]byte, core.READ_HEADER_BUF_LEN)
 	for {
 		parse := ev.RR.Req_.ParseHeader(byte_row)
 		if parse == request.RequestOk {
@@ -104,12 +109,12 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		} else if parse == request.RequestNeedReadMore { // parse successed !
 
 			ev.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-			datasize, err := ev.Conn.Read(headerOtherData)
+			datasize, err := ev.Conn.Read(ev.RR.ReqBuf)
 			if err != nil { // read error, like time out
 				message.PrintWarn("read header time out", parse)
 				break
 			}
-			byte_row = append(byte_row, headerOtherData[:datasize]...)
+			byte_row = append(byte_row, ev.RR.ReqBuf[:datasize]...)
 			header_read_num += datasize
 			if header_read_num > config.GConfig.Limit.MaxHeaderSize {
 				// header bytes beyond config
@@ -127,21 +132,21 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	}
 
 	// parse host
-	ev.RR.Req_.ParseHost(ev.LisInfo)
+	ev.RR.Req_.ParseHost(*ev.LisInfo)
 
-	otherData := make([]byte, core.READ_BODY_BUF_LEN)
+	// headerOtherData := make([]byte, core.READ_BODY_BUF_LEN)
 	for {
 		ev.RR.Req_.ParseBody(byte_row)
 		if ev.RR.Req_.RequestBodyValid() {
 			break
 		} else {
-			datasize, err := ev.Conn.Read(otherData)
+			datasize, err := ev.Conn.Read(ev.RR.ReqBuf)
 			if err != nil { // read error, like time out
 				message.PrintWarn("read body time out")
 				break
 			}
-			byte_row = append(byte_row, otherData[:datasize]...)
-			ev.RR.Req_.TryFixBody(otherData[:datasize])
+			byte_row = append(byte_row, ev.RR.ReqBuf[:datasize]...)
+			ev.RR.Req_.TryFixBody(ev.RR.ReqBuf[:datasize])
 			if len(ev.RR.Req_.Body) > config.GConfig.Limit.MaxBodySize {
 				// body bytes beyond config
 				break
@@ -156,6 +161,7 @@ func EventWrite(ev *core.Event, _data []byte) error {
 	//fmt.Printf("%p", ev)
 	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
 	data := ev.RR.Res_.GenerateResponse()
+	// data := []byte("HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nhello world")
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {

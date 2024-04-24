@@ -27,11 +27,11 @@ func rewriteInfo(ev *core.Event, path string) {
  *************************************
  */
 
-func ReWriteFilter(cfg listener.ListenCfg, ev *core.Event) bool {
+func ReWriteFilter(cfg *listener.ListenCfg, ev *core.Event) bool {
 	return true
 }
 
-func ReWriteEvent(cfg listener.ListenCfg, ev *core.Event) {
+func ReWriteEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	// path := ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]
 	// fmt.Println(path, cfg.ReWrite)
 	rewriteInfo(ev, cfg.ReWrite)

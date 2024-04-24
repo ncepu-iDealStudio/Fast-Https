@@ -3,9 +3,11 @@ package server
 import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/events"
-	"fast-https/modules/core/filters"
 	"fast-https/modules/core/listener"
-	routinepool "fast-https/modules/core/routine_pool"
+	"fmt"
+	"unsafe"
+
+	// routinepool "fast-https/modules/core/routine_pool"
 	"fast-https/modules/safe"
 	"fast-https/output"
 	"fast-https/utils/message"
@@ -24,7 +26,7 @@ import (
 
 type Server struct {
 	Shutdown core.ServerControl
-	wg       sync.WaitGroup
+	Wg       sync.WaitGroup
 }
 
 // init server
@@ -84,44 +86,45 @@ func (s *Server) setConnCfg(conn *net.Conn) {
 }
 
 // listen and serve one port
-func (s *Server) serveListener(listener listener.Listener) {
+func (s *Server) serveListener(listener1 listener.Listener) {
+
+	l := &listener1
+	fmt.Printf("sizeof event: %d\n", unsafe.Sizeof(core.Event{}))
+	fmt.Printf("sizeof byte: %d\n", unsafe.Sizeof([]byte{100, 200}))
+	fmt.Printf("sizeof liscfg: %d\n", unsafe.Sizeof(listener.ListenCfg{}))
 
 	for !s.Shutdown.Shutdown {
 
-		conn, err := listener.Lfd.Accept()
+		conn, err := listener1.Lfd.Accept()
 		if err != nil {
 			message.PrintErr("Error accepting connection:", err)
 			continue
 		}
 		// s.setConnCfg(&conn)
 
-		each_event := core.NewEvent(listener, conn)
-		fif := filters.NewFilter() // Filter interface
-		each_event.EventWrite = core.EventWriteEarly
+		// if !fif.Fif.ConnFilter(each_event) {
+		// 	continue
+		// }
+		go events.HandleEvent(l, conn, &(s.Shutdown))
 
-		if !fif.Fif.ConnFilter(each_event) {
-			continue
-		}
-		// go events.HandleEvent(each_event)
+		// syncCalculateSum := func() {
+		// 	// if each_event.LisInfo.LisType == 10 {
+		// 	// events.H2HandleEvent(l, conn, &(s.Shutdown))
+		// 	// } else {
+		// 	events.HandleEvent(l, conn, &(s.Shutdown))
+		// 	// }
+		// 	s.wg.Done()
+		// }
 
-		syncCalculateSum := func() {
-			if each_event.LisInfo.LisType == 10 {
-				events.H2HandleEvent(each_event, fif, &(s.Shutdown))
-			} else {
-				events.HandleEvent(each_event, fif, &(s.Shutdown))
-			}
-			s.wg.Done()
-		}
-
-		submitErr := routinepool.ServerPool.Submit(syncCalculateSum)
-		if submitErr != nil {
-			message.PrintWarn("--server: Submit events:", submitErr)
-			// there is no more routine to handle this request...
-			// just close it
-			each_event.Conn.Close()
-		} else {
-			s.wg.Add(1)
-		}
+		// submitErr := routinepool.ServerPool.Submit(syncCalculateSum)
+		// if submitErr != nil {
+		// 	message.PrintWarn("--server: Submit events:", submitErr)
+		// 	// there is no more routine to handle this request...
+		// 	// just close it
+		// 	conn.Close()
+		// } else {
+		// 	s.wg.Add(1)
+		// }
 
 	}
 }

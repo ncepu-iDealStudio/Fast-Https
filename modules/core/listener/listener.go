@@ -6,6 +6,7 @@ import (
 	"fast-https/config"
 	"fast-https/utils/message"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ type ListenCfg struct {
 	SSL        SSLkv
 	ServerName string
 	Path       string
+	PathRe     *regexp.Regexp
 
 	Type           uint16 // 0 1 2 3 4
 	ProxyAddr      string
@@ -94,6 +96,7 @@ func processListenData() {
 					data := ListenCfg{}
 					data.ID = Id
 					data.Path = paths.PathName
+					data.PathRe = regexp.MustCompile(paths.PathName)
 					data.ServerName = server.ServerName + ":" + eachlisten.Port
 					data.Type = paths.PathType
 					data.ProxyAddr = paths.ProxyData

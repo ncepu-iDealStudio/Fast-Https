@@ -21,7 +21,7 @@ func init() {
 	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent, nil)
 }
 
-func getResBytes(lisdata listener.ListenCfg,
+func getResBytes(lisdata *listener.ListenCfg,
 	path string, connection string, ev *core.Event) int {
 	// if config.GOs == "windows" {
 	// 	path = "/" + path
@@ -31,12 +31,13 @@ func getResBytes(lisdata listener.ListenCfg,
 	path_type := strings.Split(path, "?")
 	path = path_type[0]
 	var file_data = cache.Get_data_from_cache(path)
+	// var file_data = []byte("cache.Get_data_from_cache(path)")
 
 	ev.RR.Res_.SetFirstLine(200, "OK")
 	ev.RR.Res_.SetHeader("Server", "Fast-Https")
 	ev.RR.Res_.SetHeader("Date", time.Now().String())
 
-	if file_data != nil { // Not Fount
+	if file_data != nil {
 
 		ev.RR.Res_.SetHeader("Content-Type", getContentType(path))
 		ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(len(file_data)))
@@ -47,11 +48,11 @@ func getResBytes(lisdata listener.ListenCfg,
 
 		ev.RR.Res_.SetBody(file_data)
 
-		core.LogOther(&ev.Log, "status", "200")
-		core.LogOther(&ev.Log, "size", strconv.Itoa(len(file_data)))
+		// core.LogOther(&ev.Log, "status", "200")
+		// core.LogOther(&ev.Log, "size", strconv.Itoa(len(file_data)))
 
 		return 1 // find source
-	}
+	} // Not Found
 
 	for _, item := range lisdata.StaticIndex { // Find files in default Index array
 
@@ -113,7 +114,7 @@ func getContentType(path string) string {
  *************************************
  */
 
-func HandelSlash(cfg listener.ListenCfg, ev *core.Event) bool {
+func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
 	if ev.RR.OriginPath == "" && cfg.Path != "/" {
 		event301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return false
@@ -126,7 +127,7 @@ func HandelSlash(cfg listener.ListenCfg, ev *core.Event) bool {
 // if Content-Type is close, we write bytes and close this connection
 // Recursion "Handle_event" isn't a problem, because it
 // will pause when TCP buffer is None.
-func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
+func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 
 	path := ev.RR.OriginPath
 	if cfg.Path != "/" {
@@ -142,11 +143,11 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 			ev.RR.Res_ = response.DefaultNotFound()
 			ev.WriteResponse(nil)
 		} else {
-			ev.WriteResponse(ev.RR.Res_.GenerateResponse())
+			ev.WriteResponse(nil)
 		}
 
-		core.Log(&ev.Log, ev, "")
-		core.LogClear(&ev.Log)
+		// core.Log(&ev.Log, ev, "")
+		// core.LogClear(&ev.Log)
 
 		ev.Reuse = true
 		// HandleEvent(ev) // recursion
@@ -156,11 +157,11 @@ func StaticEvent(cfg listener.ListenCfg, ev *core.Event) {
 			ev.RR.Res_ = response.DefaultNotFound()
 			ev.WriteResponseClose(nil)
 		} else {
-			ev.WriteResponseClose(ev.RR.Res_.GenerateResponse())
+			ev.WriteResponseClose(nil)
 		}
 
-		core.Log(&ev.Log, ev, "")
-		core.LogClear(&ev.Log)
+		// core.Log(&ev.Log, ev, "")
+		// core.LogClear(&ev.Log)
 	}
 
 	//fmt.Println(runtime.NumGoroutine(), GetGID())

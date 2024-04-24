@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func DefaultParseCommandHandler(cfg listener.ListenCfg, ev *Event) {
+func DefaultParseCommandHandler(cfg *listener.ListenCfg, ev *Event) {
 	ip := ""
 	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
 	// 如果找到了该字符

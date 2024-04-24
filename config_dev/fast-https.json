@@ -22,34 +22,13 @@
     "server": [
       {
         "listen": 8080,
-        "server_name": "127.0.0.1",
-        
+        "server_name": "",
         "location": [
           {
-            "url": "/x",
+            "url": "/",
             "type": "local",
-            "auth": {
-              "type": "basic",
-              "user": "root",
-              "pswd": "123"
-            },
             "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"] ,
-            "limit": {
-              "mem":10,
-              "rate":2,
-              "burst":2
-            }
-          },
-          {
-            "url": "/y",
-            "type": "proxy",
-            "proxy_pass": "http://127.0.0.1:80",
-            "limit": {
-              "mem":10,
-              "rate":5,
-              "burst":5
-            }
+            "index":["index.html", "index.htm"]
           }
         ]
       },
