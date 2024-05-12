@@ -204,7 +204,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 	}
 
 	var resData []byte
-	if !ev.RR.Req_.IsKeepalive() {
+	if !ev.RR.Req.IsKeepalive() {
 		if ev.Upgrade == "websocket" {
 			web := make([]byte, 1024)
 			n, _ := p.Read(web)
@@ -239,7 +239,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 
 	finalData, head_code, b_len := p.ChangeHeader(resData)
 
-	if !ev.RR.Req_.IsKeepalive() && ev.Upgrade == "" { // connection close
+	if !ev.RR.Req.IsKeepalive() && ev.Upgrade == "" { // connection close
 		p.Close()
 	}
 	core.LogOther(&ev.Log, "status", head_code)
@@ -308,7 +308,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 	uriStringMd5, _ := pc.ProcessCacheConfig(ev, "")
 	res, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
 
-	if ev.RR.Req_.Headers["Cache-Control"] == "no-cache" {
+	if ev.RR.Req.Headers["Cache-Control"] == "no-cache" {
 		flag = false
 	}
 
@@ -318,7 +318,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 		// Server error
 		if err != nil {
-			ev.RR.Res_ = response.DefaultServerError()
+			ev.RR.Res = response.DefaultServerError()
 			ev.WriteResponseClose(nil)
 			return
 		}
@@ -330,7 +330,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 	}
 
 	// proxy server return valid data
-	if ev.RR.Req_.IsKeepalive() {
+	if ev.RR.Req.IsKeepalive() {
 		ev.WriteResponse(res)
 		// events.Handle_event(ev)
 		ev.Reuse = true
@@ -344,12 +344,12 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 	res, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
-		ev.RR.Res_ = response.DefaultServerError()
+		ev.RR.Res = response.DefaultServerError()
 		ev.WriteResponseClose(nil)
 		return
 	}
 	// proxy server return valid data
-	if ev.RR.Req_.IsKeepalive() && !p.ProxyNeedClose {
+	if ev.RR.Req.IsKeepalive() && !p.ProxyNeedClose {
 		ev.WriteResponse(res)
 		// events.Handle_event(ev)
 		ev.Reuse = true
@@ -369,7 +369,7 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
  *************************************
  */
 func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
-	req_data := ev.RR.Req_.ByteRow()
+	req_data := ev.RR.Req.ByteRow()
 
 	var proxy *Proxy
 
@@ -386,7 +386,7 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		err := proxy.ProxyInit()
 		if err != nil {
 			message.PrintWarn("--proxy can not init circle" + err.Error())
-			ev.RR.Res_ = response.DefaultServerError()
+			ev.RR.Res = response.DefaultServerError()
 			ev.WriteResponseClose(nil)
 			return
 		}
@@ -421,12 +421,12 @@ func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 		// 	}
 		// }
 		// if !strings.Contains(item.HeaderValue, "$") {
-		ev.RR.Req_.SetHeader(item.HeaderKey,
+		ev.RR.Req.SetHeader(item.HeaderKey,
 			ev.GetCommandParsedStr(item.HeaderValue), cfg)
 		// }
 		// fmt.Println(item.HeaderKey, ev.GetCommandParsedStr(item.HeaderValue))
 	}
 	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 	// ev.RR.Req_.SetHeader("Connection", "close", cfg)
-	ev.RR.Req_.Flush()
+	ev.RR.Req.Flush()
 }

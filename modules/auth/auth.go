@@ -16,7 +16,7 @@ func AuthHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	if !AuthExists(cfg) {
 		return true
 	}
-	req := ev.RR.Req_
+	req := ev.RR.Req
 	basic := req.GetAuthorization()
 	var username string
 	var pswd string
@@ -41,7 +41,7 @@ func AuthHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	res := response.ResponseInit()
 	res.SetFirstLine(401, "Authorization Required")
 	res.SetHeader("www-Authenticate", "Basic realm=\"Access to the staging site\"")
-	ev.RR.Res_ = res
+	ev.RR.Res = res
 	//fmt.Printf("%p", ev)
 	ev.WriteResponseClose(nil)
 	return false

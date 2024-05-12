@@ -18,9 +18,9 @@ const (
 
 // request and response circle
 type RRcircle struct {
-	Req_   *request.Req
+	Req    *request.Request
 	ReqBuf []byte
-	Res_   *response.Response
+	Res    *response.Response
 	ResBuf []byte
 
 	CircleInit bool
@@ -175,7 +175,7 @@ func (ev *Event) Close() {
 
 func (ev *Event) WriteResponseClose(data []byte) {
 	ev.WriteResponse(data)
-	if !ev.RR.Req_.H2 { // TODO: impove this
+	if !ev.RR.Req.H2 { // TODO: impove this
 		ev.Close()
 	}
 }
@@ -183,7 +183,7 @@ func (ev *Event) WriteResponseClose(data []byte) {
 func EventWriteEarly(ev *Event, _data []byte) error {
 	//fmt.Printf("%p", ev)
 	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
-	data := ev.RR.Res_.GenerateResponse()
+	data := ev.RR.Res.GenerateResponse()
 	// data := []byte("HTTP/1.1 200 OK\r\n\r\nhello world")
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)

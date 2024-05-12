@@ -56,21 +56,21 @@ func getResBytes(lisdata *listener.ListenCfg,
 	// var file_data = []byte("cache.Get_data_from_cache(path)")
 	file, file_size := fileFdSize(path)
 
-	ev.RR.Res_.SetFirstLine(200, "OK")
-	ev.RR.Res_.SetHeader("Server", "Fast-Https")
-	ev.RR.Res_.SetHeader("Date", time.Now().String())
+	ev.RR.Res.SetFirstLine(200, "OK")
+	ev.RR.Res.SetHeader("Server", "Fast-Https")
+	ev.RR.Res.SetHeader("Date", time.Now().String())
 
 	if file != nil {
 
-		ev.RR.Res_.SetHeader("Content-Type", getContentType(path))
-		ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
+		ev.RR.Res.SetHeader("Content-Type", getContentType(path))
+		ev.RR.Res.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
 		if lisdata.Zip == 1 {
-			ev.RR.Res_.SetHeader("Content-Encoding", "gzip")
+			ev.RR.Res.SetHeader("Content-Encoding", "gzip")
 		}
-		ev.RR.Res_.SetHeader("Connection", connection)
+		ev.RR.Res.SetHeader("Connection", connection)
 
 		// write first line and headers
-		ev.Conn.Write(ev.RR.Res_.GenerateHeaderBytes())
+		ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes())
 
 		for {
 			// 读取文件内容
@@ -104,12 +104,12 @@ func getResBytes(lisdata *listener.ListenCfg,
 
 		if file != nil {
 
-			ev.RR.Res_.SetHeader("Content-Type", getContentType(realPath))
-			ev.RR.Res_.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
+			ev.RR.Res.SetHeader("Content-Type", getContentType(realPath))
+			ev.RR.Res.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
 			if lisdata.Zip == 1 {
-				ev.RR.Res_.SetHeader("Content-Encoding", "gzip")
+				ev.RR.Res.SetHeader("Content-Encoding", "gzip")
 			}
-			ev.RR.Res_.SetHeader("Connection", connection)
+			ev.RR.Res.SetHeader("Connection", connection)
 
 			for {
 				// 读取文件内容
@@ -176,7 +176,7 @@ func getContentType(path string) string {
 
 func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
 	if ev.RR.OriginPath == "" && cfg.Path != "/" {
-		event301(ev, ev.RR.Req_.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
+		event301(ev, ev.RR.Req.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return false
 	}
 	return true
@@ -188,33 +188,29 @@ func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
 // Recursion "Handle_event" isn't a problem, because it
 // will pause when TCP buffer is None.
 func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
-
-	path := ev.RR.OriginPath
+	rr := ev.RR
+	path := rr.OriginPath
 	if cfg.Path != "/" {
 		path = cfg.StaticRoot + path
 	} else {
-		path = cfg.StaticRoot + ev.RR.Req_.Path
+		path = cfg.StaticRoot + rr.Req.Path
 	}
-	// ev.WriteResponse(ev.RR.Res_.GenerateResponse())
 
-	if ev.RR.Req_.IsKeepalive() {
-		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
+	if rr.Req.IsKeepalive() {
+		res := getResBytes(cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
-			ev.RR.Res_ = response.DefaultNotFound()
+			rr.Res = response.DefaultNotFound()
 		}
 		ev.Reuse = true
-		// HandleEvent(ev) // recursion
 	} else {
-		res := getResBytes(cfg, path, ev.RR.Req_.GetConnection(), ev)
+		res := getResBytes(cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
-			ev.RR.Res_ = response.DefaultNotFound()
+			rr.Res = response.DefaultNotFound()
 		}
 		ev.Close()
 	}
 	core.Log(&ev.Log, ev, "")
 	core.LogClear(&ev.Log)
-
-	//fmt.Println(runtime.NumGoroutine(), GetGID())
 }
 
 func GetGID() uint64 {

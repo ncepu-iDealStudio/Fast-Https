@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bytes"
 	"fast-https/modules/core/listener"
 	"fmt"
 	"strconv"
@@ -43,7 +44,7 @@ func (e *RequestError) Error() string {
 
 // this struct is saved in Event
 // which contaions event's method,path,servername(headers)
-type Req struct {
+type Request struct {
 	// HTTP first line
 	Method   string `name:"request_method"`
 	Path     string `name:"request_uri"`
@@ -52,7 +53,7 @@ type Req struct {
 	// HTTP Headers
 	Headers   map[string]string
 	HeaderLen int
-	Body      []byte
+	Body      bytes.Buffer
 	BodyLen   int
 	H2        bool
 }
@@ -76,15 +77,15 @@ var http_protocol = []string{
 	"HTTP/3",
 }
 
-func ReqInit(h2 bool) *Req {
-	return &Req{
+func RequestInit(h2 bool) *Request {
+	return &Request{
 		Headers: make(map[string]string),
 		H2:      h2,
 	}
 }
 
 // parse Host
-func (r *Req) ParseHost(lis_info listener.Listener) {
+func (r *Request) ParseHost(lis_info listener.Listener) {
 	if r.Headers["Host"] == "" {
 		return
 	}
@@ -96,7 +97,7 @@ func (r *Req) ParseHost(lis_info listener.Listener) {
 }
 
 // reset request's header
-func (r *Req) SetHeader(key string, val string, cfg *listener.ListenCfg) {
+func (r *Request) SetHeader(key string, val string, cfg *listener.ListenCfg) {
 
 	r.Headers[key] = val
 
@@ -120,43 +121,43 @@ func (r *Req) SetHeader(key string, val string, cfg *listener.ListenCfg) {
 }
 
 // flush request struct
-func (r *Req) Flush() {}
+func (r *Request) Flush() {}
 
 // get request header
-func (r *Req) GetHeader(key string) string {
+func (r *Request) GetHeader(key string) string {
 	return r.Headers[key]
 }
 
-func (r *Req) GetHost() string {
+func (r *Request) GetHost() string {
 	return r.Headers["Host"]
 }
 
-func (r *Req) GetConnection() string {
+func (r *Request) GetConnection() string {
 	return r.Headers["Connection"]
 }
 
-func (r *Req) GetContentType() string {
+func (r *Request) GetContentType() string {
 	return r.Headers["Content-Type"]
 }
 
-func (r *Req) GetContentLength() string {
+func (r *Request) GetContentLength() string {
 	return r.Headers["Content-Length"]
 }
 
-func (r *Req) GetUpgrade() string {
+func (r *Request) GetUpgrade() string {
 	return r.Headers["Upgrade"]
 }
 
-func (r *Req) GetTransferEncoding() string {
+func (r *Request) GetTransferEncoding() string {
 	return r.Headers["Transfer-Encoding"]
 }
 
-func (r *Req) GetAuthorization() string {
+func (r *Request) GetAuthorization() string {
 	return r.Headers["Authorization"]
 }
 
 // whether the request connection is keep alive
-func (r *Req) IsKeepalive() bool {
+func (r *Request) IsKeepalive() bool {
 	conn := r.GetConnection()
 	if conn == "keep-alive" {
 		return true
@@ -166,7 +167,7 @@ func (r *Req) IsKeepalive() bool {
 }
 
 // get request row bytes
-func (r *Req) ByteRow() []byte {
+func (r *Request) ByteRow() []byte {
 	rowStr := r.Method + " " +
 		r.Path + " " +
 		r.Protocol + "\r\n"
@@ -176,13 +177,13 @@ func (r *Req) ByteRow() []byte {
 	rowStr = rowStr + "\r\n"
 
 	rowByte := []byte(rowStr)
-	rowByte = append(rowByte, r.Body...)
+	rowByte = append(rowByte, r.Body.Bytes()...)
 
 	return rowByte
 }
 
 // parse row tcp str to a req object
-func (r *Req) ParseHeader(request_byte []byte) error {
+func (r *Request) ParseHeader(request_byte []byte) error {
 	request := string(request_byte)
 	if request == "" {
 		return None
@@ -233,16 +234,16 @@ func (r *Req) ParseHeader(request_byte []byte) error {
 	return RequestNeedReadMore // valid
 }
 
-func (r *Req) RequestHeaderValid() bool {
+func (r *Request) RequestHeaderValid() bool {
 	return true
 }
 
-func (r *Req) TryFixHeader(other []byte) error {
+func (r *Request) TryFixHeader(other []byte) error {
 	return nil
 }
 
 // get request's body
-func (r *Req) ParseBody(tmpByte []byte) {
+func (r *Request) ParseBody(tmpByte []byte) {
 	var i int // last byte position before \r\n\r\n
 	var remain_len int
 	var res []byte
@@ -263,15 +264,15 @@ func (r *Req) ParseBody(tmpByte []byte) {
 		res = (tmpByte[i+4:])[:remain_len]
 	}
 
-	r.Body = res
+	r.Body.Write(res)
 }
 
-func (r *Req) RequestBodyValid() bool {
+func (r *Request) RequestBodyValid() bool {
 	contentType := r.GetContentType()
-	if strings.Index(contentType, "multipart/form-data") != -1 {
+	if strings.Contains(contentType, "multipart/form-data") {
 		po := strings.Index(contentType, "boundary=")
 		boundaryStr := contentType[po+len("boundary="):]
-		if strings.Contains(string(r.Body), boundaryStr+"--") {
+		if strings.Contains(r.Body.String(), boundaryStr+"--") {
 			return true
 		} else {
 			return false
@@ -284,7 +285,7 @@ func (r *Req) RequestBodyValid() bool {
 		if err != nil {
 			panic(err)
 		}
-		if len(r.Body) != n { // content length not equal to body length
+		if r.Body.Len() != n { // content length not equal to body length
 			return false
 		}
 	}
@@ -292,8 +293,9 @@ func (r *Req) RequestBodyValid() bool {
 	return true
 }
 
-func (r *Req) TryFixBody(other []byte) bool {
-	r.Body = append(r.Body, other...)
+func (r *Request) TryFixBody(other []byte) bool {
+	// r.Body = append(r.Body, other...)
+	r.Body.Write(other)
 	if !r.RequestBodyValid() {
 		return false
 	} else {

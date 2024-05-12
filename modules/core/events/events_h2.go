@@ -65,20 +65,20 @@ func CallBack(stream *h2.Stream, ev_conn *core.Event, fif *filters.Filter) {
 
 	header := stream.Bucket.Headers
 	body := stream.Bucket.Body
-	stream_ev.RR.Req_ = request.ReqInit(true)   // Create a request Object
-	stream_ev.RR.Res_ = response.ResponseInit() // Create a res Object
-	stream_ev.RR.Req_.Method = header.Get(":method")
-	stream_ev.RR.Req_.Path = header.Get(":path")
-	stream_ev.RR.Req_.Protocol = "HTTP/2"
-	stream_ev.RR.Req_.Headers["Host"] = header.Get(":authority")
-	stream_ev.RR.Req_.Body = body.Bytes()
+	stream_ev.RR.Req = request.RequestInit(true) // Create a request Object
+	stream_ev.RR.Res = response.ResponseInit()   // Create a res Object
+	stream_ev.RR.Req.Method = header.Get(":method")
+	stream_ev.RR.Req.Path = header.Get(":path")
+	stream_ev.RR.Req.Protocol = "HTTP/2"
+	stream_ev.RR.Req.Headers["Host"] = header.Get(":authority")
+	stream_ev.RR.Req.Body = body.Buffer
 
 	stream_ev.EventWrite = H2EventWrite
 	stream_ev.Stream = stream
 
 	for k, v := range header {
 		if !strings.Contains(k, ":") {
-			stream_ev.RR.Req_.Headers[k] = v[0]
+			stream_ev.RR.Req.Headers[k] = v[0]
 		}
 	}
 
@@ -96,14 +96,14 @@ func H2EventWrite(ev *core.Event, _data []byte) error {
 		message.PrintErr("--events can not convert ev.Stream data to *h2.Stream")
 	}
 	responseHeader := http.Header{}
-	firstLine := strings.Split(ev.RR.Res_.FirstLine, " ")
+	firstLine := strings.Split(ev.RR.Res.FirstLine, " ")
 	if len(firstLine) != 3 {
 		fmt.Println("-----------ev.RR.Res_.FirstLine-------------")
 		return errors.New("h2 event write invalid response first line")
 	}
 	responseHeader.Add(":status", firstLine[1])
 
-	for header, content := range ev.RR.Res_.Headers {
+	for header, content := range ev.RR.Res.Headers {
 		responseHeader.Add(header, content)
 	}
 
@@ -121,7 +121,7 @@ func H2EventWrite(ev *core.Event, _data []byte) error {
 	// each DataFrame has data in window size
 
 	maxFrameSize := stream.PeerSettings[frame.SETTINGS_MAX_FRAME_SIZE]
-	data := ev.RR.Res_.GetBody()
+	data := ev.RR.Res.GetBody()
 	rest := int32(len(data))
 	frameSize := rest
 

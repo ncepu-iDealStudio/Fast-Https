@@ -124,6 +124,6 @@ func CountHandler(rr core.RRcircle) {
 	// message.PrintSafe(rr.Ev.Conn.RemoteAddr().String(),
 	// 	" INFORMAL Event(too many)"+rr.Ev.Log,
 	// 	"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
-	rr.Ev.RR.Res_ = response.DefaultTooMany()
+	rr.Ev.RR.Res = response.DefaultTooMany()
 	rr.Ev.WriteResponseClose(nil)
 }

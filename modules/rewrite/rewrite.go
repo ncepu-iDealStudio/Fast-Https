@@ -15,9 +15,9 @@ func rewriteInfo(ev *core.Event, path string) {
 	//	"Location: " + path + "\r\n" +
 	//	"Connection: close\r\n" +
 	//	"\r\n")
-	ev.RR.Res_.SetFirstLine(301, "Moved Permanently")
-	ev.RR.Res_.SetHeader("Location", path)
-	ev.RR.Res_.SetHeader("Connection", "close")
+	ev.RR.Res.SetFirstLine(301, "Moved Permanently")
+	ev.RR.Res.SetHeader("Location", path)
+	ev.RR.Res.SetHeader("Connection", "close")
 	ev.WriteResponseClose(nil)
 }
 

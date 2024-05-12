@@ -142,12 +142,12 @@ func IsInBlacklist(ev *core.Event) bool {
 	// fmt.Println(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0])
 	if g_list.isInBlacklist(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
 
-		ev.RR.Res_ = response.ResponseInit()
-		ev.RR.Req_ = request.ReqInit(false)
+		ev.RR.Res = response.ResponseInit()
+		ev.RR.Req = request.RequestInit(false)
 		useless_data := make([]byte, 2048)
 		ev.Conn.Read(useless_data)
 		res := response.DefaultBlackBan()
-		ev.RR.Res_ = res
+		ev.RR.Res = res
 		ev.WriteResponseClose(nil)
 		core.Log(&ev.Log, ev, "")
 		return true

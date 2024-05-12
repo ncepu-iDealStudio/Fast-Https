@@ -100,17 +100,17 @@ func log_type(l *Logger, s string, ev *Event) {
 }
 
 func log_method(l *Logger, s string, ev *Event) {
-	l.s += "\"" + ev.RR.Req_.Method + "\""
+	l.s += "\"" + ev.RR.Req.Method + "\""
 	l.s += split
 }
 
 func log_path(l *Logger, s string, ev *Event) {
-	l.s += "\"" + ev.RR.Req_.Path + "\""
+	l.s += "\"" + ev.RR.Req.Path + "\""
 	l.s += split
 }
 
 func log_host(l *Logger, s string, ev *Event) {
-	l.s += "\"" + ev.RR.Req_.GetHost() + "\""
+	l.s += "\"" + ev.RR.Req.GetHost() + "\""
 	l.s += split
 }
 
@@ -125,6 +125,6 @@ func log_size(l *Logger, s string, ev *Event) {
 }
 
 func log_user_agent(l *Logger, s string, ev *Event) {
-	l.s += "\"" + ev.RR.Req_.Headers["User-Agent"] + "\""
+	l.s += "\"" + ev.RR.Req.Headers["User-Agent"] + "\""
 	l.s += split
 }

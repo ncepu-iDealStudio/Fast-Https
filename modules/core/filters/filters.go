@@ -45,9 +45,9 @@ func GListenFilter(ev *core.Event) bool {
 }
 
 func GHttpParseFilter(rr *core.RRcircle) bool {
-	conn := rr.Req_.GetConnection()
+	conn := rr.Req.GetConnection()
 
-	if conn == "Upgrade" && rr.Req_.GetUpgrade() == "websocket" {
+	if conn == "Upgrade" && rr.Req.GetUpgrade() == "websocket" {
 		rr.Ev.Upgrade = "websocket"
 		rr.Ev.Reuse = true
 	}
@@ -55,15 +55,15 @@ func GHttpParseFilter(rr *core.RRcircle) bool {
 }
 
 func GFilterHostPath(ev *core.Event) (*listener.ListenCfg, bool) {
-	hosts := ev.LisInfo.HostMap[ev.RR.Req_.GetHost()]
+	hosts := ev.LisInfo.HostMap[ev.RR.Req.GetHost()]
 	// fmt.Println(hosts)
 	var cfg listener.ListenCfg
 
 	for _, cfg = range hosts {
 		// we can compile this when load config
-		res := cfg.PathRe.FindStringIndex(ev.RR.Req_.Path)
+		res := cfg.PathRe.FindStringIndex(ev.RR.Req.Path)
 		if res != nil {
-			originPath := ev.RR.Req_.Path[res[1]:]
+			originPath := ev.RR.Req.Path[res[1]:]
 			ev.RR.OriginPath = originPath
 			ev.RR.PathLocation = res
 
@@ -74,9 +74,9 @@ func GFilterHostPath(ev *core.Event) (*listener.ListenCfg, bool) {
 	hosts2 := ev.LisInfo.HostMap[config.DEFAULT_PORT]
 	for _, cfg = range hosts2 {
 		// we can compile this when load config
-		res := cfg.PathRe.FindStringIndex(ev.RR.Req_.Path)
+		res := cfg.PathRe.FindStringIndex(ev.RR.Req.Path)
 		if res != nil {
-			originPath := ev.RR.Req_.Path[res[1]:]
+			originPath := ev.RR.Req.Path[res[1]:]
 			ev.RR.OriginPath = originPath
 			ev.RR.PathLocation = res
 
