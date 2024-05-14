@@ -4,8 +4,6 @@ import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
-	"fmt"
-	"unsafe"
 
 	// routinepool "fast-https/modules/core/routine_pool"
 	"fast-https/modules/safe"
@@ -18,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "fast-https/modules/dev_mod"
 	_ "fast-https/modules/proxy"
 	_ "fast-https/modules/rewrite"
 	_ "fast-https/modules/static"
@@ -89,9 +88,9 @@ func (s *Server) setConnCfg(conn *net.Conn) {
 func (s *Server) serveListener(listener1 listener.Listener) {
 
 	l := &listener1
-	fmt.Printf("sizeof event: %d\n", unsafe.Sizeof(core.Event{}))
-	fmt.Printf("sizeof byte: %d\n", unsafe.Sizeof([]byte{100, 200}))
-	fmt.Printf("sizeof liscfg: %d\n", unsafe.Sizeof(listener.ListenCfg{}))
+	// fmt.Printf("sizeof core.Event{}: %d\n", unsafe.Sizeof(core.Event{}))
+	// fmt.Printf("sizeof []byte: %d\n", unsafe.Sizeof([]byte{100, 200}))
+	// fmt.Printf("sizeof listener.ListenCfg{}: %d\n", unsafe.Sizeof(listener.ListenCfg{}))
 
 	for !s.Shutdown.Shutdown {
 
@@ -100,9 +99,12 @@ func (s *Server) serveListener(listener1 listener.Listener) {
 			message.PrintErr("Error accepting connection:", err)
 			continue
 		}
-		// s.setConnCfg(&conn)
 
-		go events.HandleEvent(l, conn, &(s.Shutdown))
+		if l.LisType == 10 {
+			go events.H2HandleEvent(l, conn, &(s.Shutdown))
+		} else {
+			go events.HandleEvent(l, conn, &(s.Shutdown))
+		}
 	}
 }
 

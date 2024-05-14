@@ -7,18 +7,25 @@ import (
 	"fast-https/modules/core/h2"
 	"fast-https/modules/core/h2/conn"
 	frame "fast-https/modules/core/h2/frame"
+	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
 	"fast-https/modules/core/h2/hpack"
 )
 
-func H2HandleEvent(ev_conn *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
+func H2HandleEvent(l *listener.Listener, conn1 net.Conn, shutdown *core.ServerControl) {
+
+	ev_conn := core.NewEvent(l, conn1)
+
+	fif := filters.NewFilter() // Filter interface
+	ev_conn.EventWrite = H2EventWrite
 
 	Connh2 := conn.NewConn(ev_conn.Conn)
 
