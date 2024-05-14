@@ -39,106 +39,98 @@ func fileFdSize(pathName string) (file *os.File, size int64) {
 		return nil, -1
 	}
 	size = info.Size()
-
+	if info.IsDir() { // pathName is a dir
+		return nil, -1
+	}
 	return
+}
+
+func writeHeader(rr *core.RRcircle, firstLineCode int) {
+	rr.Res.SetFirstLine(firstLineCode, "OK")
+	rr.Res.SetHeader("Server", "Fast-Https")
+	rr.Res.SetHeader("Date", time.Now().String())
+}
+
+func fileReadWrite(file *os.File, ev *core.Event) int {
+	rr := ev.RR
+	for {
+		// 读取文件内容
+		n, err := file.Read(rr.ReqBuf)
+		if err != nil {
+			if err != io.EOF {
+				file.Close()
+				return -10
+			}
+			file.Close()
+			break
+		}
+
+		// 发送读取到的内容
+		_, err = ev.Conn.Write(rr.ReqBuf[:n])
+		if err != nil {
+			return -10
+		}
+	}
+	return 0
 }
 
 func getResBytes(lisdata *listener.ListenCfg,
 	path string, connection string, ev *core.Event) int {
-	// if config.GOs == "windows" {
-	// 	path = "/" + path
-	// }
+
+	rr := ev.RR
 	// Handle request like this :
 	// Simple-Line-Icons4c82.ttf?-i3a2kk
 	path_type := strings.Split(path, "?")
-	path = path_type[0]
-	// var file_data = cache.Get_data_from_cache(path)
-	// var file_data = []byte("cache.Get_data_from_cache(path)")
-	file, file_size := fileFdSize(path)
 
-	ev.RR.Res.SetFirstLine(200, "OK")
-	ev.RR.Res.SetHeader("Server", "Fast-Https")
-	ev.RR.Res.SetHeader("Date", time.Now().String())
+	realPath := path_type[0]
+	// var file_data = cache.Get_data_from_cache(realPath)
+	// var file_data = []byte("cache.Get_data_from_cache(realPath)")
 
-	if file != nil {
+	var file *os.File   // file fd
+	var file_size int64 // file size
 
-		ev.RR.Res.SetHeader("Content-Type", getContentType(path))
-		ev.RR.Res.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
-		if lisdata.Zip == 1 {
-			ev.RR.Res.SetHeader("Content-Encoding", "gzip")
-		}
-		ev.RR.Res.SetHeader("Connection", connection)
+	file, file_size = fileFdSize(realPath)
+	found := false
 
-		// write first line and headers
-		ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes())
-
-		for {
-			// 读取文件内容
-			n, err := file.Read(ev.RR.ReqBuf)
-			if err != nil {
-				if err != io.EOF {
-					file.Close()
-					return -10
-				}
+	if file == nil { // Not Found
+		for _, item := range lisdata.StaticIndex { // Find files in default Index array
+			realPath = realPath + item
+			file, file_size = fileFdSize(realPath)
+			if file != nil {
+				found = true
 				break
 			}
-
-			// 发送读取到的内容
-			_, err = ev.Conn.Write(ev.RR.ReqBuf[:n])
-			if err != nil {
-				return -10
-			}
 		}
-
-		core.LogOther(&ev.Log, "status", "200")
-		core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
-
-		file.Close()
-		return 1 // find source
-	} // Not Found
-
-	for _, item := range lisdata.StaticIndex { // Find files in default Index array
-
-		realPath := path + item
-		file, file_size := fileFdSize(realPath)
-
-		if file != nil {
-
-			ev.RR.Res.SetHeader("Content-Type", getContentType(realPath))
-			ev.RR.Res.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
-			if lisdata.Zip == 1 {
-				ev.RR.Res.SetHeader("Content-Encoding", "gzip")
-			}
-			ev.RR.Res.SetHeader("Connection", connection)
-
-			for {
-				// 读取文件内容
-				n, err := file.Read(ev.RR.ReqBuf)
-				if err != nil {
-					if err != io.EOF {
-						file.Close()
-						return -10
-					}
-					break
-				}
-
-				// 发送读取到的内容
-				_, err = ev.Conn.Write(ev.RR.ReqBuf[:n])
-				if err != nil {
-					return -10
-				}
-			}
-
-			core.LogOther(&ev.Log, "status", "200")
-			core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
-			file.Close()
-			return 1 // find source
-		}
+	} else {
+		found = true
 	}
 
-	core.LogOther(&ev.Log, "status", "404")
-	core.LogOther(&ev.Log, "size", "50")
-	return -1
+	if !found {
+		core.LogOther(&ev.Log, "status", "404")
+		core.LogOther(&ev.Log, "size", "50")
+		return -1
+	}
+
+	writeHeader(&rr, 200)
+	rr.Res.SetHeader("Content-Type", getContentType(realPath))
+	rr.Res.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
+	if lisdata.Zip == 1 {
+		rr.Res.SetHeader("Content-Encoding", "gzip")
+	}
+	rr.Res.SetHeader("Connection", connection)
+
+	// write first line and headers
+	ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes())
+
+	// write body
+	if fileReadWrite(file, ev) != 0 { // some error
+		return -10
+	}
+
+	core.LogOther(&ev.Log, "status", "200")
+	core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
+
+	return 1 // find source
 }
 
 // get this endpoint's content type
@@ -185,8 +177,6 @@ func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
 // handle static events
 // if requests want to keep-alive, we use write bytes,
 // if Content-Type is close, we write bytes and close this connection
-// Recursion "Handle_event" isn't a problem, because it
-// will pause when TCP buffer is None.
 func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	rr := ev.RR
 	path := rr.OriginPath
