@@ -51,7 +51,7 @@ type RRcircleHandler struct {
 // global RRcircle Handler Table
 // I think array is the best struct to
 // store these handlers ...
-var GRRCHT [10]RRcircleHandler
+var GRRCHT [20]RRcircleHandler
 
 // each request event is saved in this struct
 type Event struct {

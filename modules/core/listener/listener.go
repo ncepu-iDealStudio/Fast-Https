@@ -27,10 +27,12 @@ type ListenCfg struct {
 	Path       string
 	PathRe     *regexp.Regexp
 
+	// 10 is dev mod
 	Type           uint16 // 0 1 2 3 4
 	ProxyAddr      string
 	ProxySetHeader []config.Header
 	ProxyCache     config.Cache
+	AppFireWall    []string
 	ReWrite        string
 
 	Limit config.PathLimit
@@ -101,6 +103,7 @@ func processListenData() {
 					data.Type = paths.PathType
 					data.ProxyAddr = paths.ProxyData
 					data.ProxySetHeader = paths.ProxySetHeader
+					data.AppFireWall = paths.AppFireWall
 					data.Limit = paths.Limit
 					data.Auth = paths.Auth
 					data.StaticRoot = paths.Root
