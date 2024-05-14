@@ -3,6 +3,7 @@ package static
 import (
 	"bytes"
 	"fast-https/config"
+	"fast-https/modules/appfirewall"
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
@@ -171,6 +172,7 @@ func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
 		event301(ev, ev.RR.Req.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return false
 	}
+	appfirewall.HandleAppFireWall(cfg, ev.RR.Req)
 	return true
 }
 

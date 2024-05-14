@@ -1,8 +1,11 @@
 package appfirewall
 
-import "fmt"
+import (
+	"fast-https/modules/core/request"
+	"fmt"
+)
 
-func HandleSql(str string) bool {
+func HandleSql(req *request.Request) bool {
 	fmt.Println("This is appfirewall, handle sql")
 
 	return true
