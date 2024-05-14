@@ -28,7 +28,11 @@
             "url": "/",
             "type": "local",
             "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"]
+            "index":["index.html", "index.htm"],
+            "appfirewall": [
+              "sql",
+              "xss"
+            ]
           }
         ]
       },

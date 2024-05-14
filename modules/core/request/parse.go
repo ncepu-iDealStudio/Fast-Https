@@ -96,13 +96,17 @@ func (r *Request) parseQueryParams() {
 	params := strings.Split(queryStr, "&")
 
 	for _, param := range params {
-		pair := strings.Split(param, "=")
-		if len(pair) == 2 {
-			key := pair[0]
-			value := pair[1]
-			r.Query[key] = value
+
+		valIndex := strings.Index(param, "=")
+		if valIndex != -1 {
+			key := param[:valIndex]
+			valStr := param[valIndex+1:]
+			r.Query[key] = valStr
 		}
+
 	}
+
+	//r.Query["44"] = `<a onblur="alert(secret)" href="http://www.google.com">Google</a>`
 
 }
 
