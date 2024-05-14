@@ -34,6 +34,8 @@ const (
 	PROXY_HTTPS = 2
 	PROXY_TCP   = 3
 	REWRITE     = 4
+
+	EDVMOD = 10
 )
 
 type ErrorPath struct {
@@ -82,6 +84,7 @@ type Path struct {
 	Rewrite        string
 	ProxyData      string
 	ProxySetHeader []Header
+	AppFireWall    []string
 	ProxyCache     Cache
 	Limit          PathLimit
 	Auth           PathAuth
@@ -300,6 +303,8 @@ func process() error {
 					pathPrefix, locationKey)),
 				ProxySetHeader: getHeaders(fmt.Sprintf("%s.%d.proxy_set_header",
 					pathPrefix, locationKey)),
+				AppFireWall: viper.GetStringSlice(fmt.Sprintf("%s.%d.appfirewall",
+					pathPrefix, locationKey)),
 				ProxyCache: Cache{
 					Path: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
 						pathPrefix, locationKey)),
@@ -355,6 +360,9 @@ func process() error {
 			}
 			if TempPathType == "rewrite" {
 				path.PathType = 4
+			}
+			if TempPathType == "devmod" {
+				path.PathType = 10
 			}
 			if TempPathType == "proxy" {
 				TempProxyData := path.ProxyData

@@ -34,15 +34,13 @@
       },
       {
         "listen": "4443 ssl h2",
-        "server_name": "localhost",
-        "ssl_certificate": "config/cert/localhost.pem",
-        "ssl_certificate_key": "config/cert/localhost-key.pem",
+        "server_name": "127.0.0.1",
+        "ssl_certificate": "config/cert/127.0.0.1.pem",
+        "ssl_certificate_key": "config/cert/127.0.0.1-key.pem",
         "location": [
           {
             "url": "/",
-            "type": "local",
-            "root": "./httpdoc/theme",
-            "index":["index.html", "index.htm"] 
+            "type": "devmod"
           }
         ]
       },
@@ -76,6 +74,10 @@
                 "HeaderKey": "Host",
                 "HeaderValue": "$proxy_host"
               }
+            ],
+            "appfirewall": [
+              "sql",
+              "xss"
             ]
           }
         ]
