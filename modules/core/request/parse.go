@@ -48,6 +48,7 @@ type Request struct {
 	// HTTP first line
 	Method   string `name:"request_method"`
 	Path     string `name:"request_uri"`
+	Query    PathQuery
 	Protocol string
 	Encoding []string
 	// HTTP Headers
@@ -80,8 +81,29 @@ var http_protocol = []string{
 func RequestInit(h2 bool) *Request {
 	return &Request{
 		Headers: make(map[string]string),
+		Query:   make(map[string]string),
 		H2:      h2,
 	}
+}
+
+func (r *Request) parseQueryParams() {
+	queryIndex := strings.Index(r.Path, "?")
+	if queryIndex == -1 {
+		return
+	}
+
+	queryStr := r.Path[queryIndex+1:]
+	params := strings.Split(queryStr, "&")
+
+	for _, param := range params {
+		pair := strings.Split(param, "=")
+		if len(pair) == 2 {
+			key := pair[0]
+			value := pair[1]
+			r.Query[key] = value
+		}
+	}
+
 }
 
 // parse Host
@@ -94,6 +116,8 @@ func (r *Request) ParseHost(lis_info listener.Listener) {
 	} else if lis_info.Port == "443" {
 		r.Headers["Host"] = r.Headers["Host"] + ":443"
 	}
+
+	r.parseQueryParams() // temp put here
 }
 
 // reset request's header
