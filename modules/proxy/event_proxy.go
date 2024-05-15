@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fast-https/config"
+	"fast-https/modules/appfirewall"
 	"fast-https/modules/cache"
 	"fast-https/modules/core"
 	"fast-https/utils"
@@ -410,6 +411,7 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 
 func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	ChangeHead(cfg, ev)
+	appfirewall.HandleAppFireWall(cfg, ev.RR.Req)
 	return true
 }
 
