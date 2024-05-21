@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # 定义配置文件路径
-CONFIG_FILE="./config_dev/consts.go"
+CONFIG_FILE="./config/consts.go"
 
 # 定义临时文件
-TEMP_FILE="./config_dev/consts_temp.go"
+TEMP_FILE="./config/consts_temp.go"
 
 # 替换字符串并构建函数
 replace_and_build() {
@@ -23,12 +23,14 @@ replace_and_build() {
     # 执行 go build
     go build
 
+    mv ./fast-https $2
+
     # 恢复原配置文件
     mv "${CONFIG_FILE}.bak" $CONFIG_FILE
 }
 
-# 替换 engine_slaveC 为 engine_slaveA 并构建
-replace_and_build "engine_slaveC" "engine_slaveA"
-
-# 替换 engine_slaveC 为 engine_slaveB 并构建
-replace_and_build "engine_slaveC" "engine_slaveB"
+# 替换 engine_xxxx 为 engine_slaveA 并构建
+replace_and_build "engine_xxxx" "engine_master"
+replace_and_build "engine_xxxx" "engine_slaveA"
+replace_and_build "engine_xxxx" "engine_slaveB"
+replace_and_build "engine_xxxx" "engine_slaveC"
