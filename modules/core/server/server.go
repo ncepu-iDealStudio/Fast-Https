@@ -2,6 +2,7 @@ package server
 
 import (
 	"fast-https/modules/core"
+	"fast-https/modules/core/engine"
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
 
@@ -115,7 +116,10 @@ func (s *Server) Run() {
 
 	// TODO: improve this
 	safe.Init() // need to be call after listener inited ...
-	core.Register()
+	core.LogRegister()
+	// if config.GConfig.ServerEngine.Id != 0 {
+	engine.EngineInit()
+	// }
 
 	for _, value := range listens {
 		go s.serveListener(value)

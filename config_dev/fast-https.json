@@ -1,6 +1,12 @@
 {
   "log_root":"./logs",
   "pid": "./fast-https.pid",
+  "engine": {
+    "is_master": false,
+    "id": "A",
+    "slave_ip": "127.0.0.1",
+    "slave_port": 5001
+  },
   "http": {
     "include": "mime.types",
     "servers_limit": {

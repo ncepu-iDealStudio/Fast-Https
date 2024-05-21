@@ -99,6 +99,14 @@ type Server struct {
 	Path              []Path
 }
 
+type Engine struct {
+	IsMaster     bool
+	Id           int
+	RegisterPort int    // master uses, default 9099
+	SlaveIp      string // slave uses
+	SlavePort    int    // slave uses
+}
+
 type Fast_Https struct {
 	ErrorPage ErrorPath
 	Error_log string
@@ -106,6 +114,7 @@ type Fast_Https struct {
 	LogRoot   string
 
 	Servers                   []Server
+	ServerEngine              Engine
 	Limit                     ServerLimit
 	BlackList                 []string
 	LogSplit                  string
@@ -260,6 +269,13 @@ func process() error {
 		MaxBodySize:   viper.GetInt("http.servers_limit.max_body_size"),
 		Rate:          viper.GetInt("http.servers_limit.limit"),
 		Burst:         viper.GetInt("http.servers_limit.burst"),
+	}
+	fast_https.ServerEngine = Engine{
+		IsMaster:     viper.GetBool("engine.is_master"),
+		Id:           viper.GetInt("engine.id"),
+		RegisterPort: viper.GetInt("engine.register_port"),
+		SlaveIp:      viper.GetString("engine.slave_ip"),
+		SlavePort:    viper.GetInt("engine.slave_port"),
 	}
 
 	fast_https.BlackList = viper.GetStringSlice("http.blaklist")

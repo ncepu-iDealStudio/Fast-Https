@@ -16,7 +16,7 @@ type Logger struct {
 	size   string
 }
 
-func Register() {
+func LogRegister() {
 	if config.GConfig.LogSplit == "" {
 		config.GConfig.LogSplit = " "
 	}
