@@ -37,7 +37,7 @@ func MasterInit() {
 		GUpdate += 1 // 需要更新Map
 		GMapLock.Unlock()
 
-		fmt.Println("Update GMessageMap", GMessageMap)
+		ShowEngineList()
 		go DoHeartBeat(msg, conn) // 检测这个engine是否活跃
 	}
 }

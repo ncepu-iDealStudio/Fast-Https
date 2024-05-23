@@ -10,6 +10,8 @@ import (
 // master 注册中心的ip和端口
 const RegisterAddr string = "127.0.0.1:5000"
 
+const EngineArrayMax int = 32
+
 // 由EngineMessage.Id和EngineMessage构成的map
 // master和slave都有一份
 // master拥有读写权限，slave只有读权限
@@ -20,7 +22,7 @@ var GMessageMap GMessageMapContainer
 
 type GMessageMapContainer struct {
 	Update bool
-	Inner  [32]EngineMessage
+	Inner  [EngineArrayMax]EngineMessage
 }
 
 // 此map的读写应该是多协程的需要加锁
@@ -45,8 +47,19 @@ type EngineMessage struct {
 	AddrInfo Addr
 }
 
+func ShowEngineList() {
+	fmt.Println("========== current engine list ==========")
+	for i := 0; i < EngineArrayMax; i++ {
+		msg := GMessageMap.Inner[i]
+		if msg.AddrInfo.Ip != "" {
+			fmt.Println("	id: ", msg.Id, "addr: ", msg.AddrInfo.Ip, ":", msg.AddrInfo.Port)
+		}
+	}
+	fmt.Println("=========================================")
+}
+
 func EngineInit() {
-	fmt.Printf("sizeof core.Event{}: %d\n", unsafe.Sizeof(GMessageMapContainer{}))
+	fmt.Printf("sizeof GMessageMapContainer{}: %d\n", unsafe.Sizeof(GMessageMapContainer{}))
 	// GMessageMap = make(map[string]EngineMessage)
 	GUpdate = 0
 	if config.GConfig.ServerEngine.IsMaster {

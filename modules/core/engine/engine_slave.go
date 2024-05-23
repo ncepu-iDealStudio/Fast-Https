@@ -21,7 +21,7 @@ func SlaveInit() {
 
 	conn, err := net.Dial("tcp", RegisterAddr)
 	if err != nil {
-		fmt.Println("Error connecting to server:", err)
+		fmt.Println("[engine-slave]: Error connecting to server:")
 		return
 	}
 
@@ -46,9 +46,16 @@ func handleHeartBeat(conn net.Conn) {
 			fmt.Println("[engine-slave]: Error decoding message:", err)
 			break
 		}
+		show := false
+		if GMessageMap != newContainer {
+			show = true
+		}
 		GMessageMap = newContainer
+		if show {
+			ShowEngineList()
+		}
 
-		fmt.Println(GMessageMap)
+		//fmt.Println(GMessageMap)
 		fmt.Println("[engine-slave]: reply heart beat ok")
 		n, err := conn.Write([]byte("ok"))
 		if n != 2 || err != nil {

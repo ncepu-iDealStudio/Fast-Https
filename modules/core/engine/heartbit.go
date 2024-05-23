@@ -28,7 +28,7 @@ func DoHeartBeat(slave EngineMessage, conn net.Conn) {
 			encoder := gob.NewEncoder(conn)
 			err := encoder.Encode(&GMessageMap)
 			if err != nil {
-				fmt.Println("update error", err)
+				fmt.Println("[heartbeat]write update error", err)
 			}
 			GUpdateLock.Lock()
 			GUpdate -= 1
@@ -43,7 +43,7 @@ func DoHeartBeat(slave EngineMessage, conn net.Conn) {
 				GUpdateLock.Unlock()
 
 				GMessageMap.Inner[slave.Id] = EngineMessage{}
-				fmt.Println("Update GMessageMap", GMessageMap)
+				ShowEngineList()
 				conn.Close()
 				break
 			}
@@ -58,7 +58,7 @@ func DoHeartBeat(slave EngineMessage, conn net.Conn) {
 			GUpdateLock.Unlock()
 
 			GMessageMap.Inner[slave.Id] = EngineMessage{}
-			fmt.Println("Update GMessageMap", GMessageMap)
+			ShowEngineList()
 			conn.Close()
 			break
 		}
