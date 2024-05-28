@@ -35,6 +35,18 @@
             "type": "local",
             "root": "./httpdoc/root",
             "index":["index.html", "index.htm"],
+            "try": [
+              {
+                "uri": "^.*$",
+                "file":["index.html", "index.htm"],
+                "next":  ""
+              },
+              {
+                "uri": "^.*txt$",
+                "file": ["index.html"],
+                "next": "index.html"
+              }
+            ],
             "appfirewall": [
               "sql",
               "xss"

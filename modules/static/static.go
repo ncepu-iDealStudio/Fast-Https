@@ -75,6 +75,32 @@ func fileReadWrite(file *os.File, ev *core.Event) int {
 	return 0
 }
 
+func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool, file *os.File, file_size int64) {
+	file, file_size = fileFdSize(path)
+
+	if file == nil { // Not Found
+		for _, item := range try.Files { // Find files in default Index array
+			p := path + item
+			file, file_size = fileFdSize(p)
+			if file != nil {
+				found = true
+				break
+			}
+		}
+	} else {
+		found = true
+	}
+
+	if !found && try.Next != "" {
+		file, file_size = fileFdSize(cfg.StaticRoot + "/" + try.Next)
+		if file != nil {
+			found = true
+		}
+	}
+
+	return found, file, file_size
+}
+
 func getResBytes(lisdata *listener.ListenCfg,
 	path string, connection string, ev *core.Event) int {
 
@@ -89,21 +115,20 @@ func getResBytes(lisdata *listener.ListenCfg,
 
 	var file *os.File   // file fd
 	var file_size int64 // file size
+	var found bool
 
-	file, file_size = fileFdSize(realPath)
-	found := false
-
-	if file == nil { // Not Found
-		for _, item := range lisdata.StaticIndex { // Find files in default Index array
-			realPath = realPath + item
-			file, file_size = fileFdSize(realPath)
-			if file != nil {
-				found = true
-				break
-			}
+	for _, try := range lisdata.Trys {
+		if mathed := try.UriRe.Match([]byte(rr.Req.Path)); !mathed {
+			continue
 		}
-	} else {
-		found = true
+		found, file, file_size = dofind(realPath, &try, lisdata)
+		if found || try.Next != "" {
+			break
+		}
+	}
+
+	if lisdata.Trys == nil {
+		found, file, file_size = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex}, nil)
 	}
 
 	if !found {
@@ -113,7 +138,7 @@ func getResBytes(lisdata *listener.ListenCfg,
 	}
 
 	writeHeader(&rr, 200)
-	rr.Res.SetHeader("Content-Type", getContentType(realPath))
+	rr.Res.SetHeader("Content-Type", getContentType(file.Name()))
 	rr.Res.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
 	if lisdata.Zip == 1 {
 		rr.Res.SetHeader("Content-Encoding", "gzip")

@@ -75,6 +75,12 @@ type ServerLimit struct {
 	Burst         int
 }
 
+type Try struct {
+	Uri   string
+	Files []string
+	Next  string
+}
+
 type Path struct {
 	PathName       string
 	PathType       uint16
@@ -82,6 +88,7 @@ type Path struct {
 	Root           string
 	Index          []string
 	Rewrite        string
+	Trys           []Try
 	ProxyData      string
 	ProxySetHeader []Header
 	AppFireWall    []string
@@ -350,6 +357,17 @@ func process() error {
 						pathPrefix, locationKey)),
 				},
 			}
+			tryKeys := viper.GetStringSlice(fmt.Sprintf("%s.%d.try", pathPrefix, locationKey))
+
+			for tryKey := range tryKeys {
+				try := Try{
+					Uri:   viper.GetString(fmt.Sprintf("%s.%d.try.%d.uri", pathPrefix, locationKey, tryKey)),
+					Files: viper.GetStringSlice(fmt.Sprintf("%s.%d.try.%d.file", pathPrefix, locationKey, tryKey)),
+					Next:  viper.GetString(fmt.Sprintf("%s.%d.try.%d.next", pathPrefix, locationKey, tryKey)),
+				}
+				path.Trys = append(path.Trys, try)
+			}
+
 			TempZip := viper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
 			if len(TempZip) > 0 {
 				if len(TempZip) == 1 {

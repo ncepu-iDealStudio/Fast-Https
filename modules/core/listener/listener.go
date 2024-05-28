@@ -19,6 +19,12 @@ type SSLkv struct {
 	SslValue string
 }
 
+type Try struct {
+	UriRe *regexp.Regexp
+	Files []string
+	Next  string
+}
+
 // struct like confgure "location"
 type ListenCfg struct {
 	ID         int
@@ -26,6 +32,7 @@ type ListenCfg struct {
 	ServerName string
 	Path       string
 	PathRe     *regexp.Regexp
+	Trys       []Try
 
 	// 10 is dev mod
 	Type           uint16 // 0 1 2 3 4
@@ -86,7 +93,7 @@ func ProcessPorts() []string {
 	return Ports
 }
 
-// sort confgure from "path"
+// sort configure from "path"
 func processListenData() {
 	Id := 0
 	for _, server := range config.GConfig.Servers {
@@ -99,6 +106,14 @@ func processListenData() {
 					data.ID = Id
 					data.Path = paths.PathName
 					data.PathRe = regexp.MustCompile(paths.PathName)
+					for _, item := range paths.Trys {
+						try := Try{
+							UriRe: regexp.MustCompile(item.Uri),
+							Files: item.Files,
+							Next:  item.Next,
+						}
+						data.Trys = append(data.Trys, try)
+					}
 					data.ServerName = server.ServerName + ":" + eachlisten.Port
 					data.Type = paths.PathType
 					data.ProxyAddr = paths.ProxyData
