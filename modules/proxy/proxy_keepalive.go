@@ -59,6 +59,9 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 		// fmt.Println(res.GetHeader("Content-Length"))
 		contentLength, _ = strconv.Atoi(res.GetHeader("Content-Length"))
 		NeedRead := contentLength - (tmpLen - i - 4)
+		ro.bodyPosition = i + 4
+		ro.body = tmpData[i+4:]
+		ro.res = res
 		return NeedRead
 	} else if res.GetHeader("Transfer-Encoding") == "chunked" {
 		ro.bodyPosition = i + 4
@@ -113,7 +116,7 @@ func Parse(data string) ([]byte, int64) {
 		after = append(after, []byte(dataPart)...)
 
 		// 更新起始位置，准备处理下一个数据区
-		startIndex = endDataIndex
+		startIndex = endDataIndex + 2
 	}
 
 	fmt.Println("数据解析完成")
@@ -122,16 +125,13 @@ func Parse(data string) ([]byte, int64) {
 }
 
 func (ro *ReadOnce) parseChunked() {
-	// 2b81\r\n
-	// dddddddddd
-	// 0\r\n
-	// \r\n
 	var p int
 	// var after_body []byte
 	// var total_length int64
 	for {
 		if p = strings.Index(string(ro.body), "0\r\n\r\n"); p != -1 { // last block
 
+			// data := []byte("2\r\n11\r\n20\r\n22222222222222222222222222222222\r\n5\r\n33333\r\n0\r\n\r\n")
 			_, _ = Parse(string(ro.body))
 			// after_body, total_length = Parse(string(ro.body))
 			// fmt.Println(total_length)
