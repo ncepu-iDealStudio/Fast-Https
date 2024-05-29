@@ -7,8 +7,8 @@ import (
 	"fast-https/modules/appfirewall"
 	"fast-https/modules/cache"
 	"fast-https/modules/core"
-	"fast-https/utils"
 	"fmt"
+	"strconv"
 	"time"
 
 	"fast-https/modules/core/listener"
@@ -16,7 +16,6 @@ import (
 	"fast-https/utils/message"
 	"io"
 	"net"
-	"strconv"
 	"strings"
 )
 
@@ -27,6 +26,9 @@ type Proxy struct {
 	ProxyType      int
 	ProxyNeedCache bool
 	ProxyNeedClose bool
+	Write          func([]byte) (int, error)
+	Read           func([]byte) (int, error)
+	Close          func() error
 }
 
 func init() {
@@ -47,15 +49,24 @@ func (m *Proxy) Error() string {
 }
 
 // connect to the server
+// init read write close handler
 func (p *Proxy) ProxyInit() error {
 	var err error
 
 	p.ProxyConn, err = net.Dial("tcp", p.ProxyAddr)
 
+	p.Read = p.read
+	p.Write = p.write
+	p.Close = p.close
+
 	if p.ProxyType == config.PROXY_HTTPS {
 		config := tls.Config{InsecureSkipVerify: true}
 		tlsConn := tls.Client(p.ProxyConn, &config)
 		p.ProxyTlsConn = tlsConn
+
+		p.Read = p.readSSL
+		p.Write = p.writeSSL
+		p.Close = p.closeSSL
 	}
 	p.ProxyNeedClose = false // keep-alive default
 
@@ -67,6 +78,40 @@ func (p *Proxy) ProxyInit() error {
 	p.ProxyConn.SetDeadline(now.Add(time.Second * 20)) // proxy server time out
 
 	return nil
+}
+
+// get a inited proxy
+func getProxy(rr *core.RRcircle, cfg *listener.ListenCfg) (*Proxy, error) {
+	var proxy *Proxy
+
+	// init proxy tcp connection
+	if !rr.ProxyConnInit {
+		rr.ProxyConnInit = true
+
+		configCache := true
+		if cfg.ProxyCache.Key == "" {
+			configCache = false
+		}
+
+		proxy = Newproxy(cfg.ProxyAddr, int(cfg.Type), configCache)
+		proxy.proxyHandleAddr()
+		err := proxy.ProxyInit()
+		if err != nil {
+			message.PrintWarn("--proxy can not init circle" + err.Error())
+
+			return nil, errors.New("proxy init error")
+		}
+
+		rr.CircleData = proxy
+	} else {
+		var flag bool
+		proxy, flag = (rr.CircleData).(*Proxy)
+		if !flag {
+			message.PrintErr("--proxy can not convert circle data to *Proxy")
+		}
+	}
+
+	return proxy, nil
 }
 
 // TODO: when add upstream, this function need to do more
@@ -82,91 +127,32 @@ func (p *Proxy) proxyHandleAddr() {
 	}
 }
 
-func (p *Proxy) Read(data []byte) (int, error) {
-	if p.ProxyType == config.PROXY_HTTP {
-		return p.ProxyConn.Read(data)
-	} else if p.ProxyType == config.PROXY_HTTPS {
-		return p.ProxyTlsConn.Read(data)
-	} else {
-		message.PrintErr("--proxy read error")
-		return 0, p
-	}
-}
+func (p *Proxy) ChangeHeader(tmpByte []byte, rr *core.RRcircle) ([]byte, string) {
 
-func (p *Proxy) Write(data []byte) (int, error) {
-	if p.ProxyType == config.PROXY_HTTP {
-		return p.ProxyConn.Write(data)
-	} else if p.ProxyType == config.PROXY_HTTPS {
-		return p.ProxyTlsConn.Write(data)
-	} else {
-		message.PrintErr("--proxy write error")
-		return 0, p
-	}
-}
-
-func (p *Proxy) Close() error {
-	if p.ProxyType == config.PROXY_HTTP {
-		return p.ProxyConn.Close()
-	} else if p.ProxyType == config.PROXY_HTTPS {
-		return p.ProxyTlsConn.Close()
-	} else {
-		message.PrintErr("--proxy close error")
-		return p
-	}
-}
-
-func (p *Proxy) ChangeHeader(tmpByte []byte) ([]byte, string, string) {
-
-	header := make([]byte, 1024*20)
-	var header_str string
-	var header_new string
-
-	var i int
 	var res []byte
-	tmpByteLen := len(tmpByte)
 
-	for i = 0; i < tmpByteLen-4; i++ {
-		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) &&
-			tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
-			break
-		}
-		header[i] = tmpByte[i]
-	}
+	temp_res := response.ResponseInit()
+	temp_res.HttpResParse(string(tmpByte))
 
-	body := tmpByte[i+4:]
-	header_str = string(header[:i])
-	lines := strings.Split(header_str, "\r\n")
-	head_code := strings.Split(lines[0], " ")[1]
-	header_new = lines[0] + "\r\n"
-	if !strings.Contains(header_str, "Connection") {
+	head_code := strings.Split(temp_res.FirstLine, " ")[1]
+
+	if temp_res.Headers["Connection"] == "" {
 		p.ProxyNeedClose = true
 	}
-	for _, line := range lines[1:] {
-		if line == "" {
-			break
-		}
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			value := strings.TrimSpace(parts[1])
-			if strings.Compare(key, "Server") == 0 {
-				header_new = header_new + "Server: Fast-Https\r\n"
-			} else if strings.Compare(key, "Connection") == 0 &&
-				strings.Compare(value, "close") == 0 {
-				header_new = header_new + key + ": " + value + "\r\n"
-				p.ProxyNeedClose = true
-			} else {
-				header_new = header_new + key + ": " + value + "\r\n"
-			}
-		}
+	if temp_res.Headers["Connection"] == "close" {
+		p.ProxyNeedClose = true
 	}
-	header_new = header_new + "\r\n"
 
-	res = append(res, []byte(header_new)...)
-	res = append(res, body...)
-	// res = append(res, []byte("\r\n")...)
+	temp_res.DelHeader("Server")
+	temp_res.SetHeader("Server", "Fast-Https")
 
-	return res, head_code, strconv.Itoa(len(body))
+	temp_body := rr.Res.Body
+	rr.Res = temp_res
+	rr.Res.Body = temp_body
+
+	res = temp_res.GenerateHeaderBytes()
+
+	return res, head_code
 }
 
 func (p *Proxy) proxyReadAll(ev *core.Event) ([]byte, error) {
@@ -230,6 +216,14 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 			message.PrintWarn("Proxy event: Can't read once ", err.Error())
 		}
 		resData = ro.finalStr
+		// fmt.Println(ev.RR.Res)
+		// ev.RR.Res.FirstLine = ro.res.FirstLine
+		// ev.RR.Res.Headers = ro.res.Headers
+		ev.RR.Res.Body = ro.body
+	}
+
+	if !ev.RR.Req.IsKeepalive() && ev.Upgrade == "" { // connection close
+		p.Close()
 	}
 
 	if len(resData) < 4 {
@@ -238,67 +232,15 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 		return nil, errors.New("proxy return null")
 	}
 
-	finalData, head_code, b_len := p.ChangeHeader(resData)
+	b_len := len(ev.RR.Res.Body)
+	headerData, head_code := p.ChangeHeader(resData, &ev.RR)
 
-	if !ev.RR.Req.IsKeepalive() && ev.Upgrade == "" { // connection close
-		p.Close()
-	}
 	core.LogOther(&ev.Log, "status", head_code)
-	core.LogOther(&ev.Log, "size", b_len)
+	core.LogOther(&ev.Log, "size", strconv.Itoa(b_len))
 	core.Log(&ev.Log, ev, "")
 
 	core.LogClear(&ev.Log)
-	return finalData, nil // no error
-}
-
-type ProxyCache struct {
-	ProxyCachePath  string
-	ProxyCacheKey   string
-	ProxyCacheValid []string
-}
-
-func NewProxyCache(key string, valid []string, path string) *ProxyCache {
-	return &ProxyCache{
-		ProxyCacheKey:   key,
-		ProxyCacheValid: valid,
-		ProxyCachePath:  path,
-	}
-}
-
-// to do: improve this function
-func (pc *ProxyCache) ProcessCacheConfig(ev *core.Event,
-	resCode string) (md5 string, expire int) {
-
-	cacheKeyRule := pc.ProxyCacheKey
-
-	ruleString := ev.GetCommandParsedStr(cacheKeyRule)
-
-	// fmt.Println("-------------------", ev.RR.Req_.Path)
-	// fmt.Println("generate cache key value=", ruleString)
-	md5 = cache.GetMd5(ruleString)
-
-	// convert ["200:1h", "304:1h", "any:30m"]
-	valid := pc.ProxyCacheValid
-	for _, c := range valid {
-		split := strings.Split(c, ":")
-		if split[0] != resCode || split[0] == "any" {
-			expire = utils.ParseTime(split[1])
-			// fmt.Println("generate cache expire time=", expire)
-			return
-		}
-	}
-	return
-}
-
-func (pc *ProxyCache) CacheData(ev *core.Event, resCode string,
-	data []byte, size int) {
-
-	// according to usr's config, create a key
-	uriStringMd5, expireTime := pc.ProcessCacheConfig(ev, resCode)
-	cache.GCacheContainer.WriteCache(uriStringMd5, expireTime,
-		pc.ProxyCachePath, data, size)
-	// fmt.Println(cfg.ProxyCache.Key, cfg.ProxyCache.Path,
-	// cfg.ProxyCache.MaxSize, cfg.ProxyCache.Valid)
+	return headerData, nil // no error
 }
 
 func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
@@ -307,7 +249,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 	flag := false
 	uriStringMd5, _ := pc.ProcessCacheConfig(ev, "")
-	res, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
+	_, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
 
 	if ev.RR.Req.Headers["Cache-Control"] == "no-cache" {
 		flag = false
@@ -332,17 +274,17 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 	// proxy server return valid data
 	if ev.RR.Req.IsKeepalive() {
-		ev.WriteResponse(res)
+		ev.WriteResponse(nil)
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else {
-		ev.WriteResponseClose(res)
+		ev.WriteResponseClose(nil)
 	}
 }
 
 func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 
-	res, err := p.getDataFromServer(ev, req_data)
+	_, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
 		ev.RR.Res = response.DefaultServerError()
@@ -351,16 +293,16 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 	}
 	// proxy server return valid data
 	if ev.RR.Req.IsKeepalive() && !p.ProxyNeedClose {
-		ev.WriteResponse(res)
+		ev.WriteResponse(nil)
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else if ev.Upgrade == "websocket" {
 		fmt.Println("-------------------- websocket -------------")
-		ev.WriteResponse(res)
+		ev.WriteResponse(nil)
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else {
-		ev.WriteResponseClose(res)
+		ev.WriteResponseClose(nil)
 	}
 }
 
@@ -372,36 +314,14 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req.ByteRow()
 
-	var proxy *Proxy
-
-	configCache := true
-	if cfg.ProxyCache.Key == "" {
-		configCache = false
+	proxy, err := getProxy(&ev.RR, cfg)
+	if err != nil {
+		ev.RR.Res = response.DefaultServerError()
+		ev.WriteResponseClose(nil)
+		return
 	}
 
-	// init proxy tcp connection
-	if ev.RR.ProxyConnInit == false {
-		ev.RR.ProxyConnInit = true
-		proxy = Newproxy(cfg.ProxyAddr, int(cfg.Type), configCache)
-		proxy.proxyHandleAddr()
-		err := proxy.ProxyInit()
-		if err != nil {
-			message.PrintWarn("--proxy can not init circle" + err.Error())
-			ev.RR.Res = response.DefaultServerError()
-			ev.WriteResponseClose(nil)
-			return
-		}
-
-		ev.RR.CircleData = proxy
-	} else {
-		var flag bool
-		proxy, flag = (ev.RR.CircleData).(*Proxy)
-		if !flag {
-			message.PrintErr("--proxy can not convert circle data to *Proxy")
-		}
-	}
-
-	if configCache {
+	if proxy.ProxyNeedCache {
 		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid, cfg.ProxyCache.Path)
 		proxy.proxyNeedCache(proxyCache, req_data, ev)
 	} else {
@@ -430,5 +350,6 @@ func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 	}
 	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 	// ev.RR.Req_.SetHeader("Connection", "close", cfg)
+	// ev.RR.Req.SetHeader("Accept-Encoding", "", cfg)
 	ev.RR.Req.Flush()
 }
