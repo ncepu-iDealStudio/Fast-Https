@@ -55,15 +55,15 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 	res := response.ResponseInit()
 	res.HttpResParse(string(tmpData))
 	var contentLength int
-	if res.GetHeader("Content-Length") != "" {
+	if res.GetHeader("content-length") != "" {
 		// fmt.Println(res.GetHeader("Content-Length"))
-		contentLength, _ = strconv.Atoi(res.GetHeader("Content-Length"))
+		contentLength, _ = strconv.Atoi(res.GetHeader("content-length"))
 		NeedRead := contentLength - (tmpLen - i - 4)
 		ro.bodyPosition = i + 4
 		ro.body = tmpData[i+4:]
 		ro.res = res
 		return NeedRead
-	} else if res.GetHeader("Transfer-Encoding") == "chunked" {
+	} else if res.GetHeader("transfer-encoding") == "chunked" {
 		ro.bodyPosition = i + 4
 		ro.body = tmpData[i+4:]
 		ro.res = res
@@ -184,6 +184,7 @@ func (ro *ReadOnce) ReadBytes(size int) {
 			message.PrintWarn("ReadBytes error", err)
 		}
 		ro.finalStr = append(ro.finalStr, tmpBuf[:tempLen]...)
+		ro.body = append(ro.body, tmpBuf[:tempLen]...)
 		totalLen -= tempLen
 	}
 }

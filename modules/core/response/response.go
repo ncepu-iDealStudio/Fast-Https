@@ -110,6 +110,7 @@ func (r *Response) HttpResParse(request string) error {
 		}
 		parts := strings.SplitN(line, ":", 2)
 		key := strings.TrimSpace(parts[0])
+		key = strings.ToLower(key)
 		value := strings.TrimSpace(parts[1])
 		r.Headers[key] = value
 	}

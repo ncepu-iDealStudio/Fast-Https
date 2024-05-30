@@ -30,7 +30,7 @@ func fileFdSize(pathName string) (file *os.File, size int64) {
 	var err error
 	file, err = os.Open(pathName)
 	if err != nil {
-		message.PrintErr("no such file")
+		message.PrintWarn("no such file")
 		return nil, -1
 	}
 
@@ -118,7 +118,7 @@ func getResBytes(lisdata *listener.ListenCfg,
 	var found bool
 
 	for _, try := range lisdata.Trys {
-		if mathed := try.UriRe.Match([]byte(rr.Req.Path)); !mathed {
+		if mathed := try.UriRe.Match([]byte(rr.Req.Path)); !mathed && try.Next == "" {
 			continue
 		}
 		found, file, file_size = dofind(realPath, &try, lisdata)

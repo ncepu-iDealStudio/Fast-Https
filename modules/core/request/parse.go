@@ -129,23 +129,23 @@ func (r *Request) SetHeader(key string, val string, cfg *listener.ListenCfg) {
 
 	r.Headers[key] = val
 
-	_, ref := r.Headers["Referer"]
-	if ref {
-		ori := r.Headers["Referer"]
-		after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
-		r.Headers["Referer"] = after
-	}
+	// _, ref := r.Headers["Referer"]
+	// if ref {
+	// 	ori := r.Headers["Referer"]
+	// 	after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
+	// 	r.Headers["Referer"] = after
+	// }
 
-	_, ori := r.Headers["Origin"]
-	if ori {
-		if cfg.Type == 1 {
-			r.Headers["Origin"] = "http://" + cfg.ProxyAddr
-		} else if cfg.Type == 2 {
-			r.Headers["Origin"] = "https://" + cfg.ProxyAddr
-		} else {
-			fmt.Println("SET header error...")
-		}
-	}
+	// _, ori := r.Headers["Origin"]
+	// if ori {
+	// 	if cfg.Type == 1 {
+	// 		r.Headers["Origin"] = "http://" + cfg.ProxyAddr
+	// 	} else if cfg.Type == 2 {
+	// 		r.Headers["Origin"] = "https://" + cfg.ProxyAddr
+	// 	} else {
+	// 		fmt.Println("SET header error...")
+	// 	}
+	// }
 }
 
 // flush request struct

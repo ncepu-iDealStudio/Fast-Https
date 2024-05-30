@@ -136,15 +136,15 @@ func (p *Proxy) ChangeHeader(tmpByte []byte, rr *core.RRcircle) ([]byte, string)
 
 	head_code := strings.Split(temp_res.FirstLine, " ")[1]
 
-	if temp_res.Headers["Connection"] == "" {
+	if temp_res.Headers["connection"] == "" {
 		p.ProxyNeedClose = true
 	}
-	if temp_res.Headers["Connection"] == "close" {
+	if temp_res.Headers["connection"] == "close" {
 		p.ProxyNeedClose = true
 	}
 
-	temp_res.DelHeader("Server")
-	temp_res.SetHeader("Server", "Fast-Https")
+	temp_res.DelHeader("server")
+	temp_res.SetHeader("server", "Fast-Https")
 
 	temp_body := rr.Res.Body
 	rr.Res = temp_res
@@ -234,6 +234,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 
 	b_len := len(ev.RR.Res.Body)
 	headerData, head_code := p.ChangeHeader(resData, &ev.RR)
+	fmt.Println("headerData", string(headerData))
 
 	core.LogOther(&ev.Log, "status", head_code)
 	core.LogOther(&ev.Log, "size", strconv.Itoa(b_len))
