@@ -145,13 +145,21 @@ func getResBytes(lisdata *listener.ListenCfg,
 	}
 	rr.Res.SetHeader("Connection", connection)
 
-	// write first line and headers
-	ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes())
+	// h2 的开发过程要注释掉
+	// // write first line and headers
+	// ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes())
 
-	// write body
-	if fileReadWrite(file, ev) != 0 { // some error
-		return -10
-	}
+	// // write body
+	// if fileReadWrite(file, ev) != 0 { // some error
+	// 	return -10
+	// }
+	// h2 的开发过程要注释掉
+
+	var file_data = make([]byte, file_size)
+	file.Read(file_data)
+	rr.Res.Body = file_data
+
+	ev.EventWrite(ev, nil)
 
 	core.LogOther(&ev.Log, "status", "200")
 	core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
