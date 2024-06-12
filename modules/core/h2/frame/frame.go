@@ -20,15 +20,15 @@ type FrameType uint8
 
 const (
 	DataFrameType         FrameType = 0x0
-	HeadersFrameType                = 0x1
-	PriorityFrameType               = 0x2
-	RstStreamFrameType              = 0x3
-	SettingsFrameType               = 0x4
-	PushPromiseFrameType            = 0x5
-	PingFrameType                   = 0x6
-	GoAwayFrameType                 = 0x7
-	WindowUpdateFrameType           = 0x8
-	ContinuationFrameType           = 0x9
+	HeadersFrameType      FrameType = 0x1
+	PriorityFrameType     FrameType = 0x2
+	RstStreamFrameType    FrameType = 0x3
+	SettingsFrameType     FrameType = 0x4
+	PushPromiseFrameType  FrameType = 0x5
+	PingFrameType         FrameType = 0x6
+	GoAwayFrameType       FrameType = 0x7
+	WindowUpdateFrameType FrameType = 0x8
+	ContinuationFrameType FrameType = 0x9
 )
 
 func (frameType FrameType) String() string {
@@ -105,11 +105,11 @@ type Flag uint8
 
 const (
 	UNSET       Flag = 0x0
-	END_STREAM       = 0x1
-	ACK              = 0x1 // for settings
-	END_HEADERS      = 0x4
-	PADDED           = 0x8
-	PRIORITY         = 0x20
+	END_STREAM  Flag = 0x1
+	ACK         Flag = 0x1 // for settings
+	END_HEADERS Flag = 0x4
+	PADDED      Flag = 0x8
+	PRIORITY    Flag = 0x20
 )
 
 type Frame interface {
@@ -776,11 +776,11 @@ type SettingsID uint16
 
 const (
 	SETTINGS_HEADER_TABLE_SIZE      SettingsID = 0x1 // 4096
-	SETTINGS_ENABLE_PUSH                       = 0x2 // 1
-	SETTINGS_MAX_CONCURRENT_STREAMS            = 0x3 // (infinite)
-	SETTINGS_INITIAL_WINDOW_SIZE               = 0x4 // 65535
-	SETTINGS_MAX_FRAME_SIZE                    = 0x5 // 65536
-	SETTINGS_MAX_HEADER_LIST_SIZE              = 0x6 // (infinite)
+	SETTINGS_ENABLE_PUSH            SettingsID = 0x2 // 1
+	SETTINGS_MAX_CONCURRENT_STREAMS SettingsID = 0x3 // (infinite)
+	SETTINGS_INITIAL_WINDOW_SIZE    SettingsID = 0x4 // 65535
+	SETTINGS_MAX_FRAME_SIZE         SettingsID = 0x5 // 65536
+	SETTINGS_MAX_HEADER_LIST_SIZE   SettingsID = 0x6 // (infinite)
 )
 
 func (s SettingsID) String() string {
