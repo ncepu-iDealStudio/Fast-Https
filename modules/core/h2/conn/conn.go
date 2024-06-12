@@ -2,6 +2,7 @@ package conn
 
 import (
 	"fmt"
+	"sync"
 
 	"io"
 	"log"
@@ -30,6 +31,7 @@ type Conn struct {
 	Settings     map[SettingsID]int32
 	PeerSettings map[SettingsID]int32
 	Streams      map[uint32]*h2.Stream
+	StreamsLock  sync.RWMutex
 	WriteChan    chan Frame
 	CallBack     func(stream *h2.Stream, ev *core.Event, fif *filters.Filter)
 }
@@ -215,11 +217,15 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 			}
 
 			// 新しいストリーム ID なら対応するストリームを生成
+			conn.StreamsLock.Lock()
 			stream, ok := conn.Streams[streamID]
+			conn.StreamsLock.Unlock()
 			if !ok {
 				// create stream with streamID
 				stream = conn.NewStream(streamID, ev, fif)
+				conn.StreamsLock.Lock()
 				conn.Streams[streamID] = stream
+				conn.StreamsLock.Unlock()
 
 				// update last stream id
 				if streamID > conn.LastStreamID {
@@ -246,7 +252,9 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 				go func(streamID uint32) {
 					<-time.After(1 * time.Second)
 					Info("remove stream(%d) from conn.Streams[]", streamID)
+					conn.StreamsLock.Lock()
 					conn.Streams[streamID] = nil
+					conn.StreamsLock.Unlock()
 				}(streamID)
 			}
 
