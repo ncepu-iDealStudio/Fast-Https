@@ -1,7 +1,6 @@
 package events
 
 import (
-	"errors"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
 	"fast-https/modules/core/h2"
@@ -12,7 +11,6 @@ import (
 	"fast-https/modules/core/response"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -69,6 +67,7 @@ func CallBack(stream *h2.Stream, ev_conn *core.Event, fif *filters.Filter) {
 		},
 	}
 	stream_ev.RR.Ev = &stream_ev
+	// fmt.Printf("	init stream ev ptr: %p\n", &stream_ev)
 
 	header := stream.Bucket.Headers
 	body := stream.Bucket.Body
@@ -97,38 +96,20 @@ func CallBack(stream *h2.Stream, ev_conn *core.Event, fif *filters.Filter) {
 	// ev.WriteData([]byte("hello world"))
 }
 
-func H2EventWrite(ev *core.Event, _data []byte) error {
+func H2EventWrite(ev *core.Event, data []byte) error {
+
+	// fmt.Printf("	write body stream ev ptr: %p\n", ev)
+
 	stream, flag := (ev.Stream).(*h2.Stream)
 	if !flag {
 		message.PrintErr("--events can not convert ev.Stream data to *h2.Stream")
 	}
-	responseHeader := http.Header{}
-	firstLine := strings.Split(ev.RR.Res.FirstLine, " ")
-	if len(firstLine) != 3 {
-		fmt.Println("-----------ev.RR.Res_.FirstLine-------------")
-		return errors.New("h2 event write invalid response first line")
-	}
-	responseHeader.Add(":status", firstLine[1])
-
-	for header, content := range ev.RR.Res.Headers {
-		responseHeader.Add(header, content)
-	}
-
-	// Send response headers as HEADERS Frame
-	headerList := hpack.ToHeaderList(responseHeader)
-	headerBlockFragment := stream.HpackContext.Encode(*headerList)
-	logger.Debug("%v", headerList)
-
-	headersFrame := frame.NewHeadersFrame(frame.END_HEADERS, stream.ID, nil, headerBlockFragment, nil)
-	headersFrame.Headers = responseHeader
-
-	stream.Write(headersFrame)
 
 	// Send response body as DATA Frame
 	// each DataFrame has data in window size
 
 	maxFrameSize := stream.PeerSettings[frame.SETTINGS_MAX_FRAME_SIZE]
-	data := ev.RR.Res.GetBody()
+	//data := ev.RR.Res.GetBody()
 	rest := int32(len(data))
 	frameSize := rest
 
@@ -172,6 +153,27 @@ func H2EventWrite(ev *core.Event, _data []byte) error {
 	// End Stream in empty DATA Frame
 	endDataFrame := frame.NewDataFrame(frame.END_STREAM, stream.ID, nil, nil)
 	stream.Write(endDataFrame)
+
+	return nil
+}
+
+func WriteHeader(ev *core.Event, header http.Header) error {
+	stream, flag := (ev.Stream).(*h2.Stream)
+	if !flag {
+		message.PrintErr("--events can not convert ev.Stream data to *h2.Stream")
+	}
+
+	// fmt.Printf("	write header stream ev ptr: %p\n", ev)
+
+	// Send response headers as HEADERS Frame
+	headerList := hpack.ToHeaderList(header)
+	headerBlockFragment := stream.HpackContext.Encode(*headerList)
+	logger.Debug("%v", headerList)
+
+	headersFrame := frame.NewHeadersFrame(frame.END_HEADERS, stream.ID, nil, headerBlockFragment, nil)
+	headersFrame.Headers = header
+
+	stream.Write(headersFrame)
 
 	return nil
 }
