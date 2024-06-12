@@ -26,6 +26,10 @@ const (
 	SAFE_LOG_NAME      string = "safe.log"
 )
 
+const (
+	HTTP_DEFAULT_CONTENT_TYPE = "application/octet-stream"
+)
+
 /*
 cd monitor &&
 go build -ldflags "-s -w -H=windowsgui" -o monitor.exe monitor.go &&

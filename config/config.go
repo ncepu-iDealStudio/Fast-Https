@@ -3,8 +3,8 @@ package config
 import (
 	"errors"
 	"fast-https/utils/files"
+	"fast-https/utils/logger"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -199,7 +199,7 @@ func serverContentType() error {
 	confBytes, err := files.ReadFile(confPath)
 
 	if err != nil {
-		log.Fatal("can't open mime.types file")
+		logger.Fatal("can't open mime.types file")
 		return errors.New("can't open mime.types file")
 	}
 	var clearStr string
@@ -257,18 +257,19 @@ func process() error {
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatal("Error reading config file:", err)
+		logger.Fatal("Error reading config file: %s", err)
 	}
 
 	var config Fast_Https
 	err = viper.Unmarshal(&config)
 	if err != nil {
-		log.Fatal("Error unmarshaling config:", err)
+		logger.Fatal("Error unmarshaling config: %s", err)
 	}
 
 	// fast_https.Error_log = viper.GetString("error_log")
 	fast_https.Pid = viper.GetString("pid")
 	fast_https.LogRoot = viper.GetString("log_root")
+
 	fast_https.Include = viper.GetStringSlice("http.include")
 	fast_https.DefaultType = viper.GetString("http.default_type")
 	fast_https.Limit = ServerLimit{
@@ -439,5 +440,8 @@ func SetDefault() {
 	}
 	if GConfig.Limit.MaxBodySize == 0 {
 		GConfig.Limit.MaxBodySize = DEFAULT_MAX_BODY_SIZE
+	}
+	if GConfig.DefaultType == "" {
+		GConfig.DefaultType = HTTP_DEFAULT_CONTENT_TYPE
 	}
 }

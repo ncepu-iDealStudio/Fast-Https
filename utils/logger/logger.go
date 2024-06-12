@@ -55,11 +55,11 @@ func out(level LogLevel, format string, v ...interface{}) {
 	_, path, line := getPath()
 
 	// TODO: always stderr in debug
-	// dest := os.Stdout
-	// if level >= 4 {
-	// 	dest = os.Stderr
-	// }
-	dest := os.Stderr
+	dest := os.Stdout
+	if level >= 4 {
+		dest = os.Stderr
+	}
+	//dest := os.Stderr
 
 	if level > loglevel {
 		return

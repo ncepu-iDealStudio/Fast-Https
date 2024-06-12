@@ -17,10 +17,6 @@ import (
 	"time"
 )
 
-const (
-	HTTP_DEFAULT_CONTENT_TYPE = "application/octet-stream"
-)
-
 func init() {
 	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent, nil)
 }
@@ -165,7 +161,7 @@ func getContentType(path string) string {
 	path_type := strings.Split(path, ".")
 
 	if path_type == nil {
-		return HTTP_DEFAULT_CONTENT_TYPE
+		return config.HTTP_DEFAULT_CONTENT_TYPE
 	}
 	pointAfter := path_type[len(path_type)-1]
 	row := config.GContentTypeMap[pointAfter]
@@ -180,7 +176,7 @@ func getContentType(path string) string {
 		if secondFind != "" {
 			return secondFind
 		} else {
-			return HTTP_DEFAULT_CONTENT_TYPE
+			return config.HTTP_DEFAULT_CONTENT_TYPE
 		}
 	}
 	return row
