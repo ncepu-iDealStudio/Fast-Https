@@ -1,23 +1,23 @@
 package h2
 
 import (
-	. "fast-https/modules/core/h2/frame"
+	"fast-https/modules/core/h2/frame"
 )
 
 const (
 	OVER_TLS           string = "h2"
-	OVER_TCP                  = "h2c"
-	VERSION                   = OVER_TLS
-	CONNECTION_PREFACE        = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
+	OVER_TCP           string = "h2c"
+	VERSION            string = OVER_TLS
+	CONNECTION_PREFACE string = "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 )
 
-var DefaultSettings = map[SettingsID]int32{
-	SETTINGS_HEADER_TABLE_SIZE: DEFAULT_HEADER_TABLE_SIZE,
+var DefaultSettings = map[frame.SettingsID]int32{
+	frame.SETTINGS_HEADER_TABLE_SIZE: frame.DEFAULT_HEADER_TABLE_SIZE,
 	// SETTINGS_ENABLE_PUSH:            DEFAULT_ENABLE_PUSH, // server dosen't send this
-	SETTINGS_MAX_CONCURRENT_STREAMS: DEFAULT_MAX_CONCURRENT_STREAMS,
-	SETTINGS_INITIAL_WINDOW_SIZE:    DEFAULT_INITIAL_WINDOW_SIZE,
-	SETTINGS_MAX_FRAME_SIZE:         DEFAULT_MAX_FRAME_SIZE,
-	SETTINGS_MAX_HEADER_LIST_SIZE:   DEFAULT_MAX_HEADER_LIST_SIZE,
+	frame.SETTINGS_MAX_CONCURRENT_STREAMS: frame.DEFAULT_MAX_CONCURRENT_STREAMS,
+	frame.SETTINGS_INITIAL_WINDOW_SIZE:    frame.DEFAULT_INITIAL_WINDOW_SIZE,
+	frame.SETTINGS_MAX_FRAME_SIZE:         frame.DEFAULT_MAX_FRAME_SIZE,
+	frame.SETTINGS_MAX_HEADER_LIST_SIZE:   frame.DEFAULT_MAX_HEADER_LIST_SIZE,
 }
 
-var NilSettings = make(map[SettingsID]int32, 0)
+var NilSettings = make(map[frame.SettingsID]int32, 0)
