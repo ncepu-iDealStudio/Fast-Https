@@ -175,11 +175,8 @@ func Init() error {
 }
 
 // CheckConfig check whether config is correct
+// TODO: check json confgure
 func CheckConfig() error {
-	err := Init()
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

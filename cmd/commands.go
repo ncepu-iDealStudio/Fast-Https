@@ -273,7 +273,9 @@ func PreCheckHandler() {
 		logger.Fatal("Port has been used, An error occurred for the following reason: %v", err)
 	}
 
-	config.ClearConfig()
+	//TODO: check if fast-https is already running...
+	//if failed, logger.Fatal...
+
 }
 
 func WritePid(x_pid int) {
