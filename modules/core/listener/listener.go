@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"fast-https/config"
+	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"net"
 	"regexp"
@@ -61,8 +62,33 @@ type Listener struct {
 
 var Lisinfos []Listener
 
+func FindPorts() []string {
+	var Ports []string
+	for _, each := range config.GConfig.Servers {
+		arr := strings.Split(each.Listen, " ")
+		if !collection.Collect(Ports).Contains(arr[0]) {
+			Ports = append(Ports, arr[0])
+		}
+	}
+	return Ports
+}
+
+func findOldPorts() []string {
+	var Ports []string
+	for _, item := range Lisinfos {
+		if !collection.Collect(Ports).Contains(item.Port) {
+			// always true
+			Ports = append(Ports, item.Port)
+		} else {
+			logger.Fatal("find current ports error")
+		}
+	}
+	return Ports
+}
+
 // sort confgure form "listen"
-func ProcessPorts() []string {
+// fill port and listen type
+func SortByPort(Lisinfos []Listener) {
 	var Ports []string
 	lis_temp := Listener{}
 	for _, each := range config.GConfig.Servers {
@@ -90,11 +116,10 @@ func ProcessPorts() []string {
 		}
 
 	}
-	return Ports
 }
 
 // sort configure from "path"
-func processListenData() {
+func processListenData(Lisinfos []Listener) {
 	Id := 0
 	for _, server := range config.GConfig.Servers {
 		for _, paths := range server.Path {
@@ -135,7 +160,7 @@ func processListenData() {
 	}
 }
 
-func processHostMap() {
+func processHostMap(Lisinfos []Listener) {
 	for _, eachPort := range Lisinfos {
 		processEachPort(eachPort)
 	}
@@ -160,10 +185,11 @@ func processEachPort(lisPort Listener) {
 }
 
 // listen some ports
-func Listen() []Listener {
-	ProcessPorts()
-	processListenData()
-	processHostMap()
+func ListenWithCfg() []Listener {
+	var CurrLisinfos []Listener
+	SortByPort(CurrLisinfos)
+	processListenData(CurrLisinfos)
+	processHostMap(CurrLisinfos)
 
 	for index, each := range Lisinfos {
 		if each.LisType == 1 || each.LisType == 10 {
@@ -172,7 +198,42 @@ func Listen() []Listener {
 			Lisinfos[index].Lfd = listenTcp("0.0.0.0:" + each.Port)
 		}
 	}
-	return Lisinfos
+
+	Lisinfos = CurrLisinfos
+	return CurrLisinfos
+}
+
+func comparePorts(curr_ports, new_ports []string) (added, removed, common []string) {
+	// Create a map to store the current set of ports
+	currPortsMap := make(map[string]struct{})
+	for _, port := range curr_ports {
+		currPortsMap[port] = struct{}{}
+	}
+
+	// Create a map to store the new set of ports
+	newPortsMap := make(map[string]struct{})
+	for _, port := range new_ports {
+		newPortsMap[port] = struct{}{}
+	}
+
+	// Find the added ports
+	for port := range newPortsMap {
+		if _, found := currPortsMap[port]; !found {
+			added = append(added, port)
+		}
+	}
+
+	// Find the removed ports
+	for port := range currPortsMap {
+		if _, found := newPortsMap[port]; !found {
+			removed = append(removed, port)
+		} else {
+			// If the port exists in both sets, add it to the common slice
+			common = append(common, port)
+		}
+	}
+
+	return added, removed, common
 }
 
 // tcp listen

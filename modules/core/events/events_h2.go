@@ -18,7 +18,7 @@ import (
 	"fast-https/modules/core/h2/hpack"
 )
 
-func H2HandleEvent(l *listener.Listener, conn1 net.Conn, shutdown *core.ServerControl) {
+func H2HandleEvent(l *listener.Listener, conn1 net.Conn, shutdown *core.ServerControl, port_index int) {
 
 	ev_conn := core.NewEvent(l, conn1)
 

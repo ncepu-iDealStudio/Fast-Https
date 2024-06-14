@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerControl) {
+func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerControl, port_num int) {
 	ev := core.NewEvent(l, conn)
 
 	fif := filters.NewFilter() // Filter interface
@@ -28,6 +28,12 @@ func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerContr
 	ev.EventWrite = EventWrite
 
 	for !ev.IsClose {
+
+		if shutdown.PortNeedShutdowm(port_num) {
+			message.PrintInfo("server shut down")
+			break
+		}
+
 		// websocket and tcp proxy through this
 		if fif.Fif.ListenFilter(ev) {
 			break
@@ -44,10 +50,6 @@ func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerContr
 			break
 		}
 
-		if shutdown.Shutdown {
-			message.PrintInfo("server shut down")
-			break
-		}
 	}
 }
 

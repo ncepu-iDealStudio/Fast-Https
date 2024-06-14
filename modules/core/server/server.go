@@ -5,10 +5,12 @@ import (
 	"fast-https/modules/core/engine"
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
+	"strconv"
 
 	// routinepool "fast-https/modules/core/routine_pool"
 	"fast-https/modules/safe"
 	"fast-https/output"
+	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"net"
 	"os"
@@ -27,11 +29,13 @@ import (
 type Server struct {
 	Shutdown core.ServerControl
 	Wg       sync.WaitGroup
+
+	Listens []listener.Listener
 }
 
 // init server
 func ServerInit() *Server {
-	s := Server{Shutdown: core.ServerControl{Shutdown: false}}
+	s := Server{Shutdown: core.ServerControl{}}
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)
 	go func(s *Server) {
@@ -41,12 +45,23 @@ func ServerInit() *Server {
 		}
 	}(&s)
 	//  to do : ScanPorts
+	s.Shutdown = *core.NewServerContron()
+
+	s.Listens = listener.ListenWithCfg()
+	output.PrintPortsListenerStart()
+
+	// TODO: improve this
+	safe.Init() // need to be call after listener inited ...
+	core.LogRegister()
+	// if config.GConfig.ServerEngine.Id != 0 {
+	engine.EngineInit()
+	// }
 	return &s
 }
 
 // ScanPorts scan ports to check whether they've been used
 func ScanPorts() error {
-	ports := listener.ProcessPorts()
+	ports := listener.FindPorts()
 	for _, port := range ports {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {
@@ -63,12 +78,12 @@ func ScanPorts() error {
 func (s *Server) sigHandler(signal os.Signal) {
 	if signal == syscall.SIGTERM {
 		message.PrintInfo("The server got a kill signal")
-		s.Shutdown.Shutdown = true
+		// s.Shutdown.Shutdown = true
 		s.Wg.Done()
 	} else if signal == syscall.SIGINT {
 		message.PrintInfo("The server got a CTRL+C signal")
-		s.Shutdown.Shutdown = true
-		s.Wg.Done()
+		// s.Shutdown.Shutdown = true
+		// s.Wg.Done()
 	}
 }
 
@@ -86,14 +101,14 @@ func (s *Server) setConnCfg(conn *net.Conn) {
 }
 
 // listen and serve one port
-func (s *Server) serveListener(listener1 listener.Listener) {
+func (s *Server) serveListener(listener1 listener.Listener, port_index int) {
 
 	l := &listener1
 	// fmt.Printf("sizeof core.Event{}: %d\n", unsafe.Sizeof(core.Event{}))
 	// fmt.Printf("sizeof []byte: %d\n", unsafe.Sizeof([]byte{100, 200}))
 	// fmt.Printf("sizeof listener.ListenCfg{}: %d\n", unsafe.Sizeof(listener.ListenCfg{}))
 
-	for !s.Shutdown.Shutdown {
+	for !s.Shutdown.PortNeedShutdowm(port_index) {
 
 		conn, err := listener1.Lfd.Accept()
 		if err != nil {
@@ -102,27 +117,49 @@ func (s *Server) serveListener(listener1 listener.Listener) {
 		}
 
 		if l.LisType == 10 {
-			go events.H2HandleEvent(l, conn, &(s.Shutdown))
+			go events.H2HandleEvent(l, conn, &(s.Shutdown), port_index)
 		} else {
-			go events.HandleEvent(l, conn, &(s.Shutdown))
+			go events.HandleEvent(l, conn, &(s.Shutdown), port_index)
 		}
+	}
+
+	s.Shutdown.PortShutdowmOk(port_index)
+}
+
+func (s *Server) Reload() {
+	lisAll, lisAdded, removed := listener.ReloadListenCfg()
+
+	// 指向最新的ListenCfg数据
+	s.Listens = lisAll
+
+	// 设置需要移除的端口
+	s.Shutdown.RemovedPortsToBitArray(removed)
+
+	// 开启新增端口的监听协程开始处理事件
+	s.RunAdded(lisAdded)
+	logger.Info("server reload")
+}
+
+func (s *Server) RunAdded(lisAdded []listener.Listener) {
+	for _, value := range lisAdded {
+		n, err := strconv.Atoi(value.Port)
+		if err != nil {
+			logger.Fatal("cant convert listen port")
+		}
+		go s.serveListener(value, n)
 	}
 }
 
 func (s *Server) Run() {
 
-	output.PrintPortsListenerStart()
-	listens := listener.Listen()
-
-	// TODO: improve this
-	safe.Init() // need to be call after listener inited ...
-	core.LogRegister()
-	// if config.GConfig.ServerEngine.Id != 0 {
-	engine.EngineInit()
-	// }
+	listens := s.Listens
 
 	for _, value := range listens {
-		go s.serveListener(value)
+		n, err := strconv.Atoi(value.Port)
+		if err != nil {
+			logger.Fatal("cant convert listen port")
+		}
+		go s.serveListener(value, n)
 	}
 
 	// for !s.Shutdown.Shutdown {

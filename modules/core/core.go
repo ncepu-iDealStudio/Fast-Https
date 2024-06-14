@@ -6,8 +6,10 @@ import (
 	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
 	"fast-https/utils/message"
+	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"time"
 )
 
@@ -202,5 +204,46 @@ func EventWriteEarly(ev *Event, _data []byte) error {
 }
 
 type ServerControl struct {
-	Shutdown bool
+	ShutdownPort []uint64
+}
+
+func NewServerContron() *ServerControl {
+	return &ServerControl{
+		ShutdownPort: make([]uint64, 1024),
+	}
+}
+
+func (sc *ServerControl) PortNeedShutdowm(port int) bool {
+	index := port / 64
+	offset := uint(port % 64)
+	return (sc.ShutdownPort[index] & (1 << offset)) != 0
+}
+
+func (sc *ServerControl) PortShutdowmOk(port int) {
+	index := port / 64
+	offset := uint(port % 64)
+	sc.ShutdownPort[index] &^= 1 << offset
+}
+
+func (sc *ServerControl) RemovedPortsToBitArray(removed []string) {
+
+	for _, portStr := range removed {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			fmt.Println("Invalid port number:", portStr)
+			continue
+		}
+		if port < 0 || port >= 65535 {
+			fmt.Println("Port number out of range (0-65535):", port)
+			continue
+		}
+		// 计算索引和偏移量
+		index := port / 64
+		offset := uint(port % 64)
+		// 设置相应的位
+		sc.ShutdownPort[index] |= 1 << offset
+	}
+
+	// 对这些端口进行连接，防止他们阻塞在accept
+
 }
