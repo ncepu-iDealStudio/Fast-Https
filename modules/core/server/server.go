@@ -64,11 +64,11 @@ func (s *Server) sigHandler(signal os.Signal) {
 	if signal == syscall.SIGTERM {
 		message.PrintInfo("The server got a kill signal")
 		s.Shutdown.Shutdown = true
-
+		s.Wg.Done()
 	} else if signal == syscall.SIGINT {
 		message.PrintInfo("The server got a CTRL+C signal")
 		s.Shutdown.Shutdown = true
-
+		s.Wg.Done()
 	}
 }
 
@@ -125,10 +125,12 @@ func (s *Server) Run() {
 		go s.serveListener(value)
 	}
 
-	for !s.Shutdown.Shutdown {
-		// <-sigchnl
-		// fmt.Println("got sig")
-		// s.wg.Wait()
-		time.Sleep(time.Second * 1)
-	}
+	// for !s.Shutdown.Shutdown {
+	// 	// <-sigchnl
+	// 	// fmt.Println("got sig")
+	// 	// s.wg.Wait()
+	// 	time.Sleep(time.Second * 1)
+	// }
+	s.Wg.Add(1)
+	s.Wg.Wait()
 }
