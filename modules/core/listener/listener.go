@@ -88,7 +88,7 @@ func findOldPorts() []string {
 
 // sort confgure form "listen"
 // fill port and listen type
-func SortByPort(lisInfos []Listener) {
+func SortByPort(lisInfos *[]Listener) {
 	var Ports []string
 	lis_temp := Listener{}
 	for _, each := range config.GConfig.Servers {
@@ -112,43 +112,46 @@ func SortByPort(lisInfos []Listener) {
 				lis_temp.LisType = 0
 			}
 			lis_temp.Port = arr[0]
-			lisInfos = append(lisInfos, lis_temp)
+			*lisInfos = append(*lisInfos, lis_temp)
 		}
 
 	}
 }
 
-func SortBySpecificPorts(ports []string, lisInfos []Listener) {
-	for _, each := range config.GConfig.Servers { // new config
-		arr := strings.Split(each.Listen, " ")
-		if !collection.Collect(ports).Contains(arr[0]) {
-			lis_temp := Listener{}
-			lis_temp.Cfg = nil
-			lis_temp.Lfd = nil
-			lis_temp.HostMap = make(map[string][]ListenCfg)
-			if strings.Contains(each.Listen, "ssl") {
-				lis_temp.LisType = 1 // ssl
-				if strings.Contains(each.Listen, "h2") {
-					lis_temp.LisType = 10
+func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
+	for _, port := range ports {
+		for _, each := range config.GConfig.Servers { // new config
+			if port == strings.Split(each.Listen, " ")[0] {
+				lis_temp := Listener{}
+				lis_temp.Cfg = nil
+				lis_temp.Lfd = nil
+				lis_temp.HostMap = make(map[string][]ListenCfg)
+				if strings.Contains(each.Listen, "ssl") {
+					lis_temp.LisType = 1 // ssl
+					if strings.Contains(each.Listen, "h2") {
+						lis_temp.LisType = 10
+					}
+				} else if strings.Contains(each.Listen, "tcp") {
+					lis_temp.LisType = 2 // tcp proxy
+				} else {
+					lis_temp.LisType = 0
 				}
-			} else if strings.Contains(each.Listen, "tcp") {
-				lis_temp.LisType = 2 // tcp proxy
-			} else {
-				lis_temp.LisType = 0
+				lis_temp.Port = strings.Split(each.Listen, " ")[0]
+				*lisInfos = append(*lisInfos, lis_temp)
+				break
 			}
-			lis_temp.Port = arr[0]
-			lisInfos = append(lisInfos, lis_temp)
 		}
 	}
+
 }
 
 // sort configure from "path"
-func processListenData(lisInfos []Listener) {
+func processListenData(lisInfos *[]Listener) {
 	Id := 0
 	for _, server := range config.GConfig.Servers {
 		for _, paths := range server.Path {
 
-			for index, eachlisten := range lisInfos {
+			for index, eachlisten := range *lisInfos {
 				listen := strings.Split(server.Listen, " ")[0]
 				if eachlisten.Port == listen {
 					data := ListenCfg{}
@@ -176,7 +179,8 @@ func processListenData(lisInfos []Listener) {
 					data.Zip = paths.Zip
 					data.ReWrite = paths.Rewrite
 					data.ProxyCache = paths.ProxyCache
-					lisInfos[index].Cfg = append(eachlisten.Cfg, data)
+					listener := &(*lisInfos)[index]
+					listener.Cfg = append(eachlisten.Cfg, data)
 					Id = Id + 1
 				}
 			}
@@ -184,8 +188,8 @@ func processListenData(lisInfos []Listener) {
 	}
 }
 
-func processHostMap(lisInfos []Listener) {
-	for _, eachPort := range lisInfos {
+func processHostMap(lisInfos *[]Listener) {
+	for _, eachPort := range *lisInfos {
 		processEachPort(eachPort)
 	}
 }
@@ -211,15 +215,15 @@ func processEachPort(lisPort Listener) {
 // listen some ports
 func ListenWithCfg() []Listener {
 	var CurrLisinfos []Listener
-	SortByPort(CurrLisinfos)
-	processListenData(CurrLisinfos)
-	processHostMap(CurrLisinfos)
+	SortByPort(&CurrLisinfos)
+	processListenData(&CurrLisinfos)
+	processHostMap(&CurrLisinfos)
 
-	for index, each := range GLisinfos {
+	for index, each := range CurrLisinfos {
 		if each.LisType == 1 || each.LisType == 10 {
-			GLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg)
+			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg)
 		} else {
-			GLisinfos[index].Lfd = listenTcp("0.0.0.0:" + each.Port)
+			CurrLisinfos[index].Lfd = listenTcp("0.0.0.0:" + each.Port)
 		}
 	}
 

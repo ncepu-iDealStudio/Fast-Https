@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/engine"
 	"fast-https/modules/core/events"
@@ -83,7 +84,7 @@ func (s *Server) sigHandler(signal os.Signal) {
 	} else if signal == syscall.SIGINT {
 		message.PrintInfo("The server got a CTRL+C signal")
 		// s.Shutdown.Shutdown = true
-		// s.Wg.Done()
+		s.Reload()
 	}
 }
 
@@ -123,10 +124,12 @@ func (s *Server) serveListener(listener1 listener.Listener, port_index int) {
 		}
 	}
 
-	s.Shutdown.PortShutdowmOk(port_index)
+	//s.Shutdown.PortShutdowmOk(port_index)
 }
 
 func (s *Server) Reload() {
+	config.Reload()
+
 	lisAll, lisAdded, removed := listener.ReloadListenCfg()
 
 	// 指向最新的ListenCfg数据
@@ -137,6 +140,14 @@ func (s *Server) Reload() {
 
 	// 开启新增端口的监听协程开始处理事件
 	s.RunAdded(lisAdded)
+
+	// TODO: improve this
+	safe.Init() // need to be call after listener inited ...
+	core.LogRegister()
+	// if config.GConfig.ServerEngine.Id != 0 {
+	engine.EngineInit()
+	// }
+
 	logger.Info("server reload")
 }
 

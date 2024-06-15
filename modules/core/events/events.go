@@ -9,6 +9,7 @@ import (
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/safe"
+	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"net"
 	"strings"
@@ -30,7 +31,8 @@ func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerContr
 	for !ev.IsClose {
 
 		if shutdown.PortNeedShutdowm(port_num) {
-			message.PrintInfo("server shut down")
+			logger.Debug("event shutdown port: %d circle", port_num)
+			shutdown.PortShutdowmOk(port_num)
 			break
 		}
 

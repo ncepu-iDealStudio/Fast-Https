@@ -174,6 +174,11 @@ func Init() error {
 	return nil
 }
 
+func Reload() {
+	ClearConfig()
+	Init()
+}
+
 // CheckConfig check whether config is correct
 // TODO: check json confgure
 func CheckConfig() error {

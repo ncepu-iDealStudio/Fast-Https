@@ -18,6 +18,7 @@ import (
 	"fast-https/modules/core/h2/hpack"
 )
 
+// TODO: http2 not support reload !!!
 func H2HandleEvent(l *listener.Listener, conn1 net.Conn, shutdown *core.ServerControl, port_index int) {
 
 	ev_conn := core.NewEvent(l, conn1)

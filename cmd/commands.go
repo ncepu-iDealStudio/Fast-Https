@@ -250,9 +250,28 @@ func StopHandler() error {
 
 // ReloadHandler reload server
 func ReloadHandler() error {
-	// StopHandler()
-	// time.Sleep(time.Second)
-	// StartHandler()
+	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	readerBuf := bufio.NewReader(file)
+	str, _ := readerBuf.ReadString('\n')
+	msg := strings.Trim(str, "\r\n")
+	ax, _ := strconv.Atoi(msg)
+
+	var cmd *exec.Cmd
+	// TODO: Windows
+	// if runtime.GOOS == "windows" {
+	// 	cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
+	// } else {
+	cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-2")
+	// }
+
+	err = cmd.Run()
+	if err != nil {
+		logger.Fatal("fast-https reload failed: %v", err)
+	}
 	return nil
 }
 
