@@ -65,12 +65,12 @@ func ScanPorts() error {
 	for _, port := range ports {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {
-			listener.Lisinfos = []listener.Listener{}
+			listener.GLisinfos = []listener.Listener{}
 			return err
 		}
 		conn.Close()
 	}
-	listener.Lisinfos = []listener.Listener{}
+	listener.GLisinfos = []listener.Listener{}
 	return nil
 }
 

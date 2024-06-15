@@ -5,8 +5,8 @@ import (
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/core/timer"
+	"fast-https/utils/logger"
 	"fast-https/utils/message"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -223,6 +223,7 @@ func (sc *ServerControl) PortShutdowmOk(port int) {
 	index := port / 64
 	offset := uint(port % 64)
 	sc.ShutdownPort[index] &^= 1 << offset
+	logger.Debug("listening :%d shutdown ,it will not accept any connections", port)
 }
 
 func (sc *ServerControl) RemovedPortsToBitArray(removed []string) {
@@ -230,11 +231,11 @@ func (sc *ServerControl) RemovedPortsToBitArray(removed []string) {
 	for _, portStr := range removed {
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
-			fmt.Println("Invalid port number:", portStr)
+			logger.Fatal("Invalid port number: %s", portStr)
 			continue
 		}
 		if port < 0 || port >= 65535 {
-			fmt.Println("Port number out of range (0-65535):", port)
+			logger.Fatal("Port number out of range (0-65535): %d", port)
 			continue
 		}
 		// 计算索引和偏移量
@@ -245,5 +246,12 @@ func (sc *ServerControl) RemovedPortsToBitArray(removed []string) {
 	}
 
 	// 对这些端口进行连接，防止他们阻塞在accept
-
+	for _, port := range removed {
+		conn, err := net.Dial("tcp", "127.0.0.1:"+port)
+		if err != nil {
+			logger.Error("can not connect to: %s", port)
+			return
+		}
+		conn.Close() // 关闭连接
+	}
 }

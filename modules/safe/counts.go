@@ -29,7 +29,7 @@ type CountLimit struct {
 
 func countsInit() {
 	// Gcl = *NewCountLimit(0, config.GConfig.Servers[0].Path[0].Limit.Rate)
-	for _, item := range listener.Lisinfos {
+	for _, item := range listener.GLisinfos {
 		for _, path := range item.Cfg {
 			tempCountLimit := NewCountLimit(0, path.Limit.Rate, path.Limit.Size*1024*1024/16)
 			Gcl = append(Gcl, tempCountLimit)

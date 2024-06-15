@@ -2,20 +2,25 @@ package listener
 
 func getReloadAddedListeninfo(ports []string, currli []Listener) []Listener {
 	var CurrLisinfosAdded []Listener
+	SortBySpecificPorts(ports, CurrLisinfosAdded)
 
+	processListenData(CurrLisinfosAdded)
+	processHostMap(CurrLisinfosAdded)
+
+	_ = append(currli, CurrLisinfosAdded...)
 	return CurrLisinfosAdded
 }
 
-func updateCommmon(ports []string) {
+func updateCommonToNewLinster(ports []string, newLis []Listener) {
+	var CurrLisinfoCommon []Listener
 
-}
+	// sort by port
+	SortBySpecificPorts(ports, CurrLisinfoCommon)
+	processListenData(CurrLisinfoCommon)
+	processHostMap(CurrLisinfoCommon)
+	// fill cfg
 
-func updateRemoved(ports []string) {
-
-}
-
-func copyToNewLinster(newLis []Listener) {
-
+	_ = append(newLis, CurrLisinfoCommon...)
 }
 
 func ReloadListenCfg() ([]Listener, []Listener, []string) {
@@ -25,12 +30,10 @@ func ReloadListenCfg() ([]Listener, []Listener, []string) {
 	old_ports := findOldPorts()
 	added, removed, common := comparePorts(old_ports, new_ports)
 
-	copyToNewLinster(NewLisinfosAll)
+	updateCommonToNewLinster(common, NewLisinfosAll)
 
-	updateRemoved(removed)
-	updateCommmon(common)
 	ListeninfoAdded := getReloadAddedListeninfo(added, NewLisinfosAll)
 
-	Lisinfos = NewLisinfosAll
+	GLisinfos = NewLisinfosAll
 	return NewLisinfosAll, ListeninfoAdded, removed
 }
