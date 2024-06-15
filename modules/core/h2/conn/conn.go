@@ -129,7 +129,7 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 	Debug("start conn.ReadLoop()")
 
 	for {
-		// コネクションからフレームを読み込む
+		// Read a frame from the connection
 		frame, err := ReadFrame(conn.RW, conn.Settings)
 		if err != nil {
 			Error("%v", err)
@@ -161,7 +161,7 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 				break // TODO: check this flow is correct or not
 			}
 
-			// SETTINGS frame を受け取った場合
+			// When a SETTINGS frame is received
 			if types == SettingsFrameType {
 				settingsFrame, ok := frame.(*SettingsFrame)
 				if !ok {
@@ -182,16 +182,16 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 				conn.Window.UpdatePeer(int32(windowUpdateFrame.WindowSizeIncrement))
 			}
 
-			// respond to PING
+			// Respond to PING
 			if types == PingFrameType {
 				// ignore ack
 				if frame.Header().Flags != ACK {
-					conn.PingACK([]byte("pong    ")) // should be 8 byte
+					conn.PingACK([]byte("pong    ")) // should be 8 bytes
 				}
 				continue
 			}
 
-			// handle GOAWAY with close connection
+			// Handle GOAWAY and close connection
 			if types == GoAwayFrameType {
 				Debug("stop conn.ReadLoop() by GOAWAY")
 				break
@@ -210,30 +210,30 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 				break // TODO: check this flow is correct or not
 			}
 
-			// DATA frame なら winodw を消費
+			// Consume window if it's a DATA frame
 			if types == DataFrameType {
 				length := int32(frame.Header().Length)
 				conn.WindowConsume(length)
 			}
 
-			// 新しいストリーム ID なら対応するストリームを生成
+			// If it's a new stream ID, create the corresponding stream
 			conn.StreamsLock.Lock()
 			stream, ok := conn.Streams[streamID]
 			conn.StreamsLock.Unlock()
 			if !ok {
-				// create stream with streamID
+				// Create stream with streamID
 				stream = conn.NewStream(streamID, ev, fif)
 				conn.StreamsLock.Lock()
 				conn.Streams[streamID] = stream
 				conn.StreamsLock.Unlock()
 
-				// update last stream id
+				// Update last stream id
 				if streamID > conn.LastStreamID {
 					conn.LastStreamID = streamID
 				}
 			}
 
-			// stream の state を変える
+			// Change the state of the stream
 			err = stream.ChangeState(frame, h2.RECV)
 			if err != nil {
 				Error("%v", err)
@@ -244,11 +244,11 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 				break
 			}
 
-			// stream が close ならリストから消す
+			// If the stream is closed, remove it from the list
 			if stream.State == h2.CLOSED {
 
-				// ただし、1 秒は window update が来てもいいように待つ
-				// TODO: atomic にする
+				// However, wait 1 second to allow window updates
+				// TODO: make this atomic
 				go func(streamID uint32) {
 					<-time.After(1 * time.Second)
 					Info("remove stream(%d) from conn.Streams[]", streamID)
@@ -258,7 +258,7 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 				}(streamID)
 			}
 
-			// ストリームにフレームを渡す
+			// Pass the frame to the stream
 			stream.ReadChan <- frame
 		}
 	}
@@ -271,7 +271,7 @@ func (conn *Conn) WriteLoop() (err error) {
 	for frame := range conn.WriteChan {
 		Notice("%v %v", Red("send"), util.Indent(frame.String()))
 
-		// TODO: ここで connection レベルの WindowSize を見る
+		// TODO: Check the connection level WindowSize here
 		err = frame.Write(conn.RW)
 		if err != nil {
 			Error("%v", err)
@@ -296,12 +296,12 @@ func (conn *Conn) GoAway(streamId uint32, h2Error *H2Error) {
 }
 
 func (conn *Conn) WindowConsume(length int32) {
-	Debug("connection window update %d byte", length)
+	Debug("connection window update %d bytes", length)
 
-	// update する必要があればそれが返ってくる
+	// If an update is necessary, it will return
 	update := conn.Window.Consume(length)
 
-	// update があれば WindowUpdate を送る
+	// If there's an update, send a WindowUpdate
 	if update > 0 {
 		conn.WriteChan <- NewWindowUpdateFrame(0, uint32(update))
 		conn.Window.Update(update)

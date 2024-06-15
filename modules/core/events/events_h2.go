@@ -114,11 +114,11 @@ func H2EventWrite(ev *core.Event, data []byte) error {
 	rest := int32(len(data))
 	frameSize := rest
 
-	// MaxFrameSize を基準に考え、そこから送れるサイズまで減らして行く
+	// Consider the MaxFrameSize as the basis, and then reduce it to the size that can be sent
 	for {
 		logger.Debug("rest data size(%v), current peer(%v) window(%v)", rest, stream.ID, stream.Window)
 
-		// 送り終わってれば終わり
+		// If it's done sending, then finish
 		if rest == 0 {
 			break
 		}
@@ -129,25 +129,25 @@ func H2EventWrite(ev *core.Event, data []byte) error {
 			continue
 		}
 
-		// MaxFrameSize より大きいなら切り詰める
+		// If it's larger than MaxFrameSize, truncate it
 		if frameSize > maxFrameSize {
 			frameSize = maxFrameSize
 		}
 
 		logger.Debug("send %v/%v data", frameSize, rest)
 
-		// ここまでに算出した frameSize 分のデータを DATA Frame を作って送る
+		// Create and send a DATA Frame with the frameSize of data calculated up to this point
 		dataToSend := make([]byte, frameSize)
 		copy(dataToSend, data[:frameSize])
 		dataFrame := frame.NewDataFrame(frame.UNSET, stream.ID, dataToSend, nil)
 		stream.Write(dataFrame)
 
-		// 送った分を削る
+		// Subtract the sent portion
 		rest -= frameSize
 		copy(data, data[frameSize:])
 		data = data[:rest]
 
-		// Peer の Window Size を減らす
+		// Reduce the Peer’s Window Size
 		stream.Window.ConsumePeer(frameSize)
 	}
 

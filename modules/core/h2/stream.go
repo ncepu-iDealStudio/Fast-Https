@@ -150,12 +150,12 @@ func (stream *Stream) Write(frame Frame) {
 }
 
 func (stream *Stream) WindowUpdate(length int32) {
-	Debug("stream(%d) window update %d byte", stream.ID, length)
+	Debug("stream(%d) window update %d bytes", stream.ID, length)
 
-	// update する必要があればそれが返ってくる
+	// If an update is necessary, it will return
 	update := stream.Window.Consume(length)
 
-	// update があれば WindowUpdate を送る
+	// If there's an update, send a WindowUpdate
 	if update > 0 {
 		stream.Write(NewWindowUpdateFrame(stream.ID, uint32(update)))
 		stream.Window.Update(update)
@@ -164,9 +164,8 @@ func (stream *Stream) WindowUpdate(length int32) {
 
 func (stream *Stream) Close() {
 	Debug("stream(%d) Close()", stream.ID)
-	// stream.WriteChan は conn.WriteChan であり
-	// conn の方で close するので
-	// ここでは close しない
+	// stream.WriteChan is conn.WriteChan, and it will be closed on the conn side,
+	// so it will not be closed here
 	stream.Closed = true
 	Info("close stream(%v).ReadChan", stream.ID)
 	close(stream.ReadChan)
