@@ -82,7 +82,7 @@ func (s *Server) sigHandler(signal os.Signal) {
 		// s.Shutdown.Shutdown = true
 		s.Wg.Done()
 	} else if signal == syscall.SIGINT {
-		message.PrintInfo("The server got a CTRL+C signal")
+		logger.Info("========= server reload start ========")
 		// s.Shutdown.Shutdown = true
 		s.Reload()
 	}
@@ -124,6 +124,7 @@ func (s *Server) serveListener(listener1 listener.Listener, port_index int) {
 		}
 	}
 
+	listener1.Lfd.Close()
 	//s.Shutdown.PortShutdowmOk(port_index)
 }
 
@@ -148,7 +149,7 @@ func (s *Server) Reload() {
 	engine.EngineInit()
 	// }
 
-	logger.Info("server reload")
+	logger.Info("========= server reload  end  ========")
 }
 
 func (s *Server) RunAdded(lisAdded []listener.Listener) {
