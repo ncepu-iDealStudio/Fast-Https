@@ -231,33 +231,67 @@ func ListenWithCfg() []Listener {
 	return CurrLisinfos
 }
 
+/*
+	func comparePorts(curr_ports, new_ports []string) (added, removed, common []string) {
+		// Create a map to store the current set of ports
+		currPortsMap := make(map[string]struct{})
+		for _, port := range curr_ports {
+			currPortsMap[port] = struct{}{}
+		}
+
+		// Create a map to store the new set of ports
+		newPortsMap := make(map[string]struct{})
+		for _, port := range new_ports {
+			newPortsMap[port] = struct{}{}
+		}
+
+		// Find the added ports
+		for port := range newPortsMap {
+			if _, found := currPortsMap[port]; !found {
+				added = append(added, port)
+			}
+		}
+
+		// Find the removed ports
+		for port := range currPortsMap {
+			if _, found := newPortsMap[port]; !found {
+				removed = append(removed, port)
+			} else {
+				// If the port exists in both sets, add it to the common slice
+				common = append(common, port)
+			}
+		}
+
+		return added, removed, common
+	}
+*/
 func comparePorts(curr_ports, new_ports []string) (added, removed, common []string) {
-	// Create a map to store the current set of ports
-	currPortsMap := make(map[string]struct{})
-	for _, port := range curr_ports {
-		currPortsMap[port] = struct{}{}
-	}
-
-	// Create a map to store the new set of ports
-	newPortsMap := make(map[string]struct{})
-	for _, port := range new_ports {
-		newPortsMap[port] = struct{}{}
-	}
-
 	// Find the added ports
-	for port := range newPortsMap {
-		if _, found := currPortsMap[port]; !found {
-			added = append(added, port)
+	for _, newPort := range new_ports {
+		found := false
+		for _, currPort := range curr_ports {
+			if newPort == currPort {
+				found = true
+				break
+			}
+		}
+		if !found {
+			added = append(added, newPort)
 		}
 	}
 
-	// Find the removed ports
-	for port := range currPortsMap {
-		if _, found := newPortsMap[port]; !found {
-			removed = append(removed, port)
-		} else {
-			// If the port exists in both sets, add it to the common slice
-			common = append(common, port)
+	// Find the removed ports and common ports
+	for _, currPort := range curr_ports {
+		found := false
+		for _, newPort := range new_ports {
+			if currPort == newPort {
+				found = true
+				common = append(common, currPort)
+				break
+			}
+		}
+		if !found {
+			removed = append(removed, currPort)
 		}
 	}
 

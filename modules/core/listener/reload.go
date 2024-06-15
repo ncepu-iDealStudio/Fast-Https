@@ -22,14 +22,28 @@ func getReloadAddedListeninfo(ports []string, currli *[]Listener) []Listener {
 	return CurrLisinfosAdded
 }
 
-func updateCommonToNewLinster(ports []string, newLis *[]Listener) {
+func updateCommonToNewLinster(common_ports []string, newLis *[]Listener) {
 	var CurrLisinfoCommon []Listener
 
 	// sort by port
-	SortBySpecificPorts(ports, &CurrLisinfoCommon)
+	SortBySpecificPorts(common_ports, &CurrLisinfoCommon)
 	processListenData(&CurrLisinfoCommon)
 	processHostMap(&CurrLisinfoCommon)
 	// fill cfg
+
+	for index, each := range CurrLisinfoCommon {
+		for _, old := range GLisinfos {
+			if old.Port == each.Port {
+				if each.LisType == 1 || each.LisType == 10 {
+					CurrLisinfoCommon[index].Lfd = old.Lfd
+				} else {
+					CurrLisinfoCommon[index].Lfd = old.Lfd
+				}
+				logger.Debug("update: %s", each.Port)
+				break
+			}
+		}
+	}
 
 	*newLis = append(*newLis, CurrLisinfoCommon...)
 }

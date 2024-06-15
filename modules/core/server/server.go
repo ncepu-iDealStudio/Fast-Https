@@ -102,29 +102,28 @@ func (s *Server) setConnCfg(conn *net.Conn) {
 }
 
 // listen and serve one port
-func (s *Server) serveListener(listener1 listener.Listener, port_index int) {
+func (s *Server) serveListener(offset int, port_index int) {
 
-	l := &listener1
 	// fmt.Printf("sizeof core.Event{}: %d\n", unsafe.Sizeof(core.Event{}))
 	// fmt.Printf("sizeof []byte: %d\n", unsafe.Sizeof([]byte{100, 200}))
 	// fmt.Printf("sizeof listener.ListenCfg{}: %d\n", unsafe.Sizeof(listener.ListenCfg{}))
 
 	for !s.Shutdown.PortNeedShutdowm(port_index) {
-
+		listener1 := s.Listens[offset]
 		conn, err := listener1.Lfd.Accept()
 		if err != nil {
 			message.PrintErr("Error accepting connection:", err)
 			continue
 		}
 
-		if l.LisType == 10 {
-			go events.H2HandleEvent(l, conn, &(s.Shutdown), port_index)
+		if listener1.LisType == 10 {
+			go events.H2HandleEvent(&listener1, conn, &(s.Shutdown), port_index)
 		} else {
-			go events.HandleEvent(l, conn, &(s.Shutdown), port_index)
+			go events.HandleEvent(&listener1, conn, &(s.Shutdown), port_index)
 		}
 	}
 
-	listener1.Lfd.Close()
+	logger.Debug("listening :%d shutdown ,it will not accept any connections", port_index)
 	//s.Shutdown.PortShutdowmOk(port_index)
 }
 
@@ -140,7 +139,7 @@ func (s *Server) Reload() {
 	s.Shutdown.RemovedPortsToBitArray(removed)
 
 	// 开启新增端口的监听协程开始处理事件
-	s.RunAdded(lisAdded)
+	s.RunAdded(lisAdded, len(lisAll)-len(lisAdded))
 
 	// TODO: improve this
 	safe.Init() // need to be call after listener inited ...
@@ -152,13 +151,13 @@ func (s *Server) Reload() {
 	logger.Info("========= server reload  end  ========")
 }
 
-func (s *Server) RunAdded(lisAdded []listener.Listener) {
-	for _, value := range lisAdded {
+func (s *Server) RunAdded(lisAdded []listener.Listener, base int) {
+	for offset, value := range lisAdded {
 		n, err := strconv.Atoi(value.Port)
 		if err != nil {
 			logger.Fatal("cant convert listen port")
 		}
-		go s.serveListener(value, n)
+		go s.serveListener(base+offset, n)
 	}
 }
 
@@ -166,12 +165,12 @@ func (s *Server) Run() {
 
 	listens := s.Listens
 
-	for _, value := range listens {
+	for offset, value := range listens {
 		n, err := strconv.Atoi(value.Port)
 		if err != nil {
 			logger.Fatal("cant convert listen port")
 		}
-		go s.serveListener(value, n)
+		go s.serveListener(offset, n)
 	}
 
 	// for !s.Shutdown.Shutdown {

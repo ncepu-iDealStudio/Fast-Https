@@ -223,7 +223,6 @@ func (sc *ServerControl) PortShutdowmOk(port int) {
 	index := port / 64
 	offset := uint(port % 64)
 	sc.ShutdownPort[index] &^= 1 << offset
-	logger.Debug("listening :%d shutdown ,it will not accept any connections", port)
 }
 
 func (sc *ServerControl) RemovedPortsToBitArray(removed []string) {
