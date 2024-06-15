@@ -10,7 +10,7 @@ const (
 	*/
 	PID_FILE               string = "./fast-https.pid"
 	CONFIG_FILE_PATH       string = "./config_dev/engine_xxxx.json"
-	MIME_FILE_PATH         string = "./config/mime.types"
+	MIME_FILE_PATH         string = "./config/mime.json"
 	MONIITOR_LOG_FILE_PATH string = "./logs/monitor.log"
 
 	/* events */

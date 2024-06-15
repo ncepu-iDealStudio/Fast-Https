@@ -5,14 +5,11 @@ import (
 	"fast-https/config"
 	"fast-https/modules/appfirewall"
 	"fast-https/modules/core"
-	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
-	"fmt"
 	"io"
 	"io/fs"
-	"net/http"
 	"os"
 	"runtime"
 	"strconv"
@@ -146,36 +143,37 @@ func getResBytes(lisdata *listener.ListenCfg,
 
 	// h2 的开发过程要注释掉
 	// 写头
-	// // write first line and headers
-	// ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes())
+	// write first line and headers
+	ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes())
 
 	// 写body
-	// if fileReadWrite(file, ev) != 0 { // some error
-	// 	return -10
-	// }
+	if fileReadWrite(file, ev) != 0 { // some error
+		return -10
+	}
 	// h2 的开发过程要注释掉
 
-	/*  以下 h2 逻辑 */
+	/*  ============ 以下 h2 逻辑 ============= */
 	// 写头
-	responseHeader := http.Header{}
-	firstLine := strings.Split(ev.RR.Res.FirstLine, " ")
-	if len(firstLine) != 3 {
-		fmt.Println("-----------ev.RR.Res_.FirstLine-------------")
-	}
-	responseHeader.Add(":status", firstLine[1])
-	for header, content := range ev.RR.Res.Headers {
-		if header == "Connection" || header == "Content-Length" {
-			continue
-		}
-		responseHeader.Add(header, content)
-	}
-	// fmt.Println(responseHeader)
-	events.WriteHeader(ev, responseHeader)
+	// responseHeader := http.Header{}
+	// firstLine := strings.Split(ev.RR.Res.FirstLine, " ")
+	// if len(firstLine) != 3 {
+	// 	fmt.Println("-----------ev.RR.Res_.FirstLine-------------")
+	// }
+	// responseHeader.Add(":status", firstLine[1])
+	// for header, content := range ev.RR.Res.Headers {
+	// 	if header == "Connection" || header == "Content-Length" {
+	// 		continue
+	// 	}
+	// 	responseHeader.Add(header, content)
+	// }
+	// // fmt.Println(responseHeader)
+	// events.WriteHeader(ev, responseHeader)
 
-	// 写body
-	var file_data = make([]byte, file_size)
-	file.Read(file_data)
-	events.H2EventWrite(ev, file_data)
+	// // 写body
+	// var file_data = make([]byte, file_size)
+	// file.Read(file_data)
+	// events.H2EventWrite(ev, file_data)
+	/* =========== h2 逻辑结束 ==================== */
 
 	// log
 	core.LogOther(&ev.Log, "status", "200")
