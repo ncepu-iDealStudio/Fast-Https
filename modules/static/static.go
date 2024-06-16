@@ -240,12 +240,16 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		res := getResBytes(cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
 			rr.Res = response.DefaultNotFound()
+			// h2 dev need remove
+			ev.Conn.Write(rr.Res.GenerateResponse())
 		}
 		ev.Reuse = true
 	} else {
 		res := getResBytes(cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
 			rr.Res = response.DefaultNotFound()
+			// h2 dev need remove
+			ev.Conn.Write(rr.Res.GenerateResponse())
 		}
 		if !rr.Req.H2 {
 			ev.Close()
