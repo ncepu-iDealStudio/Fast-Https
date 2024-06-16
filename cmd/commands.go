@@ -236,7 +236,7 @@ func StopHandler() error {
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
 	} else {
-		cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-9")
+		cmd = exec.Command("sudo", "kill", "-9", strconv.Itoa(ax))
 	}
 
 	err = cmd.Run()

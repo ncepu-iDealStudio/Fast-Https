@@ -127,7 +127,7 @@ func (p *Proxy) proxyHandleAddr() {
 	}
 }
 
-func (p *Proxy) ChangeHeader(tmpByte []byte, rr *core.RRcircle) ([]byte, string) {
+func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle) ([]byte, string) {
 
 	var res []byte
 
@@ -148,7 +148,10 @@ func (p *Proxy) ChangeHeader(tmpByte []byte, rr *core.RRcircle) ([]byte, string)
 
 	temp_body := rr.Res.Body
 	rr.Res = temp_res
-	rr.Res.Body = temp_body
+
+	if isKeepalive {
+		rr.Res.Body = temp_body
+	}
 
 	res = temp_res.GenerateHeaderBytes()
 
@@ -232,8 +235,8 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 		return nil, errors.New("proxy return null")
 	}
 
+	headerData, head_code := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
 	b_len := len(ev.RR.Res.Body)
-	headerData, head_code := p.ChangeHeader(resData, &ev.RR)
 	fmt.Println("headerData", string(headerData))
 
 	core.LogOther(&ev.Log, "status", head_code)

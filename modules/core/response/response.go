@@ -114,7 +114,7 @@ func (r *Response) HttpResParse(request string) error {
 		value := strings.TrimSpace(parts[1])
 		r.Headers[key] = value
 	}
-
+	r.Body = []byte(strings.Split(request, "\r\n\r\n")[1])
 	return ResponseOk // valid
 }
 
