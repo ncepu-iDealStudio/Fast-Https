@@ -130,6 +130,8 @@ func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
 				if strings.Contains(each.Listen, "ssl") {
 					lis_temp.LisType = 1 // ssl
 					if strings.Contains(each.Listen, "h2") {
+						// h2 not support in this branch
+						logger.Fatal("h2 not support in this branch")
 						lis_temp.LisType = 10
 					}
 				} else if strings.Contains(each.Listen, "tcp") {

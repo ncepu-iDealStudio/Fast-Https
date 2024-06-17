@@ -122,7 +122,8 @@ func (s *Server) serveListener(offset int, port_index int) {
 		}
 
 		if listener1.LisType == 10 {
-			go events.H2HandleEvent(listener1, conn, &(s.Shutdown), port_index)
+			logger.Fatal("h2 not support in this branch")
+			// go events.H2HandleEvent(listener1, conn, &(s.Shutdown), port_index)
 		} else {
 			go events.HandleEvent(listener1, conn, &(s.Shutdown), port_index)
 		}
