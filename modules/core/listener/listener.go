@@ -1,6 +1,7 @@
 package listener
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"fast-https/config"
@@ -221,9 +222,9 @@ func ListenWithCfg() []Listener {
 
 	for index, each := range CurrLisinfos {
 		if each.LisType == 1 || each.LisType == 10 {
-			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg)
+			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg, true)
 		} else {
-			CurrLisinfos[index].Lfd = listenTcp("0.0.0.0:" + each.Port)
+			CurrLisinfos[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
 		}
 	}
 
@@ -299,18 +300,29 @@ func comparePorts(curr_ports, new_ports []string) (added, removed, common []stri
 }
 
 // tcp listen
-func listenTcp(laddr string) net.Listener {
+func listenTcp(laddr string, reuse bool) net.Listener {
 	message.PrintInfo("Listen ", laddr)
 
-	listener, err := net.Listen("tcp", laddr)
-	if err != nil {
-		message.PrintErr("Error listen_tcp :", err)
+	if reuse {
+		cfg := net.ListenConfig{
+			Control: ReuseCallBack,
+		}
+		listener, err := cfg.Listen(context.Background(), "tcp", laddr)
+		if err != nil {
+			logger.Debug("Error listen: %v", err)
+		}
+		return listener
+	} else {
+		listener, err := net.Listen("tcp", laddr)
+		if err != nil {
+			logger.Debug("Error listen: %v", err)
+		}
+		return listener
 	}
-	return listener
 }
 
 // ssl listen
-func listenSsl(laddr string, lisdata []ListenCfg) net.Listener {
+func listenSsl(laddr string, lisdata []ListenCfg, reuse bool) net.Listener {
 	message.PrintInfo("listen ", laddr)
 	certs := []tls.Certificate{}
 	var servernames []string
@@ -319,23 +331,25 @@ func listenSsl(laddr string, lisdata []ListenCfg) net.Listener {
 		if !collection.Collect(servernames).Contains(item.ServerName) {
 			crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
 			if err != nil {
-				message.PrintErr("Error load cert: " + item.SSL.SslKey)
+				logger.Debug("Error load cert: %s" + item.SSL.SslKey)
 			}
 			certs = append(certs, crt)
-			message.PrintInfo("Automatically load " + item.ServerName + " certificate")
+			logger.Info("Automatically load %s certificate", item.ServerName)
 		}
 		servernames = append(servernames, item.ServerName)
 	}
 
 	tlsConfig := &tls.Config{
-		NextProtos: []string{"h2"},
+		NextProtos:   []string{},
+		Certificates: certs,
+		Time:         time.Now,
+		Rand:         rand.Reader,
 	}
-	tlsConfig.Certificates = certs
-	tlsConfig.Time = time.Now
-	tlsConfig.Rand = rand.Reader
-	listener, err := tls.Listen("tcp", laddr, tlsConfig)
-	if err != nil {
-		message.PrintErr("Error listen_ssl: ", err)
-	}
+
+	tcpListener := listenTcp(laddr, reuse)
+
+	// 在TCP监听器上叠加TLS
+	listener := tls.NewListener(tcpListener, tlsConfig)
+
 	return listener
 }
