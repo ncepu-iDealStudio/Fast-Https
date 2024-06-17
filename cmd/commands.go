@@ -1,18 +1,19 @@
 package cmd
 
 import (
-	"bufio"
+	"encoding/json"
 	"fast-https/config"
 	initialization "fast-https/init"
 	"fast-https/modules/core/server"
 	"fast-https/output"
 	"fast-https/utils/logger"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/kardianos/service"
@@ -182,7 +183,7 @@ func DevStartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	WritePid(os.Getpid())
+	Writepid(config.PID_FILE)
 
 	output.PrintInitialStart()
 	initialization.Init()
@@ -203,7 +204,7 @@ func StartHandler() error {
 	// output logo, make initialization and start server
 	output.PrintLogo()
 	if runtime.GOOS == "windows" {
-		WritePid(os.Getpid())
+		Writepid(config.PID_FILE)
 	}
 
 	output.PrintInitialStart()
@@ -222,21 +223,17 @@ func StartHandler() error {
 
 // StopHandler stop server
 func StopHandler() error {
-	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
+
+	pid, err := readpid(config.PID_FILE)
 	if err != nil {
-		return err
+		logger.Fatal("read pid failed")
 	}
-	defer file.Close()
-	readerBuf := bufio.NewReader(file)
-	str, _ := readerBuf.ReadString('\n')
-	msg := strings.Trim(str, "\r\n")
-	ax, _ := strconv.Atoi(msg)
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
+		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
 	} else {
-		cmd = exec.Command("sudo", "kill", "-9", strconv.Itoa(ax))
+		cmd = exec.Command("sudo", "kill", "-9", strconv.Itoa(pid))
 	}
 
 	err = cmd.Run()
@@ -250,27 +247,23 @@ func StopHandler() error {
 
 // ReloadHandler reload server
 func ReloadHandler() error {
-	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
+
+	pid, err := readpid(config.PID_FILE)
 	if err != nil {
-		return err
+		logger.Fatal("read pid failed")
 	}
-	defer file.Close()
-	readerBuf := bufio.NewReader(file)
-	str, _ := readerBuf.ReadString('\n')
-	msg := strings.Trim(str, "\r\n")
-	ax, _ := strconv.Atoi(msg)
 
-	var cmd *exec.Cmd
 	// TODO: Windows
-	// if runtime.GOOS == "windows" {
-	// 	cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
-	// } else {
-	cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-2")
-	// }
-
-	err = cmd.Run()
-	if err != nil {
-		logger.Fatal("fast-https reload failed: %v", err)
+	if runtime.GOOS == "windows" {
+		// if err := sendCtrlC(pid); err != nil {
+		// 	logger.Debug("gid: %d, send ctrl c sig failed %v", pid, err)
+		// }
+	} else {
+		cmd := exec.Command("sudo", "kill", strconv.Itoa(pid), "-2")
+		err = cmd.Run()
+		if err != nil {
+			logger.Fatal("fast-https reload failed: %v", err)
+		}
 	}
 	return nil
 }
@@ -297,15 +290,51 @@ func PreCheckHandler() {
 
 }
 
-func WritePid(x_pid int) {
-	// Obtain the pid and store it
+func Writepid(filepath string) error {
+	// Get current PID and GID
+	pid := os.Getpid()
 
-	file, err := os.OpenFile(config.PID_FILE, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		logger.Fatal("Open pid file error %v", err)
+	// Create a map to hold PID and GID
+	pidGidMap := map[string]int{
+		"pid": pid,
 	}
-	defer file.Close()
 
-	file.WriteString(strconv.Itoa(x_pid) + "\n")
-	logger.Info("Fast-Https running [PID]: %v", x_pid)
+	// Marshal the map to JSON
+	jsonData, err := json.Marshal(pidGidMap)
+	if err != nil {
+		return fmt.Errorf("error marshalling PID and GID to JSON: %v", err)
+	}
+
+	// Write JSON data to the specified file
+	if err := ioutil.WriteFile(filepath, jsonData, 0644); err != nil {
+		return fmt.Errorf("error writing JSON data to file: %v", err)
+	}
+
+	return nil
+}
+
+// readpid reads the PID and GID from a given file in JSON format and returns them.
+func readpid(filepath string) (int, error) {
+	// Read the file contents
+	data, err := ioutil.ReadFile(filepath)
+	if err != nil {
+		return 0, fmt.Errorf("error reading file: %v", err)
+	}
+
+	// Create a map to hold the PID and GID
+	pidGidMap := make(map[string]int)
+
+	// Unmarshal the JSON data into the map
+	if err := json.Unmarshal(data, &pidGidMap); err != nil {
+		return 0, fmt.Errorf("error unmarshalling JSON data: %v", err)
+	}
+
+	// Get the PID and GID from the map
+	pid, pidExists := pidGidMap["pid"]
+
+	if !pidExists {
+		return 0, fmt.Errorf("PID or GID not found in JSON data")
+	}
+
+	return pid, nil
 }

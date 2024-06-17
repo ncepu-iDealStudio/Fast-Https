@@ -9,7 +9,7 @@ const (
 		// use "config/fast-https.json" when release
 	*/
 	PID_FILE               string = "./fast-https.pid"
-	CONFIG_FILE_PATH       string = "./config_dev/engine_xxxx.json"
+	CONFIG_FILE_PATH       string = "./config/fast-https.json"
 	MIME_FILE_PATH         string = "./config/mime.json"
 	MONIITOR_LOG_FILE_PATH string = "./logs/monitor.log"
 
@@ -32,7 +32,7 @@ const (
 
 /*
 cd monitor &&
-go build -ldflags "-s -w -H=windowsgui" -o monitor.exe monitor.go &&
+go build -ldflags "-s -w -H=windowsgui" -o monitor.exe monitor.go windows.go &&
 echo "monitor compiler successed" &&
 cd .. &&
 goreleaser release -f .goreleaser.windows.yaml --snapshot --clean &&

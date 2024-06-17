@@ -1,7 +1,7 @@
 package test
 
 import (
-	cmd "fast-https/cmd"
+	"fast-https/cmd"
 	"fast-https/config"
 	initialiaztion "fast-https/init"
 	"os"
@@ -32,7 +32,7 @@ func TestServerInit(t *testing.T) {
 	t.Log("current system path: ", currentDir)
 
 	// 1. write pid into file and command
-	cmd.WritePid(os.Getpid())
+	cmd.Writepid(config.PID_FILE)
 	t.Log("step1: fast-https.pid: ", os.Getpid())
 
 	// 2. init system message

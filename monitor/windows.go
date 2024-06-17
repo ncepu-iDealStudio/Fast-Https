@@ -36,7 +36,7 @@ func StartWindows() {
 
 func startServer() {
 	dir, err := os.Getwd()
-	command := exec.Command(filepath.Join(dir, "fast-https"), "start")
+	command := exec.Command(filepath.Join(dir, "fast-https"))
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	command.Stdout = logFile
 	err = command.Start()
