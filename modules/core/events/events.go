@@ -33,7 +33,9 @@ func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerContr
 		if shutdown.PortNeedShutdowm(port_num) {
 			logger.Debug("event shutdown port: %d circle", port_num)
 			shutdown.PortShutdowmOk(port_num)
-			l.Lfd.Close()
+			if err := l.Lfd.Close(); err != nil {
+				logger.Debug("event close listen fd error %v", err)
+			}
 			break
 		}
 

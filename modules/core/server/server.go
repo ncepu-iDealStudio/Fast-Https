@@ -3,7 +3,6 @@ package server
 import (
 	"fast-https/config"
 	"fast-https/modules/core"
-	"fast-https/modules/core/engine"
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
 	"strconv"
@@ -24,7 +23,6 @@ import (
 	_ "fast-https/modules/proxy"
 	_ "fast-https/modules/rewrite"
 	_ "fast-https/modules/static"
-	_ "net/http/pprof"
 )
 
 type Server struct {
@@ -32,6 +30,16 @@ type Server struct {
 	Wg       sync.WaitGroup
 
 	Listens []listener.Listener
+}
+
+// init modules thoses need to be inited after listener
+func initModules() {
+	// TODO: improve this
+	safe.Init() // need to be call after listener inited ...
+	core.LogRegister()
+	// if config.GConfig.ServerEngine.Id != 0 {
+	//engine.EngineInit()
+	// }
 }
 
 // init server
@@ -47,16 +55,11 @@ func ServerInit() *Server {
 	}(&s)
 	//  to do : ScanPorts
 	s.Shutdown = *core.NewServerContron()
-
-	s.Listens = listener.ListenWithCfg()
 	output.PrintPortsListenerStart()
+	s.Listens = listener.ListenWithCfg()
 
-	// TODO: improve this
-	safe.Init() // need to be call after listener inited ...
-	core.LogRegister()
-	// if config.GConfig.ServerEngine.Id != 0 {
-	engine.EngineInit()
-	// }
+	initModules()
+
 	return &s
 }
 
@@ -108,19 +111,22 @@ func (s *Server) serveListener(offset int, port_index int) {
 	// fmt.Printf("sizeof []byte: %d\n", unsafe.Sizeof([]byte{100, 200}))
 	// fmt.Printf("sizeof listener.ListenCfg{}: %d\n", unsafe.Sizeof(listener.ListenCfg{}))
 
+	var listener1 *listener.Listener
 	for !s.Shutdown.PortNeedShutdowm(port_index) {
-		listener1 := s.Listens[offset]
+		listener1 = &s.Listens[offset]
 		conn, err := listener1.Lfd.Accept()
+		logger.Debug("listener ptr %p, conn ptr %p", listener1, conn)
 		if err != nil {
-			message.PrintErr("Error accepting connection:", err)
+			logger.Debug("Error accepting connection: %v", err)
 			continue
 		}
 
 		if listener1.LisType == 10 {
-			go events.H2HandleEvent(&listener1, conn, &(s.Shutdown), port_index)
+			go events.H2HandleEvent(listener1, conn, &(s.Shutdown), port_index)
 		} else {
-			go events.HandleEvent(&listener1, conn, &(s.Shutdown), port_index)
+			go events.HandleEvent(listener1, conn, &(s.Shutdown), port_index)
 		}
+
 	}
 
 	logger.Debug("listening :%d shutdown ,it will not accept any connections", port_index)
@@ -132,21 +138,16 @@ func (s *Server) Reload() {
 
 	lisAll, lisAdded, removed := listener.ReloadListenCfg()
 
-	// 指向最新的ListenCfg数据
-	s.Listens = lisAll
-
 	// 设置需要移除的端口
 	s.Shutdown.RemovedPortsToBitArray(removed)
+
+	// 指向最新的ListenCfg数据
+	s.Listens = lisAll
 
 	// 开启新增端口的监听协程开始处理事件
 	s.RunAdded(lisAdded, len(lisAll)-len(lisAdded))
 
-	// TODO: improve this
-	safe.Init() // need to be call after listener inited ...
-	core.LogRegister()
-	// if config.GConfig.ServerEngine.Id != 0 {
-	engine.EngineInit()
-	// }
+	initModules()
 
 	logger.Info("========= server reload  end  ========")
 }

@@ -37,10 +37,13 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]Listener) (remove
 				if old.LisType == each.LisType {
 					CurrLisinfoCommon[index].Lfd = old.Lfd
 				} else {
+					logger.Debug("port %s listen type changed", each.Port)
 					removeOverlap = append(removeOverlap, each.Port)
 					if each.LisType == 1 || each.LisType == 10 {
+						old.Lfd.Close()
 						CurrLisinfoCommon[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg, true)
 					} else {
+						old.Lfd.Close()
 						CurrLisinfoCommon[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
 					}
 				}

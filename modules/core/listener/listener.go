@@ -323,7 +323,6 @@ func listenTcp(laddr string, reuse bool) net.Listener {
 
 // ssl listen
 func listenSsl(laddr string, lisdata []ListenCfg, reuse bool) net.Listener {
-	message.PrintInfo("listen ", laddr)
 	certs := []tls.Certificate{}
 	var servernames []string
 
