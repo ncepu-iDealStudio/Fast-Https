@@ -178,6 +178,7 @@ func getResBytes(lisdata *listener.ListenCfg,
 	// log
 	core.LogOther(&ev.Log, "status", "200")
 	core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
+	core.LogClear(&ev.Log)
 
 	return 1 // find source
 }
