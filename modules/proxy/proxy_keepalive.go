@@ -17,9 +17,10 @@ const (
 	TRY_READ_LEN        = 2048
 	READ_BYTES_LEN      = 4096
 	READ_BODY_BYTES_LEN = 1024
+	CHUNCKED_BODY_SIZE  = 8192
 )
 
-type ReadOnce struct {
+type ReadKeepAlive struct {
 	TryNum       int
 	finalStr     []byte
 	bodyPosition int
@@ -35,7 +36,7 @@ type ReadOnce struct {
     return -2 parse failed no such Header "Content-Length"
   - if parse successed, return a number that need to be read.
 */
-func (ro *ReadOnce) tryToParse(tmpData []byte) int {
+func (ro *ReadKeepAlive) tryToParse(tmpData []byte) int {
 
 	tmpLen := len(tmpData)
 	if tmpLen < 4 {
@@ -55,15 +56,15 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 	res := response.ResponseInit()
 	res.HttpResParse(string(tmpData))
 	var contentLength int
-	if res.GetHeader("content-length") != "" {
+	if res.GetHeader("Content-Length") != "" {
 		// fmt.Println(res.GetHeader("Content-Length"))
-		contentLength, _ = strconv.Atoi(res.GetHeader("content-length"))
+		contentLength, _ = strconv.Atoi(res.GetHeader("Content-Length"))
 		NeedRead := contentLength - (tmpLen - i - 4)
 		ro.bodyPosition = i + 4
 		ro.body = tmpData[i+4:]
 		ro.res = res
 		return NeedRead
-	} else if res.GetHeader("transfer-encoding") == "chunked" {
+	} else if res.GetHeader("Transfer-Encoding") == "chunked" {
 		ro.bodyPosition = i + 4
 		ro.body = tmpData[i+4:]
 		ro.res = res
@@ -74,8 +75,6 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 	}
 
 }
-
-const CHUNCKED_BODY_SIZE = 8192
 
 func Parse(data string) ([]byte, int64) {
 	startIndex := 0
@@ -124,7 +123,7 @@ func Parse(data string) ([]byte, int64) {
 	return nil, 0
 }
 
-func (ro *ReadOnce) parseChunked() {
+func (ro *ReadKeepAlive) parseChunked() {
 	var p int
 	// var after_body []byte
 	// var total_length int64
@@ -158,7 +157,7 @@ func (ro *ReadOnce) parseChunked() {
 
 }
 
-func (ro *ReadOnce) Read(data []byte) (int, error) {
+func (ro *ReadKeepAlive) Read(data []byte) (int, error) {
 	if ro.Type == config.PROXY_HTTP {
 		return ro.ProxyConn.Read(data)
 	} else if ro.Type == config.PROXY_HTTPS {
@@ -170,7 +169,7 @@ func (ro *ReadOnce) Read(data []byte) (int, error) {
 }
 
 // debug by zhangjiayue
-func (ro *ReadOnce) ReadBytes(size int) {
+func (ro *ReadKeepAlive) ReadBytes(size int) {
 	totalLen := size
 	//ro.ProxyConn.SetReadDeadline(time.Now().Add(time.Second * 100))
 	for totalLen > 0 {
@@ -189,7 +188,7 @@ func (ro *ReadOnce) ReadBytes(size int) {
 	}
 }
 
-func (ro *ReadOnce) proxyReadOnce(_ *core.Event) error {
+func (ro *ReadKeepAlive) proxyKeepAlive(_ *core.Event) error {
 
 	tmpByte := make([]byte, TRY_READ_LEN)
 readAgain:

@@ -13,6 +13,7 @@ import (
 
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
+	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"io"
 	"net"
@@ -127,19 +128,17 @@ func (p *Proxy) proxyHandleAddr() {
 	}
 }
 
-func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle) ([]byte, string) {
-
-	var res []byte
+func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle) string {
 
 	temp_res := response.ResponseInit()
 	temp_res.HttpResParse(string(tmpByte))
 
 	head_code := strings.Split(temp_res.FirstLine, " ")[1]
 
-	if temp_res.Headers["connection"] == "" {
+	if temp_res.Headers["Connection"] == "" {
 		p.ProxyNeedClose = true
 	}
-	if temp_res.Headers["connection"] == "close" {
+	if temp_res.Headers["Connection"] == "close" {
 		p.ProxyNeedClose = true
 	}
 
@@ -153,9 +152,7 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 		rr.Res.Body = temp_body
 	}
 
-	res = temp_res.GenerateHeaderBytes()
-
-	return res, head_code
+	return head_code
 }
 
 func (p *Proxy) proxyReadAll(ev *core.Event) ([]byte, error) {
@@ -181,7 +178,7 @@ func (p *Proxy) proxyReadAll(ev *core.Event) ([]byte, error) {
 
 // fast-https will send data to real server and get response from target
 func (p *Proxy) getDataFromServer(ev *core.Event,
-	req_data []byte) ([]byte, error) {
+	req_data []byte) error {
 
 	var err error
 
@@ -190,8 +187,10 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 		p.Close()  // close proxy connection
 		ev.Close() // close event connection
 		message.PrintWarn("Proxy event: Can't write to " + err.Error())
-		return nil, err // can't write
+		return err // can't write
 	}
+
+	//logger.Debug("\n\n" + string(req_data) + "\n\n")
 
 	var resData []byte
 	if !ev.RR.Req.IsKeepalive() {
@@ -201,22 +200,23 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 			resData = web[:n]
 		} else {
 			resData, err = p.proxyReadAll(ev)
-			// fmt.Println("-----This is proxyReadAll")
+			logger.Debug("-----This is proxyReadAll")
 			if err != nil {
 				message.PrintWarn("Proxy event: Can't read all ", err.Error())
 			}
 		}
 	} else {
-		ro := ReadOnce{
+		ro := ReadKeepAlive{
 			TryNum:       0,
 			ProxyConn:    p.ProxyConn,
 			ProxyTlsConn: p.ProxyTlsConn,
 			Type:         p.ProxyType,
 		}
-		err = ro.proxyReadOnce(ev)
-		// fmt.Println("-----This is proxyReadOnce")
+		err = ro.proxyKeepAlive(ev)
+		logger.Debug("-----This is ReadKeepAlive")
 		if err != nil {
-			message.PrintWarn("Proxy event: Can't read once ", err.Error())
+			logger.Debug("Proxy event: Can't read keep alive %v", err.Error())
+			return errors.New("proxy return null")
 		}
 		resData = ro.finalStr
 		// fmt.Println(ev.RR.Res)
@@ -229,22 +229,15 @@ func (p *Proxy) getDataFromServer(ev *core.Event,
 		p.Close()
 	}
 
-	if len(resData) < 4 {
-		message.PrintWarn(ev.Conn.RemoteAddr().String(), " proxy return null")
-		p.ProxyConn.Close()
-		return nil, errors.New("proxy return null")
-	}
-
-	headerData, head_code := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
+	head_code := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
 	b_len := len(ev.RR.Res.Body)
-	fmt.Println("headerData", string(headerData))
 
 	core.LogOther(&ev.Log, "status", head_code)
 	core.LogOther(&ev.Log, "size", strconv.Itoa(b_len))
 	core.Log(&ev.Log, ev, "")
-
 	core.LogClear(&ev.Log)
-	return headerData, nil // no error
+
+	return nil // no error
 }
 
 func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
@@ -261,7 +254,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 	if !flag {
 
-		res, err = p.getDataFromServer(ev, req_data)
+		err = p.getDataFromServer(ev, req_data)
 
 		// Server error
 		if err != nil {
@@ -288,7 +281,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 
-	_, err := p.getDataFromServer(ev, req_data)
+	err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
 		ev.RR.Res = response.DefaultServerError()

@@ -110,11 +110,12 @@ func (r *Response) HttpResParse(request string) error {
 		}
 		parts := strings.SplitN(line, ":", 2)
 		key := strings.TrimSpace(parts[0])
-		key = strings.ToLower(key)
+		//key = strings.ToLower(key)
 		value := strings.TrimSpace(parts[1])
 		r.Headers[key] = value
 	}
-	r.Body = []byte(strings.Split(request, "\r\n\r\n")[1])
+	i := strings.Index(string(request), "\r\n\r\n")
+	r.Body = []byte(request)[i+4:]
 	return ResponseOk // valid
 }
 
