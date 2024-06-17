@@ -4,7 +4,6 @@ import (
 	cmd "fast-https/cmd"
 	"fast-https/config"
 	initialiaztion "fast-https/init"
-	"fast-https/utils/loggers"
 	"os"
 	"path/filepath"
 	"testing"
@@ -37,16 +36,12 @@ func TestServerInit(t *testing.T) {
 	t.Log("step1: fast-https.pid: ", os.Getpid())
 
 	// 2. init system message
-	initialiaztion.MessageInit()
+	initialiaztion.MessageInit(config.GConfig.LogRoot)
 	t.Log("step2: system message initialization")
 
 	// 3. read config into memory
 	config.Init()
 	t.Log("step3: read config")
-
-	// 4. init system log
-	loggers.InitLogger(config.GConfig.LogRoot + "system.log")
-	t.Log("step4: init system log, log_root: ", config.GConfig.LogRoot)
 
 	// 5. self-signed certification initialization
 	initialiaztion.CertInit()

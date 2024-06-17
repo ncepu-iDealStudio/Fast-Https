@@ -6,8 +6,7 @@ import (
 	initialization "fast-https/init"
 	"fast-https/modules/core/server"
 	"fast-https/output"
-	"fmt"
-	"log"
+	"fast-https/utils/logger"
 	"net/http"
 	"os"
 	"os/exec"
@@ -74,12 +73,12 @@ var (
 type program struct{}
 
 func (p *program) Start(s service.Service) error {
-	fmt.Println("fast https (p *program) Start ...")
+	logger.Info("fast https (p *program) Start ...")
 	return nil
 }
 
 func (p *program) Stop(s service.Service) error {
-	fmt.Println("fast https (p *program) Stop ...")
+	logger.Info("fast https (p *program) Stop ...")
 	return nil
 }
 
@@ -109,7 +108,7 @@ func RootCmd() *cobra.Command {
 func runCommand(args []string) error {
 	// missing parameter
 	if len(args) == 0 {
-		fmt.Println(color.RedString("This is Dev start mod ..."))
+		logger.Info(color.RedString("This is Dev start mod ..."))
 		DevStartHandler()
 		return nil
 	}
@@ -126,25 +125,29 @@ func runCommand(args []string) error {
 	return nil
 }
 
+// need return
 func ServiceInstallHandler() error {
 
 	directory, err := os.Getwd() //get the current directory using the built-in function
 	if err != nil {
-		fmt.Println(err) //print the error if obtained
+		logger.Warn("%v", err) //print the error if obtained
+		return err
 	}
 
 	srvConfig.WorkingDirectory = directory
 
 	s, err := service.New(prg, srvConfig)
 	if err != nil {
-		fmt.Println(err)
+		logger.Warn("%v", err)
+		return err
 	}
 
 	err = s.Install()
 	if err != nil {
-		fmt.Println("安装服务失败: ", err.Error())
+		logger.Warn("安装服务失败: %s", err.Error())
+		return err
 	} else {
-		fmt.Println("fast-https服务在", directory, "安装成功!")
+		logger.Info("fast-https服务在 %s 安装成功!", directory)
 	}
 
 	return nil
@@ -154,14 +157,16 @@ func ServiceUnInstallHandler() error {
 
 	s, err := service.New(prg, srvConfig)
 	if err != nil {
-		fmt.Println(err)
+		logger.Warn("%v", err)
+		return err
 	}
 
 	err = s.Uninstall()
 	if err != nil {
-		fmt.Println("卸载服务失败: ", err.Error())
+		logger.Warn("卸载服务失败: %s", err.Error())
+		return err
 	} else {
-		fmt.Println("fast-https卸载服务成功")
+		logger.Info("fast-https卸载服务成功")
 	}
 
 	return nil
@@ -170,7 +175,7 @@ func ServiceUnInstallHandler() error {
 // this start handler only when develop
 func DevStartHandler() error {
 	go func() {
-		log.Println(http.ListenAndServe("0.0.0.0:10000", nil))
+		logger.Info("%v", http.ListenAndServe("0.0.0.0:10000", nil))
 	}()
 	// pre check before server start
 	PreCheckHandler()
@@ -221,6 +226,7 @@ func StopHandler() error {
 	if err != nil {
 		return err
 	}
+	defer file.Close()
 	readerBuf := bufio.NewReader(file)
 	str, _ := readerBuf.ReadString('\n')
 	msg := strings.Trim(str, "\r\n")
@@ -230,23 +236,42 @@ func StopHandler() error {
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
 	} else {
-		cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-9")
+		cmd = exec.Command("sudo", "kill", "-9", strconv.Itoa(ax))
 	}
 
 	err = cmd.Run()
 	if err != nil {
-		fmt.Println("fast-https stop failed:", err)
+		logger.Fatal("fast-https stop failed: %v", err)
 	}
-	file.Close()
+
 	os.Remove(config.PID_FILE)
 	return nil
 }
 
 // ReloadHandler reload server
 func ReloadHandler() error {
-	// StopHandler()
-	// time.Sleep(time.Second)
-	// StartHandler()
+	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	readerBuf := bufio.NewReader(file)
+	str, _ := readerBuf.ReadString('\n')
+	msg := strings.Trim(str, "\r\n")
+	ax, _ := strconv.Atoi(msg)
+
+	var cmd *exec.Cmd
+	// TODO: Windows
+	// if runtime.GOOS == "windows" {
+	// 	cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
+	// } else {
+	cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-2")
+	// }
+
+	err = cmd.Run()
+	if err != nil {
+		logger.Fatal("fast-https reload failed: %v", err)
+	}
 	return nil
 }
 
@@ -258,18 +283,18 @@ func PreCheckHandler() {
 	// check config
 	err := config.CheckConfig()
 	if err != nil {
-		log.Println("Start server failed. An error occurred for the following reason:")
-		log.Fatalln(err)
+		logger.Fatal("Start server failed. An error occurred for the following reason: %v", err)
 	}
 
 	// check ports
 	err = server.ScanPorts()
 	if err != nil {
-		log.Println("Port has been used, An error occurred for the following reason:")
-		log.Fatalln(err)
+		logger.Fatal("Port has been used, An error occurred for the following reason: %v", err)
 	}
 
-	config.ClearConfig()
+	//TODO: check if fast-https is already running...
+	//if failed, logger.Fatal...
+
 }
 
 func WritePid(x_pid int) {
@@ -277,10 +302,10 @@ func WritePid(x_pid int) {
 
 	file, err := os.OpenFile(config.PID_FILE, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
-		log.Fatal("Open pid file error", err)
+		logger.Fatal("Open pid file error %v", err)
 	}
 	defer file.Close()
 
 	file.WriteString(strconv.Itoa(x_pid) + "\n")
-	fmt.Println("Fast-Https running [PID]:", x_pid)
+	logger.Info("Fast-Https running [PID]: %v", x_pid)
 }

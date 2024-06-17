@@ -9,8 +9,13 @@ const (
 		// use "config/fast-https.json" when release
 	*/
 	PID_FILE               string = "./fast-https.pid"
+<<<<<<< HEAD
 	CONFIG_FILE_PATH       string = "./config/fast-https.json"
 	MIME_FILE_PATH         string = "./config/mime.types"
+=======
+	CONFIG_FILE_PATH       string = "./config_dev/engine_xxxx.json"
+	MIME_FILE_PATH         string = "./config/mime.json"
+>>>>>>> feature-h2
 	MONIITOR_LOG_FILE_PATH string = "./logs/monitor.log"
 
 	/* events */
@@ -24,6 +29,10 @@ const (
 	ACCESS_LOG_NAME    string = "access.log"
 	ERROR_LOG_NAME     string = "error.log"
 	SAFE_LOG_NAME      string = "safe.log"
+)
+
+const (
+	HTTP_DEFAULT_CONTENT_TYPE = "application/octet-stream"
 )
 
 /*

@@ -1,6 +1,7 @@
 package request
 
 import (
+	"bytes"
 	"fast-https/modules/core/listener"
 	"fmt"
 	"strconv"
@@ -43,17 +44,19 @@ func (e *RequestError) Error() string {
 
 // this struct is saved in Event
 // which contaions event's method,path,servername(headers)
-type Req struct {
+type Request struct {
 	// HTTP first line
 	Method   string `name:"request_method"`
 	Path     string `name:"request_uri"`
+	Query    PathQuery
 	Protocol string
 	Encoding []string
 	// HTTP Headers
 	Headers   map[string]string
 	HeaderLen int
-	Body      []byte
+	Body      bytes.Buffer
 	BodyLen   int
+	H2        bool
 }
 
 var http_method = []string{
@@ -75,14 +78,40 @@ var http_protocol = []string{
 	"HTTP/3",
 }
 
-func ReqInit() *Req {
-	return &Req{
+func RequestInit(h2 bool) *Request {
+	return &Request{
 		Headers: make(map[string]string),
+		Query:   make(map[string]string),
+		H2:      h2,
 	}
 }
 
+func (r *Request) parseQueryParams() {
+	queryIndex := strings.Index(r.Path, "?")
+	if queryIndex == -1 {
+		return
+	}
+
+	queryStr := r.Path[queryIndex+1:]
+	params := strings.Split(queryStr, "&")
+
+	for _, param := range params {
+
+		valIndex := strings.Index(param, "=")
+		if valIndex != -1 {
+			key := param[:valIndex]
+			valStr := param[valIndex+1:]
+			r.Query[key] = valStr
+		}
+
+	}
+
+	//r.Query["44"] = `<a onblur="alert(secret)" href="http://www.google.com">Google</a>`
+
+}
+
 // parse Host
-func (r *Req) ParseHost(lis_info listener.Listener) {
+func (r *Request) ParseHost(lis_info listener.Listener) {
 	if r.Headers["Host"] == "" {
 		return
 	}
@@ -91,43 +120,73 @@ func (r *Req) ParseHost(lis_info listener.Listener) {
 	} else if lis_info.Port == "443" {
 		r.Headers["Host"] = r.Headers["Host"] + ":443"
 	}
+
+	r.parseQueryParams() // temp put here
 }
 
 // reset request's header
-func (r *Req) SetHeader(key string, val string, cfg listener.ListenCfg) {
+func (r *Request) SetHeader(key string, val string, cfg *listener.ListenCfg) {
 
 	r.Headers[key] = val
 
-	_, ref := r.Headers["Referer"]
-	if ref {
-		ori := r.Headers["Referer"]
-		after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
-		r.Headers["Referer"] = after
-	}
+	// _, ref := r.Headers["Referer"]
+	// if ref {
+	// 	ori := r.Headers["Referer"]
+	// 	after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
+	// 	r.Headers["Referer"] = after
+	// }
 
-	_, ori := r.Headers["Origin"]
-	if ori {
-		if cfg.Type == 1 {
-			r.Headers["Origin"] = "http://" + cfg.ProxyAddr
-		} else if cfg.Type == 2 {
-			r.Headers["Origin"] = "https://" + cfg.ProxyAddr
-		} else {
-			fmt.Println("SET header error...")
-		}
-	}
+	// _, ori := r.Headers["Origin"]
+	// if ori {
+	// 	if cfg.Type == 1 {
+	// 		r.Headers["Origin"] = "http://" + cfg.ProxyAddr
+	// 	} else if cfg.Type == 2 {
+	// 		r.Headers["Origin"] = "https://" + cfg.ProxyAddr
+	// 	} else {
+	// 		fmt.Println("SET header error...")
+	// 	}
+	// }
 }
 
 // flush request struct
-func (r *Req) Flush() {}
+func (r *Request) Flush() {}
 
 // get request header
-func (r *Req) GetHeader(key string) string {
+func (r *Request) GetHeader(key string) string {
 	return r.Headers[key]
 }
 
+func (r *Request) GetHost() string {
+	return r.Headers["Host"]
+}
+
+func (r *Request) GetConnection() string {
+	return r.Headers["Connection"]
+}
+
+func (r *Request) GetContentType() string {
+	return r.Headers["Content-Type"]
+}
+
+func (r *Request) GetContentLength() string {
+	return r.Headers["Content-Length"]
+}
+
+func (r *Request) GetUpgrade() string {
+	return r.Headers["Upgrade"]
+}
+
+func (r *Request) GetTransferEncoding() string {
+	return r.Headers["Transfer-Encoding"]
+}
+
+func (r *Request) GetAuthorization() string {
+	return r.Headers["Authorization"]
+}
+
 // whether the request connection is keep alive
-func (r *Req) IsKeepalive() bool {
-	conn := r.GetHeader("Connection")
+func (r *Request) IsKeepalive() bool {
+	conn := r.GetConnection()
 	if conn == "keep-alive" {
 		return true
 	} else {
@@ -136,7 +195,7 @@ func (r *Req) IsKeepalive() bool {
 }
 
 // get request row bytes
-func (r *Req) ByteRow() []byte {
+func (r *Request) ByteRow() []byte {
 	rowStr := r.Method + " " +
 		r.Path + " " +
 		r.Protocol + "\r\n"
@@ -146,13 +205,13 @@ func (r *Req) ByteRow() []byte {
 	rowStr = rowStr + "\r\n"
 
 	rowByte := []byte(rowStr)
-	rowByte = append(rowByte, r.Body...)
+	rowByte = append(rowByte, r.Body.Bytes()...)
 
 	return rowByte
 }
 
 // parse row tcp str to a req object
-func (r *Req) ParseHeader(request_byte []byte) error {
+func (r *Request) ParseHeader(request_byte []byte) error {
 	request := string(request_byte)
 	if request == "" {
 		return None
@@ -203,16 +262,16 @@ func (r *Req) ParseHeader(request_byte []byte) error {
 	return RequestNeedReadMore // valid
 }
 
-func (r *Req) RequestHeaderValid() bool {
+func (r *Request) RequestHeaderValid() bool {
 	return true
 }
 
-func (r *Req) TryFixHeader(other []byte) error {
+func (r *Request) TryFixHeader(other []byte) error {
 	return nil
 }
 
 // get request's body
-func (r *Req) ParseBody(tmpByte []byte) {
+func (r *Request) ParseBody(tmpByte []byte) {
 	var i int // last byte position before \r\n\r\n
 	var remain_len int
 	var res []byte
@@ -233,28 +292,28 @@ func (r *Req) ParseBody(tmpByte []byte) {
 		res = (tmpByte[i+4:])[:remain_len]
 	}
 
-	r.Body = res
+	r.Body.Write(res)
 }
 
-func (r *Req) RequestBodyValid() bool {
-	contentType := r.GetHeader("Content-Type")
+func (r *Request) RequestBodyValid() bool {
+	contentType := r.GetContentType()
 	if strings.Contains(contentType, "multipart/form-data") {
 		po := strings.Index(contentType, "boundary=")
 		boundaryStr := contentType[po+len("boundary="):]
-		if strings.Contains(string(r.Body), boundaryStr+"--") {
+		if strings.Contains(r.Body.String(), boundaryStr+"--") {
 			return true
 		} else {
 			return false
 		}
 	}
 
-	contentLength := r.GetHeader("Content-Length")
+	contentLength := r.GetContentLength()
 	if contentLength != "" {
 		n, err := strconv.Atoi(contentLength)
 		if err != nil {
 			panic(err)
 		}
-		if len(r.Body) != n { // content length not equal to body length
+		if r.Body.Len() != n { // content length not equal to body length
 			return false
 		}
 	}
@@ -262,8 +321,9 @@ func (r *Req) RequestBodyValid() bool {
 	return true
 }
 
-func (r *Req) TryFixBody(other []byte) bool {
-	r.Body = append(r.Body, other...)
+func (r *Request) TryFixBody(other []byte) bool {
+	// r.Body = append(r.Body, other...)
+	r.Body.Write(other)
 	if !r.RequestBodyValid() {
 		return false
 	} else {

@@ -1,62 +1,68 @@
 {
   "log_root":"./logs",
   "pid": "./fast-https.pid",
+  "engine": {
+    "is_master": false,
+    "id": "A",
+    "slave_ip": "127.0.0.1",
+    "slave_port": 5001
+  },
   "http": {
     "include": "mime.types",
     "servers_limit": {
       "limit": 1000000,
       "burst": 5000000
     },
+    "log_split": " ",
+    "log_format": [
+      "_user_agent", "ip_port", "time", "type", "method", "path",
+      "host", "status", "size", "referer"
+    ],
     "blaklist": [
       "192.168.11.1-192.168.11.150", 
       "192.168.1.151,59.66.66.66", 
-      "192.168.1.151"
+      "192.168.1.151",
+      "192.168.0.135",
+      "10.115.37.109"
     ],
     "server": [
       {
         "listen": 8080,
-        "server_name": "localhost",
-        
-        "location": [
-          {
-            "url": "/x",
-            "type": "local",
-            "auth": {
-              "type": "basic",
-              "user": "root",
-              "pswd": "123"
-            },
-            "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"] ,
-            "limit": {
-              "mem":10,
-              "rate":2,
-              "burst":2
-            }
-          },
-          {
-            "url": "/y",
-            "type": "proxy",
-            "proxy_pass": "http://127.0.0.1:80",
-            "limit": {
-              "mem":10,
-              "rate":5,
-              "burst":5
-            }
-          }
-        ]
-      },
-      {
-        "listen": "443 ssl",
-        "server_name": "localhost",
-        "ssl_certificate": "config/cert/localhost.pem",
-        "ssl_certificate_key": "config/cert/localhost-key.pem",
+        "server_name": "",
         "location": [
           {
             "url": "/",
             "type": "local",
             "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"] 
+            "index":["index.html", "index.htm"],
+            "try": [
+              {
+                "uri": "^.*$",
+                "file":["index.html", "index.htm"],
+                "next":  ""
+              },
+              {
+                "uri": "^.*txt$",
+                "file": ["index.html"],
+                "next": "index.html"
+              }
+            ],
+            "appfirewall": [
+              "sql",
+              "xss"
+            ]
+          }
+        ]
+      },
+      {
+        "listen": "4443 ssl h2",
+        "server_name": "127.0.0.1",
+        "ssl_certificate": "config/cert/127.0.0.1.pem",
+        "ssl_certificate_key": "config/cert/127.0.0.1-key.pem",
+        "location": [
+          {
+            "url": "/",
+            "type": "devmod"
           }
         ]
       },
@@ -78,7 +84,7 @@
         ]
       },
       {
-        "listen": 9090,
+        "listen": 9099,
         "server_name": "localhost",
         "location": [
           {
@@ -90,6 +96,10 @@
                 "HeaderKey": "Host",
                 "HeaderValue": "$proxy_host"
               }
+            ],
+            "appfirewall": [
+              "sql",
+              "xss"
             ]
           }
         ]

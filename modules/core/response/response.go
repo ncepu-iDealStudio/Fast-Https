@@ -56,6 +56,10 @@ func (r *Response) SetBody(body []byte) {
 	r.Body = body
 }
 
+func (r *Response) GetBody() []byte {
+	return r.Body
+}
+
 // Generate a response data (bytes)
 // attention: this function must return bytes, not str
 // once response contain '\0', it will doesn't work
@@ -68,6 +72,18 @@ func (r *Response) GenerateResponse() []byte {
 	res = append(res, []byte(response)...)
 	res = append(res, []byte("\r\n")...)
 	res = append(res, r.Body...)
+
+	return res
+}
+
+func (r *Response) GenerateHeaderBytes() []byte {
+	var res []byte
+	response := r.FirstLine + HTTP_SPLIT
+	for key, value := range r.Headers {
+		response += fmt.Sprintf("%s: %s\r\n", key, value)
+	}
+	res = append(res, []byte(response)...)
+	res = append(res, []byte("\r\n")...)
 
 	return res
 }
@@ -85,6 +101,7 @@ func (r *Response) HttpResParse(request string) error {
 	if parts == nil || len(parts) < 3 {
 		return FirstLineInvalid // invalid first line
 	}
+	r.FirstLine = parts[0] + " " + parts[1] + " " + parts[2]
 
 	lines := strings.Split(request, "\r\n")[1:]
 	for _, line := range lines {
@@ -93,16 +110,21 @@ func (r *Response) HttpResParse(request string) error {
 		}
 		parts := strings.SplitN(line, ":", 2)
 		key := strings.TrimSpace(parts[0])
+		key = strings.ToLower(key)
 		value := strings.TrimSpace(parts[1])
 		r.Headers[key] = value
 	}
-
+	r.Body = []byte(strings.Split(request, "\r\n\r\n")[1])
 	return ResponseOk // valid
 }
 
 // get request header
 func (r *Response) GetHeader(key string) string {
 	return r.Headers[key]
+}
+
+func (r *Response) DelHeader(key string) {
+	delete(r.Headers, key)
 }
 
 func Test() {

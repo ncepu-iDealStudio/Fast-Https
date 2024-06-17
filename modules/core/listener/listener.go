@@ -1,11 +1,14 @@
 package listener
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"fast-https/config"
+	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"net"
+	"regexp"
 	"strings"
 	"time"
 
@@ -18,17 +21,27 @@ type SSLkv struct {
 	SslValue string
 }
 
+type Try struct {
+	UriRe *regexp.Regexp
+	Files []string
+	Next  string
+}
+
 // struct like confgure "location"
 type ListenCfg struct {
 	ID         int
 	SSL        SSLkv
 	ServerName string
 	Path       string
+	PathRe     *regexp.Regexp
+	Trys       []Try
 
+	// 10 is dev mod
 	Type           uint16 // 0 1 2 3 4
 	ProxyAddr      string
 	ProxySetHeader []config.Header
 	ProxyCache     config.Cache
+	AppFireWall    []string
 	ReWrite        string
 
 	Limit config.PathLimit
@@ -48,10 +61,35 @@ type Listener struct {
 	LisType uint8
 }
 
-var Lisinfos []Listener
+var GLisinfos []Listener
+
+func FindPorts() []string {
+	var Ports []string
+	for _, each := range config.GConfig.Servers {
+		arr := strings.Split(each.Listen, " ")
+		if !collection.Collect(Ports).Contains(arr[0]) {
+			Ports = append(Ports, arr[0])
+		}
+	}
+	return Ports
+}
+
+func findOldPorts() []string {
+	var Ports []string
+	for _, item := range GLisinfos {
+		if !collection.Collect(Ports).Contains(item.Port) {
+			// always true
+			Ports = append(Ports, item.Port)
+		} else {
+			logger.Fatal("find current ports error")
+		}
+	}
+	return Ports
+}
 
 // sort confgure form "listen"
-func ProcessPorts() []string {
+// fill port and listen type
+func SortByPort(lisInfos *[]Listener) {
 	var Ports []string
 	lis_temp := Listener{}
 	for _, each := range config.GConfig.Servers {
@@ -66,35 +104,74 @@ func ProcessPorts() []string {
 			// lis_temp.Limit = each.Limit
 			if strings.Contains(each.Listen, "ssl") {
 				lis_temp.LisType = 1 // ssl
+				if strings.Contains(each.Listen, "h2") {
+					lis_temp.LisType = 10
+				}
 			} else if strings.Contains(each.Listen, "tcp") {
 				lis_temp.LisType = 2 // tcp proxy
 			} else {
 				lis_temp.LisType = 0
 			}
 			lis_temp.Port = arr[0]
-			Lisinfos = append(Lisinfos, lis_temp)
+			*lisInfos = append(*lisInfos, lis_temp)
 		}
 
 	}
-	return Ports
 }
 
-// sort confgure from "path"
-func processListenData() {
+func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
+	for _, port := range ports {
+		for _, each := range config.GConfig.Servers { // new config
+			if port == strings.Split(each.Listen, " ")[0] {
+				lis_temp := Listener{}
+				lis_temp.Cfg = nil
+				lis_temp.Lfd = nil
+				lis_temp.HostMap = make(map[string][]ListenCfg)
+				if strings.Contains(each.Listen, "ssl") {
+					lis_temp.LisType = 1 // ssl
+					if strings.Contains(each.Listen, "h2") {
+						lis_temp.LisType = 10
+					}
+				} else if strings.Contains(each.Listen, "tcp") {
+					lis_temp.LisType = 2 // tcp proxy
+				} else {
+					lis_temp.LisType = 0
+				}
+				lis_temp.Port = strings.Split(each.Listen, " ")[0]
+				*lisInfos = append(*lisInfos, lis_temp)
+				break
+			}
+		}
+	}
+
+}
+
+// sort configure from "path"
+func processListenData(lisInfos *[]Listener) {
 	Id := 0
 	for _, server := range config.GConfig.Servers {
 		for _, paths := range server.Path {
 
-			for index, eachlisten := range Lisinfos {
+			for index, eachlisten := range *lisInfos {
 				listen := strings.Split(server.Listen, " ")[0]
 				if eachlisten.Port == listen {
 					data := ListenCfg{}
 					data.ID = Id
 					data.Path = paths.PathName
+					data.PathRe = regexp.MustCompile(paths.PathName)
+					for _, item := range paths.Trys {
+						try := Try{
+							UriRe: regexp.MustCompile(item.Uri),
+							Files: item.Files,
+							Next:  item.Next,
+						}
+						data.Trys = append(data.Trys, try)
+					}
 					data.ServerName = server.ServerName + ":" + eachlisten.Port
 					data.Type = paths.PathType
 					data.ProxyAddr = paths.ProxyData
 					data.ProxySetHeader = paths.ProxySetHeader
+					data.AppFireWall = paths.AppFireWall
 					data.Limit = paths.Limit
 					data.Auth = paths.Auth
 					data.StaticRoot = paths.Root
@@ -103,7 +180,8 @@ func processListenData() {
 					data.Zip = paths.Zip
 					data.ReWrite = paths.Rewrite
 					data.ProxyCache = paths.ProxyCache
-					Lisinfos[index].Cfg = append(eachlisten.Cfg, data)
+					listener := &(*lisInfos)[index]
+					listener.Cfg = append(eachlisten.Cfg, data)
 					Id = Id + 1
 				}
 			}
@@ -111,8 +189,8 @@ func processListenData() {
 	}
 }
 
-func processHostMap() {
-	for _, eachPort := range Lisinfos {
+func processHostMap(lisInfos *[]Listener) {
+	for _, eachPort := range *lisInfos {
 		processEachPort(eachPort)
 	}
 }
@@ -136,35 +214,115 @@ func processEachPort(lisPort Listener) {
 }
 
 // listen some ports
-func Listen() []Listener {
-	ProcessPorts()
-	processListenData()
-	processHostMap()
+func ListenWithCfg() []Listener {
+	var CurrLisinfos []Listener
+	SortByPort(&CurrLisinfos)
+	processListenData(&CurrLisinfos)
+	processHostMap(&CurrLisinfos)
 
-	for index, each := range Lisinfos {
-		if each.LisType == 1 {
-			Lisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg)
+	for index, each := range CurrLisinfos {
+		if each.LisType == 1 || each.LisType == 10 {
+			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg, true)
 		} else {
-			Lisinfos[index].Lfd = listenTcp("0.0.0.0:" + each.Port)
+			CurrLisinfos[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
 		}
 	}
-	return Lisinfos
+
+	GLisinfos = CurrLisinfos
+	return CurrLisinfos
+}
+
+/*
+	func comparePorts(curr_ports, new_ports []string) (added, removed, common []string) {
+		// Create a map to store the current set of ports
+		currPortsMap := make(map[string]struct{})
+		for _, port := range curr_ports {
+			currPortsMap[port] = struct{}{}
+		}
+
+		// Create a map to store the new set of ports
+		newPortsMap := make(map[string]struct{})
+		for _, port := range new_ports {
+			newPortsMap[port] = struct{}{}
+		}
+
+		// Find the added ports
+		for port := range newPortsMap {
+			if _, found := currPortsMap[port]; !found {
+				added = append(added, port)
+			}
+		}
+
+		// Find the removed ports
+		for port := range currPortsMap {
+			if _, found := newPortsMap[port]; !found {
+				removed = append(removed, port)
+			} else {
+				// If the port exists in both sets, add it to the common slice
+				common = append(common, port)
+			}
+		}
+
+		return added, removed, common
+	}
+*/
+func comparePorts(curr_ports, new_ports []string) (added, removed, common []string) {
+	// Find the added ports
+	for _, newPort := range new_ports {
+		found := false
+		for _, currPort := range curr_ports {
+			if newPort == currPort {
+				found = true
+				break
+			}
+		}
+		if !found {
+			added = append(added, newPort)
+		}
+	}
+
+	// Find the removed ports and common ports
+	for _, currPort := range curr_ports {
+		found := false
+		for _, newPort := range new_ports {
+			if currPort == newPort {
+				found = true
+				common = append(common, currPort)
+				break
+			}
+		}
+		if !found {
+			removed = append(removed, currPort)
+		}
+	}
+
+	return added, removed, common
 }
 
 // tcp listen
-func listenTcp(laddr string) net.Listener {
+func listenTcp(laddr string, reuse bool) net.Listener {
 	message.PrintInfo("Listen ", laddr)
 
-	listener, err := net.Listen("tcp", laddr)
-	if err != nil {
-		message.PrintErr("Error listen_tcp :", err)
+	if reuse {
+		cfg := net.ListenConfig{
+			Control: ReuseCallBack,
+		}
+		listener, err := cfg.Listen(context.Background(), "tcp", laddr)
+		if err != nil {
+			logger.Debug("Error listen: %v", err)
+		}
+		return listener
+	} else {
+		listener, err := net.Listen("tcp", laddr)
+		if err != nil {
+			logger.Debug("Error listen: %v", err)
+		}
+		return listener
 	}
-	return listener
 }
 
 // ssl listen
-func listenSsl(laddr string, lisdata []ListenCfg) net.Listener {
-	message.PrintInfo("listen ", laddr)
+func listenSsl(laddr string, lisdata []ListenCfg, reuse bool) net.Listener {
 	certs := []tls.Certificate{}
 	var servernames []string
 
@@ -172,21 +330,25 @@ func listenSsl(laddr string, lisdata []ListenCfg) net.Listener {
 		if !collection.Collect(servernames).Contains(item.ServerName) {
 			crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
 			if err != nil {
-				message.PrintErr("Error load cert: " + item.SSL.SslKey)
+				logger.Debug("Error load cert: %s" + item.SSL.SslKey)
 			}
 			certs = append(certs, crt)
-			message.PrintInfo("Automatically load " + item.ServerName + " certificate")
+			logger.Info("Automatically load %s certificate", item.ServerName)
 		}
 		servernames = append(servernames, item.ServerName)
 	}
 
-	tlsConfig := &tls.Config{}
-	tlsConfig.Certificates = certs
-	tlsConfig.Time = time.Now
-	tlsConfig.Rand = rand.Reader
-	listener, err := tls.Listen("tcp", laddr, tlsConfig)
-	if err != nil {
-		message.PrintErr("Error listen_ssl: ", err)
+	tlsConfig := &tls.Config{
+		NextProtos:   []string{},
+		Certificates: certs,
+		Time:         time.Now,
+		Rand:         rand.Reader,
 	}
+
+	tcpListener := listenTcp(laddr, reuse)
+
+	// 在TCP监听器上叠加TLS
+	listener := tls.NewListener(tcpListener, tlsConfig)
+
 	return listener
 }

@@ -1,0 +1,44 @@
+{
+    "log_root":"./logs",
+    "pid": "./fast-https.pid",
+    "engine": {
+      "is_master": true,
+      "id": "Master"
+    },
+    "http": {
+      "include": "mime.types",
+      "servers_limit": {
+        "limit": 1000000,
+        "burst": 5000000
+      },
+      "log_split": " ",
+      "log_format": [
+        "_user_agent", "ip_port", "time", "type", "method", "path",
+        "host", "status", "size", "referer"
+      ],
+      "blaklist": [
+        "192.168.11.1-192.168.11.150", 
+        "192.168.1.151,59.66.66.66", 
+        "192.168.1.151"
+      ],
+      "server": [
+        {
+          "listen": 10001,
+          "server_name": "",
+          "location": [
+            {
+              "url": "/",
+              "type": "local",
+              "root": "./httpdoc/root",
+              "index":["index.html", "index.htm"],
+              "appfirewall": [
+                "sql",
+                "xss"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+  

@@ -23,6 +23,7 @@ type ReadOnce struct {
 	TryNum       int
 	finalStr     []byte
 	bodyPosition int
+	res          *response.Response
 	body         []byte
 	Type         int
 	ProxyConn    net.Conn
@@ -54,14 +55,18 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 	res := response.ResponseInit()
 	res.HttpResParse(string(tmpData))
 	var contentLength int
-	if res.GetHeader("Content-Length") != "" {
+	if res.GetHeader("content-length") != "" {
 		// fmt.Println(res.GetHeader("Content-Length"))
-		contentLength, _ = strconv.Atoi(res.GetHeader("Content-Length"))
+		contentLength, _ = strconv.Atoi(res.GetHeader("content-length"))
 		NeedRead := contentLength - (tmpLen - i - 4)
-		return NeedRead
-	} else if res.GetHeader("Transfer-Encoding") == "chunked" {
 		ro.bodyPosition = i + 4
 		ro.body = tmpData[i+4:]
+		ro.res = res
+		return NeedRead
+	} else if res.GetHeader("transfer-encoding") == "chunked" {
+		ro.bodyPosition = i + 4
+		ro.body = tmpData[i+4:]
+		ro.res = res
 		return -3
 	} else {
 		// unkonwn
@@ -72,9 +77,10 @@ func (ro *ReadOnce) tryToParse(tmpData []byte) int {
 
 const CHUNCKED_BODY_SIZE = 8192
 
-func Parse(data string) {
+func Parse(data string) ([]byte, int64) {
 	startIndex := 0
-
+	var after []byte
+	var total_len int64
 	for {
 		// 查找长度字段的结束位置
 		endLengthIndex := strings.Index(data[startIndex:], "\r\n")
@@ -87,10 +93,11 @@ func Parse(data string) {
 		lengthStr := data[startIndex:endLengthIndex]
 		length, err := strconv.ParseInt(lengthStr, 16, 64)
 		if err != nil {
-			fmt.Println("解析长度失败:", err)
-			return
+			// fmt.Println("解析长度失败:", err, "length string:", lengthStr)
+			return after, total_len
 		} else {
-			fmt.Println(length)
+			// fmt.Println(length)
+			total_len = total_len + length
 		}
 
 		if length == 0 {
@@ -105,24 +112,34 @@ func Parse(data string) {
 		dataPart := data[startDataIndex:endDataIndex]
 
 		// 打印数据内容
-		fmt.Println("数据内容:", dataPart)
+		// fmt.Println("数据内容:", dataPart)
+		after = append(after, []byte(dataPart)...)
 
 		// 更新起始位置，准备处理下一个数据区
-		startIndex = endDataIndex
+		startIndex = endDataIndex + 2
 	}
 
 	fmt.Println("数据解析完成")
+
+	return nil, 0
 }
 
 func (ro *ReadOnce) parseChunked() {
-	// 2b81\r\n
-	// dddddddddd
-	// 0\r\n
-	// \r\n
 	var p int
+	// var after_body []byte
+	// var total_length int64
 	for {
 		if p = strings.Index(string(ro.body), "0\r\n\r\n"); p != -1 { // last block
-			Parse(string(ro.body))
+
+			// data := []byte("2\r\n11\r\n20\r\n22222222222222222222222222222222\r\n5\r\n33333\r\n0\r\n\r\n")
+			_, _ = Parse(string(ro.body))
+			// after_body, total_length = Parse(string(ro.body))
+			// fmt.Println(total_length)
+
+			// ro.res.DelHeader("Transfer-Encoding")
+			// ro.res.Headers["Content-Length"] = strconv.Itoa(int(total_length))
+			ro.res.Body = ro.body // after_body
+			ro.finalStr = ro.res.GenerateResponse()
 			return
 		} else {
 			// if p = strings.Index(string(ro.body), "\r\n"); p == -1 { // body like this  "2b8" or "2b81\r"
@@ -167,6 +184,7 @@ func (ro *ReadOnce) ReadBytes(size int) {
 			message.PrintWarn("ReadBytes error", err)
 		}
 		ro.finalStr = append(ro.finalStr, tmpBuf[:tempLen]...)
+		ro.body = append(ro.body, tmpBuf[:tempLen]...)
 		totalLen -= tempLen
 	}
 }

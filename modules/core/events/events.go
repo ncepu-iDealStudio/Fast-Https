@@ -5,20 +5,48 @@ import (
 	"fast-https/modules/auth"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
+	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/modules/safe"
+	"fast-https/utils/logger"
 	"fast-https/utils/message"
+	"net"
 	"strings"
 	"time"
 )
 
-func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerControl) {
+func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerControl, port_num int) {
+	ev := core.NewEvent(l, conn)
+
+	fif := filters.NewFilter() // Filter interface
+	// ev.EventWrite = core.EventWriteEarly
+
+	if !fif.Fif.ConnFilter(ev) {
+		return
+	}
+
+	ev.EventWrite = EventWrite
 
 	for !ev.IsClose {
+
+		if shutdown.PortNeedShutdowm(port_num) {
+			logger.Debug("event shutdown port: %d circle", port_num)
+			shutdown.PortShutdowmOk(port_num)
+			if err := l.Lfd.Close(); err != nil {
+				logger.Debug("event close listen fd error %v", err)
+			}
+			break
+		}
+
 		// websocket and tcp proxy through this
 		if fif.Fif.ListenFilter(ev) {
 			break
+		}
+
+		if parseRequest(ev, fif) != 1 { // TODO: handle different cases...
+			ev.Close()
+			break // client close
 		}
 
 		EventHandler(ev, fif)
@@ -27,30 +55,17 @@ func HandleEvent(ev *core.Event, fif *filters.Filter, shutdown *core.ServerContr
 			break
 		}
 
-		if shutdown.Shutdown {
-			message.PrintInfo("server shut down")
-			break
-		}
 	}
 }
 
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
 
-	if processRequest(ev, fif) != 1 { // TODO: handle different cases...
-		ev.Close()
-		return // client close
-	}
-	ev.LogAppend(" " + ev.RR.Req_.Method)
-	ev.LogAppend(" " + ev.RR.Req_.Path + " \"" +
-		ev.RR.Req_.GetHeader("Host") + "\"")
-
 	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
-		message.PrintAccess(ev.Conn.RemoteAddr().String(),
-			"INFORMAL Event(404)"+ev.Log,
-			"\""+ev.RR.Req_.Headers["User-Agent"]+"\"")
-		ev.WriteDataClose(response.DefaultNotFound())
+		// core.Log(&ev.Log, ev, "")
+		ev.RR.Res = response.DefaultNotFound()
+		ev.WriteResponseClose(nil)
 		return
 	}
 	// found specific "servername && url"
@@ -68,10 +83,10 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 		return
 	}
 
-	if !auth.AuthHandler(&cfg, ev) {
+	if !auth.AuthHandler(cfg, ev) {
 		return
 	}
-
+	ev.Type = cfg.Type
 	// according to user's confgure and requets endporint handle events
 	ev.RR.CircleHandler.RRHandler = core.GRRCHT[cfg.Type].RRHandler
 	ev.RR.CircleHandler.FilterHandler = core.GRRCHT[cfg.Type].FilterHandler
@@ -81,16 +96,15 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 		return
 	}
 	ev.RR.CircleHandler.RRHandler(cfg, ev)
-
 }
 
-func processRequest(ev *core.Event, fif *filters.Filter) int {
+func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
-	byte_row := ev.ReadData()
-	// save requte information to ev.RR.Req_
+	byte_row := ev.ReadRequest()
+	// save request information to ev.RR.Req_
 	if !ev.RR.CircleInit {
-		ev.RR.Req_ = request.ReqInit()       // Create a request Object
-		ev.RR.Res_ = response.ResponseInit() // Create a res Object
+		ev.RR.Req = request.RequestInit(false) // Create a request Object
+		ev.RR.Res = response.ResponseInit()    // Create a res Object
 		ev.RR.CircleInit = true
 	}
 	// fmt.Printf("%p, %p", ev.RR.Req_, ev)
@@ -99,20 +113,20 @@ func processRequest(ev *core.Event, fif *filters.Filter) int {
 	}
 
 	header_read_num := len(byte_row)
-	headerOtherData := make([]byte, core.READ_HEADER_BUF_LEN)
+	// headerOtherData := make([]byte, core.READ_HEADER_BUF_LEN)
 	for {
-		parse := ev.RR.Req_.ParseHeader(byte_row)
+		parse := ev.RR.Req.ParseHeader(byte_row)
 		if parse == request.RequestOk {
 			break
 		} else if parse == request.RequestNeedReadMore { // parse successed !
 
 			ev.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-			datasize, err := ev.Conn.Read(headerOtherData)
+			datasize, err := ev.Conn.Read(ev.RR.ReqBuf)
 			if err != nil { // read error, like time out
 				message.PrintWarn("read header time out", parse)
 				break
 			}
-			byte_row = append(byte_row, headerOtherData[:datasize]...)
+			byte_row = append(byte_row, ev.RR.ReqBuf[:datasize]...)
 			header_read_num += datasize
 			if header_read_num > config.GConfig.Limit.MaxHeaderSize {
 				// header bytes beyond config
@@ -130,22 +144,22 @@ func processRequest(ev *core.Event, fif *filters.Filter) int {
 	}
 
 	// parse host
-	ev.RR.Req_.ParseHost(ev.LisInfo)
+	ev.RR.Req.ParseHost(*ev.LisInfo)
 
-	otherData := make([]byte, core.READ_BODY_BUF_LEN)
+	// headerOtherData := make([]byte, core.READ_BODY_BUF_LEN)
 	for {
-		ev.RR.Req_.ParseBody(byte_row)
-		if ev.RR.Req_.RequestBodyValid() {
+		ev.RR.Req.ParseBody(byte_row)
+		if ev.RR.Req.RequestBodyValid() {
 			break
 		} else {
-			datasize, err := ev.Conn.Read(otherData)
+			datasize, err := ev.Conn.Read(ev.RR.ReqBuf)
 			if err != nil { // read error, like time out
 				message.PrintWarn("read body time out")
 				break
 			}
-			byte_row = append(byte_row, otherData[:datasize]...)
-			ev.RR.Req_.TryFixBody(otherData[:datasize])
-			if len(ev.RR.Req_.Body) > config.GConfig.Limit.MaxBodySize {
+			byte_row = append(byte_row, ev.RR.ReqBuf[:datasize]...)
+			ev.RR.Req.TryFixBody(ev.RR.ReqBuf[:datasize])
+			if ev.RR.Req.Body.Len() > config.GConfig.Limit.MaxBodySize {
 				// body bytes beyond config
 				break
 			}
@@ -153,4 +167,25 @@ func processRequest(ev *core.Event, fif *filters.Filter) int {
 	}
 
 	return 1
+}
+
+func EventWrite(ev *core.Event, _data []byte) error {
+	//fmt.Printf("%p", ev)
+	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
+	data := ev.RR.Res.GenerateResponse()
+	// data := []byte("HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nhello world")
+	for len(data) > 0 {
+		n, err := ev.Conn.Write(data)
+		if err != nil {
+			if ev.CheckIfTimeOut(err) {
+				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
+				return err
+			} else { // other error can not handle temporarily
+				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err.Error())
+				return err
+			}
+		}
+		data = data[n:]
+	}
+	return nil
 }

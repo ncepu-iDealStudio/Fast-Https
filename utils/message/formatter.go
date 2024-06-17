@@ -1,4 +1,4 @@
-package loggers
+package message
 
 import (
 	"bytes"
@@ -29,8 +29,7 @@ func (s *SystemLogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	}
 
 	timestamp := entry.Time.Format(config.SERVER_TIME_FORMAT)
-	var newLog string
-	newLog = fmt.Sprintf("%s %s\n", timestamp, entry.Message)
+	newLog := fmt.Sprintf("%s %s\n", timestamp, entry.Message)
 
 	b.WriteString(newLog)
 	return b.Bytes(), nil
@@ -45,8 +44,7 @@ func (a *AccessLogFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	}
 
 	timestamp := entry.Time.Format(config.SERVER_TIME_FORMAT)
-	var newLog string
-	newLog = fmt.Sprintf("%s -- [%s] %v\n", entry.Data["host"], timestamp, entry.Message)
+	newLog := fmt.Sprintf("[%s] -- %s\n", timestamp, entry.Data["host"])
 
 	b.WriteString(newLog)
 	return b.Bytes(), nil

@@ -1,13 +1,13 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fast-https/utils/files"
+	"fast-https/utils/logger"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 
@@ -34,6 +34,8 @@ const (
 	PROXY_HTTPS = 2
 	PROXY_TCP   = 3
 	REWRITE     = 4
+
+	DEVMOD = 10
 )
 
 type ErrorPath struct {
@@ -73,6 +75,12 @@ type ServerLimit struct {
 	Burst         int
 }
 
+type Try struct {
+	Uri   string
+	Files []string
+	Next  string
+}
+
 type Path struct {
 	PathName       string
 	PathType       uint16
@@ -80,8 +88,10 @@ type Path struct {
 	Root           string
 	Index          []string
 	Rewrite        string
+	Trys           []Try
 	ProxyData      string
 	ProxySetHeader []Header
+	AppFireWall    []string
 	ProxyCache     Cache
 	Limit          PathLimit
 	Auth           PathAuth
@@ -96,6 +106,14 @@ type Server struct {
 	Path              []Path
 }
 
+type Engine struct {
+	IsMaster     bool
+	Id           int
+	RegisterPort int    // master uses, default 9099
+	SlaveIp      string // slave uses
+	SlavePort    int    // slave uses
+}
+
 type Fast_Https struct {
 	ErrorPage ErrorPath
 	Error_log string
@@ -103,8 +121,11 @@ type Fast_Https struct {
 	LogRoot   string
 
 	Servers                   []Server
+	ServerEngine              Engine
 	Limit                     ServerLimit
 	BlackList                 []string
+	LogSplit                  string
+	LogFormat                 []string
 	Include                   []string
 	DefaultType               string
 	ServerNamesHashBucketSize uint16
@@ -142,7 +163,7 @@ func getHeaders(path string) []Header {
 
 // Init the whole config module
 func Init() error {
-	err := process()
+	err := processRoot()
 	if err != nil {
 		return err
 	}
@@ -153,12 +174,14 @@ func Init() error {
 	return nil
 }
 
+func Reload() {
+	ClearConfig()
+	Init()
+}
+
 // CheckConfig check whether config is correct
+// TODO: check json confgure
 func CheckConfig() error {
-	err := Init()
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -171,219 +194,226 @@ func ClearConfig() {
 func serverContentType() error {
 
 	GContentTypeMap = make(map[string]string)
-	var content_type string
 
 	wd, _ := os.Getwd()
 	confPath := filepath.Join(wd, MIME_FILE_PATH)
 	confBytes, err := files.ReadFile(confPath)
 
 	if err != nil {
-		log.Fatal("can't open mime.types file")
+		logger.Fatal("can't open mime.types file")
 		return errors.New("can't open mime.types file")
 	}
-	// if GOs == "windows" {
-	clearStr := strings.ReplaceAll(string(confBytes), "\r\n", "")
-	// } else {
-	// clear_str = strings.ReplaceAll(string(confBytes), "\n", "")
-	// }
-	all_type_arr := strings.Split(deleteExtraSpace(clearStr), ";")
-	for _, one_type := range all_type_arr {
-		arr := strings.Split(one_type, " ")
 
-		for i := 0; i < len(arr); i++ {
-			if i == 0 {
-				content_type = arr[0]
-			} else {
-				GContentTypeMap[arr[i]] = content_type
-			}
-		}
-
+	err = json.Unmarshal(confBytes, &GContentTypeMap)
+	if err != nil {
+		logger.Fatal("can't unmarshal mime.json file")
+		return errors.New("can't unmarshal mime.json file")
 	}
+
 	return nil
 }
 
-func deleteExtraSpace(s string) string {
-	//  Remove excess spaces from the string, and when there are
-	// multiple spaces, only one space is retained
-	//Replace tab with a space
-	s1 := strings.Replace(s, "	", " ", -1)
-	//Regular expressions with two or more spaces
-	regstr := "\\s{2,}"
-	//Compiling Regular Expressions
-	reg, _ := regexp.Compile(regstr)
-	//Define character array slicing
-	s2 := make([]byte, len(s1))
-	//Copy String to Slice
-	copy(s2, s1)
-	//Search in strings
-	spc_index := reg.FindStringIndex(string(s2))
-	//Find Adapt
-	for len(spc_index) > 0 {
-		//Remove excess spaces
-		s2 = append(s2[:spc_index[0]+1], s2[spc_index[1]:]...)
-		//Continue searching in strings
-		spc_index = reg.FindStringIndex(string(s2))
-	}
-	return string(s2)
-}
-
-func process() error {
-
-	var fast_https Fast_Https
-
+func processRoot() error {
 	viper.SetConfigFile(CONFIG_FILE_PATH)
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatal("Error reading config file:", err)
+		logger.Fatal("Error reading config file: %s", err)
 	}
 
 	var config Fast_Https
 	err = viper.Unmarshal(&config)
 	if err != nil {
-		log.Fatal("Error unmarshaling config:", err)
+		logger.Fatal("Error unmarshaling config: %s", err)
 	}
 
-	// fast_https.Error_log = viper.GetString("error_log")
-	fast_https.Pid = viper.GetString("pid")
-	fast_https.LogRoot = viper.GetString("log_root")
-	fast_https.Include = viper.GetStringSlice("http.include")
-	fast_https.DefaultType = viper.GetString("http.default_type")
-	fast_https.Limit = ServerLimit{
+	GConfig.Pid = viper.GetString("pid")
+	GConfig.LogRoot = viper.GetString("log_root")
+	processEngine()
+	processHttp()
+	return nil
+}
+
+func processEngine() error {
+	GConfig.ServerEngine = Engine{
+		IsMaster:     viper.GetBool("engine.is_master"),
+		Id:           viper.GetInt("engine.id"),
+		RegisterPort: viper.GetInt("engine.register_port"),
+		SlaveIp:      viper.GetString("engine.slave_ip"),
+		SlavePort:    viper.GetInt("engine.slave_port"),
+	}
+	return nil
+}
+
+func processHttp() error {
+	GConfig.Include = viper.GetStringSlice("http.include")
+	GConfig.DefaultType = viper.GetString("http.default_type")
+	GConfig.Limit = ServerLimit{
 		MaxHeaderSize: viper.GetInt("http.servers_limit.max_header_size"),
 		MaxBodySize:   viper.GetInt("http.servers_limit.max_body_size"),
 		Rate:          viper.GetInt("http.servers_limit.limit"),
 		Burst:         viper.GetInt("http.servers_limit.burst"),
 	}
 
-	fast_https.BlackList = viper.GetStringSlice("http.blaklist")
+	GConfig.BlackList = viper.GetStringSlice("http.blaklist")
+	GConfig.LogFormat = viper.GetStringSlice("http.log_format")
+	GConfig.LogSplit = viper.GetString("http.log_split")
+	processHttpServer("http.server")
+	return nil
+}
+
+func processHttpServer(pathPrefix string) error {
 	var servers []Server
 
-	serverKeys := viper.GetStringSlice("http.server")
+	serverKeys := viper.GetStringSlice(pathPrefix)
 	for serverKey := range serverKeys {
 
 		server := Server{
-			Listen: viper.GetString(fmt.Sprintf("http.server.%d.listen",
-				serverKey)),
-			ServerName: viper.GetString(fmt.Sprintf("http.server.%d.server_name",
-				serverKey)),
-			SSLCertificate: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate",
-				serverKey)),
-			SSLCertificateKey: viper.GetString(fmt.Sprintf("http.server.%d.ssl_certificate_key",
-				serverKey)),
+			Listen: viper.GetString(fmt.Sprintf("%s.%d.listen",
+				pathPrefix, serverKey)),
+			ServerName: viper.GetString(fmt.Sprintf("%s.%d.server_name",
+				pathPrefix, serverKey)),
+			SSLCertificate: viper.GetString(fmt.Sprintf("%s.%d.ssl_certificate",
+				pathPrefix, serverKey)),
+			SSLCertificateKey: viper.GetString(fmt.Sprintf("%s.%d.ssl_certificate_key",
+				pathPrefix, serverKey)),
 		}
 
-		pathPrefix := fmt.Sprintf("http.server.%d.location", serverKey)
-		locationKeys := viper.GetStringSlice(pathPrefix)
+		locationPrefix := fmt.Sprintf("%s.%d.location", pathPrefix, serverKey)
+		locationKeys := viper.GetStringSlice(locationPrefix)
 
 		var paths []Path
 		for locationKey := range locationKeys {
-			path := Path{
-
-				PathName: viper.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
-				//PathType:       viper.GetUint16(fmt.Sprintf("%s.%d.path_type",
-				// pathPrefix, locationKey)),
-				//Zip:            viper.GetUint16(fmt.Sprintf("%s.%d.zip",
-				// pathPrefix, locationKey)),
-				Root: viper.GetString(fmt.Sprintf("%s.%d.root",
-					pathPrefix, locationKey)),
-				Index: viper.GetStringSlice(fmt.Sprintf("%s.%d.index",
-					pathPrefix, locationKey)),
-				Rewrite: viper.GetString(fmt.Sprintf("%s.%d.rewrite",
-					pathPrefix, locationKey)),
-				ProxyData: viper.GetString(fmt.Sprintf("%s.%d.proxy_pass",
-					pathPrefix, locationKey)),
-				ProxySetHeader: getHeaders(fmt.Sprintf("%s.%d.proxy_set_header",
-					pathPrefix, locationKey)),
-				ProxyCache: Cache{
-					Path: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
-						pathPrefix, locationKey)),
-					Valid: viper.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
-						pathPrefix, locationKey)),
-					Key: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
-						pathPrefix, locationKey)),
-					MaxSize: viper.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
-						pathPrefix, locationKey)),
-				},
-				Limit: PathLimit{
-					Size: viper.GetInt(fmt.Sprintf("%s.%d.limit.mem",
-						pathPrefix, locationKey)),
-					Rate: viper.GetInt(fmt.Sprintf("%s.%d.limit.rate",
-						pathPrefix, locationKey)),
-					Burst: viper.GetInt(fmt.Sprintf("%s.%d.limit.burst",
-						pathPrefix, locationKey)),
-					Nodelay: viper.GetBool(fmt.Sprintf("%s.%d.limit.mem",
-						pathPrefix, locationKey)),
-				},
-				Auth: PathAuth{
-					AuthType: viper.GetString(fmt.Sprintf("%s.%d.auth.type",
-						pathPrefix, locationKey)),
-					User: viper.GetString(fmt.Sprintf("%s.%d.auth.user",
-						pathPrefix, locationKey)),
-					Pswd: viper.GetString(fmt.Sprintf("%s.%d.auth.pswd",
-						pathPrefix, locationKey)),
-				},
-			}
-			TempZip := viper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
-			if len(TempZip) > 0 {
-				if len(TempZip) == 1 {
-					if TempZip[0] == "br" {
-						path.Zip = ZIP_BR
-					}
-					if TempZip[0] == "gzip" {
-						path.Zip = ZIP_GZIP
-					}
-				} else if len(TempZip) == 2 {
-					if TempZip[0] == "gzip" && TempZip[1] == "br" {
-						path.Zip = ZIP_GZIP_BR
-					}
-					if TempZip[1] == "gzip" && TempZip[0] == "br" {
-						path.Zip = ZIP_GZIP_BR
-					}
-				}
-
-			}
-
-			TempPathType := viper.GetString(fmt.Sprintf("%s.%d.type", pathPrefix, locationKey))
-			if TempPathType == "local" {
-				path.PathType = 0
-			}
-			if TempPathType == "rewrite" {
-				path.PathType = 4
-			}
-			if TempPathType == "proxy" {
-				TempProxyData := path.ProxyData
-				colonIndex := 0
-				for i, char := range TempProxyData {
-					if char == ':' {
-						colonIndex = i
-						break
-					}
-				}
-				substring := TempProxyData[:colonIndex]
-				if substring == "http" {
-					path.PathType = 1
-				}
-				if substring == "https" {
-					path.PathType = 2
-				}
-				path.ProxyData = TempProxyData[colonIndex+3:]
-			}
-
+			path := processHttpServerPath(locationPrefix, locationKey)
 			paths = append(paths, path)
 		}
 		server.Path = paths
-
 		servers = append(servers, server)
 	}
-	fast_https.Servers = servers
-
-	//fmt.Println(fast_https)
-	GConfig = fast_https
-
-	SetDefault()
-
+	GConfig.Servers = servers
 	return nil
+}
+
+func processHttpServerPath(pathPrefix string, locationKey int) Path {
+	return Path{
+		PathName: viper.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
+		//PathType:       viper.GetUint16(fmt.Sprintf("%s.%d.path_type",
+		// pathPrefix, locationKey)),
+		//Zip:            viper.GetUint16(fmt.Sprintf("%s.%d.zip",
+		// pathPrefix, locationKey)),
+		Root: viper.GetString(fmt.Sprintf("%s.%d.root",
+			pathPrefix, locationKey)),
+		Index: viper.GetStringSlice(fmt.Sprintf("%s.%d.index",
+			pathPrefix, locationKey)),
+		Rewrite: viper.GetString(fmt.Sprintf("%s.%d.rewrite",
+			pathPrefix, locationKey)),
+		ProxyData: trimProxyPass(viper.GetString(fmt.Sprintf("%s.%d.proxy_pass",
+			pathPrefix, locationKey))),
+		ProxySetHeader: getHeaders(fmt.Sprintf("%s.%d.proxy_set_header",
+			pathPrefix, locationKey)),
+		AppFireWall: viper.GetStringSlice(fmt.Sprintf("%s.%d.appfirewall",
+			pathPrefix, locationKey)),
+		ProxyCache: Cache{
+			Path: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
+				pathPrefix, locationKey)),
+			Valid: viper.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
+				pathPrefix, locationKey)),
+			Key: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
+				pathPrefix, locationKey)),
+			MaxSize: viper.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
+				pathPrefix, locationKey)),
+		},
+		Limit: PathLimit{
+			Size: viper.GetInt(fmt.Sprintf("%s.%d.limit.mem",
+				pathPrefix, locationKey)),
+			Rate: viper.GetInt(fmt.Sprintf("%s.%d.limit.rate",
+				pathPrefix, locationKey)),
+			Burst: viper.GetInt(fmt.Sprintf("%s.%d.limit.burst",
+				pathPrefix, locationKey)),
+			Nodelay: viper.GetBool(fmt.Sprintf("%s.%d.limit.mem",
+				pathPrefix, locationKey)),
+		},
+		Auth: PathAuth{
+			AuthType: viper.GetString(fmt.Sprintf("%s.%d.auth.type",
+				pathPrefix, locationKey)),
+			User: viper.GetString(fmt.Sprintf("%s.%d.auth.user",
+				pathPrefix, locationKey)),
+			Pswd: viper.GetString(fmt.Sprintf("%s.%d.auth.pswd",
+				pathPrefix, locationKey)),
+		},
+		Zip: processHttpServerZip(pathPrefix, locationKey),
+		PathType: processHttpServerPathType(pathPrefix, locationKey,
+			viper.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey))),
+		Trys: processTry(pathPrefix, locationKey),
+	}
+}
+
+func processHttpServerZip(pathPrefix string, locationKey int) uint16 {
+	var zipType uint16 = ZIP_NONE
+	TempZip := viper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
+	if len(TempZip) > 0 {
+		if len(TempZip) == 1 {
+			if TempZip[0] == "br" {
+				zipType = ZIP_BR
+			}
+			if TempZip[0] == "gzip" {
+				zipType = ZIP_GZIP
+			}
+		} else if len(TempZip) == 2 {
+			if TempZip[0] == "gzip" && TempZip[1] == "br" {
+				zipType = ZIP_GZIP_BR
+			}
+			if TempZip[1] == "gzip" && TempZip[0] == "br" {
+				zipType = ZIP_GZIP_BR
+			}
+		}
+
+	}
+	return zipType
+}
+
+func processHttpServerPathType(pathPrefix string, locationKey int, proxyData string) uint16 {
+	var pathType uint16 = LOCAL
+	TempPathType := viper.GetString(fmt.Sprintf("%s.%d.type", pathPrefix, locationKey))
+	if TempPathType == "local" {
+		pathType = LOCAL
+	}
+	if TempPathType == "rewrite" {
+		pathType = REWRITE
+	}
+	if TempPathType == "devmod" {
+		pathType = DEVMOD
+	}
+	if TempPathType == "proxy" {
+		colonIndex := strings.Index(proxyData, ":")
+		substring := proxyData[:colonIndex]
+		if substring == "http" {
+			pathType = PROXY_HTTP
+		}
+		if substring == "https" {
+			pathType = PROXY_HTTPS
+		}
+	}
+	return pathType
+}
+
+func processTry(pathPrefix string, locationKey int) []Try {
+	var trys []Try
+	tryKeys := viper.GetStringSlice(fmt.Sprintf("%s.%d.try", pathPrefix, locationKey))
+
+	for tryKey := range tryKeys {
+		try := Try{
+			Uri:   viper.GetString(fmt.Sprintf("%s.%d.try.%d.uri", pathPrefix, locationKey, tryKey)),
+			Files: viper.GetStringSlice(fmt.Sprintf("%s.%d.try.%d.file", pathPrefix, locationKey, tryKey)),
+			Next:  viper.GetString(fmt.Sprintf("%s.%d.try.%d.next", pathPrefix, locationKey, tryKey)),
+		}
+		trys = append(trys, try)
+	}
+	return trys
+}
+
+func trimProxyPass(proxyData string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(proxyData, "https://"), "http://")
 }
 
 func SetDefault() {
@@ -392,5 +422,8 @@ func SetDefault() {
 	}
 	if GConfig.Limit.MaxBodySize == 0 {
 		GConfig.Limit.MaxBodySize = DEFAULT_MAX_BODY_SIZE
+	}
+	if GConfig.DefaultType == "" {
+		GConfig.DefaultType = HTTP_DEFAULT_CONTENT_TYPE
 	}
 }
