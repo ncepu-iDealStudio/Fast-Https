@@ -146,14 +146,16 @@ var GConfig Fast_Https
 var GContentTypeMap map[string]string
 var GOs = runtime.GOOS
 
+var rootViper = viper.New()
+
 func getHeaders(path string) []Header {
-	headerKeys := viper.GetStringSlice(path)
+	headerKeys := rootViper.GetStringSlice(path)
 	var headers []Header
 	for headerKey := range headerKeys {
 		header := Header{
-			HeaderKey: viper.GetString(fmt.Sprintf("%s.%d.HeaderKey",
+			HeaderKey: rootViper.GetString(fmt.Sprintf("%s.%d.HeaderKey",
 				path, headerKey)),
-			HeaderValue: viper.GetString(fmt.Sprintf("%s.%d.HeaderValue",
+			HeaderValue: rootViper.GetString(fmt.Sprintf("%s.%d.HeaderValue",
 				path, headerKey)),
 		}
 		headers = append(headers, header)
@@ -214,21 +216,21 @@ func serverContentType() error {
 }
 
 func processRoot() error {
-	viper.SetConfigFile(CONFIG_FILE_PATH)
+	rootViper.SetConfigFile(CONFIG_FILE_PATH)
 
-	err := viper.ReadInConfig()
+	err := rootViper.ReadInConfig()
 	if err != nil {
 		logger.Fatal("Error reading config file: %s", err)
 	}
 
 	var config Fast_Https
-	err = viper.Unmarshal(&config)
+	err = rootViper.Unmarshal(&config)
 	if err != nil {
 		logger.Fatal("Error unmarshaling config: %s", err)
 	}
 
-	GConfig.Pid = viper.GetString("pid")
-	GConfig.LogRoot = viper.GetString("log_root")
+	GConfig.Pid = rootViper.GetString("pid")
+	GConfig.LogRoot = rootViper.GetString("log_root")
 	processEngine()
 	processHttp()
 	return nil
@@ -236,51 +238,102 @@ func processRoot() error {
 
 func processEngine() error {
 	GConfig.ServerEngine = Engine{
-		IsMaster:     viper.GetBool("engine.is_master"),
-		Id:           viper.GetInt("engine.id"),
-		RegisterPort: viper.GetInt("engine.register_port"),
-		SlaveIp:      viper.GetString("engine.slave_ip"),
-		SlavePort:    viper.GetInt("engine.slave_port"),
+		IsMaster:     rootViper.GetBool("engine.is_master"),
+		Id:           rootViper.GetInt("engine.id"),
+		RegisterPort: rootViper.GetInt("engine.register_port"),
+		SlaveIp:      rootViper.GetString("engine.slave_ip"),
+		SlavePort:    rootViper.GetInt("engine.slave_port"),
 	}
 	return nil
 }
 
 func processHttp() error {
-	GConfig.Include = viper.GetStringSlice("http.include")
-	GConfig.DefaultType = viper.GetString("http.default_type")
+	GConfig.Include = rootViper.GetStringSlice("http.include")
+	GConfig.DefaultType = rootViper.GetString("http.default_type")
 	GConfig.Limit = ServerLimit{
-		MaxHeaderSize: viper.GetInt("http.servers_limit.max_header_size"),
-		MaxBodySize:   viper.GetInt("http.servers_limit.max_body_size"),
-		Rate:          viper.GetInt("http.servers_limit.limit"),
-		Burst:         viper.GetInt("http.servers_limit.burst"),
+		MaxHeaderSize: rootViper.GetInt("http.servers_limit.max_header_size"),
+		MaxBodySize:   rootViper.GetInt("http.servers_limit.max_body_size"),
+		Rate:          rootViper.GetInt("http.servers_limit.limit"),
+		Burst:         rootViper.GetInt("http.servers_limit.burst"),
 	}
 
-	GConfig.BlackList = viper.GetStringSlice("http.blaklist")
-	GConfig.LogFormat = viper.GetStringSlice("http.log_format")
-	GConfig.LogSplit = viper.GetString("http.log_split")
+	GConfig.BlackList = rootViper.GetStringSlice("http.blaklist")
+	GConfig.LogFormat = rootViper.GetStringSlice("http.log_format")
+	GConfig.LogSplit = rootViper.GetString("http.log_split")
 	processHttpServer("http.server")
+	processIncludeCfg()
 	return nil
+}
+
+func processIncludeCfg() {
+	for _, item := range GConfig.Include {
+
+		err := filepath.Walk(item, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			// 跳过目录 "." 和 ".."
+			if info.IsDir() {
+				return nil
+			}
+
+			logger.Info("Include config dir: %s", path)
+			incViper := viper.New()
+			incViper.SetConfigFile(path)
+			err = incViper.ReadInConfig()
+			if err != nil {
+				logger.Fatal("Error reading config file: %s", err)
+			}
+			var config Fast_Https
+			err = incViper.Unmarshal(&config)
+			if err != nil {
+				logger.Fatal("Error unmarshaling config: %s", err)
+			}
+
+			server := Server{
+				Listen:            incViper.GetString(fmt.Sprintf("listen")),
+				ServerName:        incViper.GetString(fmt.Sprintf("server_name")),
+				SSLCertificate:    incViper.GetString(fmt.Sprintf("ssl_certificate")),
+				SSLCertificateKey: incViper.GetString(fmt.Sprintf("ssl_certificate_key")),
+			}
+
+			locationKeys := incViper.GetStringSlice(fmt.Sprintf("location"))
+
+			var paths []Path
+			for locationKey := range locationKeys {
+				path := processHttpServerPath("location", locationKey)
+				paths = append(paths, path)
+			}
+			server.Path = paths
+
+			GConfig.Servers = append(GConfig.Servers, server)
+			return nil
+		})
+		if err != nil {
+			logger.Fatal("processIncludeCfg can not walk")
+		}
+	}
 }
 
 func processHttpServer(pathPrefix string) error {
 	var servers []Server
 
-	serverKeys := viper.GetStringSlice(pathPrefix)
+	serverKeys := rootViper.GetStringSlice(pathPrefix)
 	for serverKey := range serverKeys {
 
 		server := Server{
-			Listen: viper.GetString(fmt.Sprintf("%s.%d.listen",
+			Listen: rootViper.GetString(fmt.Sprintf("%s.%d.listen",
 				pathPrefix, serverKey)),
-			ServerName: viper.GetString(fmt.Sprintf("%s.%d.server_name",
+			ServerName: rootViper.GetString(fmt.Sprintf("%s.%d.server_name",
 				pathPrefix, serverKey)),
-			SSLCertificate: viper.GetString(fmt.Sprintf("%s.%d.ssl_certificate",
+			SSLCertificate: rootViper.GetString(fmt.Sprintf("%s.%d.ssl_certificate",
 				pathPrefix, serverKey)),
-			SSLCertificateKey: viper.GetString(fmt.Sprintf("%s.%d.ssl_certificate_key",
+			SSLCertificateKey: rootViper.GetString(fmt.Sprintf("%s.%d.ssl_certificate_key",
 				pathPrefix, serverKey)),
 		}
 
 		locationPrefix := fmt.Sprintf("%s.%d.location", pathPrefix, serverKey)
-		locationKeys := viper.GetStringSlice(locationPrefix)
+		locationKeys := rootViper.GetStringSlice(locationPrefix)
 
 		var paths []Path
 		for locationKey := range locationKeys {
@@ -296,61 +349,61 @@ func processHttpServer(pathPrefix string) error {
 
 func processHttpServerPath(pathPrefix string, locationKey int) Path {
 	return Path{
-		PathName: viper.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
-		//PathType:       viper.GetUint16(fmt.Sprintf("%s.%d.path_type",
+		PathName: rootViper.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
+		//PathType:       rootViper.GetUint16(fmt.Sprintf("%s.%d.path_type",
 		// pathPrefix, locationKey)),
-		//Zip:            viper.GetUint16(fmt.Sprintf("%s.%d.zip",
+		//Zip:            rootViper.GetUint16(fmt.Sprintf("%s.%d.zip",
 		// pathPrefix, locationKey)),
-		Root: viper.GetString(fmt.Sprintf("%s.%d.root",
+		Root: rootViper.GetString(fmt.Sprintf("%s.%d.root",
 			pathPrefix, locationKey)),
-		Index: viper.GetStringSlice(fmt.Sprintf("%s.%d.index",
+		Index: rootViper.GetStringSlice(fmt.Sprintf("%s.%d.index",
 			pathPrefix, locationKey)),
-		Rewrite: viper.GetString(fmt.Sprintf("%s.%d.rewrite",
+		Rewrite: rootViper.GetString(fmt.Sprintf("%s.%d.rewrite",
 			pathPrefix, locationKey)),
-		ProxyData: trimProxyPass(viper.GetString(fmt.Sprintf("%s.%d.proxy_pass",
+		ProxyData: trimProxyPass(rootViper.GetString(fmt.Sprintf("%s.%d.proxy_pass",
 			pathPrefix, locationKey))),
 		ProxySetHeader: getHeaders(fmt.Sprintf("%s.%d.proxy_set_header",
 			pathPrefix, locationKey)),
-		AppFireWall: viper.GetStringSlice(fmt.Sprintf("%s.%d.appfirewall",
+		AppFireWall: rootViper.GetStringSlice(fmt.Sprintf("%s.%d.appfirewall",
 			pathPrefix, locationKey)),
 		ProxyCache: Cache{
-			Path: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
+			Path: rootViper.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
 				pathPrefix, locationKey)),
-			Valid: viper.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
+			Valid: rootViper.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
 				pathPrefix, locationKey)),
-			Key: viper.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
+			Key: rootViper.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
 				pathPrefix, locationKey)),
-			MaxSize: viper.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
+			MaxSize: rootViper.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
 				pathPrefix, locationKey)),
 		},
 		Limit: PathLimit{
-			Size: viper.GetInt(fmt.Sprintf("%s.%d.limit.mem",
+			Size: rootViper.GetInt(fmt.Sprintf("%s.%d.limit.mem",
 				pathPrefix, locationKey)),
-			Rate: viper.GetInt(fmt.Sprintf("%s.%d.limit.rate",
+			Rate: rootViper.GetInt(fmt.Sprintf("%s.%d.limit.rate",
 				pathPrefix, locationKey)),
-			Burst: viper.GetInt(fmt.Sprintf("%s.%d.limit.burst",
+			Burst: rootViper.GetInt(fmt.Sprintf("%s.%d.limit.burst",
 				pathPrefix, locationKey)),
-			Nodelay: viper.GetBool(fmt.Sprintf("%s.%d.limit.mem",
+			Nodelay: rootViper.GetBool(fmt.Sprintf("%s.%d.limit.mem",
 				pathPrefix, locationKey)),
 		},
 		Auth: PathAuth{
-			AuthType: viper.GetString(fmt.Sprintf("%s.%d.auth.type",
+			AuthType: rootViper.GetString(fmt.Sprintf("%s.%d.auth.type",
 				pathPrefix, locationKey)),
-			User: viper.GetString(fmt.Sprintf("%s.%d.auth.user",
+			User: rootViper.GetString(fmt.Sprintf("%s.%d.auth.user",
 				pathPrefix, locationKey)),
-			Pswd: viper.GetString(fmt.Sprintf("%s.%d.auth.pswd",
+			Pswd: rootViper.GetString(fmt.Sprintf("%s.%d.auth.pswd",
 				pathPrefix, locationKey)),
 		},
 		Zip: processHttpServerZip(pathPrefix, locationKey),
 		PathType: processHttpServerPathType(pathPrefix, locationKey,
-			viper.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey))),
+			rootViper.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey))),
 		Trys: processTry(pathPrefix, locationKey),
 	}
 }
 
 func processHttpServerZip(pathPrefix string, locationKey int) uint16 {
 	var zipType uint16 = ZIP_NONE
-	TempZip := viper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
+	TempZip := rootViper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
 	if len(TempZip) > 0 {
 		if len(TempZip) == 1 {
 			if TempZip[0] == "br" {
@@ -374,7 +427,7 @@ func processHttpServerZip(pathPrefix string, locationKey int) uint16 {
 
 func processHttpServerPathType(pathPrefix string, locationKey int, proxyData string) uint16 {
 	var pathType uint16 = LOCAL
-	TempPathType := viper.GetString(fmt.Sprintf("%s.%d.type", pathPrefix, locationKey))
+	TempPathType := rootViper.GetString(fmt.Sprintf("%s.%d.type", pathPrefix, locationKey))
 	if TempPathType == "local" {
 		pathType = LOCAL
 	}
@@ -399,13 +452,13 @@ func processHttpServerPathType(pathPrefix string, locationKey int, proxyData str
 
 func processTry(pathPrefix string, locationKey int) []Try {
 	var trys []Try
-	tryKeys := viper.GetStringSlice(fmt.Sprintf("%s.%d.try", pathPrefix, locationKey))
+	tryKeys := rootViper.GetStringSlice(fmt.Sprintf("%s.%d.try", pathPrefix, locationKey))
 
 	for tryKey := range tryKeys {
 		try := Try{
-			Uri:   viper.GetString(fmt.Sprintf("%s.%d.try.%d.uri", pathPrefix, locationKey, tryKey)),
-			Files: viper.GetStringSlice(fmt.Sprintf("%s.%d.try.%d.file", pathPrefix, locationKey, tryKey)),
-			Next:  viper.GetString(fmt.Sprintf("%s.%d.try.%d.next", pathPrefix, locationKey, tryKey)),
+			Uri:   rootViper.GetString(fmt.Sprintf("%s.%d.try.%d.uri", pathPrefix, locationKey, tryKey)),
+			Files: rootViper.GetStringSlice(fmt.Sprintf("%s.%d.try.%d.file", pathPrefix, locationKey, tryKey)),
+			Next:  rootViper.GetString(fmt.Sprintf("%s.%d.try.%d.next", pathPrefix, locationKey, tryKey)),
 		}
 		trys = append(trys, try)
 	}
