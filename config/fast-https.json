@@ -2,7 +2,7 @@
   "log_root":"./logs",
   "pid": "./fast-https.pid",
   "http": {
-    "include": "mime.types",
+    "include": "mime.json",
     "server": [
       {
         "listen": 8080,

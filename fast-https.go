@@ -6,7 +6,7 @@ import (
 )
 
 func init() {
-	logger.Level(6)
+	logger.Level(3)
 }
 
 func main() {
