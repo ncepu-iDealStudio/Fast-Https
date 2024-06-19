@@ -291,17 +291,17 @@ func processIncludeCfg() {
 			}
 
 			server := Server{
-				Listen:            incViper.GetString(fmt.Sprintf("listen")),
-				ServerName:        incViper.GetString(fmt.Sprintf("server_name")),
-				SSLCertificate:    incViper.GetString(fmt.Sprintf("ssl_certificate")),
-				SSLCertificateKey: incViper.GetString(fmt.Sprintf("ssl_certificate_key")),
+				Listen:            incViper.GetString("listen"),
+				ServerName:        incViper.GetString("server_name"),
+				SSLCertificate:    incViper.GetString("ssl_certificate"),
+				SSLCertificateKey: incViper.GetString("ssl_certificate_key"),
 			}
 
-			locationKeys := incViper.GetStringSlice(fmt.Sprintf("location"))
+			locationKeys := incViper.GetStringSlice("location")
 
 			var paths []Path
 			for locationKey := range locationKeys {
-				path := processHttpServerPath("location", locationKey)
+				path := processHttpServerPath(incViper, "location", locationKey)
 				paths = append(paths, path)
 			}
 			server.Path = paths
@@ -337,7 +337,7 @@ func processHttpServer(pathPrefix string) error {
 
 		var paths []Path
 		for locationKey := range locationKeys {
-			path := processHttpServerPath(locationPrefix, locationKey)
+			path := processHttpServerPath(rootViper, locationPrefix, locationKey)
 			paths = append(paths, path)
 		}
 		server.Path = paths
@@ -347,56 +347,56 @@ func processHttpServer(pathPrefix string) error {
 	return nil
 }
 
-func processHttpServerPath(pathPrefix string, locationKey int) Path {
+func processHttpServerPath(v *viper.Viper, pathPrefix string, locationKey int) Path {
 	return Path{
-		PathName: rootViper.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
-		//PathType:       rootViper.GetUint16(fmt.Sprintf("%s.%d.path_type",
+		PathName: v.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
+		//PathType:       v.GetUint16(fmt.Sprintf("%s.%d.path_type",
 		// pathPrefix, locationKey)),
-		//Zip:            rootViper.GetUint16(fmt.Sprintf("%s.%d.zip",
+		//Zip:            v.GetUint16(fmt.Sprintf("%s.%d.zip",
 		// pathPrefix, locationKey)),
-		Root: rootViper.GetString(fmt.Sprintf("%s.%d.root",
+		Root: v.GetString(fmt.Sprintf("%s.%d.root",
 			pathPrefix, locationKey)),
-		Index: rootViper.GetStringSlice(fmt.Sprintf("%s.%d.index",
+		Index: v.GetStringSlice(fmt.Sprintf("%s.%d.index",
 			pathPrefix, locationKey)),
-		Rewrite: rootViper.GetString(fmt.Sprintf("%s.%d.rewrite",
+		Rewrite: v.GetString(fmt.Sprintf("%s.%d.rewrite",
 			pathPrefix, locationKey)),
-		ProxyData: trimProxyPass(rootViper.GetString(fmt.Sprintf("%s.%d.proxy_pass",
+		ProxyData: trimProxyPass(v.GetString(fmt.Sprintf("%s.%d.proxy_pass",
 			pathPrefix, locationKey))),
 		ProxySetHeader: getHeaders(fmt.Sprintf("%s.%d.proxy_set_header",
 			pathPrefix, locationKey)),
-		AppFireWall: rootViper.GetStringSlice(fmt.Sprintf("%s.%d.appfirewall",
+		AppFireWall: v.GetStringSlice(fmt.Sprintf("%s.%d.appfirewall",
 			pathPrefix, locationKey)),
 		ProxyCache: Cache{
-			Path: rootViper.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
+			Path: v.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
 				pathPrefix, locationKey)),
-			Valid: rootViper.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
+			Valid: v.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
 				pathPrefix, locationKey)),
-			Key: rootViper.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
+			Key: v.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
 				pathPrefix, locationKey)),
-			MaxSize: rootViper.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
+			MaxSize: v.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
 				pathPrefix, locationKey)),
 		},
 		Limit: PathLimit{
-			Size: rootViper.GetInt(fmt.Sprintf("%s.%d.limit.mem",
+			Size: v.GetInt(fmt.Sprintf("%s.%d.limit.mem",
 				pathPrefix, locationKey)),
-			Rate: rootViper.GetInt(fmt.Sprintf("%s.%d.limit.rate",
+			Rate: v.GetInt(fmt.Sprintf("%s.%d.limit.rate",
 				pathPrefix, locationKey)),
-			Burst: rootViper.GetInt(fmt.Sprintf("%s.%d.limit.burst",
+			Burst: v.GetInt(fmt.Sprintf("%s.%d.limit.burst",
 				pathPrefix, locationKey)),
-			Nodelay: rootViper.GetBool(fmt.Sprintf("%s.%d.limit.mem",
+			Nodelay: v.GetBool(fmt.Sprintf("%s.%d.limit.mem",
 				pathPrefix, locationKey)),
 		},
 		Auth: PathAuth{
-			AuthType: rootViper.GetString(fmt.Sprintf("%s.%d.auth.type",
+			AuthType: v.GetString(fmt.Sprintf("%s.%d.auth.type",
 				pathPrefix, locationKey)),
-			User: rootViper.GetString(fmt.Sprintf("%s.%d.auth.user",
+			User: v.GetString(fmt.Sprintf("%s.%d.auth.user",
 				pathPrefix, locationKey)),
-			Pswd: rootViper.GetString(fmt.Sprintf("%s.%d.auth.pswd",
+			Pswd: v.GetString(fmt.Sprintf("%s.%d.auth.pswd",
 				pathPrefix, locationKey)),
 		},
 		Zip: processHttpServerZip(pathPrefix, locationKey),
 		PathType: processHttpServerPathType(pathPrefix, locationKey,
-			rootViper.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey))),
+			v.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey))),
 		Trys: processTry(pathPrefix, locationKey),
 	}
 }
