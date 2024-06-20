@@ -74,7 +74,7 @@ func FindPorts() []string {
 	return Ports
 }
 
-func findOldPorts() []string {
+func FindOldPorts() []string {
 	var Ports []string
 	for _, item := range GLisinfos {
 		if !collection.Collect(Ports).Contains(item.Port) {
@@ -311,13 +311,13 @@ func listenTcp(laddr string, reuse bool) net.Listener {
 		}
 		listener, err := cfg.Listen(context.Background(), "tcp", laddr)
 		if err != nil {
-			logger.Debug("Error listen: %v", err)
+			logger.Fatal("Error listen: %v", err)
 		}
 		return listener
 	} else {
 		listener, err := net.Listen("tcp", laddr)
 		if err != nil {
-			logger.Debug("Error listen: %v", err)
+			logger.Fatal("Error listen: %v", err)
 		}
 		return listener
 	}

@@ -65,7 +65,7 @@ func ServerInit() *Server {
 
 // ScanPorts scan ports to check whether they've been used
 func ScanPorts() error {
-	ports := listener.FindPorts()
+	ports := listener.FindOldPorts()
 	for _, port := range ports {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {

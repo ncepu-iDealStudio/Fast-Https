@@ -62,7 +62,7 @@ func ReloadListenCfg() ([]Listener, []Listener, []string) {
 	var NewLisinfosAll []Listener
 	// new listen ports
 	new_ports := FindPorts()
-	old_ports := findOldPorts()
+	old_ports := FindOldPorts()
 	added, removed, common := comparePorts(old_ports, new_ports)
 
 	updateCommonToNewLinster(common, &NewLisinfosAll)
