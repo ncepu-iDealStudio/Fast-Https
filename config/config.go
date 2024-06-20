@@ -394,16 +394,16 @@ func processHttpServerPath(v *viper.Viper, pathPrefix string, locationKey int) P
 			Pswd: v.GetString(fmt.Sprintf("%s.%d.auth.pswd",
 				pathPrefix, locationKey)),
 		},
-		Zip: processHttpServerZip(pathPrefix, locationKey),
-		PathType: processHttpServerPathType(pathPrefix, locationKey,
+		Zip: processHttpServerZip(v, pathPrefix, locationKey),
+		PathType: processHttpServerPathType(v, pathPrefix, locationKey,
 			v.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey))),
-		Trys: processTry(pathPrefix, locationKey),
+		Trys: processTry(v, pathPrefix, locationKey),
 	}
 }
 
-func processHttpServerZip(pathPrefix string, locationKey int) uint16 {
+func processHttpServerZip(v *viper.Viper, pathPrefix string, locationKey int) uint16 {
 	var zipType uint16 = ZIP_NONE
-	TempZip := rootViper.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
+	TempZip := v.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
 	if len(TempZip) > 0 {
 		if len(TempZip) == 1 {
 			if TempZip[0] == "br" {
@@ -425,9 +425,9 @@ func processHttpServerZip(pathPrefix string, locationKey int) uint16 {
 	return zipType
 }
 
-func processHttpServerPathType(pathPrefix string, locationKey int, proxyData string) uint16 {
+func processHttpServerPathType(v *viper.Viper, pathPrefix string, locationKey int, proxyData string) uint16 {
 	var pathType uint16 = LOCAL
-	TempPathType := rootViper.GetString(fmt.Sprintf("%s.%d.type", pathPrefix, locationKey))
+	TempPathType := v.GetString(fmt.Sprintf("%s.%d.type", pathPrefix, locationKey))
 	if TempPathType == "local" {
 		pathType = LOCAL
 	}
@@ -450,15 +450,15 @@ func processHttpServerPathType(pathPrefix string, locationKey int, proxyData str
 	return pathType
 }
 
-func processTry(pathPrefix string, locationKey int) []Try {
+func processTry(v *viper.Viper, pathPrefix string, locationKey int) []Try {
 	var trys []Try
-	tryKeys := rootViper.GetStringSlice(fmt.Sprintf("%s.%d.try", pathPrefix, locationKey))
+	tryKeys := v.GetStringSlice(fmt.Sprintf("%s.%d.try", pathPrefix, locationKey))
 
 	for tryKey := range tryKeys {
 		try := Try{
-			Uri:   rootViper.GetString(fmt.Sprintf("%s.%d.try.%d.uri", pathPrefix, locationKey, tryKey)),
-			Files: rootViper.GetStringSlice(fmt.Sprintf("%s.%d.try.%d.file", pathPrefix, locationKey, tryKey)),
-			Next:  rootViper.GetString(fmt.Sprintf("%s.%d.try.%d.next", pathPrefix, locationKey, tryKey)),
+			Uri:   v.GetString(fmt.Sprintf("%s.%d.try.%d.uri", pathPrefix, locationKey, tryKey)),
+			Files: v.GetStringSlice(fmt.Sprintf("%s.%d.try.%d.file", pathPrefix, locationKey, tryKey)),
+			Next:  v.GetString(fmt.Sprintf("%s.%d.try.%d.next", pathPrefix, locationKey, tryKey)),
 		}
 		trys = append(trys, try)
 	}
