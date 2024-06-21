@@ -21,7 +21,7 @@ var logFile *os.File
 
 // StartWindows start the taskBox window
 func StartWindows() {
-	logFile, _ = os.OpenFile(config.MONIITOR_LOG_FILE_PATH, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	logFile, _ = os.OpenFile(filepath.Join(config.DEFAULT_LOG_ROOT, config.MONIITOR_LOG_FILE_PATH), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	log.SetOutput(logFile)
 	defer logFile.Close()
 

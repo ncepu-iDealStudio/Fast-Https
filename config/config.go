@@ -197,9 +197,10 @@ func serverContentType() error {
 
 	GContentTypeMap = make(map[string]string)
 
-	wd, _ := os.Getwd()
-	confPath := filepath.Join(wd, MIME_FILE_PATH)
-	confBytes, err := files.ReadFile(confPath)
+	// wd, _ := os.Getwd()
+	// confPath := filepath.Join(wd, MIME_FILE_PATH)
+	// fmt.Println(MIME_FILE_PATH)
+	confBytes, err := files.ReadFile(MIME_FILE_PATH)
 
 	if err != nil {
 		logger.Fatal("can't open mime.types file")
@@ -233,6 +234,7 @@ func processRoot() error {
 	GConfig.LogRoot = rootViper.GetString("log_root")
 	processEngine()
 	processHttp()
+	SetDefault()
 	return nil
 }
 
@@ -478,5 +480,9 @@ func SetDefault() {
 	}
 	if GConfig.DefaultType == "" {
 		GConfig.DefaultType = HTTP_DEFAULT_CONTENT_TYPE
+	}
+
+	if GConfig.LogRoot == "" {
+		GConfig.LogRoot = DEFAULT_LOG_ROOT
 	}
 }

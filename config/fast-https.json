@@ -1,6 +1,4 @@
 {
-  "log_root":"./logs",
-  "pid": "./fast-https.pid",
   "http": {
     "server": [
       {

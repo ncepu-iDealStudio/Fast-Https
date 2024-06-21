@@ -1,4 +1,4 @@
-//go:build !rpm
+//go:build rpm
 
 package config
 
@@ -10,16 +10,16 @@ const (
 		// use "config_dev/fast-https.json" when dev
 		// use "config/fast-https.json" when release
 	*/
-	PID_FILE         string = "./fast-https.pid"
-	CONFIG_FILE_PATH string = "./config/fast-https.json"
-	MIME_FILE_PATH   string = "./config/mime.json"
+	PID_FILE         string = "/usr/share/fast-https/fast-https.pid"
+	CONFIG_FILE_PATH string = "/usr/share/fast-https/config/fast-https.json"
+	MIME_FILE_PATH   string = "/usr/share/fast-https/config/mime.json"
 
 	/* events */
 	DEFAULT_PORT            string = ":8080"
 	DEFAULT_MAX_HEADER_SIZE        = 4096
 	DEFAULT_MAX_BODY_SIZE          = 32 * 1024 // 32K
 
-	DEFAULT_LOG_ROOT       string = "./logs"
+	DEFAULT_LOG_ROOT       string = "/usr/share/fast-https/logs/"
 	MONIITOR_LOG_FILE_PATH string = "monitor.log"
 
 	/* log message*/
