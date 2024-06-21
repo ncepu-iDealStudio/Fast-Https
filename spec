@@ -40,10 +40,18 @@ install -m 0755 %{name} %{buildroot}/%{_bindir}/%{name}
 install -m 0644 config/fast-https.json %{buildroot}/%{_datadir}/%{name}/config/fast-https.json
 install -m 0644 config/fastcgi.conf %{buildroot}/%{_datadir}/%{name}/config/fastcgi.conf
 install -m 0644 config/mime.json %{buildroot}/%{_datadir}/%{name}/config/mime.json
+install -m 0644 config/conf.d/.keep %{buildroot}/%{_datadir}/%{name}/config/conf.d/.keep
+install -m 0644 config/cert/.keep %{buildroot}/%{_datadir}/%{name}/config/cert/.keep
+
 
 # Installing additional files httpdoc
 install -m 0644 httpdoc/root/favicon.ico %{buildroot}/%{_datadir}/%{name}/httpdoc/root/favicon.ico
 install -m 0644 httpdoc/root/index.html %{buildroot}/%{_datadir}/%{name}/httpdoc/root/index.html
+
+
+# Installing additional files logs
+install -m 0644 logs/.keep %{buildroot}/%{_datadir}/%{name}/logs/.keep
+
 
 
 %files
@@ -53,6 +61,9 @@ install -m 0644 httpdoc/root/index.html %{buildroot}/%{_datadir}/%{name}/httpdoc
 %{_datadir}/%{name}/config/mime.json
 %{_datadir}/%{name}/httpdoc/root/favicon.ico
 %{_datadir}/%{name}/httpdoc/root/index.html
+%{_datadir}/%{name}/config/conf.d/.keep
+%{_datadir}/%{name}/config/cert/.keep
+%{_datadir}/%{name}/logs/.keep
 
 
 %doc README.md
