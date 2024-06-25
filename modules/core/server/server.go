@@ -88,6 +88,10 @@ func (s *Server) sigHandler(signal os.Signal) {
 		logger.Info("========= server reload start ========")
 		// s.Shutdown.Shutdown = true
 		s.Reload()
+	} else if signal == syscall.SIGQUIT {
+		message.PrintInfo("The server got a quit signal")
+		// s.Shutdown.Shutdown = true
+		s.Wg.Done()
 	}
 }
 
