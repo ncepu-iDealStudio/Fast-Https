@@ -148,14 +148,14 @@ var GOs = runtime.GOOS
 
 var rootViper = viper.New()
 
-func getHeaders(path string) []Header {
-	headerKeys := rootViper.GetStringSlice(path)
+func getHeaders(v *viper.Viper, path string) []Header {
+	headerKeys := v.GetStringSlice(path)
 	var headers []Header
 	for headerKey := range headerKeys {
 		header := Header{
-			HeaderKey: rootViper.GetString(fmt.Sprintf("%s.%d.HeaderKey",
+			HeaderKey: v.GetString(fmt.Sprintf("%s.%d.HeaderKey",
 				path, headerKey)),
-			HeaderValue: rootViper.GetString(fmt.Sprintf("%s.%d.HeaderValue",
+			HeaderValue: v.GetString(fmt.Sprintf("%s.%d.HeaderValue",
 				path, headerKey)),
 		}
 		headers = append(headers, header)
@@ -364,7 +364,7 @@ func processHttpServerPath(v *viper.Viper, pathPrefix string, locationKey int) P
 			pathPrefix, locationKey)),
 		ProxyData: trimProxyPass(v.GetString(fmt.Sprintf("%s.%d.proxy_pass",
 			pathPrefix, locationKey))),
-		ProxySetHeader: getHeaders(fmt.Sprintf("%s.%d.proxy_set_header",
+		ProxySetHeader: getHeaders(v, fmt.Sprintf("%s.%d.proxy_set_header",
 			pathPrefix, locationKey)),
 		AppFireWall: v.GetStringSlice(fmt.Sprintf("%s.%d.appfirewall",
 			pathPrefix, locationKey)),

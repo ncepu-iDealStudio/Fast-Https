@@ -83,6 +83,19 @@ func DefaultServerError() *Response {
 	return res
 }
 
+func DefaultServerHeaderError() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(500, "SERVERHeaderERROR")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", time.Now().String())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("500 Server Error", "The server encountered an proxy header error"))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
 func DefaultBlackBan() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(403, "FORBIDDEN")
