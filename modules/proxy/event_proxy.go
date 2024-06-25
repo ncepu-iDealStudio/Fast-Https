@@ -133,7 +133,16 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 	temp_res := response.ResponseInit()
 	temp_res.HttpResParse(string(tmpByte))
 
-	head_code := strings.Split(temp_res.FirstLine, " ")[1]
+	var head_code string
+
+	firstLineDec := strings.Split(temp_res.FirstLine, " ")
+	if len(firstLineDec) < 2 {
+		logger.Error(string(tmpByte))
+		rr.Res = response.DefaultServerHeaderError()
+		return "509"
+	} else {
+		head_code = firstLineDec[1]
+	}
 
 	if temp_res.Headers["Connection"] == "" {
 		p.ProxyNeedClose = true
@@ -311,6 +320,12 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req.ByteRow()
 
+	// if len(req_data) > 8192 {
+	// 	fmt.Println(string(req_data[:8192]))
+
+	// } else {
+	// 	fmt.Println(string(req_data[:]))
+	// }
 	proxy, err := getProxy(&ev.RR, cfg)
 	if err != nil {
 		ev.RR.Res = response.DefaultServerError()
