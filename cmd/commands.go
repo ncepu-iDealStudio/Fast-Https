@@ -8,12 +8,10 @@ import (
 	"fast-https/output"
 	"fast-https/utils/logger"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
-	"os/exec"
 	"runtime"
-	"strconv"
+	"syscall"
 
 	"github.com/fatih/color"
 	"github.com/kardianos/service"
@@ -229,14 +227,19 @@ func StopHandler() error {
 		logger.Fatal("read pid failed")
 	}
 
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
-	} else {
-		cmd = exec.Command("sudo", "kill", "-9", strconv.Itoa(pid))
+	// var cmd *exec.Cmd
+	// if runtime.GOOS == "windows" {
+	// 	cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
+	// } else {
+	// 	cmd = exec.Command("sudo", "kill", "-9", strconv.Itoa(pid))
+	// }
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		logger.Fatal("fast-https find process failed: %v", err)
 	}
 
-	err = cmd.Run()
+	err = process.Signal(os.Kill)
+
 	if err != nil {
 		logger.Fatal("fast-https stop failed: %v", err)
 	}
@@ -254,16 +257,26 @@ func ReloadHandler() error {
 	}
 
 	// TODO: Windows
-	if runtime.GOOS == "windows" {
-		// if err := sendCtrlC(pid); err != nil {
-		// 	logger.Debug("gid: %d, send ctrl c sig failed %v", pid, err)
-		// }
-	} else {
-		cmd := exec.Command("sudo", "kill", strconv.Itoa(pid), "-2")
-		err = cmd.Run()
-		if err != nil {
-			logger.Fatal("fast-https reload failed: %v", err)
-		}
+	// if runtime.GOOS == "windows" {
+	// if err := sendCtrlC(pid); err != nil {
+	// 	logger.Debug("gid: %d, send ctrl c sig failed %v", pid, err)
+	// }
+	// } else {
+	// 	cmd := exec.Command("sudo", "kill", strconv.Itoa(pid), "-2")
+	// 	err = cmd.Run()
+	// 	if err != nil {
+	// 		logger.Fatal("fast-https reload failed: %v", err)
+	// 	}
+	// }
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		logger.Fatal("fast-https find process failed: %v", err)
+	}
+
+	err = process.Signal(syscall.SIGINT)
+
+	if err != nil {
+		logger.Fatal("fast-https stop failed: %v", err)
 	}
 	return nil
 }
@@ -306,7 +319,7 @@ func Writepid(filepath string) error {
 	}
 
 	// Write JSON data to the specified file
-	if err := ioutil.WriteFile(filepath, jsonData, 0644); err != nil {
+	if err := os.WriteFile(filepath, jsonData, 0644); err != nil {
 		return fmt.Errorf("error writing JSON data to file: %v", err)
 	}
 
@@ -316,7 +329,7 @@ func Writepid(filepath string) error {
 // readpid reads the PID and GID from a given file in JSON format and returns them.
 func readpid(filepath string) (int, error) {
 	// Read the file contents
-	data, err := ioutil.ReadFile(filepath)
+	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return 0, fmt.Errorf("error reading file: %v", err)
 	}
