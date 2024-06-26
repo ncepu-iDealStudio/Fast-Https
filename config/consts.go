@@ -1,5 +1,3 @@
-//go:build !rpm
-
 package config
 
 const (
@@ -10,9 +8,9 @@ const (
 		// use "config_dev/fast-https.json" when dev
 		// use "config/fast-https.json" when release
 	*/
-	PID_FILE         string = "./fast-https.pid"
-	CONFIG_FILE_PATH string = "./config/fast-https.json"
-	MIME_FILE_PATH   string = "./config/mime.json"
+	PID_FILE         string = FAST_HTTPS_BASE_DIR + "fast-https.pid"
+	CONFIG_FILE_PATH string = FAST_HTTPS_BASE_DIR + "config/fast-https.json"
+	MIME_FILE_PATH   string = FAST_HTTPS_BASE_DIR + "config/mime.json"
 
 	/* events */
 	DEFAULT_PORT            string = ":8080"
@@ -32,6 +30,12 @@ const (
 
 const (
 	HTTP_DEFAULT_CONTENT_TYPE = "application/octet-stream"
+)
+
+const (
+	ROOT_CRT_DIR  = FAST_HTTPS_BASE_DIR + "httpdoc/root"
+	CERT_DIR      = FAST_HTTPS_BASE_DIR + "config/cert"
+	ROOT_CRT_NAME = "root"
 )
 
 /*
