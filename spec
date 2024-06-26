@@ -16,11 +16,15 @@ fast-https web server
 
 %prep
 %setup -q -c -T
+wget https://go.dev/dl/go1.22.4.linux-amd64.tar.gz
+tar xvf go1.22.4.linux-amd64.tar.gz
+export PATH=$PATH:`pwd`/go/bin
 tar -zxvf %{_sourcedir}/%{name}-%{version}.tar.gz
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.io,direct
 
 %build
+export PATH=$PATH:`pwd`/go/bin
 go build -ldflags="-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n')" -tags=rpm .
 
 %install
