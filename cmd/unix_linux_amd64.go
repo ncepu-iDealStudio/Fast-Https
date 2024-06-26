@@ -30,7 +30,7 @@ func Daemon(nochdir, noclose int) int {
 	// if we got a good PID, then we call exit the parent process.
 	if ret > 0 {
 		FAST_HTTPS_PID = int(ret)
-		Writepid(config.PID_FILE)
+		WritePid(config.PID_FILE)
 		os.Exit(0)
 	}
 	// Change the file mode mask

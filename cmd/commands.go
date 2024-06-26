@@ -120,11 +120,9 @@ func runCommand(args []string) error {
 			break
 		}
 	}
-
 	return nil
 }
 
-// need return
 func ServiceInstallHandler() error {
 
 	directory, err := os.Getwd() //get the current directory using the built-in function
@@ -176,12 +174,12 @@ func DevStartHandler() error {
 	go func() {
 		logger.Info("%v", http.ListenAndServe("0.0.0.0:10000", nil))
 	}()
-	// pre check before server start
+	// pre-check before server start
 	PreCheckHandler()
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	Writepid(config.PID_FILE)
+	WritePid(config.PID_FILE)
 
 	output.PrintInitialStart()
 	initialization.Init()
@@ -196,13 +194,13 @@ func DevStartHandler() error {
 
 // StartHandler start server
 func StartHandler() error {
-	// pre check before server start
+	// pre-check before server start
 	PreCheckHandler()
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
 	if runtime.GOOS == "windows" {
-		Writepid(config.PID_FILE)
+		WritePid(config.PID_FILE)
 	}
 
 	output.PrintInitialStart()
@@ -222,7 +220,7 @@ func StartHandler() error {
 // StopHandler stop server
 func StopHandler() error {
 
-	pid, err := readpid(config.PID_FILE)
+	pid, err := readPid(config.PID_FILE)
 	if err != nil {
 		logger.Fatal("read pid failed")
 	}
@@ -251,7 +249,7 @@ func StopHandler() error {
 // ReloadHandler reload server
 func ReloadHandler() error {
 
-	pid, err := readpid(config.PID_FILE)
+	pid, err := readPid(config.PID_FILE)
 	if err != nil {
 		logger.Fatal("read pid failed")
 	}
@@ -303,7 +301,8 @@ func PreCheckHandler() {
 
 }
 
-func Writepid(filepath string) error {
+// WritePid writes the current PID to a given file in JSON format
+func WritePid(filepath string) error {
 	// Get current PID and GID
 	pid := os.Getpid()
 
@@ -326,8 +325,8 @@ func Writepid(filepath string) error {
 	return nil
 }
 
-// readpid reads the PID and GID from a given file in JSON format and returns them.
-func readpid(filepath string) (int, error) {
+// readPid read pid reads the PID and GID from a given file in JSON format and returns them.
+func readPid(filepath string) (int, error) {
 	// Read the file contents
 	data, err := os.ReadFile(filepath)
 	if err != nil {
