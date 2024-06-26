@@ -17,7 +17,7 @@ const (
 	DEFAULT_MAX_HEADER_SIZE        = 4096
 	DEFAULT_MAX_BODY_SIZE          = 32 * 1024 // 32K
 
-	DEFAULT_LOG_ROOT       string = "./logs"
+	DEFAULT_LOG_ROOT       string = FAST_HTTPS_BASE_DIR + "logs"
 	MONIITOR_LOG_FILE_PATH string = "monitor.log"
 
 	/* log message*/
