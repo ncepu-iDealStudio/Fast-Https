@@ -15,7 +15,6 @@ import (
 	"fast-https/modules/core/response"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
-	"io"
 	"net"
 	"strings"
 )
@@ -30,6 +29,7 @@ type Proxy struct {
 	Write          func([]byte) (int, error)
 	Read           func([]byte) (int, error)
 	Close          func() error
+	ev             *core.Event
 }
 
 func init() {
@@ -51,7 +51,7 @@ func (m *Proxy) Error() string {
 
 // connect to the server
 // init read write close handler
-func (p *Proxy) ProxyInit() error {
+func (p *Proxy) ProxyInit(ev *core.Event) error {
 	var err error
 
 	p.ProxyConn, err = net.Dial("tcp", p.ProxyAddr)
@@ -59,6 +59,7 @@ func (p *Proxy) ProxyInit() error {
 	p.Read = p.read
 	p.Write = p.write
 	p.Close = p.close
+	p.ev = ev
 
 	if p.ProxyType == config.PROXY_HTTPS {
 		config := tls.Config{InsecureSkipVerify: true}
@@ -82,7 +83,7 @@ func (p *Proxy) ProxyInit() error {
 }
 
 // get a inited proxy
-func getProxy(rr *core.RRcircle, cfg *listener.ListenCfg) (*Proxy, error) {
+func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Proxy, error) {
 	var proxy *Proxy
 
 	// init proxy tcp connection
@@ -96,7 +97,7 @@ func getProxy(rr *core.RRcircle, cfg *listener.ListenCfg) (*Proxy, error) {
 
 		proxy = Newproxy(cfg.ProxyAddr, int(cfg.Type), configCache)
 		proxy.proxyHandleAddr()
-		err := proxy.ProxyInit()
+		err := proxy.ProxyInit(ev)
 		if err != nil {
 			message.PrintWarn("--proxy can not init circle" + err.Error())
 
@@ -151,8 +152,8 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 		p.ProxyNeedClose = true
 	}
 
-	temp_res.DelHeader("server")
-	temp_res.SetHeader("server", "Fast-Https")
+	temp_res.DelHeader("Server")
+	temp_res.SetHeader("Server", "Fast-Https")
 
 	temp_body := rr.Res.Body
 	rr.Res = temp_res
@@ -164,74 +165,88 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 	return head_code
 }
 
-func (p *Proxy) proxyReadAll(ev *core.Event) ([]byte, error) {
-
-	var resData []byte
-	tmpByte := make([]byte, 1024)
-	for {
-		len_once, err := p.Read(tmpByte)
-		if err != nil {
-			if err == io.EOF { // read all
-				break
-			} else {
-				p.Close()
-				ev.Close()
-				return nil, err // can't read
+func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err error) {
+	if !ev.RR.Req.IsKeepalive() {
+		if ev.Upgrade == "websocket" {
+			logger.Debug("-----This is Read websocket")
+			web := make([]byte, 1024)
+			var n int
+			n, err = p.Read(web)
+			if err != nil {
+				logger.Debug("Proxy event: Can't read websocket %v", err.Error())
+				err = errors.New("proxy read websocket")
+				return
 			}
-		}
-		resData = append(resData, tmpByte[:len_once]...)
-	}
+			resData = web[:n]
+		} else {
+			rcc := ReadConnectionClose{
+				p: p,
+			}
+			logger.Debug("-----This is ReadConnectionClose")
+			resData, err = rcc.proxyReadAll(ev)
+			if err != nil {
+				logger.Debug("Proxy event: Can't read connection close %v", err.Error())
+				err = errors.New("proxy read connection close error")
+				return
+			}
 
-	return resData, nil
+		}
+	} else {
+		rka := ReadKeepAlive{
+			TryNum: 0,
+			p:      p,
+		}
+		logger.Debug("-----This is ReadKeepAlive")
+		err = rka.proxyKeepAlive(ev)
+		if err != nil {
+			logger.Debug("Proxy event: Can't read keep alive %v", err.Error())
+			err = errors.New("proxy read keep alive error")
+			return
+		}
+		resData = rka.finalStr
+		// if len(rka.finalStr) < 8192 {
+		// 	ev.DEBUG_BUFFER = append(ev.DEBUG_BUFFER, rka.finalStr...)
+		// } else {
+		// 	ev.DEBUG_BUFFER = append(ev.DEBUG_BUFFER, rka.finalStr[:8192]...)
+		// }
+
+		ev.RR.Res.Body = rka.body
+		err = nil
+	}
+	return
 }
 
-// fast-https will send data to real server and get response from target
-func (p *Proxy) getDataFromServer(ev *core.Event,
-	req_data []byte) error {
-
-	var err error
-
-	_, err = p.Write(req_data)
+func (p *Proxy) sendToUpstreamServer(ev *core.Event, req_data []byte) error {
+	// ev.DEBUG_BUFFER = append(ev.DEBUG_BUFFER, req_data...)
+	n, err := p.Write(req_data)
 	if err != nil {
 		p.Close()  // close proxy connection
 		ev.Close() // close event connection
-		message.PrintWarn("Proxy event: Can't write to " + err.Error())
+		message.PrintWarn("Proxy event: Can't write to upstream server" + err.Error())
 		return err // can't write
 	}
+	if len(req_data) != n {
+		logger.Debug("send to upstream server part")
+	}
+
+	return nil
+}
+
+// fast-https will send data to real server and get response from target
+func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
 
 	//logger.Debug("\n\n" + string(req_data) + "\n\n")
+	if err := p.sendToUpstreamServer(ev, req_data); err != nil {
+		logger.Debug("send to upstream server errror")
+		return errors.New("send to upstream server error")
+	}
 
-	var resData []byte
-	if !ev.RR.Req.IsKeepalive() {
-		if ev.Upgrade == "websocket" {
-			web := make([]byte, 1024)
-			n, _ := p.Read(web)
-			resData = web[:n]
-		} else {
-			resData, err = p.proxyReadAll(ev)
-			logger.Debug("-----This is proxyReadAll")
-			if err != nil {
-				message.PrintWarn("Proxy event: Can't read all ", err.Error())
-			}
-		}
-	} else {
-		ro := ReadKeepAlive{
-			TryNum:       0,
-			ProxyConn:    p.ProxyConn,
-			ProxyTlsConn: p.ProxyTlsConn,
-			Type:         p.ProxyType,
-		}
-		err = ro.proxyKeepAlive(ev)
-		logger.Debug("-----This is ReadKeepAlive")
-		if err != nil {
-			logger.Debug("Proxy event: Can't read keep alive %v", err.Error())
-			return errors.New("proxy return null")
-		}
-		resData = ro.finalStr
-		// fmt.Println(ev.RR.Res)
-		// ev.RR.Res.FirstLine = ro.res.FirstLine
-		// ev.RR.Res.Headers = ro.res.Headers
-		ev.RR.Res.Body = ro.body
+	resData, err := p.readFromUpstreamServer(ev)
+	if err != nil {
+		logger.Debug("read  form upstream server error")
+		// logger.Debug("	send\n%s\nto server%s", string(ev.DEBUG_BUFFER), ev.Conn.RemoteAddr().String())
+		logger.Fatal("exit")
+		return errors.New("read from upstream server error")
 	}
 
 	if !ev.RR.Req.IsKeepalive() && ev.Upgrade == "" { // connection close
@@ -326,7 +341,7 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	// } else {
 	// 	fmt.Println(string(req_data[:]))
 	// }
-	proxy, err := getProxy(&ev.RR, cfg)
+	proxy, err := getProxy(ev, &ev.RR, cfg)
 	if err != nil {
 		ev.RR.Res = response.DefaultServerError()
 		ev.WriteResponseClose(nil)
