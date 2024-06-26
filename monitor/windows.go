@@ -5,7 +5,6 @@ package main
 import (
 	"bufio"
 	"fast-https/config"
-	"fast-https/output"
 	"log"
 	"os"
 	"os/exec"
@@ -108,13 +107,13 @@ func onReady() {
 	log.Println("pid:", pid)
 	isRunning := isProcessRunning(pid)
 	if isRunning {
-		systray.SetTemplateIcon(output.LogoExecuting, output.LogoExecuting)
+		systray.SetTemplateIcon(LogoExecuting, LogoExecuting)
 		mStart.Disable()
-		mStart.SetIcon(output.IconStart)
+		mStart.SetIcon(IconStart)
 		mStart.Uncheck()
 		mStart.Show()
 	} else {
-		systray.SetTemplateIcon(output.LogoStopping, output.LogoStopping)
+		systray.SetTemplateIcon(LogoStopping, LogoStopping)
 	}
 
 	// quit
@@ -135,10 +134,10 @@ func onReady() {
 				}
 
 				mStart.Disable()
-				mStart.SetIcon(output.IconStart)
+				mStart.SetIcon(IconStart)
 				mStart.Uncheck()
 				mStart.Show()
-				systray.SetTemplateIcon(output.LogoExecuting, output.LogoExecuting)
+				systray.SetTemplateIcon(LogoExecuting, LogoExecuting)
 				startServer()
 
 			// stop
@@ -148,10 +147,10 @@ func onReady() {
 					mStop.Show()
 				}
 				mStart.Enable()
-				mStart.SetIcon(output.IconStop)
+				mStart.SetIcon(IconStop)
 				mStart.Show()
 				log.Println("Fast-Https Stop...")
-				systray.SetTemplateIcon(output.LogoStopping, output.LogoStopping)
+				systray.SetTemplateIcon(LogoStopping, LogoStopping)
 				stopServer()
 			}
 		}
