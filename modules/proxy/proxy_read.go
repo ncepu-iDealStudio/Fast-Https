@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"errors"
 	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/response"
@@ -71,7 +70,9 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 		return -3
 	} else {
 		// unkonwn
-		return -100
+		rka.body = res.Body
+		rka.res = res
+		return -4
 	}
 }
 
@@ -215,8 +216,8 @@ readAgain:
 	} else if size == -3 {
 		rka.parseChunked()
 		return nil
-	} else {
-		return errors.New("response parse error")
+	} else if size == -4 {
+		return nil
 	}
 	// }
 

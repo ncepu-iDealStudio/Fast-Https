@@ -378,5 +378,4 @@ func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 	// ev.RR.Req_.SetHeader("Connection", "close", cfg)
 	// ev.RR.Req.SetHeader("Accept-Encoding", "", cfg)
-	ev.RR.Req.Flush()
 }
