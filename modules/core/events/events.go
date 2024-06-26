@@ -101,41 +101,22 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
 	byte_row := ev.ReadRequest()
-	// save request information to ev.RR.Req_
+	// save request information to ev.RR.Req
 	if !ev.RR.CircleInit {
 		ev.RR.Req = request.RequestInit(false) // Create a request Object
 		ev.RR.Res = response.ResponseInit()    // Create a res Object
 		ev.RR.CircleInit = true
+	} else {
+		ev.RR.Req.Flush()
 	}
-	// fmt.Printf("%p, %p", ev.RR.Req_, ev)
 	if byte_row == nil { // client closed
 		return 0
 	}
 
-	header_read_num := len(byte_row)
-	// headerOtherData := make([]byte, core.READ_HEADER_BUF_LEN)
-	for {
-		parse := ev.RR.Req.ParseHeader(byte_row)
-		if parse == request.RequestOk {
-			break
-		} else if parse == request.RequestNeedReadMore { // parse successed !
-
-			ev.Conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-			datasize, err := ev.Conn.Read(ev.RR.ReqBuf)
-			if err != nil { // read error, like time out
-				message.PrintWarn("read header time out", parse)
-				break
-			}
-			byte_row = append(byte_row, ev.RR.ReqBuf[:datasize]...)
-			header_read_num += datasize
-			if header_read_num > config.GConfig.Limit.MaxHeaderSize {
-				// header bytes beyond config
-				break
-			}
-
-		} else {
-			message.PrintWarn("invalide request", -200)
-			return -200 // invade request
+	parse := ev.RR.Req.ParseHeader(byte_row)
+	if parse != request.RequestOk {
+		if parse == request.RequestNeedReadMore { // parse successed !
+			logger.Debug("Request Need Read More, header size too small")
 		}
 	}
 
@@ -152,6 +133,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		if ev.RR.Req.RequestBodyValid() {
 			break
 		} else {
+			ev.Conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 			datasize, err := ev.Conn.Read(ev.RR.ReqBuf)
 			if err != nil { // read error, like time out
 				message.PrintWarn("read body time out")

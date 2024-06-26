@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	READ_HEADER_BUF_LEN = 2048
+	READ_HEADER_BUF_LEN = 4096
 	READ_BODY_BUF_LEN   = 4096
 )
 

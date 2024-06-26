@@ -46,8 +46,8 @@ func (e *RequestError) Error() string {
 // which contaions event's method,path,servername(headers)
 type Request struct {
 	// HTTP first line
-	Method   string `name:"request_method"`
-	Path     string `name:"request_uri"`
+	Method   string
+	Path     string
 	Query    PathQuery
 	Protocol string
 	Encoding []string
@@ -149,7 +149,12 @@ func (r *Request) SetHeader(key string, val string, cfg *listener.ListenCfg) {
 }
 
 // flush request struct
-func (r *Request) Flush() {}
+func (r *Request) Flush() {
+	r.Body.Reset()
+	for k := range r.Headers {
+		delete(r.Headers, k)
+	}
+}
 
 // get request header
 func (r *Request) GetHeader(key string) string {
