@@ -2,6 +2,7 @@ package request
 
 import (
 	"bytes"
+	"errors"
 	"fast-https/modules/core/listener"
 	"fmt"
 	"strconv"
@@ -111,7 +112,7 @@ func (r *Request) parseQueryParams() {
 }
 
 // parse Host
-func (r *Request) ParseHost(lis_info listener.Listener) {
+func (r *Request) ParseHost(lis_info *listener.Listener) {
 	if r.Headers["Host"] == "" {
 		return
 	}
@@ -276,17 +277,23 @@ func (r *Request) TryFixHeader(other []byte) error {
 }
 
 // get request's body
-func (r *Request) ParseBody(tmpByte []byte) {
+func (r *Request) ParseBody(tmpByte []byte) error {
 	var i int // last byte position before \r\n\r\n
 	var remain_len int
 	var res []byte
+
+	flag := false
 
 	total_len := len(tmpByte)
 	for i = 0; i < total_len-4; i++ {
 		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) &&
 			tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
+			flag = true
 			break
 		}
+	}
+	if !flag {
+		return errors.New("parse body error")
 	}
 
 	remain_len = total_len - i - 4
@@ -298,6 +305,8 @@ func (r *Request) ParseBody(tmpByte []byte) {
 	}
 
 	r.Body.Write(res)
+
+	return nil
 }
 
 func (r *Request) RequestBodyValid() bool {
@@ -326,12 +335,7 @@ func (r *Request) RequestBodyValid() bool {
 	return true
 }
 
-func (r *Request) TryFixBody(other []byte) bool {
+func (r *Request) TryFixBody(other []byte) {
 	// r.Body = append(r.Body, other...)
 	r.Body.Write(other)
-	if !r.RequestBodyValid() {
-		return false
-	} else {
-		return true
-	}
 }

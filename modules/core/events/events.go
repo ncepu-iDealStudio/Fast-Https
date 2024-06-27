@@ -14,6 +14,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerControl, port_num int) {
@@ -99,14 +101,15 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 }
 
 func parseRequest(ev *core.Event, fif *filters.Filter) int {
+	rr := &ev.RR
 	// save request information to ev.RR.Req
-	if !ev.RR.CircleInit {
-		ev.RR.Req = request.RequestInit(false) // Create a request Object
-		ev.RR.Res = response.ResponseInit()    // Create a res Object
-		ev.RR.CircleInit = true
-		ev.RR.ReqBuf = make([]byte, core.READ_BODY_BUF_LEN)
+	if !rr.CircleInit {
+		rr.Req = request.RequestInit(false) // Create a request Object
+		rr.Res = response.ResponseInit()    // Create a res Object
+		rr.CircleInit = true
+		rr.ReqBuf = make([]byte, core.READ_BODY_BUF_LEN)
 	} else {
-		ev.RR.Req.Flush()
+		rr.Req.Flush()
 	}
 
 	// read data (bytes and str) from socket
@@ -116,36 +119,40 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		return 0
 	}
 
-	parse := ev.RR.Req.ParseHeader(byte_row)
+	parse := rr.Req.ParseHeader(byte_row)
 	if parse != request.RequestOk {
 		if parse == request.RequestNeedReadMore { // parse successed !
 			logger.Debug("Request Need Read More, header size too small")
 		}
 	}
 
-	if !fif.Fif.HttpParseFilter(&ev.RR) {
+	if !fif.Fif.HttpParseFilter(rr) {
 		return -300
 	}
 
 	// parse host
-	ev.RR.Req.ParseHost(*ev.LisInfo)
+	rr.Req.ParseHost(ev.LisInfo)
+
+	if err := rr.Req.ParseBody(byte_row); err != nil {
+		logger.Debug(color.RedString(err.Error()))
+	}
 
 	// headerOtherData := make([]byte, core.READ_BODY_BUF_LEN)
 	for {
-		ev.RR.Req.ParseBody(byte_row)
-		if ev.RR.Req.RequestBodyValid() {
+		if rr.Req.RequestBodyValid() {
 			break
 		} else {
 			ev.Conn.SetReadDeadline(time.Now().Add(1 * time.Second))
-			datasize, err := ev.Conn.Read(ev.RR.ReqBuf)
+			datasize, err := ev.Conn.Read(rr.ReqBuf)
 			if err != nil { // read error, like time out
-				message.PrintWarn("read body time out")
+				logger.Debug(color.RedString("read body error"))
 				break
 			}
-			byte_row = append(byte_row, ev.RR.ReqBuf[:datasize]...)
-			ev.RR.Req.TryFixBody(ev.RR.ReqBuf[:datasize])
-			if ev.RR.Req.Body.Len() > config.GConfig.Limit.MaxBodySize {
+			byte_row = append(byte_row, rr.ReqBuf[:datasize]...)
+			rr.Req.TryFixBody(rr.ReqBuf[:datasize])
+			if rr.Req.Body.Len() > config.GConfig.Limit.MaxBodySize {
 				// body bytes beyond config
+				logger.Debug(color.RedString("read body too big"))
 				break
 			}
 		}
