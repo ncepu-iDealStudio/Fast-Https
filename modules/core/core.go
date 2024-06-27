@@ -137,8 +137,8 @@ func (ev *Event) ReadRequest() []byte {
 	now := time.Now()
 	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
 	ev.RR.ReqBuf = make([]byte, READ_HEADER_BUF_LEN)
-	buffer := ev.RR.ReqBuf
-	n, err := ev.Conn.Read(buffer)
+	// buffer := ev.RR.ReqBuf
+	n, err := ev.Conn.Read(ev.RR.ReqBuf)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
 			message.PrintInfo(ev.Conn.RemoteAddr(), " closed")
@@ -153,8 +153,8 @@ func (ev *Event) ReadRequest() []byte {
 		return nil
 	}
 
-	buffer = buffer[:n]
-	return buffer // return row str or bytes
+	ev.RR.ReqBuf = ev.RR.ReqBuf[:n]
+	return ev.RR.ReqBuf // return row str or bytes
 }
 
 func (ev *Event) WriteResponse(data []byte) error {
