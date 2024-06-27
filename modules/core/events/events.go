@@ -104,6 +104,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		ev.RR.Req = request.RequestInit(false) // Create a request Object
 		ev.RR.Res = response.ResponseInit()    // Create a res Object
 		ev.RR.CircleInit = true
+		ev.RR.ReqBuf = make([]byte, core.READ_BODY_BUF_LEN)
 	} else {
 		ev.RR.Req.Flush()
 	}
