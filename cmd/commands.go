@@ -1,19 +1,17 @@
 package cmd
 
 import (
-	"bufio"
+	"encoding/json"
 	"fast-https/config"
 	initialization "fast-https/init"
 	"fast-https/modules/core/server"
 	"fast-https/output"
+	"fast-https/utils/logger"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"runtime"
-	"strconv"
-	"strings"
+	"syscall"
 
 	"github.com/fatih/color"
 	"github.com/kardianos/service"
@@ -74,12 +72,12 @@ var (
 type program struct{}
 
 func (p *program) Start(s service.Service) error {
-	fmt.Println("fast https (p *program) Start ...")
+	logger.Info("fast https (p *program) Start ...")
 	return nil
 }
 
 func (p *program) Stop(s service.Service) error {
-	fmt.Println("fast https (p *program) Stop ...")
+	logger.Info("fast https (p *program) Stop ...")
 	return nil
 }
 
@@ -109,7 +107,7 @@ func RootCmd() *cobra.Command {
 func runCommand(args []string) error {
 	// missing parameter
 	if len(args) == 0 {
-		fmt.Println(color.RedString("This is Dev start mod ..."))
+		logger.Info(color.RedString("This is Dev start mod ..."))
 		DevStartHandler()
 		return nil
 	}
@@ -122,7 +120,6 @@ func runCommand(args []string) error {
 			break
 		}
 	}
-
 	return nil
 }
 
@@ -130,21 +127,24 @@ func ServiceInstallHandler() error {
 
 	directory, err := os.Getwd() //get the current directory using the built-in function
 	if err != nil {
-		fmt.Println(err) //print the error if obtained
+		logger.Warn("%v", err) //print the error if obtained
+		return err
 	}
 
 	srvConfig.WorkingDirectory = directory
 
 	s, err := service.New(prg, srvConfig)
 	if err != nil {
-		fmt.Println(err)
+		logger.Warn("%v", err)
+		return err
 	}
 
 	err = s.Install()
 	if err != nil {
-		fmt.Println("安装服务失败: ", err.Error())
+		logger.Warn("安装服务失败: %s", err.Error())
+		return err
 	} else {
-		fmt.Println("fast-https服务在", directory, "安装成功!")
+		logger.Info("fast-https服务在 %s 安装成功!", directory)
 	}
 
 	return nil
@@ -154,14 +154,16 @@ func ServiceUnInstallHandler() error {
 
 	s, err := service.New(prg, srvConfig)
 	if err != nil {
-		fmt.Println(err)
+		logger.Warn("%v", err)
+		return err
 	}
 
 	err = s.Uninstall()
 	if err != nil {
-		fmt.Println("卸载服务失败: ", err.Error())
+		logger.Warn("卸载服务失败: %s", err.Error())
+		return err
 	} else {
-		fmt.Println("fast-https卸载服务成功")
+		logger.Info("fast-https卸载服务成功")
 	}
 
 	return nil
@@ -170,14 +172,14 @@ func ServiceUnInstallHandler() error {
 // this start handler only when develop
 func DevStartHandler() error {
 	go func() {
-		log.Println(http.ListenAndServe("0.0.0.0:10000", nil))
+		logger.Info("%v", http.ListenAndServe("0.0.0.0:10000", nil))
 	}()
-	// pre check before server start
+	// pre-check before server start
 	PreCheckHandler()
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	WritePid(os.Getpid())
+	WritePid(config.PID_FILE)
 
 	output.PrintInitialStart()
 	initialization.Init()
@@ -192,13 +194,13 @@ func DevStartHandler() error {
 
 // StartHandler start server
 func StartHandler() error {
-	// pre check before server start
+	// pre-check before server start
 	PreCheckHandler()
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
 	if runtime.GOOS == "windows" {
-		WritePid(os.Getpid())
+		WritePid(config.PID_FILE)
 	}
 
 	output.PrintInitialStart()
@@ -217,36 +219,63 @@ func StartHandler() error {
 
 // StopHandler stop server
 func StopHandler() error {
-	file, err := os.OpenFile(config.PID_FILE, os.O_RDWR|os.O_APPEND, 0666)
-	if err != nil {
-		return err
-	}
-	readerBuf := bufio.NewReader(file)
-	str, _ := readerBuf.ReadString('\n')
-	msg := strings.Trim(str, "\r\n")
-	ax, _ := strconv.Atoi(msg)
 
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(ax))
-	} else {
-		cmd = exec.Command("sudo", "kill", strconv.Itoa(ax), "-9")
+	pid, err := readPid(config.PID_FILE)
+	if err != nil {
+		logger.Fatal("read pid failed")
 	}
 
-	err = cmd.Run()
+	// var cmd *exec.Cmd
+	// if runtime.GOOS == "windows" {
+	// 	cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
+	// } else {
+	// 	cmd = exec.Command("sudo", "kill", "-9", strconv.Itoa(pid))
+	// }
+	process, err := os.FindProcess(pid)
 	if err != nil {
-		fmt.Println("fast-https stop failed:", err)
+		logger.Fatal("fast-https find process failed: %v", err)
 	}
-	file.Close()
+
+	err = process.Signal(os.Kill)
+
+	if err != nil {
+		logger.Fatal("fast-https stop failed: %v", err)
+	}
+
 	os.Remove(config.PID_FILE)
 	return nil
 }
 
 // ReloadHandler reload server
 func ReloadHandler() error {
-	// StopHandler()
-	// time.Sleep(time.Second)
-	// StartHandler()
+
+	pid, err := readPid(config.PID_FILE)
+	if err != nil {
+		logger.Fatal("read pid failed")
+	}
+
+	// TODO: Windows
+	// if runtime.GOOS == "windows" {
+	// if err := sendCtrlC(pid); err != nil {
+	// 	logger.Debug("gid: %d, send ctrl c sig failed %v", pid, err)
+	// }
+	// } else {
+	// 	cmd := exec.Command("sudo", "kill", strconv.Itoa(pid), "-2")
+	// 	err = cmd.Run()
+	// 	if err != nil {
+	// 		logger.Fatal("fast-https reload failed: %v", err)
+	// 	}
+	// }
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		logger.Fatal("fast-https find process failed: %v", err)
+	}
+
+	err = process.Signal(syscall.SIGINT)
+
+	if err != nil {
+		logger.Fatal("fast-https stop failed: %v", err)
+	}
 	return nil
 }
 
@@ -258,29 +287,66 @@ func PreCheckHandler() {
 	// check config
 	err := config.CheckConfig()
 	if err != nil {
-		log.Println("Start server failed. An error occurred for the following reason:")
-		log.Fatalln(err)
+		logger.Fatal("Start server failed. An error occurred for the following reason: %v", err)
 	}
 
 	// check ports
 	err = server.ScanPorts()
 	if err != nil {
-		log.Println("Port has been used, An error occurred for the following reason:")
-		log.Fatalln(err)
+		logger.Fatal("Port has been used, An error occurred for the following reason: %v", err)
 	}
 
-	config.ClearConfig()
+	//TODO: check if fast-https is already running...
+	//if failed, logger.Fatal...
+
 }
 
-func WritePid(x_pid int) {
-	// Obtain the pid and store it
+// WritePid writes the current PID to a given file in JSON format
+func WritePid(filepath string) error {
+	// Get current PID and GID
+	pid := os.Getpid()
 
-	file, err := os.OpenFile(config.PID_FILE, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	if err != nil {
-		log.Fatal("Open pid file error", err)
+	// Create a map to hold PID and GID
+	pidGidMap := map[string]int{
+		"pid": pid,
 	}
-	defer file.Close()
 
-	file.WriteString(strconv.Itoa(x_pid) + "\n")
-	fmt.Println("Fast-Https running [PID]:", x_pid)
+	// Marshal the map to JSON
+	jsonData, err := json.Marshal(pidGidMap)
+	if err != nil {
+		return fmt.Errorf("error marshalling PID and GID to JSON: %v", err)
+	}
+
+	// Write JSON data to the specified file
+	if err := os.WriteFile(filepath, jsonData, 0644); err != nil {
+		return fmt.Errorf("error writing JSON data to file: %v", err)
+	}
+
+	return nil
+}
+
+// readPid read pid reads the PID and GID from a given file in JSON format and returns them.
+func readPid(filepath string) (int, error) {
+	// Read the file contents
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		return 0, fmt.Errorf("error reading file: %v", err)
+	}
+
+	// Create a map to hold the PID and GID
+	pidGidMap := make(map[string]int)
+
+	// Unmarshal the JSON data into the map
+	if err := json.Unmarshal(data, &pidGidMap); err != nil {
+		return 0, fmt.Errorf("error unmarshalling JSON data: %v", err)
+	}
+
+	// Get the PID and GID from the map
+	pid, pidExists := pidGidMap["pid"]
+
+	if !pidExists {
+		return 0, fmt.Errorf("PID or GID not found in JSON data")
+	}
+
+	return pid, nil
 }

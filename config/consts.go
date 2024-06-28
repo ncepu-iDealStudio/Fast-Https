@@ -2,21 +2,27 @@ package config
 
 const (
 	/* version */
+<<<<<<< HEAD
 	CURRENT_VERSION string = "V1.3.1"
+=======
+	CURRENT_VERSION string = "V1.3.2"
+>>>>>>> develop
 
 	/*
 		// use "config_dev/fast-https.json" when dev
 		// use "config/fast-https.json" when release
 	*/
-	PID_FILE               string = "./fast-https.pid"
-	CONFIG_FILE_PATH       string = "./config/fast-https.json"
-	MIME_FILE_PATH         string = "./config/mime.types"
-	MONIITOR_LOG_FILE_PATH string = "./logs/monitor.log"
+	PID_FILE         string = FAST_HTTPS_BASE_DIR + "fast-https.pid"
+	CONFIG_FILE_PATH string = FAST_HTTPS_BASE_DIR + "config/fast-https.json"
+	MIME_FILE_PATH   string = FAST_HTTPS_BASE_DIR + "config/mime.json"
 
 	/* events */
 	DEFAULT_PORT            string = ":8080"
 	DEFAULT_MAX_HEADER_SIZE        = 4096
-	DEFAULT_MAX_BODY_SIZE          = 32 * 1024 // 32K
+	DEFAULT_MAX_BODY_SIZE          = 512 * 1024 // 32K
+
+	DEFAULT_LOG_ROOT       string = FAST_HTTPS_BASE_DIR + "logs"
+	MONIITOR_LOG_FILE_PATH string = "monitor.log"
 
 	/* log message*/
 	SERVER_TIME_FORMAT string = "2006-01-02 15:04:05"
@@ -26,9 +32,19 @@ const (
 	SAFE_LOG_NAME      string = "safe.log"
 )
 
+const (
+	HTTP_DEFAULT_CONTENT_TYPE = "application/octet-stream"
+)
+
+const (
+	ROOT_CRT_DIR  = FAST_HTTPS_BASE_DIR + "httpdoc/root"
+	CERT_DIR      = FAST_HTTPS_BASE_DIR + "config/cert"
+	ROOT_CRT_NAME = "root"
+)
+
 /*
 cd monitor &&
-go build -ldflags "-s -w -H=windowsgui" -o monitor.exe monitor.go &&
+go build -ldflags "-s -w -H=windowsgui" -o monitor.exe monitor.go windows.go &&
 echo "monitor compiler successed" &&
 cd .. &&
 goreleaser release -f .goreleaser.windows.yaml --snapshot --clean &&

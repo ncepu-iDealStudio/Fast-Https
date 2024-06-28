@@ -4,7 +4,6 @@ import (
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
-	"fast-https/utils/message"
 	"sync"
 	"time"
 )
@@ -30,7 +29,7 @@ type CountLimit struct {
 
 func countsInit() {
 	// Gcl = *NewCountLimit(0, config.GConfig.Servers[0].Path[0].Limit.Rate)
-	for _, item := range listener.Lisinfos {
+	for _, item := range listener.GLisinfos {
 		for _, path := range item.Cfg {
 			tempCountLimit := NewCountLimit(0, path.Limit.Rate, path.Limit.Size*1024*1024/16)
 			Gcl = append(Gcl, tempCountLimit)
@@ -121,11 +120,10 @@ func (cl *CountLimit) Insert(ipstr string) bool {
 }
 
 func CountHandler(rr core.RRcircle) {
-	message.PrintWarn(rr.Ev.Conn.RemoteAddr().String(),
-		" INFORMAL Event(too many)"+rr.Ev.Log,
-		"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
-	message.PrintSafe(rr.Ev.Conn.RemoteAddr().String(),
-		" INFORMAL Event(too many)"+rr.Ev.Log,
-		"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
-	rr.Ev.WriteDataClose(response.DefaultTooMany())
+	core.Log(&rr.Ev.Log, rr.Ev, "")
+	// message.PrintSafe(rr.Ev.Conn.RemoteAddr().String(),
+	// 	" INFORMAL Event(too many)"+rr.Ev.Log,
+	// 	"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
+	rr.Ev.RR.Res = response.DefaultTooMany()
+	rr.Ev.WriteResponseClose(nil)
 }

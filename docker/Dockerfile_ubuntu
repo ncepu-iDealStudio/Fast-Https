@@ -1,0 +1,34 @@
+# 使用官方Ubuntu最新镜像
+FROM ubuntu:latest
+
+# 设置环境变量
+ENV Fast-Https_VERSION 1.3.1
+ENV AUTHOR Jackiex
+
+# 设置维护者信息
+LABEL maintainer="Jackiex<812520785@qq.com>"
+
+# 更新软件包索引并安装tar工具来解压gzip格式的压缩文件
+RUN apt-get update && apt-get install -y wget tar
+
+# 下载fast-https程序压缩包
+RUN wget https://gitee.com/ncepu-bj/fast-https/releases/download/1.3.1/fast-https_Linux_x86_64.tar.gz -O /tmp/fast-https_Linux_x86_64.tar.gz
+
+# 创建目标目录
+RUN mkdir -p /usr/local/fast-https
+ENV PATH $PATH:/usr/local/fast-https
+
+# 创建目标目录
+RUN mkdir -p /usr/local/fast-https
+
+# 解压缩程序到目标目录
+RUN tar -xzf /tmp/fast-https_Linux_x86_64.tar.gz -C /usr/local/fast-https
+
+# 设置工作目录
+WORKDIR /usr/local/fast-https
+
+# 暴露8080端口
+EXPOSE 8080
+
+# 执行程序中的命令文件
+CMD ["./fast-https"]

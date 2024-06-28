@@ -5,10 +5,9 @@ import (
 	"fast-https/modules/cache"
 	"fast-https/modules/safe"
 	"fast-https/utils"
-	"fast-https/utils/loggers"
+	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 	"time"
@@ -16,20 +15,18 @@ import (
 
 // Init setup necessary modules of the whole system
 func Init() *sync.WaitGroup {
-	// message initialization
-	waitGroup := MessageInit()
-	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]message initialization finished")
 
 	// config initialization
+	// can't use message
 	err := config.Init()
 	if err != nil {
-		log.Fatalln(err)
+		logger.Error("%s", err)
 	}
 	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]config initialization finished")
 
-	//logger object initialization
-	loggers.InitLogger(config.GConfig.LogRoot)
-	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]log initialization finished")
+	// message initialization
+	waitGroup := MessageInit(config.GConfig.LogRoot)
+	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]message initialization finished")
 
 	// cert  initialization
 	CertInit()
@@ -56,9 +53,9 @@ func CacheManagerInit() {
 	}()
 }
 
-func MessageInit() *sync.WaitGroup {
+func MessageInit(logRootPath string) *sync.WaitGroup {
 	waitGroup := utils.GetWaitGroup()
 	waitGroup.Add(1)
-	go message.InitMsg()
+	go message.InitMsg(logRootPath)
 	return waitGroup
 }
