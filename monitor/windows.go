@@ -1,9 +1,10 @@
+//go:build windows && amd64
+
 package main
 
 import (
 	"bufio"
 	"fast-https/config"
-	"fast-https/output"
 	"log"
 	"os"
 	"os/exec"
@@ -19,7 +20,7 @@ var logFile *os.File
 
 // StartWindows start the taskBox window
 func StartWindows() {
-	logFile, _ = os.OpenFile(config.MONIITOR_LOG_FILE_PATH, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	logFile, _ = os.OpenFile(filepath.Join(config.DEFAULT_LOG_ROOT, config.MONIITOR_LOG_FILE_PATH), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	log.SetOutput(logFile)
 	defer logFile.Close()
 
@@ -34,7 +35,7 @@ func StartWindows() {
 
 func startServer() {
 	dir, err := os.Getwd()
-	command := exec.Command(filepath.Join(dir, "fast-https"), "start")
+	command := exec.Command(filepath.Join(dir, "fast-https"))
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	command.Stdout = logFile
 	err = command.Start()
@@ -106,13 +107,13 @@ func onReady() {
 	log.Println("pid:", pid)
 	isRunning := isProcessRunning(pid)
 	if isRunning {
-		systray.SetTemplateIcon(output.LogoExecuting, output.LogoExecuting)
+		systray.SetTemplateIcon(LogoExecuting, LogoExecuting)
 		mStart.Disable()
-		mStart.SetIcon(output.IconStart)
+		mStart.SetIcon(IconStart)
 		mStart.Uncheck()
 		mStart.Show()
 	} else {
-		systray.SetTemplateIcon(output.LogoStopping, output.LogoStopping)
+		systray.SetTemplateIcon(LogoStopping, LogoStopping)
 	}
 
 	// quit
@@ -133,10 +134,10 @@ func onReady() {
 				}
 
 				mStart.Disable()
-				mStart.SetIcon(output.IconStart)
+				mStart.SetIcon(IconStart)
 				mStart.Uncheck()
 				mStart.Show()
-				systray.SetTemplateIcon(output.LogoExecuting, output.LogoExecuting)
+				systray.SetTemplateIcon(LogoExecuting, LogoExecuting)
 				startServer()
 
 			// stop
@@ -146,10 +147,10 @@ func onReady() {
 					mStop.Show()
 				}
 				mStart.Enable()
-				mStart.SetIcon(output.IconStop)
+				mStart.SetIcon(IconStop)
 				mStart.Show()
 				log.Println("Fast-Https Stop...")
-				systray.SetTemplateIcon(output.LogoStopping, output.LogoStopping)
+				systray.SetTemplateIcon(LogoStopping, LogoStopping)
 				stopServer()
 			}
 		}

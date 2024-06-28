@@ -3,7 +3,6 @@ package message
 import (
 	"context"
 	"fast-https/utils"
-	"fast-https/utils/loggers"
 	"fmt"
 	"os"
 	"runtime"
@@ -18,7 +17,8 @@ var msgMap map[string]func(...any) error
 var rwMutex sync.RWMutex
 var msgMapOnce sync.Once
 
-func InitMsg() {
+func InitMsg(logRootPath string) {
+	MessageFormat(logRootPath)
 	rwMutex.Lock()
 	defer utils.GetWaitGroup().Done()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,24 +53,24 @@ func AddMsgHandler(msg string, f func(args ...any) error) {
 
 func initMsgHandler() {
 	AddMsgHandler("exit", func(args ...any) error {
-		var log = loggers.GetLogger().SystemLog()
+		var log = Glog.SystemLog
 		rwMutex.RLock()
 		log.Infoln("Fast-https server exit!")
 		close(outputChan.In)
 		return nil
 	})
 	AddMsgHandler("info", func(args ...any) error {
-		var log = loggers.GetLogger().SystemLog()
+		var log = Glog.SystemLog
 		log.Infoln(args)
 		return nil
 	})
 	AddMsgHandler("err", func(args ...any) error {
-		var log = loggers.GetLogger().ErrorLog()
+		var log = Glog.ErrorLog
 		log.Errorln(color.RedString("", args))
 		return nil
 	})
 	AddMsgHandler("warn", func(args ...any) error {
-		var log = loggers.GetLogger().SystemLog()
+		var log = Glog.SystemLog
 		log.Warnln(args)
 		return nil
 	})
@@ -86,14 +86,14 @@ func initMsgHandler() {
 		return nil
 	})
 	AddMsgHandler("access", func(args ...any) error {
-		var log = loggers.GetLogger().AccessLog()
+		var log = Glog.AccessLog
 		message := args[0].(map[string]interface{})
 		log.WithField("host", message["host"]).Infoln(message["message"])
 		return nil
 	})
 
 	AddMsgHandler("safe", func(args ...any) error {
-		var log = loggers.GetLogger().SafeLog()
+		var log = Glog.SafeLog
 		log.Warnln(args)
 		return nil
 	})

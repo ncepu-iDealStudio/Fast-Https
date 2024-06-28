@@ -3,9 +3,8 @@ package safe
 import (
 	"fast-https/config"
 	"fast-https/modules/core"
+	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
-	"fast-https/utils/message"
-
 	"fmt"
 	"net"
 	"strings"
@@ -142,8 +141,15 @@ func (b *Blacklist) isInBlacklist(ipOrRange string) bool {
 func IsInBlacklist(ev *core.Event) bool {
 	// fmt.Println(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0])
 	if g_list.isInBlacklist(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
-		ev.WriteDataClose(response.DefaultBlackBan())
-		message.PrintSafe(ev.Conn.RemoteAddr().String(), " INFORMAL Event(BlackList)"+ev.Log, "\"")
+
+		ev.RR.Res = response.ResponseInit()
+		ev.RR.Req = request.RequestInit(false)
+		useless_data := make([]byte, 2048)
+		ev.Conn.Read(useless_data)
+		res := response.DefaultBlackBan()
+		ev.RR.Res = res
+		ev.WriteResponseClose(nil)
+		core.Log(&ev.Log, ev, "")
 		return true
 	} else {
 		return false

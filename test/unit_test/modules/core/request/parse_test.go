@@ -29,7 +29,7 @@ func (e *RequestError) Error() string {
 
 type requestTest struct {
 	Row  string
-	Req  request.Req
+	Req  request.Request
 	Err  string
 	Body string
 }
@@ -40,7 +40,7 @@ var normalTests = []requestTest{
 			"Host: example.com\r\n" +
 			"Connection: close\r\n" +
 			"\r\n",
-		Req: request.Req{
+		Req: request.Request{
 			Method:   "GET",
 			Path:     "/",
 			Protocol: "HTTP/1.1",
@@ -57,7 +57,7 @@ var normalTests = []requestTest{
 			"Host: example.com\r\n" +
 			"Connection: close\r\n" +
 			"\r\n",
-		Req: request.Req{
+		Req: request.Request{
 			Method:   "POST",
 			Path:     "/api",
 			Protocol: "HTTP/1.1",
@@ -75,7 +75,7 @@ var normalTests = []requestTest{
 			"Content-Type: application/json\r\n" +
 			"\r\n" +
 			"{ \"name\": \"Jane Smith\", \"age\": 35}",
-		Req: request.Req{
+		Req: request.Request{
 			Method:   "PUT",
 			Path:     "/api/update/123",
 			Protocol: "HTTP/1.1",
@@ -110,7 +110,7 @@ var normalTests = []requestTest{
 	// },
 	{
 		Row: "CONNECT www.google.com:443 HTTP/1.1\r\n\r\n",
-		Req: request.Req{
+		Req: request.Request{
 			Method:   "CONNECT",
 			Path:     "www.google.com:443",
 			Protocol: "HTTP/1.1",
@@ -121,7 +121,7 @@ var normalTests = []requestTest{
 	},
 	{
 		Row: "OPTIONS * HTTP/1.1\r\nServer: foo\r\n\r\n",
-		Req: request.Req{
+		Req: request.Request{
 			Method:   "OPTIONS",
 			Path:     "*",
 			Protocol: "HTTP/1.1",
@@ -136,7 +136,7 @@ var normalTests = []requestTest{
 
 func TestParseHeader(t *testing.T) {
 	for _, test := range normalTests {
-		req := request.ReqInit()
+		req := request.RequestInit(false)
 		err := req.ParseHeader([]byte(test.Row))
 		if err.Error() != test.Err {
 			t.Errorf("ParseHeader() got %s, want %s", err.Error(), test.Err)
@@ -164,53 +164,53 @@ func TestParseHeader(t *testing.T) {
 var errorTests = []requestTest{
 	{
 		Row: "",
-		Req: request.Req{},
+		Req: request.Request{},
 		Err: None.Error(),
 	},
 	{
 		Row: "GET / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
 			"Connection: close\r\n",
-		Req: request.Req{},
+		Req: request.Request{},
 		Err: InvalidHeaders.Error(),
 	},
 	{
 		Row: "GET / HTTP/1.1\r\n",
-		Req: request.Req{},
+		Req: request.Request{},
 		Err: RequestNeedReadMore.Error(),
 	},
 	{
 		Row: "GET / HTTP/1.1\r\r" +
 			"Host: example.com\r\r" +
 			"Connection: close\r\r",
-		Req: request.Req{},
+		Req: request.Request{},
 		Err: UnknowInvalid.Error(),
 	},
 	{
 		Row: "GET / HTTP/9.9\r\n" +
 			"Host: example.com\r\n" +
 			"Connection: close\r\n",
-		Req: request.Req{},
+		Req: request.Request{},
 		Err: ProtocolInvalid.Error(),
 	},
 	{
 		Row: "HIT / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
 			"Connection: close\r\n",
-		Req: request.Req{},
+		Req: request.Request{},
 		Err: MethodInvalid.Error(),
 	},
 	{
 		Row: "GET  HTTP/1.1\r\n" +
 			"Host: test\r\n\r\n",
-		Req: request.Req{},
+		Req: request.Request{},
 		Err: PathInvalid.Error(),
 	},
 }
 
 func TestParseHeaderError(t *testing.T) {
 	for _, test := range errorTests {
-		req := request.ReqInit()
+		req := request.RequestInit(false)
 		err := req.ParseHeader([]byte(test.Row))
 		if err.Error() != test.Err {
 			t.Errorf("ParseHeader() got %s; Want %s", err.Error(), test.Err)
@@ -220,11 +220,11 @@ func TestParseHeaderError(t *testing.T) {
 
 func TestParseBody(t *testing.T) {
 	for _, test := range normalTests {
-		req := request.ReqInit()
+		req := request.RequestInit(false)
 		req.ParseHeader([]byte(test.Row))
 		req.ParseBody([]byte(test.Row))
-		if string(req.Body) != test.Body {
-			t.Errorf("ParseBody() got %s; Want %s", string(req.Body), test.Body)
+		if req.Body.String() != test.Body {
+			t.Errorf("ParseBody() got %s; Want %s", req.Body.String(), test.Body)
 		}
 	}
 }

@@ -25,17 +25,10 @@ var userAndHostname string
 var caCert *x509.Certificate
 var caKey crypto.PrivateKey
 
-const (
-	ROOT_CRT_DIR  = "httpdoc/root"
-	ROOT_CRT_NAME = "root"
-
-	CERT_DIR = "config/cert"
-)
-
 func CertInit() {
 	userAndHostname = "fast-https@ncepu.edu.cn"
 
-	file := filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt"
+	file := filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt"
 	// message.PrintInfo(file)
 	_, err := os.Stat(file)
 
@@ -46,7 +39,7 @@ func CertInit() {
 	loadCa() // init caCert   init caKey
 	for _, serverconfig := range config.GConfig.Servers {
 
-		certfile := filepath.Join(CERT_DIR, serverconfig.ServerName) + ".pem"
+		certfile := filepath.Join(config.CERT_DIR, serverconfig.ServerName) + ".pem"
 
 		if serverconfig.ServerName != "" && strings.Contains(serverconfig.Listen, "ssl") {
 			_, err = os.Stat(certfile)
@@ -120,13 +113,13 @@ func newRoot() {
 		message.PrintErr(err, "failed to encode CA key")
 	}
 
-	err = os.WriteFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME)+".key", pem.EncodeToMemory(
+	err = os.WriteFile(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME)+".key", pem.EncodeToMemory(
 		&pem.Block{Type: "PRIVATE KEY", Bytes: privDER}), 0400)
 	if err != nil {
 		message.PrintErr(err, "failed to save CA key")
 	}
 
-	err = os.WriteFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME)+".crt", pem.EncodeToMemory(
+	err = os.WriteFile(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME)+".crt", pem.EncodeToMemory(
 		&pem.Block{Type: "CERTIFICATE", Bytes: cert}), 0644)
 	if err != nil {
 		message.PrintErr(err, "failed to save CA certificate")
@@ -136,9 +129,9 @@ func newRoot() {
 }
 
 func loadCa() {
-	// message.PrintInfo(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
+	// message.PrintInfo(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt")
 
-	certPEMBlock, err := os.ReadFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".crt")
+	certPEMBlock, err := os.ReadFile(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt")
 	if err != nil {
 		message.PrintErr(err, "failed to read the CA certificate")
 	}
@@ -152,7 +145,7 @@ func loadCa() {
 		message.PrintErr(err, "failed to parse the CA certificate")
 	}
 
-	keyPEMBlock, err := os.ReadFile(filepath.Join(ROOT_CRT_DIR, ROOT_CRT_NAME) + ".key")
+	keyPEMBlock, err := os.ReadFile(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".key")
 	if err != nil {
 		message.PrintErr(err, "failed to read the CA key")
 	}
@@ -220,13 +213,13 @@ func newCert(hosts []string) {
 
 	privPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privDER})
 
-	err = os.WriteFile(filepath.Join(CERT_DIR, hosts[0])+".pem", certPEM, 0644) // hosts is not nil
+	err = os.WriteFile(filepath.Join(config.CERT_DIR, hosts[0])+".pem", certPEM, 0644) // hosts is not nil
 
 	if err != nil {
 		message.PrintErr(err, "failed to save certificate")
 	}
 
-	err = os.WriteFile(filepath.Join(CERT_DIR, hosts[0])+"-key.pem", privPEM, 0600)
+	err = os.WriteFile(filepath.Join(config.CERT_DIR, hosts[0])+"-key.pem", privPEM, 0600)
 	if err != nil {
 		message.PrintErr(err, "failed to save certificate key")
 		// message.PrintInfo("It will expire on %s \n\n", expiration.Format("2 January 2006"))

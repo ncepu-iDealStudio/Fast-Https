@@ -1,8 +1,5 @@
 {
-  "log_root":"./logs",
-  "pid": "./fast-https.pid",
   "http": {
-    "include": "mime.types",
     "server": [
       {
         "listen": 8080,
@@ -30,6 +27,9 @@
           }
         ]
       }
+    ],
+    "include": [
+      "./config/conf.d"
     ]
   }
 }
