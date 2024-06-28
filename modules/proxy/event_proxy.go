@@ -183,7 +183,7 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 			var n int
 			n, err = p.Read(web)
 			if err != nil {
-				logger.Debug("Proxy event: Can't read websocket %v", err.Error())
+				logger.Debug("proxy event: can't read websocket %v", err.Error())
 				err = errors.New("proxy read websocket")
 				return
 			}
@@ -193,10 +193,11 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 				p: p,
 			}
 			logger.Debug("-----This is ReadConnectionClose")
-			resData, err = rcc.proxyReadAll(ev)
+			resData, err = rcc.proxyReadAll()
 			if err != nil {
-				logger.Debug("Proxy event: Can't read connection close %v", err.Error())
-				err = errors.New("proxy read connection close error")
+				if err != ProxyErrorReadFromUpstreamTimeout {
+					logger.Debug("can't read connection close %v", err.Error())
+				}
 				return
 			}
 
@@ -207,7 +208,7 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 			p:      p,
 		}
 		logger.Debug("-----This is ReadKeepAlive")
-		err = rka.proxyKeepAlive(ev)
+		err = rka.proxyKeepAlive()
 		if err != nil {
 			if err != ProxyErrorReadFromUpstreamTimeout {
 				logger.Debug("can't read keep alive %v", err.Error())
@@ -227,7 +228,7 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 	return
 }
 
-func (p *Proxy) sendToUpstreamServer(ev *core.Event, req_data []byte) error {
+func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 	// ev.DEBUG_BUFFER = append(ev.DEBUG_BUFFER, req_data...)
 	n, err := p.Write(req_data)
 	if err != nil {
@@ -255,7 +256,7 @@ func (p *Proxy) sendToUpstreamServer(ev *core.Event, req_data []byte) error {
 func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
 
 	//logger.Debug("\n\n" + string(req_data) + "\n\n")
-	if err := p.sendToUpstreamServer(ev, req_data); err != nil {
+	if err := p.sendToUpstreamServer(req_data); err != nil {
 		if err != ProxyErrorSendToUpstreamTimeout {
 			logger.Debug("unhandled send to upstream server errror")
 		}
@@ -286,6 +287,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
 	return nil // no error
 }
 
+/*  ====  这两个函数可以用 event ===== */
 func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
 	var res []byte
 	var err error
@@ -391,16 +393,8 @@ func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 
 func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 	for _, item := range cfg.ProxySetHeader {
-		// if item.HeaderKey == "Host" {
-		// 	if item.HeaderValue == "$host" {
-		// 		ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
-		// 	}
-		// }
-		// if !strings.Contains(item.HeaderValue, "$") {
 		ev.RR.Req.SetHeader(item.HeaderKey,
 			ev.GetCommandParsedStr(item.HeaderValue), cfg)
-		// }
-		// fmt.Println(item.HeaderKey, ev.GetCommandParsedStr(item.HeaderValue))
 	}
 	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 	// ev.RR.Req_.SetHeader("Connection", "close", cfg)

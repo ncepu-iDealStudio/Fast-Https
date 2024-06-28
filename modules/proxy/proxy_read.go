@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"fast-https/config"
-	"fast-https/modules/core"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
 	"fmt"
@@ -188,7 +187,7 @@ func (rka *ReadKeepAlive) ReadBytes(size int) {
 	}
 }
 
-func (rka *ReadKeepAlive) proxyKeepAlive(_ *core.Event) error {
+func (rka *ReadKeepAlive) proxyKeepAlive() error {
 
 	tmpByte := make([]byte, TRY_READ_LEN)
 readAgain:
@@ -233,7 +232,7 @@ type ReadConnectionClose struct {
 	p *Proxy
 }
 
-func (rcc *ReadConnectionClose) proxyReadAll(ev *core.Event) ([]byte, error) {
+func (rcc *ReadConnectionClose) proxyReadAll() ([]byte, error) {
 
 	var resData []byte
 	tmpByte := make([]byte, 1024)
@@ -244,7 +243,6 @@ func (rcc *ReadConnectionClose) proxyReadAll(ev *core.Event) ([]byte, error) {
 				break
 			} else {
 				rcc.p.Close()
-				ev.Close()
 				return nil, err // can't read
 			}
 		}
