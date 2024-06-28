@@ -3,9 +3,6 @@ module fast-https
 go 1.21.5
 
 require (
-<<<<<<< HEAD
-	github.com/fufuok/chanx v1.2.0
-=======
 	github.com/Jxck/assertion v0.0.0-20140506062536-def1e0ae1f89
 	github.com/Jxck/color v0.0.0-20150710091843-32f7aabefa1d
 	github.com/Jxck/hpack v0.0.0-20150713130059-4fb806e55ed9
@@ -20,7 +17,6 @@ require (
 	github.com/kardianos/service v1.2.2
 	github.com/microcosm-cc/bluemonday v1.0.26
 	github.com/panjf2000/ants/v2 v2.9.1
->>>>>>> release
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.19.0
 	golang.org/x/sys v0.21.0
@@ -40,7 +36,6 @@ require (
 	github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
@@ -51,13 +46,8 @@ require (
 	go.uber.org/goleak v1.3.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20231206192017-f3f8817b8deb // indirect
-<<<<<<< HEAD
-	golang.org/x/sync v0.5.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
-	golang.org/x/sync v0.4.0 // indirect
-=======
->>>>>>> release
+
 )
 
 require (
@@ -66,17 +56,9 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-<<<<<<< HEAD
-	github.com/panjf2000/ants/v2 v2.8.1
-	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
-	github.com/sevlyar/go-daemon v0.1.6
-	github.com/spf13/afero v1.10.0 // indirect
-	github.com/spf13/cast v1.5.1 // indirect
-=======
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
->>>>>>> release
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
