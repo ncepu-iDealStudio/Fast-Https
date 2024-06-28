@@ -2,11 +2,8 @@ package config
 
 const (
 	/* version */
-<<<<<<< HEAD
-	CURRENT_VERSION string = "V1.3.1"
-=======
+
 	CURRENT_VERSION string = "V1.3.2"
->>>>>>> develop
 
 	/*
 		// use "config_dev/fast-https.json" when dev

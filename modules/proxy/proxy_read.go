@@ -63,15 +63,9 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 		rka.res = res
 		return NeedRead
 	} else if res.GetHeader("Transfer-Encoding") == "chunked" {
-<<<<<<< HEAD:modules/proxy/proxy_keepalive.go
-		ro.bodyPosition = i + 4
-		ro.body = tmpData[i+4:]
-		ro.res = res
-=======
 		rka.bodyPosition = i + 4
 		rka.body = tmpData[i+4:]
 		rka.res = res
->>>>>>> develop:modules/proxy/proxy_read.go
 		return -3
 	} else {
 		// unkonwn
@@ -81,11 +75,6 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 	}
 }
 
-<<<<<<< HEAD:modules/proxy/proxy_keepalive.go
-const CHUNCKED_BODY_SIZE = 8192
-
-=======
->>>>>>> develop:modules/proxy/proxy_read.go
 func Parse(data string) ([]byte, int64) {
 	startIndex := 0
 	var after []byte
@@ -128,11 +117,6 @@ func Parse(data string) ([]byte, int64) {
 		startIndex = endDataIndex + 2
 	}
 
-<<<<<<< HEAD:modules/proxy/proxy_keepalive.go
-	fmt.Println("数据解析完成")
-
-=======
->>>>>>> develop:modules/proxy/proxy_read.go
 	return nil, 0
 }
 
@@ -141,28 +125,17 @@ func (rka *ReadKeepAlive) parseChunked() {
 	// var after_body []byte
 	// var total_length int64
 	for {
-<<<<<<< HEAD:modules/proxy/proxy_keepalive.go
-		if p = strings.Index(string(ro.body), "0\r\n\r\n"); p != -1 { // last block
-
-			_, _ = Parse(string(ro.body))
-=======
 		if p = strings.Index(string(rka.body), "0\r\n\r\n"); p != -1 { // last block
 
 			// data := []byte("2\r\n11\r\n20\r\n22222222222222222222222222222222\r\n5\r\n33333\r\n0\r\n\r\n")
 			_, _ = Parse(string(rka.body))
 			// after_body, total_length = Parse(string(ro.body))
->>>>>>> develop:modules/proxy/proxy_read.go
 			// fmt.Println(total_length)
 
 			// ro.res.DelHeader("Transfer-Encoding")
 			// ro.res.Headers["Content-Length"] = strconv.Itoa(int(total_length))
-<<<<<<< HEAD:modules/proxy/proxy_keepalive.go
-			ro.res.Body = ro.body
-			ro.finalStr = ro.res.GenerateResponse()
-=======
 			rka.res.Body = rka.body // after_body
 			rka.finalStr = rka.res.GenerateResponse()
->>>>>>> develop:modules/proxy/proxy_read.go
 			return
 		} else {
 			// if p = strings.Index(string(ro.body), "\r\n"); p == -1 { // body like this  "2b8" or "2b81\r"
