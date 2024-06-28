@@ -13,6 +13,7 @@ fast-https.pid
 go.mod
 go.sum
 config/cert/*.pem
+conifg/conf.d/*.json
 httpdoc/root/root.crt
 httpdoc/root/root.key
 httpdoc/theme/*
