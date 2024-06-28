@@ -102,10 +102,6 @@ func (r *Response) HttpResParse(request string) error {
 		return FirstLineInvalid // invalid first line
 	}
 	r.FirstLine = parts[0] + " " + parts[1] + " " + parts[2]
-<<<<<<< HEAD
-=======
-
->>>>>>> develop
 	lines := strings.Split(request, "\r\n")[1:]
 	for _, line := range lines {
 		if line == "" {
