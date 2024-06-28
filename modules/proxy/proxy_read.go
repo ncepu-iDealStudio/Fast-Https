@@ -196,10 +196,15 @@ readAgain:
 	len_once, err := rka.Read(tmpByte)
 
 	if err != nil {
-		if err == io.EOF {
-			return err
+		neterr, ok := err.(net.Error)
+		if ok && neterr.Timeout() {
+			return ProxyErrorReadFromUpstreamTimeout
+		} else if ok {
+			logger.Debug("unhandled error")
+			return err // can't read
+		} else {
+			logger.Fatal("can't convent net error")
 		}
-		return err // can't read
 	}
 	rka.finalStr = append(rka.finalStr, tmpByte[:len_once]...)
 	// fmt.Println(string(ro.finalStr))
