@@ -278,33 +278,26 @@ func (r *Request) TryFixHeader(other []byte) error {
 
 // get request's body
 func (r *Request) ParseBody(tmpByte []byte) error {
-	var i int // last byte position before \r\n\r\n
-	var remain_len int
-	var res []byte
 
 	flag := false
-
 	total_len := len(tmpByte)
-	for i = 0; i < total_len-4; i++ {
-		if tmpByte[i] == byte(13) && tmpByte[i+1] == byte(10) &&
-			tmpByte[i+2] == byte(13) && tmpByte[i+3] == byte(10) {
-			flag = true
-			break
-		}
+	// last byte position before \r\n\r\n
+	i := strings.Index(string(tmpByte), "\r\n\r\n")
+	if i != -1 {
+		flag = true
 	}
 	if !flag {
 		return errors.New("parse body error")
 	}
 
-	remain_len = total_len - i - 4
-
+	remain_len := total_len - (i + 4)
 	if remain_len == 0 {
-		res = (tmpByte[i+4:])
+		res := tmpByte[i+4:]
+		r.Body.Write(res)
 	} else {
-		res = (tmpByte[i+4:])[:remain_len]
+		res := tmpByte[i+4:][:remain_len]
+		r.Body.Write(res)
 	}
-
-	r.Body.Write(res)
 
 	return nil
 }
