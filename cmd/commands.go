@@ -296,9 +296,19 @@ func PreCheckHandler() {
 		logger.Fatal("Port has been used, An error occurred for the following reason: %v", err)
 	}
 
-	//TODO: check if fast-https is already running...
 	//if failed, logger.Fatal...
-
+	pid, err := readPid(config.PID_FILE)
+	if err != nil && err.Error() == "error reading file" {
+		return
+	}
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		logger.Fatal("fast-https find process failed: %v", err)
+	}
+	err = process.Signal(syscall.Signal(0))
+	if err == nil {
+		logger.Fatal("fast-https is already running")
+	}
 }
 
 // WritePid writes the current PID to a given file in JSON format
