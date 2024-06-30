@@ -131,7 +131,7 @@ func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
 					lis_temp.LisType = 1 // ssl
 					if strings.Contains(each.Listen, "h2") {
 						// h2 not support in this branch
-						logger.Fatal("h2 not support in this branch")
+						// logger.Fatal("h2 not support in this branch")
 						lis_temp.LisType = 10
 					}
 				} else if strings.Contains(each.Listen, "tcp") {
@@ -341,7 +341,7 @@ func listenSsl(laddr string, lisdata []ListenCfg, reuse bool) net.Listener {
 	}
 
 	tlsConfig := &tls.Config{
-		NextProtos:   []string{},
+		NextProtos:   []string{"h2"},
 		Certificates: certs,
 		Time:         time.Now,
 		Rand:         rand.Reader,
