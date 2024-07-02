@@ -1,0 +1,2 @@
+setenv LE_WORKING_DIR "/root/.acme.sh"
+alias acme.sh "/root/.acme.sh/acme.sh"
