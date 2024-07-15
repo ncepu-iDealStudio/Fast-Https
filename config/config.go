@@ -275,7 +275,7 @@ func processIncludeCfg() {
 				return err
 			}
 			// 跳过目录 "." 和 ".."
-			if info.IsDir() || !strings.Contains(path, "json") {
+			if info.IsDir() || filepath.Ext(path) != ".json" {
 				return nil
 			}
 
