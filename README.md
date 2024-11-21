@@ -6,7 +6,7 @@ Fast-Https是一款基于Go语言开发的的多任务，高并发Web服务器�
 
 目前，我们提供了Windows平台和Linux平台下的安装包，其它平台下的产品陆续推出中；
 
-Fast-Https项目目前已经加盟华为openEuler社区（https://gitee.com/src-openeuler/fast-https），欢迎各位开发者参与Fast-Https项目的开发和维护；
+Fast-Https项目目前已经加盟华为openEuler社区，欢迎各位开发者参与Fast-Https项目的开发和维护；地址：https://gitee.com/src-openeuler/fast-https
 
 #### 软件架构
 
