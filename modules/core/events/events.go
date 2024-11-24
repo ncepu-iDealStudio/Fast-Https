@@ -80,7 +80,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 
 	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
-		// core.Log(&ev.Log, ev, "")
+		// dynlog.Log(&ev.Log, ev, "")
 		ev.RR.Res = response.DefaultNotFound()
 		ev.WriteResponseClose(nil)
 		return

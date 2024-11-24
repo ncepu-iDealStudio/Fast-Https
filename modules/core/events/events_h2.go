@@ -50,11 +50,11 @@ func H2HandleEvent(l *listener.Listener, conn1 net.Conn, ctx context.Context) {
 func CallBack(stream *h2.Stream, ev_conn *core.Event, fif *filters.Filter) {
 
 	stream_ev := core.Event{
-		Conn:       ev_conn.Conn,
-		LisInfo:    ev_conn.LisInfo,
-		Timer:      nil,
-		Reuse:      false,
-		Log:        *core.NewLogger(),
+		Conn:    ev_conn.Conn,
+		LisInfo: ev_conn.LisInfo,
+		Timer:   nil,
+		Reuse:   false,
+		// Log:        *core.NewLogger(),
 		IsClose:    false, // not close
 		ReadReady:  true,  // need read
 		WriteReady: false, // needn't write

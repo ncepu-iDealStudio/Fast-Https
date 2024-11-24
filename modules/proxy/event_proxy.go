@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"fast-https/modules/core/dynlog"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/logger"
@@ -279,10 +280,11 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
 	head_code := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
 	b_len := len(ev.RR.Res.Body)
 
-	core.LogOther(&ev.Log, "status", head_code)
-	core.LogOther(&ev.Log, "size", strconv.Itoa(b_len))
-	core.Log(&ev.Log, ev, "")
-	core.LogClear(&ev.Log)
+	log := dynlog.DynLogger{}
+	dynlog.LogOther(&log, "status", head_code)
+	dynlog.LogOther(&log, "size", strconv.Itoa(b_len))
+	dynlog.Log(&log, ev, "")
+	dynlog.LogClear(&log)
 
 	return nil // no error
 }
@@ -313,8 +315,9 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 		pc.CacheData(ev, "200", res, len(res))
 
 	} else {
-		core.Log(&ev.Log, ev, "")
-		core.LogClear(&ev.Log)
+		log := dynlog.DynLogger{}
+		dynlog.Log(&log, ev, "")
+		dynlog.LogClear(&log)
 	}
 
 	// proxy server return valid data

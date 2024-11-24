@@ -2,6 +2,7 @@ package safe
 
 import (
 	"fast-https/modules/core"
+	"fast-https/modules/core/dynlog"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"sync"
@@ -120,7 +121,8 @@ func (cl *CountLimit) Insert(ipstr string) bool {
 }
 
 func CountHandler(rr core.RRcircle) {
-	core.Log(&rr.Ev.Log, rr.Ev, "")
+	log := dynlog.DynLogger{}
+	dynlog.Log(&log, rr.Ev, "")
 	// message.PrintSafe(rr.Ev.Conn.RemoteAddr().String(),
 	// 	" INFORMAL Event(too many)"+rr.Ev.Log,
 	// 	"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")

@@ -16,6 +16,17 @@ const (
 	READ_BODY_BUF_LEN   = 4096
 )
 
+type RRcircleCommandVal struct {
+	Map map[string]string
+}
+
+// callback item
+type RRcircleHandler struct {
+	ParseCommandHandler func(*listener.ListenCfg, *Event)
+	FilterHandler       func(*listener.ListenCfg, *Event) bool
+	RRHandler           func(*listener.ListenCfg, *Event)
+}
+
 // request and response circle
 type RRcircle struct {
 	Req    *request.Request
@@ -37,17 +48,6 @@ type RRcircle struct {
 	CircleData       interface{}
 }
 
-type RRcircleCommandVal struct {
-	Map map[string]string
-}
-
-// callback item
-type RRcircleHandler struct {
-	ParseCommandHandler func(*listener.ListenCfg, *Event)
-	FilterHandler       func(*listener.ListenCfg, *Event) bool
-	RRHandler           func(*listener.ListenCfg, *Event)
-}
-
 // global RRcircle Handler Table
 // I think array is the best struct to
 // store these handlers ...
@@ -62,7 +62,7 @@ type Event struct {
 	Stream  interface{}
 	LisInfo *listener.Listener
 	Timer   *timer.Timer
-	Log     Logger
+	// Log     Logger
 	Type    uint16
 	Upgrade string
 	RR      RRcircle
@@ -93,7 +93,7 @@ func NewEvent(l *listener.Listener, conn net.Conn) *Event {
 		LisInfo: l,
 		Timer:   nil,
 		Reuse:   false,
-		Log:     *NewLogger(),
+		// Log:     *NewLogger(),
 
 		IsClose:    false, // not close
 		ReadReady:  true,  // need read

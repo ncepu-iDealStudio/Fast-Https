@@ -2,7 +2,7 @@ package server
 
 import (
 	"fast-https/config"
-	"fast-https/modules/core"
+	"fast-https/modules/core/dynlog"
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
 	"strconv"
@@ -36,7 +36,7 @@ type Server struct {
 func initModules() {
 	// TODO: improve this
 	safe.Init() // need to be call after listener inited ...
-	core.LogRegister()
+	dynlog.LogRegister()
 	// if config.GConfig.ServerEngine.Id != 0 {
 	//engine.EngineInit()
 	// }

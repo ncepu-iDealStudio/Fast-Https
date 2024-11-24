@@ -3,6 +3,7 @@ package safe
 import (
 	"fast-https/config"
 	"fast-https/modules/core"
+	"fast-https/modules/core/dynlog"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fmt"
@@ -149,7 +150,8 @@ func IsInBlacklist(ev *core.Event) bool {
 		res := response.DefaultBlackBan()
 		ev.RR.Res = res
 		ev.WriteResponseClose(nil)
-		core.Log(&ev.Log, ev, "")
+		log := dynlog.DynLogger{}
+		dynlog.Log(&log, ev, "")
 		return true
 	} else {
 		return false

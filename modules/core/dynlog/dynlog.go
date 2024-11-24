@@ -1,16 +1,17 @@
-package core
+package dynlog
 
 import (
 	"fast-https/config"
+	"fast-https/modules/core"
 	"fast-https/utils/message"
 )
 
 var (
-	GLogMap []func(*Logger, string, *Event)
+	GLogMap []func(*DynLogger, string, *core.Event)
 	split   string
 )
 
-type Logger struct {
+type DynLogger struct {
 	s      string
 	status string
 	size   string
@@ -48,11 +49,11 @@ func LogRegister() {
 	}
 }
 
-func NewLogger() *Logger {
-	return &Logger{}
+func NewLogger() *DynLogger {
+	return &DynLogger{}
 }
 
-func Log(l *Logger, ev *Event, s string) {
+func Log(l *DynLogger, ev *core.Event, s string) {
 	for _, log := range GLogMap {
 		log(l, s, ev)
 	}
@@ -61,7 +62,7 @@ func Log(l *Logger, ev *Event, s string) {
 }
 
 // append string after index
-func LogOther(l *Logger, k string, v string) {
+func LogOther(l *DynLogger, k string, v string) {
 	switch k {
 	case "status":
 		l.status = v
@@ -70,20 +71,20 @@ func LogOther(l *Logger, k string, v string) {
 	}
 }
 
-func LogClear(l *Logger) {
+func LogClear(l *DynLogger) {
 	l.s = ""
 }
 
-func log_ip_port(l *Logger, s string, ev *Event) {
+func log_ip_port(l *DynLogger, s string, ev *core.Event) {
 	l.s += "\"" + ev.Conn.RemoteAddr().String() + "\""
 	l.s += split
 }
 
-func log_time(l *Logger, s string, ev *Event) {
+func log_time(l *DynLogger, s string, ev *core.Event) {
 
 }
 
-func log_type(l *Logger, s string, ev *Event) {
+func log_type(l *DynLogger, s string, ev *core.Event) {
 	switch ev.Type {
 	case config.LOCAL:
 		l.s += "\"" + "LOCAL" + "\""
@@ -99,32 +100,32 @@ func log_type(l *Logger, s string, ev *Event) {
 	l.s += split
 }
 
-func log_method(l *Logger, s string, ev *Event) {
+func log_method(l *DynLogger, s string, ev *core.Event) {
 	l.s += "\"" + ev.RR.Req.Method + "\""
 	l.s += split
 }
 
-func log_path(l *Logger, s string, ev *Event) {
+func log_path(l *DynLogger, s string, ev *core.Event) {
 	l.s += "\"" + ev.RR.Req.Path + "\""
 	l.s += split
 }
 
-func log_host(l *Logger, s string, ev *Event) {
+func log_host(l *DynLogger, s string, ev *core.Event) {
 	l.s += "\"" + ev.RR.Req.GetHost() + "\""
 	l.s += split
 }
 
-func log_status(l *Logger, s string, ev *Event) {
+func log_status(l *DynLogger, s string, ev *core.Event) {
 	l.s += "\"" + l.status + "\""
 	l.s += split
 }
 
-func log_size(l *Logger, s string, ev *Event) {
+func log_size(l *DynLogger, s string, ev *core.Event) {
 	l.s += "\"" + l.size + "\""
 	l.s += split
 }
 
-func log_user_agent(l *Logger, s string, ev *Event) {
+func log_user_agent(l *DynLogger, s string, ev *core.Event) {
 	l.s += "\"" + ev.RR.Req.Headers["User-Agent"] + "\""
 	l.s += split
 }

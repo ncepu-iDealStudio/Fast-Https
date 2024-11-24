@@ -3,6 +3,7 @@ package safe
 import (
 	"fast-https/config"
 	"fast-https/modules/core"
+	"fast-https/modules/core/dynlog"
 	"fast-https/modules/core/response"
 	"time"
 
@@ -28,7 +29,8 @@ func Bucket(ev *core.Event) bool {
 		return true
 	} else {
 		// write <403> and close
-		core.Log(&ev.Log, ev, "")
+		log := dynlog.DynLogger{}
+		dynlog.Log(&log, ev, "")
 		//message.PrintSafe(ev.Conn.RemoteAddr().String(), " INFORMAL Event(Bucket)"+ev.Log, "\"")
 
 		buffer := make([]byte, 1024)

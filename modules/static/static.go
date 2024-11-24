@@ -5,6 +5,7 @@ import (
 	"fast-https/config"
 	"fast-https/modules/appfirewall"
 	"fast-https/modules/core"
+	"fast-https/modules/core/dynlog"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
@@ -97,7 +98,7 @@ func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool
 	return found, file, file_size
 }
 
-func getResBytes(lisdata *listener.ListenCfg,
+func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	path string, connection string, ev *core.Event) int {
 
 	rr := ev.RR
@@ -128,8 +129,8 @@ func getResBytes(lisdata *listener.ListenCfg,
 	}
 
 	if !found {
-		core.LogOther(&ev.Log, "status", "404")
-		core.LogOther(&ev.Log, "size", "50")
+		dynlog.LogOther(log, "status", "404")
+		dynlog.LogOther(log, "size", "50")
 		return -1
 	}
 
@@ -175,9 +176,9 @@ func getResBytes(lisdata *listener.ListenCfg,
 	/* =========== h2 逻辑结束 ==================== */
 
 	// log
-	core.LogOther(&ev.Log, "status", "200")
-	core.LogOther(&ev.Log, "size", strconv.Itoa(int(file_size)))
-	core.LogClear(&ev.Log)
+	dynlog.LogOther(log, "status", "200")
+	dynlog.LogOther(log, "size", strconv.Itoa(int(file_size)))
+	dynlog.LogClear(log)
 
 	return 1 // find source
 }
@@ -236,8 +237,10 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		path = cfg.StaticRoot + rr.Req.Path
 	}
 
+	log := dynlog.DynLogger{}
+
 	if rr.Req.IsKeepalive() {
-		res := getResBytes(cfg, path, rr.Req.GetConnection(), ev)
+		res := getResBytes(&log, cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
 			rr.Res = response.DefaultNotFound()
 			// h2 dev need remove
@@ -245,7 +248,7 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		}
 		ev.Reuse = true
 	} else {
-		res := getResBytes(cfg, path, rr.Req.GetConnection(), ev)
+		res := getResBytes(&log, cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
 			rr.Res = response.DefaultNotFound()
 			// h2 dev need remove
@@ -255,8 +258,9 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 			ev.Close()
 		}
 	}
-	core.Log(&ev.Log, ev, "")
-	core.LogClear(&ev.Log)
+
+	dynlog.Log(&log, ev, "")
+	dynlog.LogClear(&log)
 }
 
 func GetGID() uint64 {
