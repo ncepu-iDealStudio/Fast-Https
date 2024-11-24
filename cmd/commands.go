@@ -299,6 +299,7 @@ func PreCheckHandler() {
 	//if failed, logger.Fatal...
 	pid, err := readPid(config.PID_FILE)
 	if err != nil && err.Error() == "error reading file" {
+		logger.Debug("%s", err.Error())
 		return
 	}
 	process, err := os.FindProcess(pid)
@@ -340,7 +341,7 @@ func readPid(filepath string) (int, error) {
 	// Read the file contents
 	data, err := os.ReadFile(filepath)
 	if err != nil {
-		return 0, fmt.Errorf("error reading file: %v", err)
+		return 0, fmt.Errorf("error reading file")
 	}
 
 	// Create a map to hold the PID and GID

@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"fast-https/config"
 	"fast-https/modules/auth"
 	"fast-https/modules/core"
@@ -18,7 +19,7 @@ import (
 	"github.com/fatih/color"
 )
 
-func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerControl, port_num int) {
+func HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 	ev := core.NewEvent(l, conn)
 
 	fif := filters.NewFilter() // Filter interface
@@ -30,34 +31,48 @@ func HandleEvent(l *listener.Listener, conn net.Conn, shutdown *core.ServerContr
 
 	ev.EventWrite = EventWrite
 
-	for !ev.IsClose {
+outerLoop:
+	for {
 
-		if shutdown.PortNeedShutdowm(port_num) {
-			logger.Debug("event shutdown port: %d circle", port_num)
-			shutdown.PortShutdowmOk(port_num)
-			if err := l.Lfd.Close(); err != nil {
-				logger.Debug("event close listen fd error %v", err)
+		select {
+		case <-ctx.Done():
+			logger.Debug("Server on port %s is shutting down...\n", l.Port)
+			// connWG.Wait() // 等待所有连接关闭
+			logger.Debug("All connections on port %s closed.\n", l.Port)
+			return
+		default:
+
+			if ev.IsClose {
+				break outerLoop
 			}
-			break
+
+			// if shutdown.PortNeedShutdowm(port_num) {
+			// 	logger.Debug("event shutdown port: %d circle", port_num)
+			// 	shutdown.PortShutdowmOk(port_num)
+			// 	if err := l.Lfd.Close(); err != nil {
+			// 		logger.Debug("event close listen fd error %v", err)
+			// 	}
+			// 	break
+			// }
+
+			// websocket and tcp proxy through this
+			if fif.Fif.ListenFilter(ev) {
+				break outerLoop
+			}
+
+			if parseRequest(ev, fif) != 1 { // TODO: handle different cases...
+				ev.Close()
+				break outerLoop // client close
+			}
+
+			EventHandler(ev, fif)
+
+			if !ev.EventReuse() {
+				break outerLoop
+			}
 		}
-
-		// websocket and tcp proxy through this
-		if fif.Fif.ListenFilter(ev) {
-			break
-		}
-
-		if parseRequest(ev, fif) != 1 { // TODO: handle different cases...
-			ev.Close()
-			break // client close
-		}
-
-		EventHandler(ev, fif)
-
-		if !ev.EventReuse() {
-			break
-		}
-
 	}
+
 }
 
 // distribute event

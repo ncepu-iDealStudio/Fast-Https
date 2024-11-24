@@ -26,8 +26,8 @@ import (
 )
 
 type Server struct {
-	Shutdown core.ServerControl
-	Wg       sync.WaitGroup
+	// Shutdown core.ServerControl
+	Wg sync.WaitGroup
 
 	Listens []listener.Listener
 }
@@ -44,7 +44,7 @@ func initModules() {
 
 // init server
 func ServerInit() *Server {
-	s := Server{Shutdown: core.ServerControl{}}
+	s := Server{}
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)
 	go func(s *Server) {
@@ -54,7 +54,7 @@ func ServerInit() *Server {
 		}
 	}(&s)
 	//  to do : ScanPorts
-	s.Shutdown = *core.NewServerContron()
+
 	output.PrintPortsListenerStart()
 	s.Listens = listener.ListenWithCfg()
 
@@ -115,36 +115,49 @@ func (s *Server) serveListener(offset int, port_index int) {
 	// fmt.Printf("sizeof []byte: %d\n", unsafe.Sizeof([]byte{100, 200}))
 	// fmt.Printf("sizeof listener.ListenCfg{}: %d\n", unsafe.Sizeof(listener.ListenCfg{}))
 
-	var listener1 *listener.Listener
-	for !s.Shutdown.PortNeedShutdowm(port_index) {
-		listener1 = &s.Listens[offset]
-		conn, err := listener1.Lfd.Accept()
-		logger.Debug("listener ptr %p, conn ptr %p", listener1, conn)
-		if err != nil {
-			logger.Debug("Error accepting connection: %v", err)
-			continue
-		}
+	listener1 := &s.Listens[offset]
+	ctx := listener1.Ctx
 
-		if listener1.LisType == 10 {
-			// logger.Fatal("h2 not support in this branch")
-			go events.H2HandleEvent(listener1, conn, &(s.Shutdown), port_index)
-		} else {
-			go events.HandleEvent(listener1, conn, &(s.Shutdown), port_index)
-		}
+out:
 
+	for {
+		select {
+		case <-ctx.Done():
+			logger.Debug("Server on port %d is shutting down...\n", offset)
+			// connWG.Wait() // 等待所有连接关闭
+			logger.Debug("All connections on port %d closed.\n", offset)
+			return
+		default:
+
+			conn, err := listener1.Lfd.Accept()
+			logger.Debug("listener ptr %p, conn ptr %p", listener1, conn)
+			if err != nil {
+				logger.Debug("Error accepting connection: %v", err)
+
+				break out
+			}
+
+			if listener1.LisType == 10 {
+				// logger.Fatal("h2 not support in this branch")
+				go events.H2HandleEvent(listener1, conn, ctx)
+			} else {
+				go events.HandleEvent(listener1, conn, ctx)
+			}
+
+		}
 	}
 
 	logger.Debug("listening :%d shutdown ,it will not accept any connections", port_index)
-	//s.Shutdown.PortShutdowmOk(port_index)
 }
 
 func (s *Server) Reload() {
 	config.Reload()
 
-	lisAll, lisAdded, removed := listener.ReloadListenCfg()
+	lisAll, lisAdded, _ := listener.ReloadListenCfg()
 
 	// 设置需要移除的端口
-	s.Shutdown.RemovedPortsToBitArray(removed)
+	// s.Shutdown.RemovedPortsToBitArray(removed)
+	// 调用相应的cancel方法
 
 	// 指向最新的ListenCfg数据
 	s.Listens = lisAll

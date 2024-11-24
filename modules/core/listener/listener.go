@@ -59,6 +59,9 @@ type Listener struct {
 	Lfd     net.Listener
 	Port    string
 	LisType uint8
+
+	Ctx    context.Context
+	Cancel context.CancelFunc
 }
 
 var GLisinfos []Listener
@@ -224,8 +227,16 @@ func ListenWithCfg() []Listener {
 
 	for index, each := range CurrLisinfos {
 		if each.LisType == 1 || each.LisType == 10 {
+			ctx, cancel := context.WithCancel(context.Background())
+			CurrLisinfos[index].Ctx = ctx
+			CurrLisinfos[index].Cancel = cancel
+
 			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg, true)
 		} else {
+			ctx, cancel := context.WithCancel(context.Background())
+			CurrLisinfos[index].Ctx = ctx
+			CurrLisinfos[index].Cancel = cancel
+
 			CurrLisinfos[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
 		}
 	}

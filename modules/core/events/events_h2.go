@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
 	"fast-https/modules/core/h2"
@@ -19,7 +20,7 @@ import (
 )
 
 // TODO: http2 not support reload !!!
-func H2HandleEvent(l *listener.Listener, conn1 net.Conn, shutdown *core.ServerControl, port_index int) {
+func H2HandleEvent(l *listener.Listener, conn1 net.Conn, ctx context.Context) {
 
 	ev_conn := core.NewEvent(l, conn1)
 
