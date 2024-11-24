@@ -129,7 +129,6 @@ func (ev *Event) CheckIfTimeOut(err error) bool {
 
 // read data from EventFd
 // attention: row str only can be used when parse FirstLine or Headers
-// because request body maybe contaions '\0'
 // only for HTTP/1.1
 func (ev *Event) ReadRequest() []byte {
 	now := time.Now()

@@ -33,18 +33,18 @@ func SetTimer(duration time.Duration, callback func()) *Timer {
 
 func DeleteTimer(timer *Timer) {
 	timer.timer.Stop()
-	fmt.Println("定时器已删除成功")
+	fmt.Println("Timer Deleted")
 }
 
 func UpdateTimer(timer *Timer, newDuration time.Duration) {
 	timer.timer.Reset(newDuration)
 	timer.duration = newDuration
-	fmt.Println("定时器已更新")
+	fmt.Println("Timer Upadted")
 }
 
 func test() {
 	timer := SetTimer(2*time.Second, func() {
-		fmt.Println("定时器触发")
+		fmt.Println("Timer trigger")
 	})
 	time.Sleep(5 * time.Second)
 	DeleteTimer(timer)

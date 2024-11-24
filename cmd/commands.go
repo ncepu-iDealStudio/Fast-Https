@@ -141,10 +141,10 @@ func ServiceInstallHandler() error {
 
 	err = s.Install()
 	if err != nil {
-		logger.Warn("安装服务失败: %s", err.Error())
+		logger.Warn("service install failed: %s", err.Error())
 		return err
 	} else {
-		logger.Info("fast-https服务在 %s 安装成功!", directory)
+		logger.Info("fast-https service installed at %s", directory)
 	}
 
 	return nil
@@ -160,10 +160,10 @@ func ServiceUnInstallHandler() error {
 
 	err = s.Uninstall()
 	if err != nil {
-		logger.Warn("卸载服务失败: %s", err.Error())
+		logger.Warn("service uninstall failed: %s", err.Error())
 		return err
 	} else {
-		logger.Info("fast-https卸载服务成功")
+		logger.Info("fast-https uninstalled")
 	}
 
 	return nil
