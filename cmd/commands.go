@@ -193,6 +193,8 @@ func DevStartHandler() error {
 }
 
 // StartHandler start server
+// StartHandler 启动服务器处理函数
+// 返回: error 错误信息
 func StartHandler() error {
 	// pre-check before server start
 	PreCheckHandler()
@@ -218,6 +220,13 @@ func StartHandler() error {
 }
 
 // StopHandler stop server
+// StopHandler 函数用于停止运行中的进程。
+//
+// 参数：
+// - 无
+//
+// 返回值：
+// - error：返回可能发生的错误
 func StopHandler() error {
 
 	pid, err := readPid(config.PID_FILE)
@@ -247,6 +256,10 @@ func StopHandler() error {
 }
 
 // ReloadHandler reload server
+// ReloadHandler 函数用于重新加载进程。
+//
+// 返回:
+// - error: 如果发生错误，则返回错误信息；否则返回 nil。
 func ReloadHandler() error {
 
 	pid, err := readPid(config.PID_FILE)
@@ -283,6 +296,7 @@ func statusHandler() error {
 	return nil
 }
 
+// PreCheckHandler 函数用于在服务器启动前进行一系列预检查
 func PreCheckHandler() {
 	// check config
 	err := config.CheckConfig()
@@ -313,6 +327,15 @@ func PreCheckHandler() {
 }
 
 // WritePid writes the current PID to a given file in JSON format
+// WritePid 将当前进程的 PID 写入到指定的文件路径中，并返回错误信息。
+//
+// 参数:
+//
+//	filepath: string - 文件路径，用于存储 PID 信息。
+//
+// 返回值:
+//
+//	error - 如果写入过程中出现错误，则返回错误信息；否则返回 nil。
 func WritePid(filepath string) error {
 	// Get current PID and GID
 	pid := os.Getpid()
@@ -335,6 +358,15 @@ func WritePid(filepath string) error {
 
 	return nil
 }
+
+// readPid 从指定文件路径读取文件内容，并尝试从中解析出进程ID（PID）
+//
+// 参数：
+// filepath string: 文件路径
+//
+// 返回值：
+// int: 进程ID（PID）
+// error: 错误信息，如果读取文件或解析JSON数据失败，则返回错误信息
 
 // readPid read pid reads the PID and GID from a given file in JSON format and returns them.
 func readPid(filepath string) (int, error) {

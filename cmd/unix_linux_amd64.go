@@ -11,6 +11,15 @@ import (
 
 var FAST_HTTPS_PID = 0
 
+// Daemon 函数将当前进程转换为守护进程。
+// 参数:
+//
+//	nochdir: 如果为0，则改变工作目录到根目录("/")
+//	noclose: 如果为0，则重定向标准输入、输出和错误到/dev/null
+//
+// 返回值:
+//
+//	如果成功，返回0；如果失败，返回-1
 func Daemon(nochdir, noclose int) int {
 	var ret, ret2 uintptr
 	var err syscall.Errno
