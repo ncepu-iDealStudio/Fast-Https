@@ -2,6 +2,7 @@ package init
 
 import (
 	"fast-https/config"
+	"fast-https/dev"
 	"fast-https/modules/cache"
 	"fast-https/modules/safe"
 	"fast-https/utils"
@@ -13,8 +14,12 @@ import (
 	"time"
 )
 
-// Init setup necessary modules of the whole system
-func Init() *sync.WaitGroup {
+// InitSystem setup necessary modules of the whole system
+func InitSystem() *sync.WaitGroup {
+	// 如果是开发模式，设置更详细的日志
+	if dev.IsDevMode() {
+		logger.Level(6)
+	}
 
 	// config initialization
 	// can't use message

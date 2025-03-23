@@ -1,0 +1,39 @@
+# Development environment configuration
+
+server:
+  # 开发环境端口配置
+  ports:
+    - port: 8080
+      type: http
+    - port: 8443
+      type: https
+      cert: dev-cert.pem
+      key: dev-key.pem
+
+  # 开发环境特定配置
+  development:
+    enable_debug: true
+    auto_reload: true
+    watch_config: true
+    log_level: debug
+
+  # 开发环境日志配置
+  logging:
+    level: debug
+    format: text
+    output: console
+    file: dev.log
+
+  # 开发环境SSL配置
+  ssl:
+    auto_generate: true
+    validity_days: 365
+    organization: "Development"
+    common_name: "localhost"
+
+  # 开发环境代理配置示例
+  proxy:
+    - path: "/api"
+      target: "http://localhost:3000"
+    - path: "/auth"
+      target: "http://localhost:4000" 

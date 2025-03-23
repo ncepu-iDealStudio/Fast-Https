@@ -12,6 +12,7 @@ import (
 	"os"
 	"runtime"
 	"syscall"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/kardianos/service"
@@ -67,6 +68,9 @@ var (
 	}
 
 	prg = &program{}
+
+	// 添加开发模式标志
+	devMode bool
 )
 
 type program struct{}
@@ -89,11 +93,12 @@ func RootCmd() *cobra.Command {
 		Long:         "long log",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Read terminal input
-
 			return runCommand(args)
 		},
 	}
+
+	// 添加开发模式标志
+	cmd.PersistentFlags().BoolVar(&devMode, "dev", false, "Enable development mode")
 
 	// Read terminal input
 	for _, c := range commands {
@@ -171,9 +176,19 @@ func ServiceUnInstallHandler() error {
 
 // this start handler only when develop
 func DevStartHandler() error {
+	// 开发模式特性
+	if devMode {
+		logger.Level(6) // 设置最详细的日志级别
+		logger.Info("Running in development mode...")
+
+		// 启用热重载配置监控
+		go watchConfigChanges()
+	}
+
 	go func() {
 		logger.Info("%v", http.ListenAndServe("0.0.0.0:10000", nil))
 	}()
+
 	// pre-check before server start
 	PreCheckHandler()
 
@@ -182,13 +197,12 @@ func DevStartHandler() error {
 	WritePid(config.PID_FILE)
 
 	output.PrintInitialStart()
-	initialization.Init()
+	initialization.InitSystem()
 	output.PrintInitialEnd()
 
 	server := server.ServerInit()
 	server.Run()
 
-	// server will clog here
 	return nil
 }
 
@@ -206,7 +220,7 @@ func StartHandler() error {
 	}
 
 	output.PrintInitialStart()
-	initialization.Init()
+	initialization.InitSystem()
 	output.PrintInitialEnd()
 
 	if runtime.GOOS != "windows" {
@@ -310,20 +324,34 @@ func PreCheckHandler() {
 		logger.Fatal("Port has been used, An error occurred for the following reason: %v", err)
 	}
 
-	//if failed, logger.Fatal...
+	// 检查 PID 文件
 	pid, err := readPid(config.PID_FILE)
-	if err != nil && err.Error() == "error reading file" {
-		logger.Debug("%s", err.Error())
+	if err != nil {
+		if err.Error() == "error reading file" {
+			// PID 文件不存在，说明没有运行的实例，可以继续
+			logger.Debug("No existing process found")
+			return
+		}
+		// 其他错误
+		logger.Fatal("Error checking process: %v", err)
 		return
 	}
+
+	// 只有在成功读取到 PID 时才检查进程
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		logger.Fatal("fast-https find process failed: %v", err)
+		// 进程不存在，可以继续
+		logger.Debug("Process %d not found, starting new instance", pid)
+		return
 	}
+
+	// 检查进程是否真的在运行
 	err = process.Signal(syscall.Signal(0))
 	if err == nil {
+		// 进程正在运行
 		logger.Fatal("fast-https is already running")
 	}
+	// 进程不存在，可以继续
 }
 
 // WritePid writes the current PID to a given file in JSON format
@@ -392,4 +420,13 @@ func readPid(filepath string) (int, error) {
 	}
 
 	return pid, nil
+}
+
+// watchConfigChanges 监控配置文件变化并自动重载
+func watchConfigChanges() {
+	logger.Info("Config file watch started")
+	for {
+		// TODO: 实现配置文件监控逻辑
+		time.Sleep(time.Second * 5)
+	}
 }
