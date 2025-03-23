@@ -20,43 +20,45 @@ import (
 )
 
 // Command Structure Definition
+// 命令结构体定义
 type command struct {
-	name        string
-	description string
-	handler     func() error
+	name        string       // 命令名称
+	description string       // 命令描述
+	handler     func() error // 命令处理函数
 }
 
 var (
 	// Command structure initialization
+	// 命令结构体初始化
 	commands = []command{
 		{
 			name:        "install",
-			description: "to install fast-https service",
+			description: "to install fast-https service", // 安装fast-https服务
 			handler:     ServiceInstallHandler,
 		},
 		{
 			name:        "uninstall",
-			description: "to uninstall fast-https service",
+			description: "to uninstall fast-https service", // 卸载fast-https服务
 			handler:     ServiceUnInstallHandler,
 		},
 		{
 			name:        "start",
-			description: "to start web server",
+			description: "to start web server", // 启动Web服务器
 			handler:     StartHandler,
 		},
 		{
 			name:        "stop",
-			description: "to Stop web server",
+			description: "to Stop web server", // 停止Web服务器
 			handler:     StopHandler,
 		},
 		{
 			name:        "reload",
-			description: "to reload config",
+			description: "to reload config", // 重新加载配置
 			handler:     ReloadHandler,
 		},
 		{
 			name:        "status",
-			description: "to check web server status",
+			description: "to check web server status", // 检查Web服务器状态
 			handler:     statusHandler,
 		},
 	}
@@ -69,8 +71,7 @@ var (
 
 	prg = &program{}
 
-	// 添加开发模式标志
-	devMode bool
+	devMode bool // 开发模式标志
 )
 
 type program struct{}
@@ -85,7 +86,7 @@ func (p *program) Stop(s service.Service) error {
 	return nil
 }
 
-// Root command parameters are methods
+// RootCmd 返回根命令对象，处理命令行参数和标志
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "fast-https",
@@ -108,7 +109,7 @@ func RootCmd() *cobra.Command {
 	return cmd
 }
 
-// Read terminal input
+// runCommand 执行具体的命令处理函数
 func runCommand(args []string) error {
 	// missing parameter
 	if len(args) == 0 {
@@ -128,6 +129,8 @@ func runCommand(args []string) error {
 	return nil
 }
 
+// ServiceInstallHandler 处理服务安装
+// 获取当前工作目录并安装系统服务
 func ServiceInstallHandler() error {
 
 	directory, err := os.Getwd() //get the current directory using the built-in function
@@ -155,6 +158,7 @@ func ServiceInstallHandler() error {
 	return nil
 }
 
+// ServiceUnInstallHandler 处理服务卸载
 func ServiceUnInstallHandler() error {
 
 	s, err := service.New(prg, srvConfig)
@@ -174,7 +178,8 @@ func ServiceUnInstallHandler() error {
 	return nil
 }
 
-// this start handler only when develop
+// DevStartHandler 仅用于开发模式的启动处理
+// 包含了详细的日志记录和配置热重载功能
 func DevStartHandler() error {
 	// 开发模式特性
 	if devMode {
@@ -310,7 +315,10 @@ func statusHandler() error {
 	return nil
 }
 
-// PreCheckHandler 函数用于在服务器启动前进行一系列预检查
+// PreCheckHandler 在服务器启动前执行以下检查：
+// 1. 检查配置文件是否有效
+// 2. 检查端口是否被占用
+// 3. 检查是否已有实例在运行
 func PreCheckHandler() {
 	// check config
 	err := config.CheckConfig()
@@ -354,16 +362,8 @@ func PreCheckHandler() {
 	// 进程不存在，可以继续
 }
 
-// WritePid writes the current PID to a given file in JSON format
-// WritePid 将当前进程的 PID 写入到指定的文件路径中，并返回错误信息。
-//
-// 参数:
-//
-//	filepath: string - 文件路径，用于存储 PID 信息。
-//
-// 返回值:
-//
-//	error - 如果写入过程中出现错误，则返回错误信息；否则返回 nil。
+// WritePid 将当前进程的PID写入指定文件
+// 使用JSON格式存储PID信息，便于后续进程管理
 func WritePid(filepath string) error {
 	// Get current PID and GID
 	pid := os.Getpid()
@@ -387,16 +387,8 @@ func WritePid(filepath string) error {
 	return nil
 }
 
-// readPid 从指定文件路径读取文件内容，并尝试从中解析出进程ID（PID）
-//
-// 参数：
-// filepath string: 文件路径
-//
-// 返回值：
-// int: 进程ID（PID）
-// error: 错误信息，如果读取文件或解析JSON数据失败，则返回错误信息
-
-// readPid read pid reads the PID and GID from a given file in JSON format and returns them.
+// readPid 从指定文件读取并解析PID信息
+// 返回进程ID和可能的错误信息
 func readPid(filepath string) (int, error) {
 	// Read the file contents
 	data, err := os.ReadFile(filepath)
@@ -422,7 +414,8 @@ func readPid(filepath string) (int, error) {
 	return pid, nil
 }
 
-// watchConfigChanges 监控配置文件变化并自动重载
+// watchConfigChanges 监控配置文件变化
+// 定期检查配置文件是否发生变化，如有变化则自动重载
 func watchConfigChanges() {
 	logger.Info("Config file watch started")
 	for {
