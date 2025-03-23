@@ -25,14 +25,22 @@ import (
 	_ "fast-https/modules/static"
 )
 
+// Server defines the core components of the server
+// 服务器核心组件定义
 type Server struct {
-	// Shutdown core.ServerControl
+	// Wg is used for server startup and shutdown synchronization
+	// 用于同步服务器的启动和关闭
 	Wg sync.WaitGroup
-
+	// Listens holds all listener instances
+	// 保存所有监听器实例
 	Listens []listener.Listener
 }
 
-// init modules thoses need to be inited after listener
+// initModules initializes all modules that need to be initialized after the listener
+// Including security module and dynamic log registration
+//
+// 初始化所有需要在监听器之后初始化的模块
+// 包括安全模块和动态日志注册等
 func initModules() {
 	// TODO: improve this
 	safe.Init() // need to be call after listener inited ...
@@ -42,7 +50,14 @@ func initModules() {
 	// }
 }
 
-// init server
+// ServerInit initializes and returns a new server instance
+// It sets up signal handling, initializes listeners and other modules
+//
+// Returns:
+//   - *Server: The initialized server instance
+//
+// 初始化并返回一个新的服务器实例
+// 设置信号处理，初始化监听器和其他模块
 func ServerInit() *Server {
 	s := Server{}
 	sigchnl := make(chan os.Signal, 1)
@@ -63,7 +78,12 @@ func ServerInit() *Server {
 	return &s
 }
 
-// ScanPorts scan ports to check whether they've been used
+// ScanPorts scans configured ports to check if they are already in use
+//
+// Returns:
+//   - error: Returns error if ports are in use, nil otherwise
+//
+// 扫描配置的端口，检查它们是否已被占用
 func ScanPorts() error {
 	ports := listener.FindOldPorts()
 	for _, port := range ports {
@@ -78,37 +98,67 @@ func ScanPorts() error {
 	return nil
 }
 
-// register some signal handlers
+// sigHandler handles system signals received by the server
+//
+// Parameters:
+//   - signal: The received system signal
+//
+// Signal handling:
+//   - SIGTERM: Terminate signal, stops the service
+//   - SIGINT: Interrupt signal (Ctrl+C)
+//     * In foreground mode: stops the service
+//     * In daemon mode: reloads the service
+//   - SIGQUIT: Quit signal, stops the service
+//
+// 处理服务器接收到的系统信号
 func (s *Server) sigHandler(signal os.Signal) {
 	if signal == syscall.SIGTERM {
 		message.PrintInfo("The server got a kill signal")
-		// s.Shutdown.Shutdown = true
 		s.Wg.Done()
 	} else if signal == syscall.SIGINT {
-		logger.Info("========= server reload start ========")
-		// s.Shutdown.Shutdown = true
-		s.Reload()
+		// Check if running in foreground (non-daemon) mode
+		if os.Getppid() != 1 {
+			// In foreground mode, Ctrl+C stops the service
+			message.PrintInfo("The server got an interrupt signal (Ctrl+C)")
+			s.Wg.Done()
+		} else {
+			// In daemon mode, maintain reload behavior
+			logger.Info("========= server reload start ========")
+			s.Reload()
+		}
 	} else if signal == syscall.SIGQUIT {
 		message.PrintInfo("The server got a quit signal")
-		// s.Shutdown.Shutdown = true
 		s.Wg.Done()
 	}
 }
 
-// set connection confgure
-/*
-   The Conn interface also has deadline settings; either for the connection as
-   a whole (SetDeadLine()) or specific to read or write calls (SetReadDeadLine()
-   and SetWriteDeadLine()). Note that the deadlines are fixed points in (wallclock)
-   time. Unlike timeouts, they don’t reset after a new activity. Each activity on
-   the connection must therefore set a new deadline.
-*/
+// setConnCfg configures connection parameters
+//
+// Parameters:
+//   - conn: Pointer to the network connection to be configured
+//
+// Features:
+//   - Sets connection timeout to 30 seconds
+//   - Each connection activity requires setting a new deadline
+//
+// 设置连接的配置参数
 func (s *Server) setConnCfg(conn *net.Conn) {
 	now := time.Now()
 	(*conn).SetDeadline(now.Add(time.Second * 30))
 }
 
-// listen and serve one port
+// serveListener handles listening and serving on a single port
+//
+// Parameters:
+//   - offset: The offset of the listener in the list
+//   - port_index: The port number being listened on
+//
+// Features:
+//   - Continuously accepts new connection requests
+//   - Handles different types of connections (HTTP/1.1 or HTTP/2)
+//   - Supports graceful shutdown
+//
+// 处理单个端口的监听和服务
 func (s *Server) serveListener(offset int, port_index int) {
 
 	// fmt.Printf("sizeof core.Event{}: %d\n", unsafe.Sizeof(core.Event{}))
@@ -150,6 +200,15 @@ out:
 	logger.Debug("listening :%d shutdown ,it will not accept any connections", port_index)
 }
 
+// Reload reloads the server configuration
+//
+// Features:
+//   - Reloads configuration file
+//   - Updates listener configuration
+//   - Starts newly added ports
+//   - Reinitializes modules
+//
+// 重新加载服务器配置
 func (s *Server) Reload() {
 	config.Reload()
 
@@ -170,6 +229,16 @@ func (s *Server) Reload() {
 	logger.Info("========= server reload  end  ========")
 }
 
+// RunAdded starts newly added listeners
+//
+// Parameters:
+//   - lisAdded: List of newly added listeners
+//   - base: Base offset for the new listeners
+//
+// Features:
+//   - Starts a separate goroutine for each new listener
+//
+// 启动新增的监听器
 func (s *Server) RunAdded(lisAdded []listener.Listener, base int) {
 	for offset, value := range lisAdded {
 		n, err := strconv.Atoi(value.Port)
@@ -180,6 +249,13 @@ func (s *Server) RunAdded(lisAdded []listener.Listener, base int) {
 	}
 }
 
+// Run starts the server
+//
+// Features:
+//   - Starts all configured listeners
+//   - Waits for server stop signal
+//
+// 启动服务器，开始监听所有配置的端口
 func (s *Server) Run() {
 
 	listens := s.Listens
