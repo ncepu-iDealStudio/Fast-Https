@@ -5,7 +5,6 @@ dist_windows/*
 monitor/monitor.exe
 logs/*.log
 out/*
-.vscode/*
 *.out
 fast-https.exe
 fast-https
