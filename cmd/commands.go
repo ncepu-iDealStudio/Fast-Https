@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
 )
@@ -47,6 +46,11 @@ var (
 			handler:     StartHandler,
 		},
 		{
+			name:        "dev",
+			description: "to start web server in dev mode", // 以debug模式启动Web服务器
+			handler:     DevStartHandler,
+		},
+		{
 			name:        "stop",
 			description: "to Stop web server", // 停止Web服务器
 			handler:     StopHandler,
@@ -70,8 +74,6 @@ var (
 	}
 
 	prg = &program{}
-
-	devMode bool // 开发模式标志
 )
 
 type program struct{}
@@ -92,40 +94,40 @@ func RootCmd() *cobra.Command {
 		Use:          "fast-https",
 		Short:        "short log",
 		Long:         "long log",
-		SilenceUsage: true,
+		SilenceUsage: true, //用于在发生错误时静音使用情况。
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCommand(args)
 		},
 	}
-
-	// 添加开发模式标志
-	cmd.PersistentFlags().BoolVar(&devMode, "dev", false, "Enable development mode")
-
-	// Read terminal input
-	for _, c := range commands {
-		cmd.PersistentFlags().String(c.name, "", color.BlueString(c.description))
-	}
-
 	return cmd
+}
+
+func usage() {
+	usageStr := `Unkown command, please check command.`
+	logger.Info("%s\n", usageStr)
 }
 
 // runCommand 执行具体的命令处理函数
 func runCommand(args []string) error {
-	// missing parameter
+	// 如果没有参数，也能启动服务器
 	if len(args) == 0 {
-		logger.Info(color.RedString("This is Dev start mod ..."))
-		DevStartHandler()
+		StartHandler()
 		return nil
 	}
 
 	for _, c := range commands {
-		if args[0] == c.name {
-			if err := c.handler(); err != nil {
-				return err
-			}
-			break
+		if args[0] != c.name {
+			continue
+		}
+		if err := c.handler(); err != nil {
+			return err
+		} else {
+			return nil
 		}
 	}
+
+	// 没有匹配到任何命令，输出帮助信息
+	usage()
 	return nil
 }
 
@@ -179,27 +181,22 @@ func ServiceUnInstallHandler() error {
 }
 
 // DevStartHandler 仅用于开发模式的启动处理
-// 包含了详细的日志记录和配置热重载功能
 func DevStartHandler() error {
-	// 开发模式特性
-	if devMode {
-		logger.Level(6) // 设置最详细的日志级别
-		logger.Info("Running in development mode...")
-
-		// 启用热重载配置监控
-		go watchConfigChanges()
-	}
 
 	go func() {
 		logger.Info("%v", http.ListenAndServe("0.0.0.0:10000", nil))
 	}()
+
+	logger.Level(6)
 
 	// pre-check before server start
 	PreCheckHandler()
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	WritePid(config.PID_FILE)
+	if runtime.GOOS == "windows" {
+		WritePid(config.PID_FILE)
+	}
 
 	output.PrintInitialStart()
 	initialization.InitSystem()
@@ -229,7 +226,7 @@ func StartHandler() error {
 	output.PrintInitialEnd()
 
 	if runtime.GOOS != "windows" {
-		Daemon(0, 0) // this func will write pid
+		_ = Daemon(0, 0) // this func will write pid
 	}
 	server := server.ServerInit()
 	server.Run()
@@ -414,6 +411,7 @@ func readPid(filepath string) (int, error) {
 	return pid, nil
 }
 
+// 这个功能后面的版本再去做
 // watchConfigChanges 监控配置文件变化
 // 定期检查配置文件是否发生变化，如有变化则自动重载
 func watchConfigChanges() {

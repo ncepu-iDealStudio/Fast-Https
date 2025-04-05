@@ -65,7 +65,7 @@ func ServerInit() *Server {
 	go func(s *Server) {
 		for {
 			sig_num := <-sigchnl
-			s.sigHandler(sig_num)
+			s.SigHandler(sig_num)
 		}
 	}(&s)
 	//  to do : ScanPorts
@@ -106,23 +106,22 @@ func ScanPorts() error {
 // Signal handling:
 //   - SIGTERM: Terminate signal, stops the service
 //   - SIGINT: Interrupt signal (Ctrl+C)
-//     * In foreground mode: stops the service
-//     * In daemon mode: reloads the service
+//   - In foreground mode: stops the service
+//   - In daemon mode: reloads the service
 //   - SIGQUIT: Quit signal, stops the service
 //
 // 处理服务器接收到的系统信号
-func (s *Server) sigHandler(signal os.Signal) {
+func (s *Server) SigHandler(signal os.Signal) {
 	if signal == syscall.SIGTERM {
 		message.PrintInfo("The server got a kill signal")
 		s.Wg.Done()
 	} else if signal == syscall.SIGINT {
-		// Check if running in foreground (non-daemon) mode
-		if os.Getppid() != 1 {
-			// In foreground mode, Ctrl+C stops the service
-			message.PrintInfo("The server got an interrupt signal (Ctrl+C)")
+		if config.GOs == "windows" {
+			// windows 下，直接退出
+			logger.Info("The server got an interrupt signal (Ctrl+C)")
 			s.Wg.Done()
 		} else {
-			// In daemon mode, maintain reload behavior
+			// linux 下，(Ctrl+C) 是重载信号
 			logger.Info("========= server reload start ========")
 			s.Reload()
 		}
