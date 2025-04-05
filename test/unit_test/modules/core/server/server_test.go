@@ -20,10 +20,10 @@ func TestMain(m *testing.M) {
 	// Setup
 	mockProc = helpers.NewMockProcessManager()
 	mockIO = helpers.NewMockIO()
-	
+
 	// Run tests
 	code := m.Run()
-	
+
 	// Cleanup
 	os.Exit(code)
 }
@@ -36,7 +36,7 @@ func TestServerInit(t *testing.T) {
 	s := server.ServerInit()
 	assert.NotNil(t, s, "Server instance should not be nil")
 	assert.NotNil(t, s.Listens, "Server listeners should be initialized")
-	
+
 	// Verify initialization output
 	output := mockIO.Stdout.String()
 	assert.Contains(t, output, "server init", "Should show initialization message")
@@ -55,7 +55,7 @@ func TestScanPorts(t *testing.T) {
 // TestServerSignalHandling tests server signal handling
 func TestServerSignalHandling(t *testing.T) {
 	s := server.ServerInit()
-	
+
 	// Test SIGTERM handling
 	done := make(chan bool)
 	go func() {
@@ -66,7 +66,7 @@ func TestServerSignalHandling(t *testing.T) {
 	// Send test signals
 	time.Sleep(100 * time.Millisecond)
 	s.SigHandler(syscall.SIGTERM)
-	
+
 	select {
 	case <-done:
 		// Server stopped as expected
@@ -81,10 +81,9 @@ func TestServerReload(t *testing.T) {
 	defer cleanup()
 
 	s := server.ServerInit()
-	
-	err := s.Reload()
-	assert.Nil(t, err, "Reload should not return error")
-	
+
+	s.Reload()
+
 	// Verify reload output
 	output := mockIO.Stdout.String()
 	assert.Contains(t, output, "reload", "Should show reload message")
@@ -92,15 +91,14 @@ func TestServerReload(t *testing.T) {
 
 // TestConnectionHandling tests server connection handling
 func TestConnectionHandling(t *testing.T) {
-	s := server.ServerInit()
-	
+
 	// Test HTTP/1.1 connection
 	t.Run("HTTP1.1", func(t *testing.T) {
 		// TODO: Mock HTTP/1.1 connection
 	})
-	
+
 	// Test HTTP/2 connection
 	t.Run("HTTP2", func(t *testing.T) {
 		// TODO: Mock HTTP/2 connection
 	})
-} 
+}

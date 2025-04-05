@@ -15,5 +15,7 @@ func init() {
 // 然后调用该对象的 Execute 方法执行命令
 func main() {
 	command := cmd.RootCmd()
-	command.Execute()
+
+	// 不需要关心 Execute 的返回值，库会打印err信息
+	_ = command.Execute()
 }

@@ -2,13 +2,12 @@ package helpers
 
 import (
 	"os"
-	"syscall"
 )
 
 // MockProcess represents a mock process for testing
 type MockProcess struct {
-	Pid    int
-	Signal os.Signal
+	Pid     int
+	MSignal os.Signal
 }
 
 // MockProcessManager manages mock processes
@@ -40,6 +39,6 @@ func (m *MockProcessManager) FindProcess(pid int) (*MockProcess, error) {
 
 // Signal sends a signal to the mock process
 func (p *MockProcess) Signal(sig os.Signal) error {
-	p.Signal = sig
+	p.MSignal = sig
 	return nil
-} 
+}
