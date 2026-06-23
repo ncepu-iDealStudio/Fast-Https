@@ -5,10 +5,10 @@ export FAST_HTTPS_ENV=development
 
 # 清理旧的构建和进程
 echo "Cleaning up..."
-if [ -f "pid" ]; then
-    pid=$(cat pid)
+if [ -f "fast-https.pid" ]; then
+    pid=$(cat fast-https.pid | sed -E 's/[^0-9]//g')
     kill -9 $pid 2>/dev/null
-    rm pid
+    rm fast-https.pid
 fi
 
 # 构建项目
@@ -17,4 +17,4 @@ go build -v
 
 # 运行开发模式
 echo "Starting in development mode..."
-./fast-https start --dev 
+./fast-https dev

@@ -108,11 +108,33 @@ fast-https/
 
 Fast-Https 提供了专门的开发模式，方便开发者进行调试和测试。
 
+### 配置真源说明
+
+- 当前运行时唯一配置真源为 `config/fast-https.json`
+- 程序启动时会读取 `config/fast-https.json`，并按其中 `http.include` 继续加载 `config/conf.d` 下的 json 配置
+- `config/dev.yaml` 当前仅作为开发参数示例文件，不会被运行时自动加载
+
 ### 启动开发模式
 
 使用以下命令启动开发模式：
 ```bash
-go run fast-https.go start --dev
+go run fast-https.go dev
+```
+
+### 启动常用命令
+
+```bash
+# 前台启动
+go run fast-https.go start
+
+# 开发模式启动（调试日志 + pprof 端口）
+go run fast-https.go dev
+
+# 停止服务
+go run fast-https.go stop
+
+# 重载配置
+go run fast-https.go reload
 ```
 
 ### 开发模式特性
@@ -122,28 +144,42 @@ go run fast-https.go start --dev
    - 输出更多的调试信息
    - 实时显示系统运行状态
 
-2. **配置热重载**
-   - 自动监控配置文件变化
-   - 支持配置文件实时更新
-   - 无需重启服务即可生效
+2. **调试入口**
+    - 默认开启 10000 端口用于调试
+    - 可用于 pprof 性能分析和运行时观测
+    - 便于问题诊断
 
-3. **调试端口**
-   - 默认开启 10000 端口用于调试
-   - 支持性能分析和监控
-   - 便于问题诊断
-
-4. **开发便利性**
+3. **开发便利性**
    - 简化的进程管理
    - 更友好的错误提示
    - 支持本地证书自动生成
 
 ### 开发模式配置
 
-开发模式使用 `config/dev.yaml` 作为配置文件，可以根据需要修改以下配置：
-- 端口设置
-- 日志级别
-- 证书配置
-- 其他服务参数
+开发模式与普通模式均使用 `config/fast-https.json` 作为配置输入。
+
+建议的最小配置片段（位于 `config/fast-https.json`）：
+```json
+{
+   "http": {
+      "server": [
+         {
+            "listen": 8080,
+            "server_name": "localhost",
+            "location": [
+               {
+                  "url": "/",
+                  "type": "local",
+                  "root": "./httpdoc/root",
+                  "index": ["index.html", "index.htm"]
+               }
+            ]
+         }
+      ],
+      "include": ["./config/conf.d"]
+   }
+}
+```
 
 ### 注意事项
 

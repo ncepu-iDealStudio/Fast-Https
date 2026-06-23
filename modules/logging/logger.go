@@ -23,10 +23,9 @@ type DefaultLogger struct {
 }
 
 // init 用于注册模块，通过导包的方式实现注册模块
-// func init() {
-// 	modules.RegisterModule(&DefaultLogger{})
-// 	fmt.Println("Default Logger Module is registered...")
-// }
+func init() {
+	modules.RegisterModule(&DefaultLogger{})
+}
 
 func (l *DefaultLogger) FastModule() *modules.ModuleInfo {
 	return &modules.ModuleInfo{

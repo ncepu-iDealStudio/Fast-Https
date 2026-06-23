@@ -241,7 +241,7 @@ Linux/Mac:
 ./scripts/dev-test.sh
 
 # 或直接运行
-go run fast-https.go start --dev
+go run fast-https.go dev
 ```
 
 Windows:
@@ -251,12 +251,15 @@ Windows:
 .\scripts\dev-test.ps1
 
 # 或直接运行
-go run fast-https.go start --dev
+go run fast-https.go dev
 ```
 
 #### 配置说明
 
-开发模式使用 `config/dev.yaml` 作为配置文件，包含：
+开发模式与普通模式都使用 `config/fast-https.json` 作为运行时配置文件。
+`config/dev.yaml` 仅作为开发参数示例，不会被运行时自动加载。
+
+开发模式包含：
 
 - 开发端口配置
 - 调试日志设置
@@ -279,10 +282,10 @@ tail -f dev.log
 ps aux | grep fast-https
 ```
 
-#### 配置热重载
+#### 配置变更流程
 
-1. 修改 `config/dev.yaml`
-2. 服务自动检测并重载
+1. 修改 `config/fast-https.json` 或 `config/conf.d` 下的 json 配置
+2. 执行 `go run fast-https.go reload` 触发配置重载
 
 #### 性能分析
 

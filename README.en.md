@@ -104,6 +104,30 @@ Signal Handling:
 2. Extract the installation package to the target directory on your server
 3. Modify the configuration file
 
+## Quick Start
+
+### Runtime Config Source
+
+- The runtime source of truth is `config/fast-https.json`
+- At startup, the program loads `config/fast-https.json`, then loads extra json files from paths listed in `http.include` (for example `config/conf.d`)
+- `config/dev.yaml` is currently a development example file and is not auto-loaded at runtime
+
+### Common Commands
+
+```bash
+# Start in foreground mode
+go run fast-https.go start
+
+# Start in development mode (debug-level logs + pprof port)
+go run fast-https.go dev
+
+# Stop service
+go run fast-https.go stop
+
+# Reload config
+go run fast-https.go reload
+```
+
 ## Usage Instructions
 
 See documentation: <https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#> 'Fast-Https Product Manual'

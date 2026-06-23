@@ -1,4 +1,9 @@
-# Development environment configuration
+# Development environment configuration example
+#
+# IMPORTANT:
+# - This file is an example template for development parameters.
+# - The current runtime does not auto-load this yaml file.
+# - Runtime config source of truth is config/fast-https.json.
 
 server:
   # 开发环境端口配置
