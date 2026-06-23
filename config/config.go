@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -182,9 +183,260 @@ func Reload() {
 }
 
 // CheckConfig check whether config is correct
-// TODO: check json confgure
 func CheckConfig() error {
+	return ValidateConfigFile(CONFIG_FILE_PATH)
+}
+
+// ValidateConfigFile validates the main json config file and included json files.
+func ValidateConfigFile(configPath string) error {
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("read config file failed: %w", err)
+	}
+
+	var root map[string]interface{}
+	if err := json.Unmarshal(content, &root); err != nil {
+		return fmt.Errorf("parse config json failed: %w", err)
+	}
+
+	baseDir := filepath.Dir(configPath)
+	httpMap, ok := asMap(root["http"])
+	if !ok {
+		return errors.New("missing http section")
+	}
+
+	servers, ok := asSlice(httpMap["server"])
+	if !ok || len(servers) == 0 {
+		return errors.New("http.server must contain at least one server")
+	}
+
+	for i, rawServer := range servers {
+		serverMap, ok := asMap(rawServer)
+		if !ok {
+			return fmt.Errorf("http.server[%d] must be object", i)
+		}
+		if err := validateServerBlock(serverMap, baseDir, baseDir, fmt.Sprintf("http.server[%d]", i)); err != nil {
+			return err
+		}
+	}
+
+	if err := validateIncludes(httpMap, baseDir); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+func validateIncludes(httpMap map[string]interface{}, rootBaseDir string) error {
+	rawInclude, exists := httpMap["include"]
+	if !exists {
+		return nil
+	}
+
+	includes, ok := asSlice(rawInclude)
+	if !ok {
+		return errors.New("http.include must be array")
+	}
+
+	for i, raw := range includes {
+		includePath, ok := raw.(string)
+		if !ok || strings.TrimSpace(includePath) == "" {
+			return fmt.Errorf("http.include[%d] must be non-empty string", i)
+		}
+
+		fullPath := includePath
+		if !filepath.IsAbs(fullPath) {
+			fullPath = filepath.Join(rootBaseDir, includePath)
+		}
+
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			return fmt.Errorf("include path not found: %s", fullPath)
+		}
+
+		if info.IsDir() {
+			err = filepath.Walk(fullPath, func(path string, info os.FileInfo, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+				if info.IsDir() || filepath.Ext(path) != ".json" {
+					return nil
+				}
+				if err := validateIncludeServerFile(path, rootBaseDir); err != nil {
+					return err
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			continue
+		}
+
+		if filepath.Ext(fullPath) != ".json" {
+			return fmt.Errorf("include file must be .json: %s", fullPath)
+		}
+
+		if err := validateIncludeServerFile(fullPath, rootBaseDir); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateIncludeServerFile(includeFilePath, rootBaseDir string) error {
+	content, err := os.ReadFile(includeFilePath)
+	if err != nil {
+		return fmt.Errorf("read include file failed: %w", err)
+	}
+
+	var include map[string]interface{}
+	if err := json.Unmarshal(content, &include); err != nil {
+		return fmt.Errorf("parse include json failed (%s): %w", includeFilePath, err)
+	}
+
+	fileBaseDir := filepath.Dir(includeFilePath)
+	return validateServerBlock(include, fileBaseDir, rootBaseDir, includeFilePath)
+}
+
+func validateServerBlock(serverMap map[string]interface{}, certBaseDir, rootBaseDir, where string) error {
+	listen, ok := serverMap["listen"]
+	if !ok {
+		return fmt.Errorf("%s: missing listen", where)
+	}
+
+	listenStr, err := stringifyListen(listen)
+	if err != nil {
+		return fmt.Errorf("%s: %w", where, err)
+	}
+	if err := validateListenPort(listenStr); err != nil {
+		return fmt.Errorf("%s: %w", where, err)
+	}
+
+	serverName, ok := serverMap["server_name"].(string)
+	if !ok || strings.TrimSpace(serverName) == "" {
+		return fmt.Errorf("%s: server_name is required", where)
+	}
+
+	if strings.Contains(listenStr, "ssl") {
+		crt, _ := serverMap["ssl_certificate"].(string)
+		key, _ := serverMap["ssl_certificate_key"].(string)
+		if strings.TrimSpace(crt) == "" || strings.TrimSpace(key) == "" {
+			return fmt.Errorf("%s: ssl listen requires ssl_certificate and ssl_certificate_key", where)
+		}
+		if !pathExists(crt, certBaseDir, rootBaseDir) {
+			return fmt.Errorf("%s: ssl_certificate not found: %s", where, crt)
+		}
+		if !pathExists(key, certBaseDir, rootBaseDir) {
+			return fmt.Errorf("%s: ssl_certificate_key not found: %s", where, key)
+		}
+	}
+
+	rawLocations, ok := asSlice(serverMap["location"])
+	if !ok || len(rawLocations) == 0 {
+		return fmt.Errorf("%s: location must contain at least one rule", where)
+	}
+
+	for i, raw := range rawLocations {
+		location, ok := asMap(raw)
+		if !ok {
+			return fmt.Errorf("%s: location[%d] must be object", where, i)
+		}
+
+		url, _ := location["url"].(string)
+		if strings.TrimSpace(url) == "" {
+			return fmt.Errorf("%s: location[%d].url is required", where, i)
+		}
+
+		typeStr, _ := location["type"].(string)
+		if typeStr == "" {
+			typeStr = "local"
+		}
+
+		switch typeStr {
+		case "local":
+			root, _ := location["root"].(string)
+			if strings.TrimSpace(root) == "" {
+				return fmt.Errorf("%s: location[%d].root is required for local type", where, i)
+			}
+		case "proxy":
+			pass, _ := location["proxy_pass"].(string)
+			if strings.TrimSpace(pass) == "" {
+				return fmt.Errorf("%s: location[%d].proxy_pass is required for proxy type", where, i)
+			}
+			if !strings.HasPrefix(pass, "http://") && !strings.HasPrefix(pass, "https://") {
+				return fmt.Errorf("%s: location[%d].proxy_pass must start with http:// or https://", where, i)
+			}
+		case "rewrite", "devmod":
+			// valid and no extra required fields for minimal validator
+		default:
+			return fmt.Errorf("%s: location[%d].type is invalid: %s", where, i, typeStr)
+		}
+	}
+
+	return nil
+}
+
+func stringifyListen(v interface{}) (string, error) {
+	switch t := v.(type) {
+	case string:
+		if strings.TrimSpace(t) == "" {
+			return "", errors.New("listen must be non-empty")
+		}
+		return t, nil
+	case float64:
+		return strconv.Itoa(int(t)), nil
+	default:
+		return "", errors.New("listen must be string or number")
+	}
+}
+
+func validateListenPort(listen string) error {
+	parts := strings.Fields(strings.TrimSpace(listen))
+	if len(parts) == 0 {
+		return errors.New("listen must be non-empty")
+	}
+	port, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return fmt.Errorf("invalid listen port: %s", parts[0])
+	}
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("listen port out of range: %d", port)
+	}
+	return nil
+}
+
+func pathExists(path, baseDir, rootBaseDir string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	if filepath.IsAbs(path) {
+		_, err := os.Stat(path)
+		return err == nil
+	}
+
+	candidates := []string{
+		filepath.Join(baseDir, path),
+		filepath.Join(rootBaseDir, path),
+	}
+
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func asMap(v interface{}) (map[string]interface{}, bool) {
+	m, ok := v.(map[string]interface{})
+	return m, ok
+}
+
+func asSlice(v interface{}) ([]interface{}, bool) {
+	s, ok := v.([]interface{})
+	return s, ok
 }
 
 func ClearConfig() {

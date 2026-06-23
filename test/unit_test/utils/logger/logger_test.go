@@ -3,6 +3,8 @@ package logger_test
 import (
 	"fast-https/test/unit_test/helpers"
 	"fast-https/utils/logger"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -13,7 +15,16 @@ var mockIO *helpers.MockIO
 
 func TestMain(m *testing.M) {
 	mockIO = helpers.NewMockIO()
-	m.Run()
+	os.Exit(m.Run())
+}
+
+func captureCombinedOutput(run func()) string {
+	mockIO.Stdout.Reset()
+	mockIO.Stderr.Reset()
+	cleanup := mockIO.CaptureOutput()
+	run()
+	cleanup()
+	return mockIO.Stdout.String() + mockIO.Stderr.String()
 }
 
 // TestLoggerLevel tests logger level setting and getting
@@ -34,12 +45,9 @@ func TestLoggerLevel(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.expected, func(t *testing.T) {
 			logger.Level(tc.level)
-			cleanup := mockIO.CaptureOutput()
-			defer cleanup()
-
-			// Test logging at current level
-			logger.Info("test message")
-			output := mockIO.Stdout.String()
+			output := captureCombinedOutput(func() {
+				logger.Info("test message")
+			})
 
 			if tc.level >= 4 {
 				assert.Contains(t, output, "test message", "Message should be logged")
@@ -70,44 +78,49 @@ func TestLogOutput(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			logger.Level(6) // Set to highest level to capture all logs
-			cleanup := mockIO.CaptureOutput()
-			
-			tc.logFunc(tc.message)
-			output := mockIO.Stdout.String()
-			cleanup()
+			output := captureCombinedOutput(func() {
+				tc.logFunc(tc.message)
+			})
 
-			assert.True(t, strings.Contains(output, tc.expected), 
+			assert.True(t, strings.Contains(output, tc.expected),
 				"Log output should contain correct level")
-			assert.True(t, strings.Contains(output, tc.message), 
+			assert.True(t, strings.Contains(output, tc.message),
 				"Log output should contain message")
 		})
 	}
 }
 
-// TestFatalLog tests fatal log handling
+// TestFatalLog validates that logger.Fatal terminates the process with non-zero code.
 func TestFatalLog(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Error("Fatal log should panic")
-		}
-	}()
+	if os.Getenv("LOGGER_FATAL_SUBPROCESS") == "1" {
+		logger.Level(0)
+		logger.Fatal("test fatal message")
+		return
+	}
 
-	cleanup := mockIO.CaptureOutput()
-	defer cleanup()
+	cmd := exec.Command(os.Args[0], "-test.run=TestFatalLog")
+	cmd.Env = append(os.Environ(), "LOGGER_FATAL_SUBPROCESS=1")
+	err := cmd.Run()
+	if err == nil {
+		t.Fatal("logger.Fatal should terminate subprocess with non-zero exit code")
+	}
 
-	logger.Level(0)
-	logger.Fatal("test fatal message")
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Fatalf("expected ExitError, got %T: %v", err, err)
+	}
+	if exitErr.ExitCode() == 0 {
+		t.Fatal("logger.Fatal subprocess exit code should be non-zero")
+	}
 }
 
 // TestLogFormatting tests log message formatting
 func TestLogFormatting(t *testing.T) {
 	logger.Level(6)
-	cleanup := mockIO.CaptureOutput()
-	defer cleanup()
+	output := captureCombinedOutput(func() {
+		logger.Info("test %s %d", "message", 123)
+	})
 
-	logger.Info("test %s %d", "message", 123)
-	output := mockIO.Stdout.String()
-
-	assert.Contains(t, output, "test message 123", 
+	assert.Contains(t, output, "test message 123",
 		"Formatted message should be correct")
-} 
+}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"sync"
 )
 
 // MockIO provides mock IO functionality for testing
@@ -26,19 +27,29 @@ func NewMockIO() *MockIO {
 func (m *MockIO) CaptureOutput() func() {
 	oldStdout := os.Stdout
 	oldStderr := os.Stderr
-	
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-	os.Stderr = w
 
+	rOut, wOut, _ := os.Pipe()
+	rErr, wErr, _ := os.Pipe()
+	os.Stdout = wOut
+	os.Stderr = wErr
+
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		io.Copy(m.Stdout, r)
+		defer wg.Done()
+		_, _ = io.Copy(m.Stdout, rOut)
+	}()
+	go func() {
+		defer wg.Done()
+		_, _ = io.Copy(m.Stderr, rErr)
 	}()
 
 	return func() {
-		w.Close()
+		_ = wOut.Close()
+		_ = wErr.Close()
 		os.Stdout = oldStdout
 		os.Stderr = oldStderr
+		wg.Wait()
 	}
 }
 
@@ -54,4 +65,4 @@ func (m *MockIO) ReadFile(filename string) ([]byte, error) {
 		return data, nil
 	}
 	return nil, os.ErrNotExist
-} 
+}
