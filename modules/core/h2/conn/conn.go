@@ -45,7 +45,7 @@ func NewConn(rw io.ReadWriter) *Conn {
 		PeerSettings: h2.DefaultSettings,
 		Window:       h2.NewWindowDefault(),
 		Streams:      make(map[uint32]*h2.Stream),
-		WriteChan:    make(chan Frame),
+		WriteChan:    make(chan Frame, 32),
 	}
 	return conn
 }
@@ -347,6 +347,69 @@ func (conn *Conn) Close() {
 		}
 
 		Info("close conn.WriteChan")
+		close(conn.WriteChan)
+	})
+}
+
+// GracefulClose performs an HTTP/2 graceful shutdown:
+//  1. Sends a GOAWAY frame with NO_ERROR so the client stops opening new streams
+//  2. Waits up to gracePeriod for in-flight streams to finish
+//  3. Force-closes remaining streams and the underlying connection
+//
+// This is used during server reload to give HTTP/2 connections a chance to
+// complete ongoing requests before being torn down.
+//
+// GracefulClose 执行 HTTP/2 优雅关闭：
+//  1. 发送 GOAWAY 帧（NO_ERROR），通知客户端不要再发起新的 stream
+//  2. 等待最多 gracePeriod 时间让在途 stream 完成
+//  3. 强制关闭剩余 stream 和底层连接
+func (conn *Conn) GracefulClose(gracePeriod time.Duration) {
+	conn.closeOnce.Do(func() {
+		// 1. 发送 GOAWAY 帧通知客户端
+		goaway := NewGoAwayFrame(0, conn.LastStreamID, NO_ERROR, []byte("graceful shutdown"))
+		select {
+		case conn.WriteChan <- goaway:
+			Info("sent GOAWAY for graceful shutdown (lastStreamID=%d)", conn.LastStreamID)
+		default:
+			Error("WriteChan full or WriteLoop stopped, skip GOAWAY")
+		}
+
+		// 2. 等待在途 stream 完成或超时
+		deadline := time.Now().Add(gracePeriod)
+		for time.Now().Before(deadline) {
+			conn.StreamsLock.RLock()
+			active := 0
+			for _, stream := range conn.Streams {
+				if stream != nil && !stream.Closed {
+					active++
+				}
+			}
+			conn.StreamsLock.RUnlock()
+			if active == 0 {
+				Debug("all streams completed before grace period expired")
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+
+		// 3. 关闭所有剩余 stream
+		Info("close all conn.Streams (graceful)")
+		conn.StreamsLock.Lock()
+		for i, stream := range conn.Streams {
+			if stream != nil {
+				Debug("close stream(%d)", i)
+				stream.Close()
+			}
+		}
+		conn.StreamsLock.Unlock()
+
+		// 4. 关闭底层连接
+		if closer, ok := conn.RW.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+
+		// 5. 关闭 WriteChan（让 WriteLoop 退出）
+		Info("close conn.WriteChan (graceful)")
 		close(conn.WriteChan)
 	})
 }

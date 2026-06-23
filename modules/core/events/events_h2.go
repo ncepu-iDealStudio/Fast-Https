@@ -15,11 +15,15 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"fast-https/modules/core/h2/hpack"
 )
 
-// TODO: http2 not support reload !!!
+// H2GracefulShutdownPeriod is the maximum time to wait for in-flight HTTP/2
+// streams to complete during a reload before force-closing the connection.
+const H2GracefulShutdownPeriod = 5 * time.Second
+
 func H2HandleEvent(l *listener.Listener, conn1 net.Conn, ctx context.Context) {
 
 	ev_conn := core.NewEvent(l, conn1)
@@ -40,7 +44,8 @@ func H2HandleEvent(l *listener.Listener, conn1 net.Conn, ctx context.Context) {
 
 	go func() {
 		<-ctx.Done()
-		Connh2.Close()
+		logger.Debug("H2 connection shutting down (reload/stop), starting graceful close")
+		Connh2.GracefulClose(H2GracefulShutdownPeriod)
 	}()
 
 	go Connh2.WriteLoop()

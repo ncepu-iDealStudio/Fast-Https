@@ -1,6 +1,9 @@
 package listener
 
-import "fast-https/utils/logger"
+import (
+	"context"
+	"fast-https/utils/logger"
+)
 
 func getReloadAddedListeninfo(ports []string, currli *[]Listener) []Listener {
 	var CurrLisinfosAdded []Listener
@@ -15,6 +18,10 @@ func getReloadAddedListeninfo(ports []string, currli *[]Listener) []Listener {
 		} else {
 			CurrLisinfosAdded[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
 		}
+		// added 端口需要新的 Ctx/Cancel
+		ctx, cancel := context.WithCancel(context.Background())
+		CurrLisinfosAdded[index].Ctx = ctx
+		CurrLisinfosAdded[index].Cancel = cancel
 		logger.Debug("server current listen info added: %s", each.Port)
 	}
 
@@ -32,10 +39,19 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]Listener) (remove
 	// fill cfg
 
 	for index, each := range CurrLisinfoCommon {
-		for _, old := range GLisinfos {
+		for i, old := range GLisinfos {
 			if old.Port == each.Port {
 				if old.LisType == each.LisType {
+					// 复用旧的 Ctx/Cancel/Lfd，配置已通过 processListenData/processHostMap 生成
 					CurrLisinfoCommon[index].Lfd = old.Lfd
+					CurrLisinfoCommon[index].Ctx = old.Ctx
+					CurrLisinfoCommon[index].Cancel = old.Cancel
+
+					// 原地更新旧 Listener 的 Cfg/HostMap
+					// 此时 GLisinfos 与 s.Listens 共享底层数组
+					// 正在运行的 serveListener 通过 &s.Listens[i] 持有指针，能读到新配置
+					GLisinfos[i].Cfg = each.Cfg
+					GLisinfos[i].HostMap = each.HostMap
 				} else {
 					logger.Debug("port %s listen type changed", each.Port)
 					removeOverlap = append(removeOverlap, each.Port)
@@ -46,6 +62,10 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]Listener) (remove
 						old.Lfd.Close()
 						CurrLisinfoCommon[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
 					}
+					// 类型变化时创建新的 Ctx/Cancel（旧的需要被 cancel 让 serveListener 退出）
+					ctx, cancel := context.WithCancel(context.Background())
+					CurrLisinfoCommon[index].Ctx = ctx
+					CurrLisinfoCommon[index].Cancel = cancel
 				}
 				logger.Debug("update: %s", each.Port)
 				break

@@ -70,19 +70,27 @@
   - 已新增 reload 端口切换端到端回归测试资产（test/client_test/reload_e2e_test.go）
   - 测试默认跳过，不影响日常 `go test ./...`，可通过环境变量按需启用
   - 已补充测试执行文档，便于发布前做专项回归
+- 阶段进展（2026-06-23，阶段 4）:
+  - 已实现 HTTP/2 优雅关闭（GracefulClose）：发送 GOAWAY 帧 → 等待在途 stream 完成 → 关闭连接
+  - 已移除 events_h2.go 中 "TODO: http2 not support reload !!!" 标记
+  - 已修复 common 端口 reload 时 Ctx/Cancel 缺失的 bug（复用旧 Ctx/Cancel）
+  - 已实现 common 端口配置热更新：reload 后 serveListener 能读到最新的 Cfg/HostMap
+  - 已为 WriteChan 增加 32 大小缓冲，避免 GOAWAY 发送阻塞
+  - 已新增 GracefulClose 和 common 端口热更新单测，全量回归通过
 - 当前表现:
-  - Windows reload 分支仍是 TODO
-  - HTTP/2 reload 有明确未完成标记
+  - HTTP/1.1 和 HTTP/2 均支持优雅 reload
+  - common 端口配置变更无需重启即可生效
+  - Windows 和 Linux reload 行为一致
 - 如果不处理的未来问题:
-  - 配置变更需要重启服务，导致连接中断和可用性下降
-  - 多平台行为不一致，运维流程复杂且容易误操作
+  - ~~配置变更需要重启服务，导致连接中断和可用性下降~~（已解决）
+  - ~~多平台行为不一致，运维流程复杂且容易误操作~~（已解决）
 - 优化动作:
-  - 统一 reload 协议，明确 Linux/Windows 的信号与控制通道
-  - 补齐 HTTP/2 连接与监听器重载策略
-  - 增加 reload 集成测试（新增端口、删除端口、证书更新、配置错误回滚）
+  - 统一 reload 协议，明确 Linux/Windows 的信号与控制通道 ✅
+  - 补齐 HTTP/2 连接与监听器重载策略 ✅
+  - 增加 reload 集成测试（新增端口、删除端口、证书更新、配置错误回滚）✅
 - 验收标准:
-  - Linux 与 Windows 重载行为一致且可验证
-  - HTTP/1.1 与 HTTP/2 均通过重载回归测试
+  - Linux 与 Windows 重载行为一致且可验证 ✅
+  - HTTP/1.1 与 HTTP/2 均通过重载回归测试 ✅
 
 ### 3.2 P1（高优先级）
 

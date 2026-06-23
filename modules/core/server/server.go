@@ -206,6 +206,7 @@ out:
 //   - Updates listener configuration
 //   - Starts newly added ports
 //   - Reinitializes modules
+//   - Hot-updates configuration for common ports (in-place)
 //
 // 重新加载服务器配置
 func (s *Server) Reload() {
@@ -216,6 +217,28 @@ func (s *Server) Reload() {
 	removedSet := make(map[string]struct{}, len(removed))
 	for _, port := range removed {
 		removedSet[port] = struct{}{}
+	}
+
+	// 在替换 s.Listens 之前，更新旧 s.Listens 中 common 端口的 Cfg/HostMap
+	// 这样正在运行的 serveListener（持有旧 Listens 元素指针）能读到新配置
+	// 这对多次 reload 尤为重要：每次 reload 时旧 serveListener 持有的 Listener
+	// 都会被更新为最新配置
+	newCfgMap := make(map[string]*listener.Listener, len(lisAll))
+	for i := range lisAll {
+		newCfgMap[lisAll[i].Port] = &lisAll[i]
+	}
+	for i := range s.Listens {
+		old := &s.Listens[i]
+		if _, removed := removedSet[old.Port]; removed {
+			continue
+		}
+		if newest, ok := newCfgMap[old.Port]; ok {
+			if old.LisType == newest.LisType {
+				old.Cfg = newest.Cfg
+				old.HostMap = newest.HostMap
+				logger.Debug("reload: hot-updated config for port %s", old.Port)
+			}
+		}
 	}
 
 	for i := range s.Listens {
@@ -232,10 +255,6 @@ func (s *Server) Reload() {
 		}
 		logger.Info("reload removed listener on port %s", old.Port)
 	}
-
-	// 设置需要移除的端口
-	// s.Shutdown.RemovedPortsToBitArray(removed)
-	// 调用相应的cancel方法
 
 	// 指向最新的ListenCfg数据
 	s.Listens = lisAll
