@@ -72,6 +72,23 @@ go test ./modules/core/server/...
 go test ./utils/logger/...
 ```
 
+#### Reload 端到端回归（可选）
+
+该测试默认跳过，仅在需要验证 reload 端口切换时启用。
+
+Windows PowerShell:
+
+```powershell
+$env:FASTHTTPS_E2E_RELOAD = "1"
+go test ./test/client_test -run TestReloadPortSwitchE2E -v
+```
+
+完成后可清理环境变量：
+
+```powershell
+Remove-Item Env:FASTHTTPS_E2E_RELOAD
+```
+
 #### 测试覆盖率
 
 ```bash

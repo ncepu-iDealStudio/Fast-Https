@@ -211,7 +211,27 @@ out:
 func (s *Server) Reload() {
 	config.Reload()
 
-	lisAll, lisAdded, _ := listener.ReloadListenCfg()
+	lisAll, lisAdded, removed := listener.ReloadListenCfg()
+
+	removedSet := make(map[string]struct{}, len(removed))
+	for _, port := range removed {
+		removedSet[port] = struct{}{}
+	}
+
+	for i := range s.Listens {
+		old := &s.Listens[i]
+		if _, ok := removedSet[old.Port]; !ok {
+			continue
+		}
+
+		if old.Cancel != nil {
+			old.Cancel()
+		}
+		if old.Lfd != nil {
+			_ = old.Lfd.Close()
+		}
+		logger.Info("reload removed listener on port %s", old.Port)
+	}
 
 	// 设置需要移除的端口
 	// s.Shutdown.RemovedPortsToBitArray(removed)

@@ -1,18 +1,14 @@
 package hpack
 
 import (
-	"flag"
 	"fmt"
+
 	. "github.com/Jxck/color"
 	. "github.com/Jxck/logger"
 	"github.com/Jxck/swrap"
 )
 
 var STATIC_HEADER_TABLE_SIZE = len(StaticTable)
-
-func init() {
-	flag.Parse()
-}
 
 type Context struct {
 	HT *DynamicTable

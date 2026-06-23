@@ -300,7 +300,7 @@ func ReloadHandler() error {
 		logger.Fatal("fast-https find process failed: %v", err)
 	}
 
-	err = process.Signal(syscall.SIGINT)
+	err = signalReloadProcess(process, pid)
 
 	if err != nil {
 		logger.Fatal("fast-https stop failed: %v", err)

@@ -38,6 +38,11 @@ func H2HandleEvent(l *listener.Listener, conn1 net.Conn, ctx context.Context) {
 
 	Connh2.CallBack = CallBack
 
+	go func() {
+		<-ctx.Done()
+		Connh2.Close()
+	}()
+
 	go Connh2.WriteLoop()
 	settingsFrame := frame.NewSettingsFrame(frame.UNSET, 0, h2.DefaultSettings)
 	Connh2.WriteChan <- settingsFrame

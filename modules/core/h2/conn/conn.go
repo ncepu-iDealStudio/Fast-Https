@@ -34,6 +34,7 @@ type Conn struct {
 	StreamsLock  sync.RWMutex
 	WriteChan    chan Frame
 	CallBack     func(stream *h2.Stream, ev *core.Event, fif *filters.Filter)
+	closeOnce    sync.Once
 }
 
 func NewConn(rw io.ReadWriter) *Conn {
@@ -332,13 +333,20 @@ func (conn *Conn) ReadMagic() (err error) {
 }
 
 func (conn *Conn) Close() {
-	Info("close all conn.Streams")
-	for i, stream := range conn.Streams {
-		if stream != nil {
-			Debug("close stream(%d)", i)
-			stream.Close()
+	conn.closeOnce.Do(func() {
+		Info("close all conn.Streams")
+		for i, stream := range conn.Streams {
+			if stream != nil {
+				Debug("close stream(%d)", i)
+				stream.Close()
+			}
 		}
-	}
-	Info("close conn.WriteChan")
-	close(conn.WriteChan)
+
+		if closer, ok := conn.RW.(interface{ Close() error }); ok {
+			_ = closer.Close()
+		}
+
+		Info("close conn.WriteChan")
+		close(conn.WriteChan)
+	})
 }

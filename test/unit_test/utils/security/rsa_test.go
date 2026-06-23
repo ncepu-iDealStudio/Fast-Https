@@ -3,27 +3,35 @@ package security
 import (
 	"encoding/base64"
 	"fast-https/utils/security"
-	"os"
 	"path/filepath"
 	"testing"
 )
 
-func TestEncrypt(t *testing.T) {
-	dir, _ := os.Getwd()
-	dir = filepath.Dir(filepath.Dir(dir))
-	publicKeyPath := filepath.Join(filepath.Dir(filepath.Dir(dir)), "config/cert/localhost.pem")
-	privateKeyPath := filepath.Join(filepath.Dir(filepath.Dir(dir)), "config/cert/localhost-key.pem")
+func setupRSAHelper(t *testing.T) {
+	t.Helper()
+	tmp := t.TempDir()
+	publicKeyPath := filepath.Join(tmp, "test-public.pem")
+	privateKeyPath := filepath.Join(tmp, "test-private.pem")
+
+	r := security.RSA{PublicKeyPath: publicKeyPath, PrivateKeyPath: privateKeyPath}
+	if err := r.GenerateRSAKey(2048); err != nil {
+		t.Fatalf("generate rsa key pair failed: %v", err)
+	}
 	security.InitRSAHelper(publicKeyPath, privateKeyPath)
+}
+
+func TestEncrypt(t *testing.T) {
+	setupRSAHelper(t)
 	var target = "123456"
 	encrypt, err := security.RSAHelper.Encrypt([]byte(target))
 	if err != nil {
-		return
+		t.Fatalf("encrypt failed: %v", err)
 	}
 	t.Log(encrypt)
 	t.Log(string(encrypt))
 	decrypt, err := security.RSAHelper.Decrypt(encrypt)
 	if err != nil {
-		return
+		t.Fatalf("decrypt failed: %v", err)
 	}
 
 	res := string(decrypt)
@@ -34,21 +42,17 @@ func TestEncrypt(t *testing.T) {
 }
 
 func TestTimeStampEncrypt(t *testing.T) {
-	dir, _ := os.Getwd()
-	dir = filepath.Dir(filepath.Dir(dir))
-	publicKeyPath := filepath.Join(filepath.Dir(filepath.Dir(dir)), "config/cert/localhost.pem")
-	privateKeyPath := filepath.Join(filepath.Dir(filepath.Dir(dir)), "config/cert/localhost-key.pem")
-	security.InitRSAHelper(publicKeyPath, privateKeyPath)
+	setupRSAHelper(t)
 	var target = "123456"
 	encrypt, err := security.RSAHelper.TimeStampEncrypt(target)
 	if err != nil {
-		return
+		t.Fatalf("timestamp encrypt failed: %v", err)
 	}
 
 	t.Log("encrypt base64:", base64.StdEncoding.EncodeToString(encrypt))
 	decrypt, err := security.RSAHelper.TimeStampDecrypt(encrypt, 160)
 	if err != nil {
-		return
+		t.Fatalf("timestamp decrypt failed: %v", err)
 	}
 	res := string(decrypt)
 	t.Log("res:", res)

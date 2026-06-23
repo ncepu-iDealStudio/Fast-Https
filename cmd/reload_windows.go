@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"os"
 	"syscall"
 
 	"golang.org/x/sys/windows"
@@ -29,4 +30,11 @@ func sendCtrlC(processGroupId int) error {
 		return err
 	}
 	return nil
+}
+
+func signalReloadProcess(process *os.Process, pid int) error {
+	if err := sendCtrlC(pid); err == nil {
+		return nil
+	}
+	return process.Signal(os.Interrupt)
 }
