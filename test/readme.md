@@ -5,22 +5,38 @@
 ### 1.1 目录结构
 
 ```text
-test/unit_test/
-├── helpers/                    # 测试辅助工具
-│   ├── mock_system.go         # 系统调用模拟（进程和信号处理）
-│   └── mock_io.go             # IO操作模拟（文件和输出）
-│
-├── cmd/                       # 命令模块测试
-│   └── commands_test.go      # 命令处理测试用例
-│
-├── modules/                   # 模块测试
-│   └── core/
-│       └── server/
-│           └── server_test.go # 服务器核心测试用例
-│
-└── utils/                    # 工具模块测试
-    └── logger/
-        └── logger_test.go    # 日志模块测试用例
+test/
+├── readme.md
+├── fast-https_test.go
+├── scripts/                         # 开发模式启动脚本
+│   ├── dev-test.sh
+│   └── dev-test.ps1
+├── single/
+│   └── workloop.go
+├── client_test/                     # 子进程集成测试
+│   ├── proxy_e2e_test.go
+│   ├── reload_e2e_test.go
+│   └── http_https_change_test.go
+└── unit_test/
+    ├── helpers/
+    │   ├── mock_system.go           # 进程和信号处理模拟
+    │   └── mock_io.go               # 文件和输出模拟
+    ├── cmd/commands_test.go
+    ├── config/check_config_test.go
+    ├── compress/compress_test.go
+    ├── safe/safe_test.go
+    ├── modules/
+    │   ├── module_test.go
+    │   ├── module_registration_consistency_test.go
+    │   └── core/
+    │       ├── server/server_test.go
+    │       ├── listener/reload_common_test.go
+    │       ├── request/parse_test.go
+    │       ├── response/response_test.go
+    │       └── h2/conn/
+    └── utils/
+        ├── logger/logger_test.go
+        └── security/rsa_test.go
 ```
 
 ### 1.2 测试辅助工具
@@ -54,22 +70,18 @@ output := mockIO.Stdout.String()                     // 获取标准输出
 
 #### 运行测试命令
 
+在仓库根目录执行。`go.mod` 在根目录，下面的包路径相对仓库根目录。
+
 ```bash
-cd test/unit_test
-go test ./...
+go test ./test/unit_test/...
 ```
 
 #### 特定模块测试
 
 ```bash
-# 测试命令模块
-go test ./cmd/...
-
-# 测试服务器核心
-go test ./modules/core/server/...
-
-# 测试日志模块
-go test ./utils/logger/...
+go test ./test/unit_test/cmd/...
+go test ./test/unit_test/modules/core/server/...
+go test ./test/unit_test/utils/logger/...
 ```
 
 #### Reload 端到端回归（可选）
@@ -99,11 +111,11 @@ go test ./test/client_test -run TestProxyHTTPIntegration -v
 
 #### 测试覆盖率
 
+在仓库根目录执行：
+
 ```bash
-# 运行测试并显示覆盖率
 go test -cover ./...
 
-# 生成覆盖率报告
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 ```
@@ -239,17 +251,17 @@ go get github.com/stretchr/testify/assert
 
 ### 2.1 特性说明
 
-1. 详细的日志输出
-2. 配置文件热重载
-3. 自动生成开发证书
-4. 简化的启动流程
-5. 跳过守护进程模式
+1. 日志级别设为 6
+2. 在 `0.0.0.0:10000` 打开 pprof
+3. 不进入 Linux 守护进程
+4. 与 `start` 相同，证书缺失时由 `init.CertInit` 生成自签名证书
+5. 配置变更通过 `reload` 子命令或非 Windows 上的 `SIGINT` 生效，启动流程不会监视配置文件
 
 ### 2.2 使用方法
 
 #### 环境准备
 
-1. 确保已安装 Go 1.16 或更高版本
+1. 确保已安装 `go.mod` 声明的 Go 版本（当前为 1.21.5）
 2. 克隆项目到本地
 3. 安装依赖：
 
@@ -262,8 +274,8 @@ go mod download
 Linux/Mac:
 
 ```bash
-# 使用开发测试脚本
-./scripts/dev-test.sh
+# 在仓库根目录使用开发测试脚本
+./test/scripts/dev-test.sh
 
 # 或直接运行
 go run fast-https.go dev
@@ -273,7 +285,7 @@ Windows:
 
 ```powershell
 # 使用开发测试脚本
-.\scripts\dev-test.ps1
+.\test\scripts\dev-test.ps1
 
 # 或直接运行
 go run fast-https.go dev
@@ -284,12 +296,7 @@ go run fast-https.go dev
 开发模式与普通模式都使用 `config/fast-https.json` 作为运行时配置文件。
 `config/dev.yaml` 仅作为开发参数示例，不会被运行时自动加载。
 
-开发模式包含：
-
-- 开发端口配置
-- 调试日志设置
-- 自动SSL证书生成
-- 代理服务配置示例
+`go run fast-https.go dev` 与 `start` 读取同一份 JSON。`config/dev.yaml` 里的端口、日志和代理片段不会进入运行时。
 
 ### 2.3 调试指南
 
@@ -298,7 +305,7 @@ go run fast-https.go dev
 1. 日志查看：
 
 ```bash
-tail -f dev.log
+tail -f logs/system.log logs/access.log logs/error.log logs/safe.log
 ```
 
 2. 进程监控：

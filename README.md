@@ -2,163 +2,152 @@
 
 ## 介绍
 
-Fast-Https是一款基于Go语言开发的的多任务，高并发Web服务器产品，支持http1.1/http2.0、HTTPS、RPC等主流的协议和标准；能够实现发布配置普通Web应用以及配置反向代理的功能。特别的，Web服务器内置实现了自签名SSL证书的生成功能，能极大方便在测试环境下解决服务器基于https协议访问的问题；
+Fast-Https 是一款用 Go 开发的多任务、高并发 Web 服务器。当前实现覆盖 HTTP/1.1、HTTP/2、HTTPS、静态站点、HTTP/HTTPS 反向代理、TCP 代理和 WebSocket 升级。测试环境下，服务启动时可以为带 `ssl` 的站点自动生成自签名证书。
 
-目前，我们提供了Windows平台和Linux平台下的安装包，其它平台下的产品陆续推出中；
+目前提供 Windows 与 Linux 安装包，其它平台陆续补充。
 
-Fast-Https项目，已经加盟华为openeuler社区（<https://gitee.com/src-openeuler/fast-https），欢迎更多的开发者参与进来，共同完善Fast-Https产品，让更多的用户能够使用到Fast-Https产品；>
+Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-https>），欢迎更多开发者一起完善。
 
 ## 软件架构
 
-Fast-Https采用Go语言开发，基于Golang的net/http包实现，支持http1.1/http2.0、HTTPS、RPC等主流的协议和标准；
+服务自己完成监听、请求解析和响应写出。入口在 `fast-https.go`，命令由 `cmd` 分发，配置由 `config` 加载，初始化在 `init`，连接与协议处理在 `modules/core`。每个监听端口由独立协程 `Accept`，再按连接类型进入 HTTP/1.1 事件循环或 HTTP/2 处理。
 
-Fast-Https采用模块化的方式设计开发，核心服务器模块支持以插件方式横向扩展、添加新的功能，以增强服务器的功能；
+`location.type` 决定请求交给哪个处理函数。`modules/core/server` 通过空白导入注册静态文件、反向代理、重写和开发模块。
+
+| `location.type` / `listen` | 处理位置 | 行为 |
+| --- | --- | --- |
+| `local` | `modules/static` | 按 `root` / `index` 返回本地文件 |
+| `proxy`，地址以 `http` 开头 | `modules/proxy` | HTTP 反向代理 |
+| `proxy`，地址以 `https` 开头 | `modules/proxy` | HTTPS 反向代理 |
+| `rewrite` | `modules/rewrite` | 返回 301，`Location` 为配置中的重写地址 |
+| `devmod` | `modules/dev_mod` | 返回固定的开发响应 |
+| `listen` 含 `tcp` | `modules/proxy_tcp` | 按 TCP 双向转发，不走 HTTP 解析 |
+| `listen` 含 `ssl` | `modules/core/listener` | TLS |
+| `listen` 含 `h2` | `modules/core/h2` | HTTP/2 |
+
+同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）、访问计数（`modules/safe`），静态与代理路径上可调用 `modules/appfirewall`。
 
 ### 项目结构
 
 ```text
 fast-https/
-├── cmd/                           # 命令行相关代码
-│   ├── commands.go                # 主要命令实现
-│   ├── unix_linux_amd64.go        # Linux AMD64 平台特定代码
-│   ├── reload_windows.go          # Windows 平台重载功能
-│   ├── reload_other.go            # 其他平台重载功能
-│   └── unix_other.go              # 其他 Unix 平台代码
-│
-├── config/                      # 配置相关
-│   └── config.go                # 配置检查和管理
-│
-├── init/                       # 初始化相关
-│   └── initialization.go       # 初始化实现
-│
-├── modules/                    # 核心功能模块
-│   ├── core/                   # 核心功能
-│   │   └── server/             # 服务器实现
-│   └── httptohttps/            # HTTP 到 HTTPS 转换模块
-│
-├── output/                    # 输出相关
-│   └── output.go              # 输出实现（包含 logo 等）
-│
-├── utils/                     # 工具类
-│   ├── logger/                # 日志模块
-│   │   └── logger.go          # 日志实现
-│   └── ip/                    # IP 相关工具
-│       └── ip.go              # IP 工具实现
-│
-├── go.mod                     # Go 模块定义
-├── go.sum                     # Go 依赖版本锁定
-├── fast-https.go             # 主程序入口
-├── monitor.go                # 监控程序（Windows状态栏）
-├── .goreleaser.yaml          # Linux 发布配置
-├── .goreleaser.windows.yaml  # Windows 发布配置
-└── README.md                 # 项目说明文档
+├── fast-https.go                 # 程序入口，调用 cmd.RootCmd()
+├── cmd/                          # 命令行：start / dev / stop / reload / install / uninstall / status
+│   ├── commands.go
+│   ├── unix_linux_amd64.go       # Linux amd64 守护进程
+│   ├── unix_other.go             # 其它平台的守护进程空实现
+│   ├── reload_windows.go         # Windows 重载信号
+│   └── reload_other.go           # 非 Windows 重载信号
+├── config/                       # 运行时配置
+│   ├── fast-https.json           # 配置真源
+│   ├── conf.d/                   # 由 http.include 继续加载的 json
+│   ├── mime.json                 # Content-Type 映射
+│   ├── cert/                     # 站点证书；缺失时由 init 生成
+│   ├── dev.yaml                  # 开发参数示例，运行时不会加载
+│   ├── config.go                 # 解析、校验、重载
+│   ├── consts.go                 # 路径、版本、默认值
+│   ├── base_dir.go               # 默认工作目录 ./
+│   └── base_dir_rpm.go           # -tags=rpm 时安装到 /usr/share/fast-https/
+├── init/
+│   ├── init.go                   # 配置、日志、证书、缓存、安全模块初始化
+│   └── autocert.go               # 自签名根证书与站点证书
+├── modules/
+│   ├── module.go                 # 模块注册表
+│   ├── core/                     # 监听、事件、HTTP/1.1、HTTP/2、请求与响应
+│   │   ├── server/               # 启停、信号、热重载
+│   │   ├── listener/             # 按 listen 建监听器
+│   │   ├── events/               # 连接与请求分发
+│   │   ├── request/  response/   # 报文解析与默认响应
+│   │   ├── filters/              # 连接、监听、解析、路由过滤
+│   │   ├── h2/                   # HTTP/2 帧、流、HPACK
+│   │   ├── dynlog/               # 访问日志注册
+│   │   └── engine/               # master/slave 注册与心跳（当前启动路径未调用）
+│   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
+│   ├── auth/  safe/  cache/  compress/  appfirewall/  logging/
+│   ├── dev_mod/                  # location type = devmod
+│   └── workchain/example/        # 模块注册示例，服务启动时不会加载
+├── output/                       # 启动 Logo 与初始化提示
+├── utils/                        # 日志、消息、文件、颜色、RSA
+├── monitor/                      # Windows 托盘程序（独立 main）
+├── httpdoc/root/                 # 默认静态站点与自签名根证书存放目录
+├── test/                         # 单元测试、客户端集成测试、开发脚本
+├── docker/                       # CentOS 7、Ubuntu 镜像
+├── Dockerfile                    # 多阶段构建，暴露 8080 与 443
+├── spec                          # RPM spec，构建时使用 -tags=rpm
+├── shell/.acme.sh/               # 随仓库附带的 acme.sh，Go 启动流程不会调用
+├── engine.sh                     # 替换引擎标识后分别编译 master/slave
+├── .goreleaser.yaml              # Linux / Darwin 发布
+└── .goreleaser.windows.yaml      # Windows 发布
 ```
 
 ### 服务启动流程
 
-服务启动过程按照以下步骤进行：
+1. `fast-https.go` 将日志级别设为 4，执行 `cmd.RootCmd()`。没有子命令时按 `start` 处理。
+2. `start` / `dev` 先做预检：校验 `config/fast-https.json` 及其 `include`、扫描端口、确认没有已在运行的实例。
+3. 打印 Logo 后调用 `init.InitSystem()`：加载配置与 `mime.json`、启动消息日志、生成或加载证书、从磁盘恢复缓存并启动过期清理、初始化安全模块。
+4. `start` 在 Linux amd64 上会 fork 为守护进程并写入 `fast-https.pid`。Windows 保持前台并写同一 pid 文件。`dev` 不进入守护进程，日志级别改为 6，并在 `0.0.0.0:10000` 打开 pprof。
+5. `server.ServerInit()` 注册信号处理，按配置创建监听器，再注册动态日志。
+6. 每个端口一个协程接受连接。`listen` 含 `h2` 时走 HTTP/2，其余走 HTTP/1.1 事件循环。
 
-1. 程序入口（fast-https.go）
-   - 初始化日志系统
-   - 通过 cmd.RootCmd() 执行根命令
+信号处理：
 
-2. 命令处理（cmd/commands.go）
-   - 解析命令行参数
-   - 处理不同的命令：启动、停止、重载等
-   - 对于"启动"命令：
-     - 执行预检查（端口可用性）
-     - 初始化服务器组件
+- `SIGTERM`、`SIGQUIT`：结束服务
+- `SIGINT`：Windows 下结束服务；其它平台下重载配置
+- `reload` 命令读取 pid 后发信号：Windows 发送控制台 Ctrl+C，其它平台发送 `SIGINT`
 
-3. 服务器初始化（modules/core/server/server.go）
-   - 创建新的服务器实例
-   - 设置信号处理器（SIGTERM、SIGINT、SIGQUIT）
-   - 根据配置初始化监听器
-   - 注册核心模块
-
-4. 监听器设置
-   - 配置 HTTP/HTTPS 端口
-   - 初始化连接处理器
-   - 支持 HTTP/1.1 和 HTTP/2
-
-5. 模块初始化
-   - 初始化安全模块
-   - 设置动态日志
-   - 准备其他核心功能
-
-6. 服务运行
-   - 为每个监听器启动协程
-   - 处理传入连接
-   - 管理优雅关闭和重载
-
-信号处理说明：
-
-- SIGTERM：优雅关闭
-- SIGINT（Ctrl+C）：
-  - 前台模式：停止服务
-  - 守护进程模式：重载配置
-- SIGQUIT：停止服务
+重载会重新读取配置，热更新仍在监听的端口，关闭已删除的端口，并为新增端口启动协程。
 
 ## 安装教程
 
-1. 在 <https://gitee.com/ncepu-bj/fast-https/releases/> 获取相应的版本和安装包
-2. 将相应的安装包解压到服务器的目标目录下
-3. 修改配置文件
+1. 在 <https://gitee.com/ncepu-bj/fast-https/releases/> 获取对应版本的安装包
+2. 解压到目标目录
+3. 修改 `config/fast-https.json`，需要拆分的站点配置放到 `http.include` 指向的目录（默认 `config/conf.d`）
 
 ## 开发模式说明
 
-Fast-Https 提供了专门的开发模式，方便开发者进行调试和测试。
-
 ### 配置真源说明
 
-- 当前运行时唯一配置真源为 `config/fast-https.json`
-- 程序启动时会读取 `config/fast-https.json`，并按其中 `http.include` 继续加载 `config/conf.d` 下的 json 配置
-- `config/dev.yaml` 当前仅作为开发参数示例文件，不会被运行时自动加载
-
-### 启动开发模式
-
-使用以下命令启动开发模式：
-```bash
-go run fast-https.go dev
-```
+- 运行时唯一配置真源是 `config/fast-https.json`
+- 启动时读取该文件，再按 `http.include` 加载其中列出的 json（默认包含 `config/conf.d`）
+- `config/mime.json` 提供扩展名到 Content-Type 的映射
+- `config/dev.yaml` 只是开发参数示例，运行时不会加载
 
 ### 启动常用命令
 
 ```bash
-# 前台启动
+# 前台或守护进程启动（无参数等同 start）
 go run fast-https.go start
 
-# 开发模式启动（调试日志 + pprof 端口）
+# 开发模式：日志级别 6，并打开 10000 端口的 pprof
 go run fast-https.go dev
 
-# 停止服务
+# 停止、重载、安装为系统服务、卸载
 go run fast-https.go stop
-
-# 重载配置
 go run fast-https.go reload
+go run fast-https.go install
+go run fast-https.go uninstall
 ```
+
+`status` 已注册为子命令，当前处理函数不输出状态。
 
 ### 开发模式特性
 
-1. **详细日志输出**
-   - 自动设置最详细的日志级别（Level 6）
-   - 输出更多的调试信息
-   - 实时显示系统运行状态
+1. **详细日志**
+   - 日志级别设为 6
+   - 保留初始化阶段的控制台输出
 
 2. **调试入口**
-    - 默认开启 10000 端口用于调试
-    - 可用于 pprof 性能分析和运行时观测
-    - 便于问题诊断
+   - `0.0.0.0:10000` 使用默认 HTTP 多路复用器，可接 pprof
+   - 示例：`go tool pprof http://localhost:10000/debug/pprof/profile`
 
-3. **开发便利性**
-   - 简化的进程管理
-   - 更友好的错误提示
-   - 支持本地证书自动生成
+3. **进程行为**
+   - 不进入 Linux 守护进程
+   - 证书文件不存在时，`init.CertInit` 会为带 `ssl` 的 `server_name` 生成自签名证书
 
-### 开发模式配置
+### 最小配置
 
-开发模式与普通模式均使用 `config/fast-https.json` 作为配置输入。
+`config/fast-https.json`：
 
-建议的最小配置片段（位于 `config/fast-https.json`）：
 ```json
 {
    "http": {
@@ -181,27 +170,60 @@ go run fast-https.go reload
 }
 ```
 
+仓库里的默认配置还包含 `443 ssl` 的 localhost 站点，证书路径为 `config/cert/localhost.pem` 与 `config/cert/localhost-key.pem`。
+
 ### 注意事项
 
-1. 开发模式仅供开发和测试使用，不建议在生产环境中启用
-2. 开发模式会消耗更多系统资源，请注意监控系统负载
-3. 建议在开发环境中使用自签名证书进行 HTTPS 测试
+1. `dev` 会打开调试端口并提高日志量，适合本机开发
+2. 自签名证书只用于测试访问
+3. 修改配置后执行 `reload`，或在非 Windows 的运行进程上发送 `SIGINT`
 
 ## 使用说明
 
 见文档：<https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#> 《Fast-Https产品说明》
 
+测试布局与运行方式见 [test/readme.md](test/readme.md)。
+
 ## 自行编译
 
-1. 编译windows状态栏控制程序
-    go build -ldflags "-s -w -H=windowsgui" -o monitor.exe monitor.go
+Go 版本见 `go.mod`（当前为 1.21.5）。
 
-2. 编译linux平台下的发行包
+1. 编译主程序
+
+   ```bash
+   go build -o fast-https .
+   ```
+
+   RPM 包使用 `spec`，构建参数为 `-tags=rpm`，此时配置与站点根目录为 `/usr/share/fast-https/`。
+
+2. 编译 Windows 托盘程序（在 `monitor/` 目录）
+
+   ```bash
+   windres -o monitor.syso monitor.rc
+   go build -ldflags "-s -w -H=windowsgui" -o monitor.exe .
+   ```
+
+   `monitor.rc` 通过 `IDI_ICON1 ICON "../output/icon/starting.ico"` 指定图标。说明见 [monitor/README.md](monitor/README.md)。
+
+3. 用 goreleaser 打 Linux / Darwin 包
+
+   ```bash
    goreleaser release -f .goreleaser.yaml --snapshot --clean
-   如果需要，可以修改相应的编译配置文件"goreleaser.yaml"
+   ```
 
-3. 编译windows平台下的发行包
+4. 用 goreleaser 打 Windows 包
+
+   ```bash
    goreleaser release -f .goreleaser.windows.yaml --snapshot --clean
+   ```
+
+5. 容器镜像
+
+   ```bash
+   docker build -t fast-https .
+   ```
+
+   根目录 `Dockerfile` 基于 Alpine，复制 `config/`、`httpdoc/`、`logs/`，暴露 8080 和 443。`docker/Dockerfile_centos7` 与 `docker/Dockerfile_ubuntu` 是另外两份构建文件。
 
 ## 参与贡献
 
