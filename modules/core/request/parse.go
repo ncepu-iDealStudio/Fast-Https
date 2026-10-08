@@ -192,12 +192,19 @@ func (r *Request) GetAuthorization() string {
 
 // whether the request connection is keep alive
 func (r *Request) IsKeepalive() bool {
-	conn := r.GetConnection()
-	if conn == "keep-alive" {
-		return true
-	} else {
-		return false
+	keepAlive := false
+	for _, token := range strings.Split(strings.ToLower(r.GetConnection()), ",") {
+		switch strings.TrimSpace(token) {
+		case "close":
+			return false
+		case "keep-alive":
+			keepAlive = true
+		}
 	}
+	if keepAlive {
+		return true
+	}
+	return r.Protocol == "HTTP/1.1" || r.Protocol == "HTTP/2" || r.Protocol == "HTTP/3"
 }
 
 // get request row bytes

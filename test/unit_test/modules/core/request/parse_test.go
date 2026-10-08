@@ -228,3 +228,28 @@ func TestParseBody(t *testing.T) {
 		}
 	}
 }
+
+func TestIsKeepalive(t *testing.T) {
+	tests := []struct {
+		name     string
+		protocol string
+		conn     string
+		want     bool
+	}{
+		{name: "HTTP/1.1 default", protocol: "HTTP/1.1", want: true},
+		{name: "HTTP/1.0 default", protocol: "HTTP/1.0", want: false},
+		{name: "explicit keep-alive", protocol: "HTTP/1.0", conn: "keep-alive", want: true},
+		{name: "case-insensitive keep-alive", protocol: "HTTP/1.0", conn: "Keep-Alive", want: true},
+		{name: "explicit close", protocol: "HTTP/1.1", conn: "close", want: false},
+		{name: "close token takes precedence", protocol: "HTTP/1.1", conn: "keep-alive, close", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req := request.Request{Protocol: test.protocol, Headers: map[string]string{"Connection": test.conn}}
+			if got := req.IsKeepalive(); got != test.want {
+				t.Errorf("IsKeepalive() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}

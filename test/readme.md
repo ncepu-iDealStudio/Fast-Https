@@ -89,6 +89,14 @@ go test ./test/client_test -run TestReloadPortSwitchE2E -v
 Remove-Item Env:FASTHTTPS_E2E_RELOAD
 ```
 
+#### 反向代理集成测试
+
+该测试会在临时工作目录启动 Fast-Https 子进程，并使用本地 HTTP 服务模拟动态 HTML 页面、JSON API 和静态资源上游。测试覆盖 GET 查询参数、POST 请求体、自定义请求头、响应状态码、响应头和响应体，不需要安装 JSP 或 Python Web 运行时，也不会修改仓库配置。
+
+```bash
+go test ./test/client_test -run TestProxyHTTPIntegration -v
+```
+
 #### 测试覆盖率
 
 ```bash
