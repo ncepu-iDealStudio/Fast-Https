@@ -31,15 +31,14 @@ Windows 任务栏托盘程序，用来在本机启动和停止 Fast-Https。它�
 
 托盘图标是 `icon.go` 里的两套内嵌图标：运行中为 `LogoExecuting`，已停止为 `LogoStopping`。
 
-`monitor.rc` 另有一行 `IDI_ICON1 ICON "../output/icon/starting.ico"`，这是资源管理器里 `monitor.exe` 的文件图标，不是托盘图标。仓库里目前没有 `output/icon/starting.ico`。没有这个文件时，下面的 `windres` 会失败；托盘图标不依赖它。
+`monitor.rc` 另有一行 `IDI_ICON1 ICON "../output/icon/starting.ico"`，这是资源管理器里 `monitor.exe` 的文件图标，不是托盘图标。仓库里目前没有 `output/icon/starting.ico`。发布流程不调用 `windres`，因此缺少这个文件不影响托盘和安装包。
 
 ## 编译
 
-在 `monitor/` 目录执行。`-H=windowsgui` 让程序以无控制台窗口的方式运行。
+在仓库根目录执行。`-H=windowsgui` 让程序以无控制台窗口的方式运行。
 
 ```bash
-windres -o monitor.syso monitor.rc
-go build -ldflags "-s -w -H=windowsgui" -o monitor.exe .
+go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
 ```
 
-Windows 发布包（`.goreleaser.windows.yaml`）会把编好的 `monitor/monitor.exe` 放进 zip 的根目录，和 `fast-https.exe` 放在一起。打 Windows 包之前需要先完成本节的编译。
+`.goreleaser.yaml` 的 `before` 钩子会用同一条命令编译 `monitor/monitor.exe`，再放进 Windows zip 的根目录，和 `fast-https.exe` 放在一起。钩子编译失败时，这次发布会停下来。

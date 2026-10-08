@@ -34,7 +34,7 @@ Direct runtime dependencies, versions from `go.mod`:
 | `golang.org/x/sys` | v0.21.0 | Windows console Ctrl+C |
 | `github.com/fatih/color` | v1.17.0 | Colored console output |
 
-`github.com/stretchr/testify` v1.9.0 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml` and `.goreleaser.windows.yaml`).
+`github.com/stretchr/testify` v1.9.0 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.3.2-next`.
 
 ## Software Architecture
 
@@ -104,8 +104,7 @@ fast-https/
 ├── spec                          # RPM spec; build uses -tags=rpm
 ├── shell/.acme.sh/               # Bundled acme.sh; the Go process does not call it
 ├── engine.sh                     # Builds master/slave binaries after rewriting the engine id
-├── .goreleaser.yaml              # Linux and Darwin release
-└── .goreleaser.windows.yaml      # Windows release
+└── .goreleaser.yaml              # Linux, Darwin, and Windows release
 ```
 
 ### Service Startup
@@ -113,7 +112,7 @@ fast-https/
 1. `fast-https.go` sets the log level to 4 and runs `cmd.RootCmd()`. With no subcommand, the process starts as `start`.
 2. `start` and `dev` pre-check `config/fast-https.json` and its includes, scan ports, and refuse to start when a live pid is already recorded.
 3. After the logo, `init.InitSystem()` loads config and `mime.json`, starts the message logger, creates or loads certificates, restores the disk cache and its expiry loop, and initializes the safe module.
-4. On Linux amd64, `start` forks a daemon and writes `fast-https.pid`. On Windows it stays in the foreground and writes the same pid file. `dev` does not daemonize, raises the log level to 6, and serves pprof on `0.0.0.0:10000`.
+4. Outside a container, Linux amd64 `start` forks without changing the working directory and writes the child pid to `fast-https.pid`. Windows, `FASTHTTPS_FOREGROUND=1`, and container marker files keep the process in the foreground and write the same pid file. `dev` does not daemonize, raises the log level to 6, and serves pprof on `0.0.0.0:10000`.
 5. `server.ServerInit()` installs the signal loop, opens listeners from config, and registers dynamic logs.
 6. Each port accepts in its own goroutine. A `listen` value that contains `h2` uses HTTP/2; every other listener uses the HTTP/1.1 event loop.
 
@@ -191,9 +190,11 @@ Product manual: <https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#>
 
 Test layout: [test/readme.md](test/readme.md).
 
-## Building from Source
+## Packaging
 
-The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1).
+The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1). The product version is **V1.3.2**. The RPM version is `1.3.2`. GoReleaser snapshots use `1.3.2-next`. Run the commands from the repository root.
+
+`LoadFile` turns site roots, certificates, the log directory, and include paths into absolute paths. Images set `FASTHTTPS_FOREGROUND=1`, so the process stays in the foreground and does not fork or change directory.
 
 1. Server binary
 
@@ -201,36 +202,33 @@ The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1).
    go build -o fast-https .
    ```
 
-   The RPM spec builds with `-tags=rpm`, which sets the base directory to `/usr/share/fast-https/`.
+   Run it with `start` or `dev`, for example `./fast-https start`.
 
-2. Windows tray program, from `monitor/`
+2. Release archives
 
-   ```bash
-   windres -o monitor.syso monitor.rc
-   go build -ldflags "-s -w -H=windowsgui" -o monitor.exe .
-   ```
-
-   See [monitor/README.md](monitor/README.md).
-
-3. Linux and Darwin archives
+   `.goreleaser.yaml` builds Linux and Darwin (`amd64`, `arm64`, `tar.gz`) and Windows (`amd64`, `zip`). The Windows binary uses `-H=windowsgui`. A before hook compiles `monitor/monitor.exe` and the zip contains it. Output goes to `dist/`.
 
    ```bash
    goreleaser release -f .goreleaser.yaml --snapshot --clean
    ```
 
-4. Windows archive
+   See [monitor/README.md](monitor/README.md) for the tray program.
 
-   ```bash
-   goreleaser release -f .goreleaser.windows.yaml --snapshot --clean
-   ```
+3. RPM
 
-5. Container image
+   `spec` is version `1.3.2` and builds with `-tags=rpm`, which sets the base directory to `/usr/share/fast-https/`.
+
+4. Container images
+
+   All three Dockerfiles compile the current source with `golang:1.27-alpine`. They copy config JSON and the default site, create empty cert, include, and log directories, and expose 8080 and 443.
 
    ```bash
    docker build -t fast-https .
+   docker build -f docker/Dockerfile_ubuntu -t fast-https:ubuntu .
+   docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .
    ```
 
-   The root `Dockerfile` is Alpine-based, copies `config/`, `httpdoc/`, and `logs/`, and exposes 8080 and 443. `docker/Dockerfile_centos7` and `docker/Dockerfile_ubuntu` are separate build files.
+   Runtime bases are Alpine, Ubuntu 24.04, and CentOS 7. The Ubuntu and CentOS images install into `/usr/local/fast-https` and set `Fast-Https_VERSION=1.3.2`.
 
 ## Contributing
 

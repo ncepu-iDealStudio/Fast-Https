@@ -1,5 +1,5 @@
 Name:           fast-https
-Version:        1.0.0
+Version:        1.3.2
 Release:        1%{?dist}
 Summary:        fast-https web server
 

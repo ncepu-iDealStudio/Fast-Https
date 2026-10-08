@@ -58,12 +58,11 @@ func Daemon(nochdir, noclose int) int {
 	}
 	if noclose == 0 {
 		f, e := os.OpenFile("/dev/null", os.O_RDWR, 0)
-		if e != nil {
-
-			fd := f.Fd()
-			syscall.Dup2(int(fd), int(os.Stdin.Fd()))
-			syscall.Dup2(int(fd), int(os.Stdout.Fd()))
-			syscall.Dup2(int(fd), int(os.Stderr.Fd()))
+		if e == nil {
+			fd := int(f.Fd())
+			syscall.Dup2(fd, int(os.Stdin.Fd()))
+			syscall.Dup2(fd, int(os.Stdout.Fd()))
+			syscall.Dup2(fd, int(os.Stderr.Fd()))
 		}
 	}
 	return 0

@@ -36,7 +36,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `golang.org/x/sys` | v0.21.0 | Windows 控制台 Ctrl+C |
 | `github.com/fatih/color` | v1.17.0 | 控制台着色 |
 
-测试依赖 `github.com/stretchr/testify` v1.9.0，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml` 和 `.goreleaser.windows.yaml`。
+测试依赖 `github.com/stretchr/testify` v1.9.0，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml`。快照版本号是 `1.3.2-next`。
 
 ## 软件架构
 
@@ -106,8 +106,7 @@ fast-https/
 ├── spec                          # RPM spec，构建时使用 -tags=rpm
 ├── shell/.acme.sh/               # 随仓库附带的 acme.sh，Go 启动流程不会调用
 ├── engine.sh                     # 替换引擎标识后分别编译 master/slave
-├── .goreleaser.yaml              # Linux / Darwin 发布
-└── .goreleaser.windows.yaml      # Windows 发布
+└── .goreleaser.yaml              # Linux、Darwin、Windows 发布
 ```
 
 ### 服务启动流程
@@ -115,7 +114,7 @@ fast-https/
 1. `fast-https.go` 将日志级别设为 4，执行 `cmd.RootCmd()`。没有子命令时按 `start` 处理。
 2. `start` / `dev` 先做预检：校验 `config/fast-https.json` 及其 `include`、扫描端口、确认没有已在运行的实例。
 3. 打印 Logo 后调用 `init.InitSystem()`：加载配置与 `mime.json`、启动消息日志、生成或加载证书、从磁盘恢复缓存并启动过期清理、初始化安全模块。
-4. `start` 在 Linux amd64 上会 fork 为守护进程并写入 `fast-https.pid`。Windows 保持前台并写同一 pid 文件。`dev` 不进入守护进程，日志级别改为 6，并在 `0.0.0.0:10000` 打开 pprof。
+4. `start` 在容器外的 Linux amd64 上会 fork，并保持当前工作目录，再把子进程 pid 写入 `fast-https.pid`。Windows，以及设置了 `FASTHTTPS_FOREGROUND=1` 或检测到容器标记文件时，进程保持前台并写同一 pid 文件。`dev` 不进入守护进程，日志级别改为 6，并在 `0.0.0.0:10000` 打开 pprof。
 5. `server.ServerInit()` 注册信号处理，按配置创建监听器，再注册动态日志。
 6. 每个端口一个协程接受连接。`listen` 含 `h2` 时走 HTTP/2，其余走 HTTP/1.1 事件循环。
 
@@ -216,7 +215,9 @@ go run fast-https.go uninstall
 
 ## 打包与发布
 
-语言版本 **1.27.0**，工具链 **go1.27.1**，见 `go.mod`。下面的命令都在仓库根目录执行，Windows 托盘除外。
+语言版本 **1.27.0**，工具链 **go1.27.1**，见 `go.mod`。产品版本是 **V1.3.2**。RPM 版本写成 `1.3.2`（没有 `V` 前缀）。GoReleaser 快照版本是 `1.3.2-next`。下面的命令都在仓库根目录执行。
+
+加载配置时会把站点 root、证书、日志目录和 include 转成绝对路径。容器镜像设置 `FASTHTTPS_FOREGROUND=1`，进程保持前台，不 fork，也不切换工作目录。
 
 ### 本地二进制
 
@@ -228,49 +229,38 @@ go build -o fast-https .
 
 ### Windows 托盘
 
-Windows 安装包会带上 `monitor/monitor.exe`，打 Windows 包之前先在 `monitor/` 目录编译：
-
-```bash
-windres -o monitor.syso monitor.rc
-go build -ldflags "-s -w -H=windowsgui" -o monitor.exe .
-```
-
-`monitor.rc` 用 `IDI_ICON1 ICON "../output/icon/starting.ico"` 指定图标。说明见 [monitor/README.md](monitor/README.md)。
+发布配置会在打包前编译 `monitor/monitor.exe`，不依赖 `windres`。托盘图标来自 `icon.go`。手动编译和菜单说明见 [monitor/README.md](monitor/README.md)。
 
 ### 安装包
 
-用 GoReleaser 打本地快照包。`--snapshot` 不依赖 git tag，`--clean` 会清空上一次的输出目录。
-
-Linux 与 Darwin 使用 `.goreleaser.yaml`，`CGO_ENABLED=0`，归档为 `tar.gz`，输出在 `dist/`：
+一份 `.goreleaser.yaml` 同时打 Linux、Darwin 和 Windows。`CGO_ENABLED=0`。Linux / Darwin 的目标架构是 amd64 和 arm64，归档为 `tar.gz`。Windows 只打 amd64，链接参数为 `-s -w -H=windowsgui`，归档为 `zip`，根目录包含 `monitor.exe`。输出都在 `dist/`。
 
 ```bash
 goreleaser release -f .goreleaser.yaml --snapshot --clean
 ```
 
-Windows 使用 `.goreleaser.windows.yaml`，链接参数为 `-s -w -H=windowsgui`，归档为 `zip`，输出在 `dist_windows/`。压缩包内含托盘程序，因此需要上面已经生成的 `monitor/monitor.exe`：
+`--snapshot` 使用版本 `1.3.2-next`，不依赖 git tag。`--clean` 会清空上一次的 `dist/`。
 
-```bash
-goreleaser release -f .goreleaser.windows.yaml --snapshot --clean
-```
-
-两份配置都会打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/`、`httpdoc/root/index.html`、`httpdoc/root/favicon.ico` 和 `README.md`。另外列出了 `config/cert/.keep`、`config/conf.d/.keep` 和 `logs/.keep`，用来在包里保留空目录。
+压缩包打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/`、`httpdoc/root/index.html`、`httpdoc/root/favicon.ico` 和 `README.md`。另外列出了 `config/cert/.keep`、`config/conf.d/.keep` 和 `logs/.keep`，用来在包里保留空目录。
 
 ### RPM
 
-`spec` 在构建时下载 Go 1.27.1，并用 `-tags=rpm` 编译。这个 tag 把配置和站点根目录固定为 `/usr/share/fast-https/`。安装结果是：
+`spec` 的版本是 `1.3.2`。构建时下载 Go 1.27.1，并用 `-tags=rpm` 编译。这个 tag 把配置和站点根目录固定为 `/usr/share/fast-https/`。安装结果是：
 
 - 可执行文件：`/usr/bin/fast-https`
 - 配置、默认站点和日志目录：`/usr/share/fast-https/`
 
 ### 容器镜像
 
-从源码构建，使用根目录 `Dockerfile`（构建阶段 `golang:1.27-alpine`，运行阶段 Alpine）。镜像内包含 `config/`、`httpdoc/`、`logs/`，暴露 8080 和 443：
+三份 Dockerfile 都从当前源码构建，构建阶段是 `golang:1.27-alpine`。镜像只复制配置 JSON 和默认站点文件，并新建空的 `config/cert`、`config/conf.d` 和 `logs`。本机证书和日志不会进镜像。暴露 8080 和 443。
 
 ```bash
 docker build -t fast-https .
+docker build -f docker/Dockerfile_ubuntu -t fast-https:ubuntu .
+docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .
 ```
 
-`docker/Dockerfile_ubuntu` 与 `docker/Dockerfile_centos7` 不编译源码。它们从 Gitee Release 下载 `fast-https_Linux_x86_64.tar.gz`（地址中的版本是 1.3.1），解压到 `/usr/local/fast-https`，只暴露 8080。`Dockerfile_centos7` 里的版本环境变量写成了 1.3.2。
+运行阶段分别是 Alpine、Ubuntu 24.04 和 CentOS 7。Ubuntu 与 CentOS 镜像把程序放在 `/usr/local/fast-https`，环境变量 `Fast-Https_VERSION` 为 `1.3.2`。
 
 ## 参与贡献
 

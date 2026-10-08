@@ -1,0 +1,13 @@
+.git
+.github
+shell
+logs
+dist
+dist_windows
+config/cert/*.pem
+httpdoc/root/root.crt
+httpdoc/root/root.key
+monitor/monitor.exe
+monitor/monitor.syso
+*.exe
+*.log

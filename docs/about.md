@@ -75,7 +75,7 @@ flowchart TD
 
 运行时主配置路径由 `config.CONFIG_FILE_PATH` 决定，默认是 `./config/fast-https.json`；MIME 文件默认是 `./config/mime.json`。根配置通过 `http.server` 定义站点，通过 `http.include` 引入额外 JSON 配置；被 include 的文件描述单个 server。加载后的结构保存在全局 `config.GConfig` 中。
 
-配置文件中的相对路径通常相对于进程工作目录解析。部署或测试时需要留意工作目录、include 目录、静态 root、证书、日志和缓存路径之间的关系。Linux/amd64 的 `start` 会调用 `Daemon(0, 0)`，该实现会在子进程中切换工作目录到 `/`；因此依赖相对路径的部署配置应特别检查 daemon 启动后的路径行为。
+`LoadFile` 在监听前把站点 root、证书、日志目录和 include 路径转成绝对路径。Linux/amd64 的 `start` 在容器外仍会 fork，调用的是 `Daemon(1, 1)`，子进程保持原来的工作目录。容器里存在 `/.dockerenv` 或 `/run/.containerenv`，或者设置了 `FASTHTTPS_FOREGROUND=1` 时，进程以前台方式运行，不 fork。
 
 开发模式额外启动 `http.ListenAndServe("0.0.0.0:10000", nil)`。当前代码中未发现该默认 mux 上注册 pprof handler 的实现；仅启动该端口并不意味着 `/debug/pprof/` 一定可用。
 

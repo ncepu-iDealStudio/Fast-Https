@@ -39,11 +39,6 @@ const (
 )
 
 /*
-cd monitor &&
-go build -ldflags "-s -w -H=windowsgui" -o monitor.exe monitor.go windows.go &&
-echo "monitor compiler successed" &&
-cd .. &&
-goreleaser release -f .goreleaser.windows.yaml --snapshot --clean &&
 goreleaser release -f .goreleaser.yaml --snapshot --clean
 */
 

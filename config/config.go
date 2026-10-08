@@ -767,4 +767,36 @@ func SetDefault() {
 	if GConfig.LogRoot == "" {
 		GConfig.LogRoot = DEFAULT_LOG_ROOT
 	}
+	ResolveRuntimePaths()
+}
+
+// ResolveRuntimePaths turns site, certificate, log and include paths into
+// absolute paths before the process listens. Later directory changes then
+// still open the files that were configured.
+func ResolveRuntimePaths() {
+	GConfig.LogRoot = absConfigPath(GConfig.LogRoot)
+	for i := range GConfig.Include {
+		GConfig.Include[i] = absConfigPath(GConfig.Include[i])
+	}
+	for i := range GConfig.Servers {
+		server := &GConfig.Servers[i]
+		server.SSLCertificate = absConfigPath(server.SSLCertificate)
+		server.SSLCertificateKey = absConfigPath(server.SSLCertificateKey)
+		for j := range server.Path {
+			server.Path[j].Root = absConfigPath(server.Path[j].Root)
+			server.Path[j].ProxyCache.Path = absConfigPath(server.Path[j].ProxyCache.Path)
+		}
+	}
+}
+
+func absConfigPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	return abs
 }

@@ -217,16 +217,18 @@ func StartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	if runtime.GOOS == "windows" {
-		WritePid(config.PID_FILE)
-	}
 
 	output.PrintInitialStart()
 	initialization.InitSystem()
 	output.PrintInitialEnd()
 
-	if runtime.GOOS != "windows" {
-		_ = Daemon(0, 0) // this func will write pid
+	// Outside a container, Linux/amd64 still forks. nochdir=1 keeps the working
+	// directory, and LoadFile has already turned site, certificate and log paths
+	// into absolute paths. Containers stay in the foreground as PID 1.
+	if runtime.GOOS != "windows" && !runInForeground() {
+		_ = Daemon(1, 1)
+	} else {
+		_ = WritePid(config.PID_FILE)
 	}
 	server := server.ServerInit()
 	server.Run()
@@ -352,6 +354,21 @@ func PreCheckHandler() {
 		logger.Fatal("fast-https is already running")
 	}
 	// 进程不存在，可以继续
+}
+
+// runInForeground keeps the process as PID 1. Containers are detected from
+// their well-known marker files. FASTHTTPS_FOREGROUND=1 forces the same mode.
+func runInForeground() bool {
+	if os.Getenv("FASTHTTPS_FOREGROUND") == "1" {
+		return true
+	}
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	if _, err := os.Stat("/run/.containerenv"); err == nil {
+		return true
+	}
+	return false
 }
 
 // WritePid 将当前进程的PID写入指定文件

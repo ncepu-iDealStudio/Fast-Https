@@ -1,25 +1,44 @@
-# This is an example .goreleaser.yml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
+version: 2
+
 before:
   hooks:
-    # You may remove this if you don't use go modules.
     - go mod tidy
-    # you may remove this if you don't need go generate
-    - go generate ./...
+    - cmd: go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
+      env:
+        - CGO_ENABLED=0
+        - GOOS=windows
+        - GOARCH=amd64
+
 builds:
-  - env:
+  - id: unix
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
       - darwin
-    binary:
-      fast-https
-    main:
-      ./fast-https.go
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https
+    main: ./fast-https.go
+
+  - id: windows
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - amd64
+    binary: fast-https
+    main: ./fast-https.go
+    ldflags:
+      - "-s -w -H=windowsgui"
 
 archives:
-  - format: tar.gz
-    # this name template makes the OS and Arch compatible with the results of uname.
+  - id: unix
+    ids:
+      - unix
+    formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -27,11 +46,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    format_overrides:
-    - goos: windows
-      format: zip
-    # files needed to archive into dir
     files:
       - config/cert/.keep
       - config/conf.d/.keep
@@ -43,18 +57,42 @@ archives:
       - httpdoc/root/index.html
       - logs/.keep
       - README.md
+
+  - id: windows
+    ids:
+      - windows
+    formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - config/cert/.keep
+      - config/conf.d/.keep
+      - config/fast-https.json
+      - config/fastcgi.conf
+      - config/mime.json
+      - docs/*
+      - httpdoc/root/favicon.ico
+      - httpdoc/root/index.html
+      - logs/.keep
+      - README.md
+      - src: monitor/monitor.exe
+        dst: monitor.exe
+        strip_parent: true
+
 checksum:
-  name_template: 'checksums.txt'
+  name_template: checksums.txt
+
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "1.3.2-next"
+
 changelog:
   sort: asc
   filters:
     exclude:
       - '^docs:'
       - '^test:'
-
-# The lines beneath this are called `modelines`. See `:help modeline`
-# Feel free to remove those if you don't want/use them.
-# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
-# vim: set ts=2 sw=2 tw=0 fo=cnqoj
