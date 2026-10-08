@@ -86,7 +86,7 @@ func (p *Proxy) ProxyInit(ev *core.Event) error {
 	p.ProxyNeedClose = false // keep-alive default
 
 	if err != nil {
-		logger.Debug("proxy event: can't connect to upstream server" + err.Error())
+		logger.Debug("proxy event: can't connect to upstream server %s", err.Error())
 		return ProxyErrorDialUpstream // no server
 	}
 	now := time.Now()
@@ -149,7 +149,7 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 
 	firstLineDec := strings.Split(temp_res.FirstLine, " ")
 	if len(firstLineDec) < 2 {
-		logger.Error(string(tmpByte))
+		logger.Error("%s", string(tmpByte))
 		rr.Res = response.DefaultServerHeaderError()
 		return "509"
 	} else {
@@ -238,7 +238,7 @@ func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 			logger.Debug("send to upstream server time out")
 			err = ProxyErrorSendToUpstreamTimeout
 		} else if ok {
-			logger.Debug(color.RedString("unhandled send to upstream server: ") + err.Error())
+			logger.Debug("%s%s", color.RedString("unhandled send to upstream server: "), err.Error())
 		} else {
 			logger.Fatal("convent net error")
 		}

@@ -8,6 +8,36 @@ Fast-Https 是一款用 Go 开发的多任务、高并发 Web 服务器。当前
 
 Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-https>），欢迎更多开发者一起完善。
 
+## 技术栈及软件版本和相关重要依赖
+
+当前产品版本是 `V1.3.2`（`config/consts.go` 的 `CURRENT_VERSION`）。
+模块声明的 Go 版本是 **1.27.0**，工具链固定为 **go1.27.1**，见 `go.mod`。这是 2026 年 10 月仍在官方支持期内的当前主流版本，同时受支持的还有 1.26。根目录 `Dockerfile` 使用 `golang:1.27-alpine` 编译；`spec` 里的 RPM 构建脚本下载 Go 1.27.1。
+
+
+服务自己解析 HTTP/1.1 和 HTTP/2。标准库提供 TCP、`crypto/tls` 和 `gzip`。开发模式在 `0.0.0.0:10000` 使用 `net/http` 的默认多路复用器提供 pprof。
+
+运行时直接依赖如下，版本以 `go.mod` 为准：
+
+| 依赖 | 版本 | 用途 |
+| --- | --- | --- |
+| `github.com/spf13/cobra` | v1.8.1 | 命令行：`start`、`dev`、`stop`、`reload`、`install`、`uninstall`、`status` |
+| `github.com/spf13/viper` | v1.19.0 | 读取 `config/fast-https.json` 和 `http.include` |
+| `github.com/kardianos/service` | v1.2.2 | 安装、卸载系统服务 |
+| `github.com/sirupsen/logrus` | v1.9.3 | `logs/` 下的系统、访问、错误、安全日志 |
+| `github.com/fufuok/chanx` | v1.2.2 | 日志消息队列 |
+| `golang.org/x/time` | v0.5.0 | 连接限流 |
+| `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` 规则清理 JSON 中的 HTML |
+| `github.com/andybalholm/brotli` | v1.1.0 | Brotli 压缩 |
+| `github.com/Jxck/hpack` | 2015-07-13 快照 | HTTP/2 HPACK 整数编码与 Huffman |
+| `github.com/emirpasic/gods` | v1.18.1 | 缓存使用的红黑树 |
+| `github.com/panjf2000/ants/v2` | v2.9.1 | 协程池 |
+| `github.com/chenhg5/collection` | 2020-09-25 快照 | 监听端口去重 |
+| `github.com/getlantern/systray` | v1.2.2 | Windows 托盘程序 `monitor/` |
+| `golang.org/x/sys` | v0.21.0 | Windows 控制台 Ctrl+C |
+| `github.com/fatih/color` | v1.17.0 | 控制台着色 |
+
+测试依赖 `github.com/stretchr/testify` v1.9.0，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml` 和 `.goreleaser.windows.yaml`。
+
 ## 软件架构
 
 服务自己完成监听、请求解析和响应写出。入口在 `fast-https.go`，命令由 `cmd` 分发，配置由 `config` 加载，初始化在 `init`，连接与协议处理在 `modules/core`。每个监听端口由独立协程 `Accept`，再按连接类型进入 HTTP/1.1 事件循环或 HTTP/2 处理。
@@ -186,7 +216,7 @@ go run fast-https.go uninstall
 
 ## 自行编译
 
-Go 版本见 `go.mod`（当前为 1.21.5）。
+Go 版本见 `go.mod`（语言版本 1.27.0，工具链 go1.27.1）。
 
 1. 编译主程序
 

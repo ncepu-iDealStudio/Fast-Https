@@ -24,7 +24,7 @@ func TestRequestWithoutHuffman(t *testing.T) {
 	/**
 	 * D.3.1.  First request
 	 */
-	Debug(Pink("\n========== First Request ==============="))
+	Debug("%s", Pink("\n========== First Request ==============="))
 
 	buf = []byte{
 		0x82, 0x86,
@@ -64,7 +64,7 @@ func TestRequestWithoutHuffman(t *testing.T) {
 	/**
 	 * D.3.2.  Second request
 	 */
-	Debug(Pink("\n========== Second Request ==============="))
+	Debug("%s", Pink("\n========== Second Request ==============="))
 
 	buf = []byte{
 		0x82, 0x86,
@@ -103,7 +103,7 @@ func TestRequestWithoutHuffman(t *testing.T) {
 	/**
 	 * D.3.3.  Third request
 	 */
-	Debug(Pink("\n========== Third Request ==============="))
+	Debug("%s", Pink("\n========== Third Request ==============="))
 
 	buf = []byte{
 		0x82, 0x87,
@@ -163,7 +163,7 @@ func TestRequestWithHuffman(t *testing.T) {
 	/**
 	 * D.4.1.  First request
 	 */
-	Debug(Pink("\n========== First Request ==============="))
+	Debug("%s", Pink("\n========== First Request ==============="))
 
 	buf = []byte{
 		0x82, 0x86,
@@ -202,7 +202,7 @@ func TestRequestWithHuffman(t *testing.T) {
 	/**
 	 * D.4.2.  Second request
 	 */
-	Debug(Pink("\n========== Second Request ==============="))
+	Debug("%s", Pink("\n========== Second Request ==============="))
 
 	buf = []byte{
 		0x82, 0x86,
@@ -240,7 +240,7 @@ func TestRequestWithHuffman(t *testing.T) {
 	/**
 	 * D.4.3.  Third request
 	 */
-	Debug(Pink("\n========== Third Request ==============="))
+	Debug("%s", Pink("\n========== Third Request ==============="))
 
 	buf = []byte{
 		0x82, 0x87,
@@ -298,7 +298,7 @@ func TestResponseWithoutHuffman(t *testing.T) {
 	/**
 	 * D.5.1.  First response
 	 */
-	Debug(Pink("\n========== First Response ==============="))
+	Debug("%s", Pink("\n========== First Response ==============="))
 
 	buf = []byte{
 		0x48, 0x03,
@@ -366,7 +366,7 @@ func TestResponseWithoutHuffman(t *testing.T) {
 	/**
 	 * D.5.2.  Second response
 	 */
-	Debug(Pink("\n========== Second Response ==============="))
+	Debug("%s", Pink("\n========== Second Response ==============="))
 
 	buf = []byte{
 		0x48, 0x03,
@@ -403,7 +403,7 @@ func TestResponseWithoutHuffman(t *testing.T) {
 	/**
 	 * D.5.3.  Third response
 	 */
-	Debug(Pink("\n========== Third Response ==============="))
+	Debug("%s", Pink("\n========== Third Response ==============="))
 
 	buf = []byte{
 		0x88, 0xc1,
@@ -499,7 +499,7 @@ func TestResponseWithHuffman(t *testing.T) {
 	/**
 	 * D.6.1.  First response
 	 */
-	Debug(Pink("\n========== First Response ==============="))
+	Debug("%s", Pink("\n========== First Response ==============="))
 
 	buf = []byte{
 		0x48, 0x82,
@@ -559,7 +559,7 @@ func TestResponseWithHuffman(t *testing.T) {
 	/**
 	 * D.6.2.  Second response
 	 */
-	Debug(Pink("\n========== Second Response ==============="))
+	Debug("%s", Pink("\n========== Second Response ==============="))
 
 	buf = []byte{
 		0x48, 0x83,
@@ -596,7 +596,7 @@ func TestResponseWithHuffman(t *testing.T) {
 	/**
 	 * D.6.3.  Third response
 	 */
-	Debug(Pink("\n========== Third Response ==============="))
+	Debug("%s", Pink("\n========== Third Response ==============="))
 
 	buf = []byte{
 		0x88, 0xc1,

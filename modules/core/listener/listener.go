@@ -343,7 +343,7 @@ func listenSsl(laddr string, lisdata []ListenCfg, reuse bool) net.Listener {
 		if !collection.Collect(servernames).Contains(item.ServerName) {
 			crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
 			if err != nil {
-				logger.Debug("Error load cert: %s" + item.SSL.SslKey)
+				logger.Debug("Error load cert: %s", item.SSL.SslKey)
 			}
 			certs = append(certs, crt)
 			logger.Info("Automatically load %s certificate", item.ServerName)

@@ -2,6 +2,7 @@ package response
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -66,8 +67,8 @@ func (r *Response) GetBody() []byte {
 func (r *Response) GenerateResponse() []byte {
 	var res []byte
 	response := r.FirstLine + HTTP_SPLIT
-	for key, value := range r.Headers {
-		response += fmt.Sprintf("%s: %s\r\n", key, value)
+	for _, key := range sortedHeaderKeys(r.Headers) {
+		response += fmt.Sprintf("%s: %s\r\n", key, r.Headers[key])
 	}
 	res = append(res, []byte(response)...)
 	res = append(res, []byte("\r\n")...)
@@ -79,8 +80,8 @@ func (r *Response) GenerateResponse() []byte {
 func (r *Response) GenerateHeaderBytes() []byte {
 	var res []byte
 	response := r.FirstLine + HTTP_SPLIT
-	for key, value := range r.Headers {
-		response += fmt.Sprintf("%s: %s\r\n", key, value)
+	for _, key := range sortedHeaderKeys(r.Headers) {
+		response += fmt.Sprintf("%s: %s\r\n", key, r.Headers[key])
 	}
 	res = append(res, []byte(response)...)
 	res = append(res, []byte("\r\n")...)
@@ -126,6 +127,15 @@ func (r *Response) GetHeader(key string) string {
 
 func (r *Response) DelHeader(key string) {
 	delete(r.Headers, key)
+}
+
+func sortedHeaderKeys(headers map[string]string) []string {
+	keys := make([]string, 0, len(headers))
+	for key := range headers {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func Test() {

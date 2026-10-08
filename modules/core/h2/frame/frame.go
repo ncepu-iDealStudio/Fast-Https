@@ -188,28 +188,28 @@ func (fh *FrameHeader) Read(r io.Reader) (err error) {
 	// PRIORITY payload length should be 5
 	if fh.Type == PriorityFrameType && fh.Length != 5 {
 		msg := fmt.Sprintf("frame size of PRIORITY should be 5 but %v", fh.Length)
-		Error(Red(msg))
+		Error("%s", Red(msg))
 		return &H2Error{FRAME_SIZE_ERROR, msg}
 	}
 
 	// RST_STREAM payload length should be 4
 	if fh.Type == RstStreamFrameType && fh.Length != 4 {
 		msg := fmt.Sprintf("frame size of RST_STREAM should be 4 but %v", fh.Length)
-		Error(Red(msg))
+		Error("%s", Red(msg))
 		return &H2Error{FRAME_SIZE_ERROR, msg}
 	}
 
 	// PING_FRAME payload length should be 8
 	if fh.Type == PingFrameType && fh.Length != 8 {
 		msg := fmt.Sprintf("frame size of PING_FRAME should be 8 but %v", fh.Length)
-		Error(Red(msg))
+		Error("%s", Red(msg))
 		return &H2Error{FRAME_SIZE_ERROR, msg}
 	}
 
 	// payload length should equal or smaller than MAX_FRAME_SIZE
 	if int32(fh.Length) > fh.MaxFrameSize {
 		msg := fmt.Sprintf("frame size(%v) is larger than MAX_FRAME_SIZE(%v)", fh.Length, fh.MaxFrameSize)
-		Error(Red(msg))
+		Error("%s", Red(msg))
 		return &H2Error{FRAME_SIZE_ERROR, msg}
 	}
 
@@ -224,14 +224,14 @@ func (fh *FrameHeader) Read(r io.Reader) (err error) {
 		// SETTINGS ACKs payload length should 0
 		if fh.Flags == ACK && fh.Length > 0 {
 			msg := fmt.Sprintf("frame size of SETTINGS_STREAM should be 0 if ACK set but %v", fh.Length)
-			Error(Red(msg))
+			Error("%s", Red(msg))
 			return &H2Error{FRAME_SIZE_ERROR, msg}
 		}
 
 		// SETTINGS payload should multiple of 6 octets
 		if fh.Length%6 != 0 {
 			msg := fmt.Sprintf("frame size of SETTINGS_STREAM should multiple of 6 octets but %v", fh.Length)
-			Error(Red(msg))
+			Error("%s", Red(msg))
 			return &H2Error{FRAME_SIZE_ERROR, msg}
 		}
 
@@ -332,7 +332,7 @@ func (frame *DataFrame) Read(r io.Reader) (err error) {
 
 		if uint32(frame.PadLength) > frameLen {
 			msg := fmt.Sprintf("Pad Length(%v) is larger than frame.Length(%v)", frame.PadLength, frameLen)
-			Error(Red(msg))
+			Error("%s", Red(msg))
 			return &H2Error{PROTOCOL_ERROR, msg}
 		}
 
@@ -483,7 +483,7 @@ func (frame *HeadersFrame) Read(r io.Reader) (err error) {
 
 		if uint32(frame.PadLength) > frameLen {
 			msg := fmt.Sprintf("Pad Length(%v) is larger than frame.Length(%v)", frame.PadLength, frameLen)
-			Error(Red(msg))
+			Error("%s", Red(msg))
 			return &H2Error{PROTOCOL_ERROR, msg}
 		}
 
@@ -829,7 +829,7 @@ func (frame *SettingsFrame) Read(r io.Reader) (err error) {
 		if settingsID == SETTINGS_ENABLE_PUSH {
 			if !(value == 0 || value == 1) {
 				msg := fmt.Sprintf("SETTINGS_ENABLE_PUSH value should be 0 or 1 but %v", value)
-				Error(Red(msg))
+				Error("%s", Red(msg))
 				return &H2Error{PROTOCOL_ERROR, msg}
 			}
 		}
@@ -837,7 +837,7 @@ func (frame *SettingsFrame) Read(r io.Reader) (err error) {
 		if settingsID == SETTINGS_INITIAL_WINDOW_SIZE {
 			if value < 0 { // value is int32 = 2^31-1 so over 2^31-1 value became negative value
 				msg := fmt.Sprintf("SETTINGS_INITIAL_WINDOW_SIZE value should be smaller than 2^31-1 but %v", value)
-				Error(Red(msg))
+				Error("%s", Red(msg))
 				return &H2Error{FLOW_CONTROL_ERROR, msg}
 			}
 		}
@@ -845,7 +845,7 @@ func (frame *SettingsFrame) Read(r io.Reader) (err error) {
 		if settingsID == SETTINGS_MAX_FRAME_SIZE {
 			if value < 16384 || 16777215 < value {
 				msg := fmt.Sprintf("SETTINGS_MAX_FRAME_SIZE value should between initial value is 2^14 (16,384) and maximum 2^24-1 (16,777,215) but %v", value)
-				Error(Red(msg))
+				Error("%s", Red(msg))
 				return &H2Error{PROTOCOL_ERROR, msg}
 			}
 		}

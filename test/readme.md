@@ -261,7 +261,7 @@ go get github.com/stretchr/testify/assert
 
 #### 环境准备
 
-1. 确保已安装 `go.mod` 声明的 Go 版本（当前为 1.21.5）
+1. 确保已安装 `go.mod` 声明的 Go 版本（语言版本 1.27.0，工具链 go1.27.1；本机版本更低时，`GOTOOLCHAIN=auto` 会自动下载）
 2. 克隆项目到本地
 3. 安装依赖：
 

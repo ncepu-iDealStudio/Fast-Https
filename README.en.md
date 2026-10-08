@@ -8,6 +8,34 @@ Installation packages are published for Windows and Linux. Packages for other pl
 
 The project is part of the openEuler community (<https://gitee.com/src-openeuler/fast-https>).
 
+## Stack, Versions, and Dependencies
+
+The product version is `V1.3.2` (`CURRENT_VERSION` in `config/consts.go`). The module declares **Go 1.27.0** and toolchain **go1.27.1** in `go.mod`. That is the current supported release as of October 2026; Go 1.26 is the other supported line. The root `Dockerfile` builds with `golang:1.27-alpine`. The RPM `spec` downloads Go 1.27.1.
+
+The server parses HTTP/1.1 and HTTP/2 itself. The standard library supplies TCP, `crypto/tls`, and gzip. Development mode serves pprof from the default `net/http` mux on `0.0.0.0:10000`.
+
+Direct runtime dependencies, versions from `go.mod`:
+
+| Dependency | Version | Role |
+| --- | --- | --- |
+| `github.com/spf13/cobra` | v1.8.1 | CLI: `start`, `dev`, `stop`, `reload`, `install`, `uninstall`, `status` |
+| `github.com/spf13/viper` | v1.19.0 | Loads `config/fast-https.json` and `http.include` |
+| `github.com/kardianos/service` | v1.2.2 | Install and remove the OS service |
+| `github.com/sirupsen/logrus` | v1.9.3 | System, access, error, and safe logs under `logs/` |
+| `github.com/fufuok/chanx` | v1.2.2 | Log message queue |
+| `golang.org/x/time` | v0.5.0 | Connection rate limit |
+| `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` HTML cleanup for JSON bodies |
+| `github.com/andybalholm/brotli` | v1.1.0 | Brotli compression |
+| `github.com/Jxck/hpack` | 2015-07-13 snapshot | HTTP/2 HPACK integer coding and Huffman |
+| `github.com/emirpasic/gods` | v1.18.1 | Red-black tree used by the cache |
+| `github.com/panjf2000/ants/v2` | v2.9.1 | Goroutine pool |
+| `github.com/chenhg5/collection` | 2020-09-25 snapshot | Listener port de-duplication |
+| `github.com/getlantern/systray` | v1.2.2 | Windows tray program in `monitor/` |
+| `golang.org/x/sys` | v0.21.0 | Windows console Ctrl+C |
+| `github.com/fatih/color` | v1.17.0 | Colored console output |
+
+`github.com/stretchr/testify` v1.9.0 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml` and `.goreleaser.windows.yaml`).
+
 ## Software Architecture
 
 The server accepts connections, parses requests, and writes responses itself. `fast-https.go` is the entry point, `cmd` dispatches subcommands, `config` loads JSON, `init` prepares certificates and caches, and `modules/core` owns listeners and protocol handling. Each configured port runs its own accept loop, then hands the connection to the HTTP/1.1 event loop or the HTTP/2 path.
@@ -165,7 +193,7 @@ Test layout: [test/readme.md](test/readme.md).
 
 ## Building from Source
 
-The Go version is declared in `go.mod` (currently 1.21.5).
+The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1).
 
 1. Server binary
 

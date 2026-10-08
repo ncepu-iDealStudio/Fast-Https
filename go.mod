@@ -1,6 +1,8 @@
 module fast-https
 
-go 1.21.5
+go 1.27.0
+
+toolchain go1.27.1
 
 require (
 	github.com/Jxck/assertion v0.0.0-20140506062536-def1e0ae1f89

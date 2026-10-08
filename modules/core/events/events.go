@@ -149,7 +149,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	rr.Req.ParseHost(ev.LisInfo)
 
 	if err := rr.Req.ParseBody(byte_row); err != nil {
-		logger.Debug(color.RedString(err.Error()))
+		logger.Debug("%s", color.RedString(err.Error()))
 	}
 
 	// headerOtherData := make([]byte, core.READ_BODY_BUF_LEN)
@@ -160,14 +160,14 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			ev.Conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 			datasize, err := ev.Conn.Read(rr.ReqBuf)
 			if err != nil { // read error, like time out
-				logger.Debug(color.RedString("read body error"))
+				logger.Debug("%s", color.RedString("read body error"))
 				break
 			}
 			byte_row = append(byte_row, rr.ReqBuf[:datasize]...)
 			rr.Req.TryFixBody(rr.ReqBuf[:datasize])
 			if rr.Req.Body.Len() > config.GConfig.Limit.MaxBodySize {
 				// body bytes beyond config
-				logger.Debug(color.RedString("read body too big"))
+				logger.Debug("%s", color.RedString("read body too big"))
 				break
 			}
 		}

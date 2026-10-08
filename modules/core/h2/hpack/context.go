@@ -25,7 +25,7 @@ func NewContext(SETTINGS_HEADER_TABLE_SIZE uint32) *Context {
 func (c *Context) Decode(wire []byte) {
 	// 各デコードごとに前回のをリセットする。
 	c.ES = NewHeaderList()
-	Debug(Red("clean Emitted Set"))
+	Debug("%s", Red("clean Emitted Set"))
 	Trace(Cyan("\n==== Before Decode ====")+
 		"%v"+
 		Cyan("======================="),
@@ -52,12 +52,12 @@ func (c *Context) Decode(wire []byte) {
 				i := index - 1
 				headerField = &StaticTable[i]
 
-				Debug(Red("== Indexed - Add =="))
+				Debug("%s", Red("== Indexed - Add =="))
 				Debug("\tidx = %v", index)
 				Debug("\t-> ST[%v] = %v", i, headerField)
 
 				// Emit
-				Debug(Navy("\tEmit"))
+				Debug("%s", Navy("\tEmit"))
 				c.ES.Emit(headerField)
 			} else {
 				/**
@@ -71,12 +71,12 @@ func (c *Context) Decode(wire []byte) {
 				/**
 				* 参照が Reference Set に無い場合
 				 */
-				Debug(Red("== Indexed - Add =="))
+				Debug("%s", Red("== Indexed - Add =="))
 				Debug("\tidx = %v", index)
 				Debug("\t-> HT[%v] = %v", index, headerField)
 
 				// Emit
-				Debug(Navy("\tEmit"))
+				Debug("%s", Navy("\tEmit"))
 				c.ES.Emit(headerField)
 			}
 		case *IndexedLiteral:
@@ -104,7 +104,7 @@ func (c *Context) Decode(wire []byte) {
 			// Header Field 生成
 			headerField := NewHeaderField(name, value)
 
-			Debug(Red("== Indexed Literal =="))
+			Debug("%s", Red("== Indexed Literal =="))
 			Debug("\tIndexed name (idx = %v)", index)
 			Debug("\t-> ST[%v].Name = %v", index, name)
 			Debug("\tLiteral value (len = %v)", f.ValueLength)
@@ -117,11 +117,11 @@ func (c *Context) Decode(wire []byte) {
 				 */
 
 				// Emit
-				Debug(Navy("\tEmit"))
+				Debug("%s", Navy("\tEmit"))
 				c.ES.Emit(headerField)
 
 				// ヘッダテーブルにコピーする
-				Debug(Navy("\tAdd to HT"))
+				Debug("%s", Navy("\tAdd to HT"))
 				c.Push(headerField)
 
 			case WITHOUT:
@@ -130,12 +130,12 @@ func (c *Context) Decode(wire []byte) {
 				 */
 
 				// Emit
-				Debug(Navy("\tEmit"))
+				Debug("%s", Navy("\tEmit"))
 				c.ES.Emit(headerField)
 			}
 
 		case *StringLiteral:
-			Debug(Red("== String Literal =="))
+			Debug("%s", Red("== String Literal =="))
 			Debug("%v", f)
 
 			headerField := NewHeaderField(f.NameString, f.ValueString)
@@ -144,25 +144,25 @@ func (c *Context) Decode(wire []byte) {
 				// HT に追加する場合
 
 				// Emit
-				Debug(Navy("\tEmit"))
+				Debug("%s", Navy("\tEmit"))
 				c.ES.Emit(headerField)
 
 				// ヘッダテーブルにコピーする
-				Debug(Navy("\tAdd to HT"))
+				Debug("%s", Navy("\tAdd to HT"))
 				c.Push(headerField)
 
 			case WITHOUT:
 				// HT に追加しない場合
 
 				// Emit
-				Debug(Navy("\tEmit"))
+				Debug("%s", Navy("\tEmit"))
 				c.ES.Emit(headerField)
 			}
 		case *DynamicTableSizeUpdate:
 			/**
 			 * Maximum Dynamic Table Size Change
 			 */
-			Debug(Red("Maximum Header Table Size Change"))
+			Debug("%s", Red("Maximum Header Table Size Change"))
 			c.ChangeSize(f.MaxSize)
 		default:
 			Fatal("%T", f)
@@ -180,9 +180,9 @@ func (c *Context) ChangeSize(size uint32) {
 func (c *Context) Eviction() {
 	for c.HT.Size() > c.HT.DYNAMIC_TABLE_SIZE {
 		// サイズが収まるまで減らす
-		Debug(Red("Eviction")+" %v", c.HT.HeaderFields[len(c.HT.HeaderFields)-1])
+		Debug("%s %v", Red("Eviction"), c.HT.HeaderFields[len(c.HT.HeaderFields)-1])
 		removed := c.HT.Remove(len(c.HT.HeaderFields) - 1)
-		Debug(Yellow("Removed while Eviction: %v"), removed)
+		Debug("%s: %v", Yellow("Removed while Eviction"), removed)
 	}
 	return
 }

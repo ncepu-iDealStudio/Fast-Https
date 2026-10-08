@@ -22,17 +22,18 @@ func main() {
 	var url string
 	var client *http.Client
 
-	if protocol == "https" {
+	switch protocol {
+	case "https":
 		url = "https://localhost:4443/"
 		client = &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
 		}
-	} else if protocol == "http" {
+	case "http":
 		url = "http://localhost:4443/"
 		client = &http.Client{}
-	} else {
+	default:
 		fmt.Println("Invalid protocol. Use 'http' or 'https'.")
 		return
 	}

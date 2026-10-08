@@ -116,9 +116,10 @@ func (r *Request) ParseHost(lis_info *listener.Listener) {
 	if r.Headers["Host"] == "" {
 		return
 	}
-	if lis_info.Port == "80" {
+	switch lis_info.Port {
+	case "80":
 		r.Headers["Host"] = r.Headers["Host"] + ":80"
-	} else if lis_info.Port == "443" {
+	case "443":
 		r.Headers["Host"] = r.Headers["Host"] + ":443"
 	}
 
