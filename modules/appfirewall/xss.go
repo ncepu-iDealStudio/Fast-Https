@@ -46,9 +46,14 @@ func (mw *XssMw) GetBlueMondayPolicy() *bluemonday.Policy {
 }
 
 func HandleXss(req *request.Request) bool {
-	logger.Debug("This is appfirewall, handle sql")
+	logger.Debug("appfirewall handle xss")
+	before := req.Body.String()
 	xss := XssMw{}
-	xss.XssRemove(req)
+	_ = xss.XssRemove(req)
+	after := req.Body.String()
+	if strings.Contains(strings.ToLower(before), "<script") && !strings.Contains(strings.ToLower(after), "<script") {
+		return false
+	}
 	return true
 }
 

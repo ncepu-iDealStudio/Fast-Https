@@ -25,7 +25,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `listen` 含 `ssl` | `modules/core/listener` | TLS |
 | `listen` 含 `h2` | `modules/core/h2` | HTTP/2 |
 
-同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）、访问计数（`modules/safe`），静态与代理路径上可调用 `modules/appfirewall`。
+同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）和访问计数（`modules/safe`）。静态与代理路径会执行应用防火墙：`xss` 在 JSON 请求体里的 `<script` 被去掉后返回 403；`sql` 已注册，不会拦截请求。
 
 ### 项目结构
 

@@ -25,7 +25,7 @@ The server accepts connections, parses requests, and writes responses itself. `f
 | `listen` contains `ssl` | `modules/core/listener` | TLS |
 | `listen` contains `h2` | `modules/core/h2` | HTTP/2 |
 
-A request also passes connection filters (blacklist and rate limit in `modules/safe`), optional Basic auth (`modules/auth`), and, on the static and proxy paths, `modules/appfirewall`.
+A request also passes connection filters (blacklist and rate limit in `modules/safe`), optional Basic auth (`modules/auth`), and access counting. Static and proxy paths run the application firewall: `xss` returns 403 after a `<script` tag is removed from a JSON body; `sql` is registered and does not intercept.
 
 ### Project Structure
 

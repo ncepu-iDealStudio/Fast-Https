@@ -2,6 +2,7 @@ package server
 
 import (
 	"fast-https/config"
+	"fast-https/modules/core"
 	"fast-https/modules/core/dynlog"
 	"fast-https/modules/core/events"
 	"fast-https/modules/core/listener"
@@ -69,6 +70,10 @@ func ServerInit() *Server {
 		}
 	}(&s)
 	//  to do : ScanPorts
+
+	if err := core.MissingHandlers(config.GConfig.Servers); err != nil {
+		logger.Fatal("refuse to listen: %s", err.Error())
+	}
 
 	output.PrintPortsListenerStart()
 	s.Listens = listener.ListenWithCfg()

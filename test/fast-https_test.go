@@ -35,13 +35,13 @@ func TestServerInit(t *testing.T) {
 	cmd.WritePid(config.PID_FILE)
 	t.Log("step1: fast-https.pid: ", os.Getpid())
 
-	// 2. init system message
-	initialiaztion.MessageInit(config.GConfig.LogRoot)
-	t.Log("step2: system message initialization")
-
-	// 3. read config into memory
+	// 2. read config into memory before opening log files
 	config.Init()
-	t.Log("step3: read config")
+	t.Log("step2: read config")
+
+	// 3. init system message with the resolved log directory
+	initialiaztion.MessageInit(config.GConfig.LogRoot)
+	t.Log("step3: system message initialization")
 
 	// 5. self-signed certification initialization
 	initialiaztion.CertInit()

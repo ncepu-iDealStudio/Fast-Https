@@ -96,6 +96,19 @@ func DefaultServerHeaderError() *Response {
 	return res
 }
 
+func DefaultForbidden() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(403, "FORBIDDEN")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", time.Now().String())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("403 Forbidden", "The request was rejected by the application firewall."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
 func DefaultBlackBan() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(403, "FORBIDDEN")

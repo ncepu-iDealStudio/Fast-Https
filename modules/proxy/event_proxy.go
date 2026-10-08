@@ -390,7 +390,11 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 
 func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	ChangeHead(cfg, ev)
-	appfirewall.HandleAppFireWall(cfg, ev.RR.Req)
+	if !appfirewall.HandleAppFireWall(cfg, ev.RR.Req) {
+		ev.RR.Res = response.DefaultForbidden()
+		ev.WriteResponseClose(nil)
+		return false
+	}
 	return true
 }
 

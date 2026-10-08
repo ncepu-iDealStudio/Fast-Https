@@ -5,7 +5,8 @@ import (
 	"fast-https/utils/logger"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/sirupsen/logrus"
@@ -14,7 +15,8 @@ import (
 var (
 	Glog = &Logs{}
 	// TODO: server reload
-	logOnce sync.Once
+	logOnce  sync.Once
+	logFiles []*os.File
 )
 
 type Logs struct {
@@ -40,13 +42,30 @@ func MessageFormat(path string) {
 	})
 }
 
+// ResolveLogDir picks the directory for access.log, error.log, safe.log and system.log.
+// An empty path, "." or "./" uses config.DEFAULT_LOG_ROOT (./logs). The directory is created when missing.
+//
+// Console logs from utils/logger use a different rule: DEBUG and TRACE go to stderr, and lower levels go to stdout.
+// Those lines are not written into the four files above.
+func ResolveLogDir(logPath string) string {
+	cleaned := strings.TrimSpace(logPath)
+	if cleaned == "" || cleaned == "." || cleaned == "./" || cleaned == `.\` {
+		cleaned = config.DEFAULT_LOG_ROOT
+	}
+	if err := os.MkdirAll(cleaned, 0o755); err != nil {
+		logger.Warn("create log dir %s: %v", cleaned, err)
+	}
+	return cleaned
+}
+
 func loggerToFileAndCmd(logPath string, logName string) *logrus.Logger {
-	// 日志文件
-	fileName := path.Join(logPath, logName)
+	fileName := filepath.Join(ResolveLogDir(logPath), logName)
 	// 写入文件
 	src, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
 	if err != nil {
 		logger.Warn("log to file err: %v", err)
+	} else {
+		logFiles = append(logFiles, src)
 	}
 	// 实例化
 	logger := logrus.New()
@@ -88,4 +107,12 @@ func loggerToFileAndCmd(logPath string, logName string) *logrus.Logger {
 	//logger.AddHook(lfHook)
 
 	return logger
+}
+
+// CloseLogFiles closes files opened for the four server logs.
+func CloseLogFiles() {
+	for _, file := range logFiles {
+		_ = file.Close()
+	}
+	logFiles = nil
 }

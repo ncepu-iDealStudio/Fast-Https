@@ -22,10 +22,19 @@ func limitInit() {
 
 }
 
+// allow reports whether the limiter accepts one more event.
+// A nil limiter accepts the event.
+func allow(lim *rate.Limiter) bool {
+	if lim == nil {
+		return true
+	}
+	return lim.Allow()
+}
+
 func Bucket(ev *core.Event) bool {
 
 	// 检查是否允许进行下一个事件
-	if g_limiter.Allow() {
+	if allow(g_limiter) {
 		return true
 	} else {
 		// write <403> and close

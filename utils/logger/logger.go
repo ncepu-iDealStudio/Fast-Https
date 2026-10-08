@@ -54,7 +54,7 @@ func getPath() (dir, path string, line int) {
 func out(level LogLevel, format string, v ...interface{}) {
 	_, path, line := getPath()
 
-	// TODO: always stderr in debug
+	// DEBUG and TRACE go to stderr. FATAL, ERROR, WARN, NOTICE and INFO go to stdout.
 	dest := os.Stdout
 	if level >= 4 {
 		dest = os.Stderr

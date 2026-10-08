@@ -221,7 +221,11 @@ func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
 		event301(ev, ev.RR.Req.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return false
 	}
-	appfirewall.HandleAppFireWall(cfg, ev.RR.Req)
+	if !appfirewall.HandleAppFireWall(cfg, ev.RR.Req) {
+		ev.RR.Res = response.DefaultForbidden()
+		ev.WriteResponseClose(nil)
+		return false
+	}
 	return true
 }
 
