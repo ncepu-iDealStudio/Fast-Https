@@ -214,46 +214,63 @@ go run fast-https.go uninstall
 
 测试布局与运行方式见 [test/readme.md](test/readme.md)。
 
-## 自行编译
+## 打包与发布
 
-Go 版本见 `go.mod`（语言版本 1.27.0，工具链 go1.27.1）。
+语言版本 **1.27.0**，工具链 **go1.27.1**，见 `go.mod`。下面的命令都在仓库根目录执行，Windows 托盘除外。
 
-1. 编译主程序
+### 本地二进制
 
-   ```bash
-   go build -o fast-https .
-   ```
+```bash
+go build -o fast-https .
+```
 
-   RPM 包使用 `spec`，构建参数为 `-tags=rpm`，此时配置与站点根目录为 `/usr/share/fast-https/`。
+产物是当前平台的 `fast-https`。运行时需要带上 `start` 或 `dev`，例如 `./fast-https start`。
 
-2. 编译 Windows 托盘程序（在 `monitor/` 目录）
+### Windows 托盘
 
-   ```bash
-   windres -o monitor.syso monitor.rc
-   go build -ldflags "-s -w -H=windowsgui" -o monitor.exe .
-   ```
+Windows 安装包会带上 `monitor/monitor.exe`，打 Windows 包之前先在 `monitor/` 目录编译：
 
-   `monitor.rc` 通过 `IDI_ICON1 ICON "../output/icon/starting.ico"` 指定图标。说明见 [monitor/README.md](monitor/README.md)。
+```bash
+windres -o monitor.syso monitor.rc
+go build -ldflags "-s -w -H=windowsgui" -o monitor.exe .
+```
 
-3. 用 goreleaser 打 Linux / Darwin 包
+`monitor.rc` 用 `IDI_ICON1 ICON "../output/icon/starting.ico"` 指定图标。说明见 [monitor/README.md](monitor/README.md)。
 
-   ```bash
-   goreleaser release -f .goreleaser.yaml --snapshot --clean
-   ```
+### 安装包
 
-4. 用 goreleaser 打 Windows 包
+用 GoReleaser 打本地快照包。`--snapshot` 不依赖 git tag，`--clean` 会清空上一次的输出目录。
 
-   ```bash
-   goreleaser release -f .goreleaser.windows.yaml --snapshot --clean
-   ```
+Linux 与 Darwin 使用 `.goreleaser.yaml`，`CGO_ENABLED=0`，归档为 `tar.gz`，输出在 `dist/`：
 
-5. 容器镜像
+```bash
+goreleaser release -f .goreleaser.yaml --snapshot --clean
+```
 
-   ```bash
-   docker build -t fast-https .
-   ```
+Windows 使用 `.goreleaser.windows.yaml`，链接参数为 `-s -w -H=windowsgui`，归档为 `zip`，输出在 `dist_windows/`。压缩包内含托盘程序，因此需要上面已经生成的 `monitor/monitor.exe`：
 
-   根目录 `Dockerfile` 基于 Alpine，复制 `config/`、`httpdoc/`、`logs/`，暴露 8080 和 443。`docker/Dockerfile_centos7` 与 `docker/Dockerfile_ubuntu` 是另外两份构建文件。
+```bash
+goreleaser release -f .goreleaser.windows.yaml --snapshot --clean
+```
+
+两份配置都会打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/`、`httpdoc/root/index.html`、`httpdoc/root/favicon.ico` 和 `README.md`。另外列出了 `config/cert/.keep`、`config/conf.d/.keep` 和 `logs/.keep`，用来在包里保留空目录。
+
+### RPM
+
+`spec` 在构建时下载 Go 1.27.1，并用 `-tags=rpm` 编译。这个 tag 把配置和站点根目录固定为 `/usr/share/fast-https/`。安装结果是：
+
+- 可执行文件：`/usr/bin/fast-https`
+- 配置、默认站点和日志目录：`/usr/share/fast-https/`
+
+### 容器镜像
+
+从源码构建，使用根目录 `Dockerfile`（构建阶段 `golang:1.27-alpine`，运行阶段 Alpine）。镜像内包含 `config/`、`httpdoc/`、`logs/`，暴露 8080 和 443：
+
+```bash
+docker build -t fast-https .
+```
+
+`docker/Dockerfile_ubuntu` 与 `docker/Dockerfile_centos7` 不编译源码。它们从 Gitee Release 下载 `fast-https_Linux_x86_64.tar.gz`（地址中的版本是 1.3.1），解压到 `/usr/local/fast-https`，只暴露 8080。`Dockerfile_centos7` 里的版本环境变量写成了 1.3.2。
 
 ## 参与贡献
 
