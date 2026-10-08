@@ -9,64 +9,57 @@ type message struct {
 	Type    string
 }
 
-func PrintInfo(a ...interface{}) {
-	if rwMutex.TryRLock() {
-		defer rwMutex.RUnlock()
-		outputChan.In <- message{
-			Context: fmt.Sprint(a...),
-			Type:    "info",
-		}
+func send(msg message) {
+	if !rwMutex.TryRLock() {
+		return
 	}
+	defer rwMutex.RUnlock()
+	if outputChan == nil {
+		return
+	}
+	outputChan.In <- msg
+}
+
+func PrintInfo(a ...interface{}) {
+	send(message{
+		Context: fmt.Sprint(a...),
+		Type:    "info",
+	})
 }
 
 func PrintWarn(a ...interface{}) {
-	if rwMutex.TryRLock() {
-		defer rwMutex.RUnlock()
-		outputChan.In <- message{
-			Context: fmt.Sprint(a...),
-			Type:    "warn",
-		}
-	}
+	send(message{
+		Context: fmt.Sprint(a...),
+		Type:    "warn",
+	})
 }
 
 func PrintErr(a ...interface{}) {
-	if rwMutex.TryRLock() {
-		defer rwMutex.RUnlock()
-		outputChan.In <- message{
-			Context: fmt.Sprint(a...),
-			Type:    "err",
-		}
-	}
+	send(message{
+		Context: fmt.Sprint(a...),
+		Type:    "err",
+	})
 }
 
 func Printf(format string, a ...interface{}) {
-	if rwMutex.TryRLock() {
-		defer rwMutex.RUnlock()
-		outputChan.In <- message{
-			Context: fmt.Sprintf(format, a...),
-			Type:    "msg",
-		}
-	}
+	send(message{
+		Context: fmt.Sprintf(format, a...),
+		Type:    "msg",
+	})
 }
 
 func Exit() {
-	if rwMutex.TryRLock() {
-		defer rwMutex.RUnlock()
-		outputChan.In <- message{
-			Context: "",
-			Type:    "exit",
-		}
-	}
+	send(message{
+		Context: "",
+		Type:    "exit",
+	})
 }
 
 func PrintRecover(a any) {
-	if rwMutex.TryRLock() {
-		defer rwMutex.RUnlock()
-		outputChan.In <- message{
-			Context: a,
-			Type:    "recover",
-		}
-	}
+	send(message{
+		Context: a,
+		Type:    "recover",
+	})
 }
 
 // PrintAccess
@@ -79,21 +72,15 @@ func PrintAccess(host string, a ...interface{}) {
 		"host":    host,
 		"message": a,
 	}
-	if rwMutex.TryRLock() {
-		defer rwMutex.RUnlock()
-		outputChan.In <- message{
-			Context: context,
-			Type:    "access",
-		}
-	}
+	send(message{
+		Context: context,
+		Type:    "access",
+	})
 }
 
 func PrintSafe(a ...interface{}) {
-	if rwMutex.TryRLock() {
-		defer rwMutex.RUnlock()
-		outputChan.In <- message{
-			Context: fmt.Sprint(a...),
-			Type:    "safe",
-		}
-	}
+	send(message{
+		Context: fmt.Sprint(a...),
+		Type:    "safe",
+	})
 }

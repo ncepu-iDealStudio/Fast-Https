@@ -27,6 +27,10 @@ var caKey crypto.PrivateKey
 
 func CertInit() {
 	userAndHostname = "fast-https@ncepu.edu.cn"
+	if err := os.MkdirAll(config.CERT_DIR, 0o755); err != nil {
+		message.PrintErr(err, "failed to create certificate directory")
+		return
+	}
 
 	file := filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt"
 	// message.PrintInfo(file)

@@ -268,8 +268,10 @@ func validateIncludes(httpMap map[string]interface{}, rootBaseDir string) error 
 		}
 
 		fullPath := includePath
-		if !filepath.IsAbs(fullPath) {
-			fullPath = filepath.Join(rootBaseDir, includePath)
+		if !filepath.IsAbs(includePath) {
+			if _, err := os.Stat(includePath); err != nil {
+				fullPath = filepath.Join(rootBaseDir, includePath)
+			}
 		}
 
 		info, err := os.Stat(fullPath)
@@ -434,18 +436,23 @@ func pathExists(path, baseDir, rootBaseDir string) bool {
 	if strings.TrimSpace(path) == "" {
 		return false
 	}
-	if filepath.IsAbs(path) {
-		_, err := os.Stat(path)
-		return err == nil
+	// Certificate paths in the main config are relative to the process working
+	// directory, which is also how tls.LoadX509KeyPair reads them. Paths inside
+	// an included file may instead be relative to that file or the main config.
+	candidates := []string{path}
+	if !filepath.IsAbs(path) {
+		candidates = append(candidates,
+			filepath.Join(baseDir, path),
+			filepath.Join(rootBaseDir, path),
+		)
 	}
-
-	candidates := []string{
-		filepath.Join(baseDir, path),
-		filepath.Join(rootBaseDir, path),
-	}
-
-	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		if seen[candidate] {
+			continue
+		}
+		seen[candidate] = true
+		if _, err := os.Stat(candidate); err == nil {
 			return true
 		}
 	}

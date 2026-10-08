@@ -305,6 +305,13 @@ func statusHandler() error {
 // 2. 检查端口是否被占用
 // 3. 检查是否已有实例在运行
 func PreCheckHandler() {
+	// Load config and create missing self-signed certs before the file check.
+	// config/cert/*.pem is not in the repository; CertInit writes them on first start.
+	if err := config.Init(); err != nil {
+		logger.Fatal("Start server failed. An error occurred for the following reason: %v", err)
+	}
+	initialization.CertInit()
+
 	// check config
 	err := config.CheckConfig()
 	if err != nil {
