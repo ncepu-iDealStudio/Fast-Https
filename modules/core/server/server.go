@@ -215,7 +215,10 @@ out:
 //
 // 重新加载服务器配置
 func (s *Server) Reload() {
-	config.Reload()
+	if err := config.Reload(); err != nil {
+		logger.Error("reload kept previous config: %s", err.Error())
+		return
+	}
 
 	lisAll, lisAdded, removed := listener.ReloadListenCfg()
 

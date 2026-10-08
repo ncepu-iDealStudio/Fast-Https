@@ -166,7 +166,12 @@ func getHeaders(v *viper.Viper, path string) []Header {
 
 // Init the whole config module
 func Init() error {
-	err := processRoot()
+	return LoadFile(CONFIG_FILE_PATH)
+}
+
+// LoadFile reads one config file into GConfig.
+func LoadFile(path string) error {
+	err := processRoot(path)
 	if err != nil {
 		return err
 	}
@@ -177,9 +182,27 @@ func Init() error {
 	return nil
 }
 
-func Reload() {
+// Reload reloads the runtime config file.
+// An invalid file leaves GConfig unchanged.
+func Reload() error {
+	return ReloadFile(CONFIG_FILE_PATH)
+}
+
+// ReloadFile validates path before replacing GConfig.
+// Validation or load errors restore the previous config.
+func ReloadFile(path string) error {
+	if err := ValidateConfigFile(path); err != nil {
+		return err
+	}
+	previous := GConfig
+	previousMIME := GContentTypeMap
 	ClearConfig()
-	Init()
+	if err := LoadFile(path); err != nil {
+		GConfig = previous
+		GContentTypeMap = previousMIME
+		return err
+	}
+	return nil
 }
 
 // CheckConfig check whether config is correct
@@ -468,18 +491,18 @@ func serverContentType() error {
 	return nil
 }
 
-func processRoot() error {
-	rootViper.SetConfigFile(CONFIG_FILE_PATH)
+func processRoot(configPath string) error {
+	rootViper.SetConfigFile(configPath)
 
 	err := rootViper.ReadInConfig()
 	if err != nil {
-		logger.Fatal("Error reading config file: %s", err)
+		return fmt.Errorf("error reading config file: %s", err)
 	}
 
-	var config Fast_Https
-	err = rootViper.Unmarshal(&config)
+	var parsed Fast_Https
+	err = rootViper.Unmarshal(&parsed)
 	if err != nil {
-		logger.Fatal("Error unmarshaling config: %s", err)
+		return fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
 	GConfig.Pid = rootViper.GetString("pid")

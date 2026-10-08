@@ -228,10 +228,10 @@ func TestNewFeature(t *testing.T) {
 go get github.com/stretchr/testify/assert
 ```
 
-2. 避免在测试中使用真实的系统资源
-3. 使用 defer 确保资源清理
-4. 测试失败时提供有意义的错误信息
-5. 定期运行完整的测试套件
+1. 避免在测试中使用真实的系统资源
+2. 使用 defer 确保资源清理
+3. 测试失败时提供有意义的错误信息
+4. 定期运行完整的测试套件
 
 #### 常见问题解决
 
@@ -308,7 +308,7 @@ go run fast-https.go dev
 tail -f logs/system.log logs/access.log logs/error.log logs/safe.log
 ```
 
-2. 进程监控：
+1. 进程监控：
 
 ```bash
 ps aux | grep fast-https
@@ -327,13 +327,13 @@ ps aux | grep fast-https
 go tool pprof http://localhost:10000/debug/pprof/profile
 ```
 
-2. 内存分析：
+1. 内存分析：
 
 ```bash
 go tool pprof http://localhost:10000/debug/pprof/heap
 ```
 
-3. 协程分析：
+1. 协程分析：
 
 ```bash
 go tool pprof http://localhost:10000/debug/pprof/goroutine

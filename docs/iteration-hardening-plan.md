@@ -1,6 +1,8 @@
 # Fast-https 开发迭代加固计划（技术债分级）
 
-修订日期：2026-10-08。本文按当前代码维护状态。2026-10-08 已落地 P1-2、P2-1、P2-3。后续排期只保留仍要做的事项。
+现行排期见 [iteration-plan.md](iteration-plan.md)。本文保留到 2026-10-08 为止的问题复核和已关闭记录。
+
+修订日期：2026-10-08。2026-10-08 已落地 P1-2、P2-1、P2-3，以及无效配置重载时保留旧配置。
 
 ## 1. 文档目标
 
@@ -102,19 +104,19 @@
 - HTTP/2 `GracefulClose`：发送 GOAWAY，等待在途 stream，再关闭连接
 - common 端口复用原 context，并热更新 `Cfg` / `HostMap`
 - 单测覆盖连接关闭幂等、GracefulClose、common 端口配置更新
+- `config.Reload` 先校验配置。无效文件不替换 `GConfig`，`server.Reload` 因此不会改动已有监听。`config/reload_test.go` 覆盖拒绝无效文件和接受下一份有效文件
+- `ReloadHandler` 里过期的 Windows 注释已去掉，信号仍由 `signalReloadProcess` 发送
 
-仍缺，文档不再把这些写成已完成：
+仍缺：
 
-- 进程内 `SIGINT` 的含义按操作系统分开。Windows 上停止服务，其它平台上重载配置。`cmd/commands.go` 的 `ReloadHandler` 仍留有 `TODO: Windows`
+- 进程内 `SIGINT` 的含义按操作系统分开。Windows 上停止服务，其它平台上重载配置
 - `test/client_test/reload_e2e_test.go` 默认跳过，且只在 `FASTHTTPS_E2E_RELOAD=1` 的 Windows 上运行
-- `config.Reload()` 先 `ClearConfig()` 再 `Init()`。新配置无效时不会恢复上一份配置
-- 证书更新、错误配置回滚没有对应回归测试
+- 证书更新没有单独的回归测试
 
 验收：
 
 - 明确并测试「Windows 停止 / 其它平台重载」这条信号语义，或把两边的 `SIGINT` 收成同一种行为
 - 非 Windows 上也有可启用的 reload 端到端测试
-- 重载读到坏配置时保留旧的监听配置，并返回可定位的错误
 
 ## 6. 仍开放
 
@@ -208,7 +210,7 @@
 
 第一批：
 
-- P0-3：坏配置重载时保留旧配置；补上非 Windows 的 reload 端到端测试
+- P0-3：非 Windows 的 reload 端到端测试，以及 Windows 与其它平台的 `SIGINT` 语义
 - P0-2：把 `go test ./...` 接到 CI
 
 第二批：
@@ -221,7 +223,7 @@ P3-1、P3-2 放在上述事项之后，单独开设计说明再实现。
 ## 8. 里程碑
 
 - 错配在 `start` / `dev` 预检阶段失败，错误信息能定位到字段或 include 文件
-- 坏配置重载不会拆掉正在服务的监听
+- 坏配置重载不会拆掉正在服务的监听（配置层已保留旧 `GConfig`，见第 5 节）
 - `go test ./...` 在 CI 中通过
 - 黑名单、限流和 `xss` 测试包含拒绝与放行（已有单测，见第 4 节）
 
@@ -253,3 +255,4 @@ P3-1、P3-2 放在上述事项之后，单独开设计说明再实现。
 - P1-2：`core.MissingHandlers` 在 `ServerInit` 监听前检查 location 类型；单测不导入 server 包
 - P2-1：空日志目录落到 `./logs`；`test/fast-https_test.go` 先加载配置再打开日志
 - P2-3：黑名单与限流有命中/放行断言；`xss` 去掉 `<script` 后返回 403；`sql` 明确为不拦截
+- P0-3 中可单测的一部分：无效配置重载保留上一份 `GConfig`，服务器不继续切换监听

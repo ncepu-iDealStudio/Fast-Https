@@ -283,18 +283,6 @@ func ReloadHandler() error {
 		logger.Fatal("read pid failed")
 	}
 
-	// TODO: Windows
-	// if runtime.GOOS == "windows" {
-	// if err := sendCtrlC(pid); err != nil {
-	// 	logger.Debug("gid: %d, send ctrl c sig failed %v", pid, err)
-	// }
-	// } else {
-	// 	cmd := exec.Command("sudo", "kill", strconv.Itoa(pid), "-2")
-	// 	err = cmd.Run()
-	// 	if err != nil {
-	// 		logger.Fatal("fast-https reload failed: %v", err)
-	// 	}
-	// }
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		logger.Fatal("fast-https find process failed: %v", err)
