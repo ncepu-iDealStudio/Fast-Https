@@ -62,6 +62,8 @@ type Listener struct {
 
 	Ctx    context.Context
 	Cancel context.CancelFunc
+
+	certs *certSet
 }
 
 var GLisinfos []Listener
@@ -230,8 +232,9 @@ func ListenWithCfg() []Listener {
 			ctx, cancel := context.WithCancel(context.Background())
 			CurrLisinfos[index].Ctx = ctx
 			CurrLisinfos[index].Cancel = cancel
+			CurrLisinfos[index].certs = newCertSet()
 
-			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, each.Cfg, true)
+			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, CurrLisinfos[index].certs, each.Cfg, true)
 		} else {
 			ctx, cancel := context.WithCancel(context.Background())
 			CurrLisinfos[index].Ctx = ctx
@@ -335,27 +338,21 @@ func listenTcp(laddr string, reuse bool) net.Listener {
 }
 
 // ssl listen
-func listenSsl(laddr string, lisdata []ListenCfg, reuse bool) net.Listener {
-	certs := []tls.Certificate{}
-	var servernames []string
-
-	for _, item := range lisdata {
-		if !collection.Collect(servernames).Contains(item.ServerName) {
-			crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
-			if err != nil {
-				logger.Debug("Error load cert: %s", item.SSL.SslKey)
-			}
-			certs = append(certs, crt)
-			logger.Info("Automatically load %s certificate", item.ServerName)
-		}
-		servernames = append(servernames, item.ServerName)
+func listenSsl(laddr string, certs *certSet, lisdata []ListenCfg, reuse bool) net.Listener {
+	if certs == nil {
+		certs = newCertSet()
+	}
+	if err := certs.replace(lisdata); err != nil {
+		logger.Debug("Error load cert: %s", err.Error())
+	} else {
+		logger.Info("Automatically load certificate for %s", laddr)
 	}
 
 	tlsConfig := &tls.Config{
-		NextProtos:   []string{"h2"},
-		Certificates: certs,
-		Time:         time.Now,
-		Rand:         rand.Reader,
+		NextProtos:     []string{"h2"},
+		GetCertificate: certs.get,
+		Time:           time.Now,
+		Rand:           rand.Reader,
 	}
 
 	tcpListener := listenTcp(laddr, reuse)

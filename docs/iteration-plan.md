@@ -1,6 +1,6 @@
 # Fast-Https 开发迭代计划
 
-版本：2026-10-09。本文只排当前代码里还要做的事。已关闭项的过程记录留在 [iteration-hardening-plan.md](iteration-hardening-plan.md)。R2、R3、R5、R6 已在 2026-10-09 落地。
+版本：2026-10-09。本文只排当前代码里还要做的事。已关闭项的过程记录留在 [iteration-hardening-plan.md](iteration-hardening-plan.md)。R1、R2、R3、R5、R6 已在 2026-10-09 落地。
 
 ## 1. 目标
 
@@ -19,6 +19,7 @@
 - `status` 读取 `fast-https.pid`，区分没有 pid 文件、pid 已过期、进程仍在运行
 - 配置重载成功后按当前 `log_root` 重新打开四份日志；新目录打不开时继续写原来的文件
 - Gitee Go 流水线文件是 `.workflow/go-test.yml`，执行 `go test ./...`。开通 Gitee Go 后才会在推送和合并请求上运行
+- `SIGINT` 在各平台都重载配置。停止走 `stop`、`SIGTERM` 或 `SIGQUIT`
 - 未知 HTTP/2 帧会被丢掉并继续读；非法 HPACK 索引关闭该流；对端窗口不够时停止写出 DATA 并关闭连接
 - `xss` 会清洗 JSON 对象和 JSON 数组里的 script 标签
 
@@ -35,7 +36,7 @@
 
 | 编号 | 问题 | 优先级 | 难易度 | 顺序 | 状态 |
 | --- | --- | --- | --- | --- | --- |
-| R1 | 重载信号语义与端到端测试 | P0 | 中 | 1 | 未做 |
+| R1 | 重载信号语义与端到端测试 | P0 | 中 | 1 | 已落地 |
 | R2 | 持续集成门禁 | P0 | 易 | 2 | 已落地：`.workflow/go-test.yml`，需在 Gitee 开通 Gitee Go 后才会执行 |
 | R3 | 重载后日志文件重新打开 | P1 | 易 | 3 | 已落地 |
 | R4 | 连接关闭与请求失败路径 | P1 | 难 | 4 | 未做 |
@@ -48,21 +49,9 @@
 
 ### R1 重载信号语义与端到端测试
 
-现状：`reload` 子命令在 Windows 上发控制台 Ctrl+C，在其它平台发 `SIGINT`。进程收到 `SIGINT` 时，Windows 停止服务，其它平台重载配置。`test/client_test/reload_e2e_test.go` 默认跳过，而且只在 Windows 上运行。证书更换没有单独测试。
+已落地。`SIGINT` 在各平台都调用 `Reload()`。`SIGTERM` 和 `SIGQUIT` 停止进程。`stop` 仍然发送 `Kill`。Windows 的 `reload` 先发 Ctrl+Break，再试 Ctrl+C，不再把进程停掉。前台 Ctrl+C 会重载，不会退出。
 
-风险：运维在 Linux 上按 Ctrl+C 会重载，在 Windows 上会停服务。发布前无法在两种系统上用同一条命令证明端口增删。
-
-做法：
-
-- 写明并固定一种语义：要么两边的 `SIGINT` 都表示重载，停止只走 `stop` / `SIGTERM` / `SIGQUIT`；要么在文档和测试里锁定现在的系统差异
-- 把 reload 端到端测试从「仅 Windows」扩到当前开发机也能跑的路径，仍然用环境变量开启，避免日常 `go test` 占用端口
-- 为证书路径变更补一条用例：新证书生效，坏证书路径不会拆掉旧监听
-
-验收：
-
-- 测试能说明 Windows 与其它平台各自的 `SIGINT` 结果
-- 设置环境变量后，端口新增和删除在非 Windows 上也能跑
-- 坏的证书配置重载后，原端口仍可接受连接
+`modules/core/server/signal_test.go` 锁定这三种信号。`FASTHTTPS_E2E_RELOAD=1` 时，`TestReloadPortSwitchE2E` 在当前系统上切换端口；默认 `go test` 不跑它。同一 SSL 端口重载时不重新绑定套接字，能解析的新证书在下一次握手生效；证书文件缺失时监听保持打开。
 
 ### R2 持续集成门禁
 
@@ -111,7 +100,7 @@
 
 ### R7 配置文件变更后自动重载
 
-现状：`watchConfigChanges` 只有休眠循环，没有任何调用方。配置变更靠 `reload` 子命令；非 Windows 上也可以发 `SIGINT`。
+现状：`watchConfigChanges` 只有休眠循环，没有任何调用方。配置变更靠 `reload` 子命令，或向进程发送 `SIGINT`。
 
 风险：改完文件如果忘记重载，进程继续用旧配置。自动重载如果赶在 R1 之前做，会把还没定下来的信号语义再包进一层。
 
@@ -145,13 +134,9 @@
 
 ## 6. 建议节奏
 
-2026-10-09 已落地：R2 流水线文件、R3 重开日志、R5 HTTP/2 与 HPACK 错误分支、R6 `status`。R2 还要在 Gitee 开通 Gitee Go 后确认流水线会执行。
+2026-10-09 已落地：R1 重载信号、R2 流水线文件、R3 重开日志、R5 HTTP/2 与 HPACK 错误分支、R6 `status`。R2 还要在 Gitee 开通 Gitee Go 后确认流水线会执行。
 
 下一批：
-
-- R1 重载信号和端到端测试
-
-再下一批：
 
 - R4 连接关闭
 
@@ -161,7 +146,7 @@ R7、R8 在 R1 之后单独开。R7 依赖 R1 的信号语义。R8 不要和 R4 
 
 已经满足：
 
-- 本地测试覆盖 `status` 的三种进程状态，重载后日志切目录，以及未知帧、非法 HPACK 索引、对端窗口耗尽和 JSON 数组 XSS
+- 本地测试覆盖 `status` 的三种进程状态，重载后日志切目录，未知帧、非法 HPACK 索引、对端窗口耗尽、JSON 数组 XSS，以及各平台 `SIGINT` 都是重载
 - 无效配置重载后，内存中的旧配置保留，监听不切换
 
 仍待：

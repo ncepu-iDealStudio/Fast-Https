@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"fast-https/config"
 	"fast-https/modules/core/server"
 	"syscall"
 	"testing"
@@ -26,15 +25,12 @@ func TestScanPorts(t *testing.T) {
 	// TODO: Mock port occupation
 }
 
-// TestServerSignalHandling tests server signal handling
-func TestServerSignalHandlingWindowsBranch(t *testing.T) {
+// TestServerSignalHandlingStop tests that SIGTERM stops the server on every platform.
+func TestServerSignalHandlingStop(t *testing.T) {
 	s := server.ServerInit()
-	oldOS := config.GOs
-	config.GOs = "windows"
-	defer func() { config.GOs = oldOS }()
 
 	s.Wg.Add(1)
-	s.SigHandler(syscall.SIGINT)
+	s.SigHandler(syscall.SIGTERM)
 
 	done := make(chan struct{})
 	go func() {
@@ -44,9 +40,8 @@ func TestServerSignalHandlingWindowsBranch(t *testing.T) {
 
 	select {
 	case <-done:
-		// expected
 	case <-time.After(1 * time.Second):
-		t.Fatal("waitgroup should be done after SIGINT in windows branch")
+		t.Fatal("waitgroup should be done after SIGTERM")
 	}
 }
 

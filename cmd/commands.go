@@ -194,9 +194,9 @@ func DevStartHandler() error {
 
 	// output logo, make initialization and start server
 	output.PrintLogo()
-	if runtime.GOOS == "windows" {
-		WritePid(config.PID_FILE)
-	}
+	// dev stays in the foreground on every platform, so the pid file is this process.
+	// reload reads that file and sends SIGINT.
+	WritePid(config.PID_FILE)
 
 	output.PrintInitialStart()
 	initialization.InitSystem()

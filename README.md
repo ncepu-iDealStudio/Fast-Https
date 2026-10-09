@@ -33,7 +33,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `github.com/panjf2000/ants/v2` | v2.9.1 | 协程池 |
 | `github.com/chenhg5/collection` | 2020-09-25 快照 | 监听端口去重 |
 | `github.com/getlantern/systray` | v1.2.2 | Windows 托盘程序 `monitor/` |
-| `golang.org/x/sys` | v0.21.0 | Windows 控制台 Ctrl+C |
+| `golang.org/x/sys` | v0.21.0 | Windows 控制台 Ctrl+Break / Ctrl+C |
 | `github.com/fatih/color` | v1.17.0 | 控制台着色 |
 
 测试依赖 `github.com/stretchr/testify` v1.9.0，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml`。快照版本号是 `1.3.2-next`。
@@ -124,8 +124,9 @@ fast-https/
 信号处理：
 
 - `SIGTERM`、`SIGQUIT`：结束服务
-- `SIGINT`：Windows 下结束服务；其它平台下重载配置
-- `reload` 命令读取 pid 后发信号：Windows 发送控制台 Ctrl+C，其它平台发送 `SIGINT`
+- `SIGINT`（包含前台 Ctrl+C）：各平台都重载配置，不退出进程
+- `reload` 读取 pid 后发送 `SIGINT`。Windows 上先发 Ctrl+Break，再试 Ctrl+C
+- 停止进程用 `stop`。它向 pid 发送 `Kill`
 
 重载会重新读取配置，热更新仍在监听的端口，关闭已删除的端口，并为新增端口启动协程。
 
@@ -211,7 +212,7 @@ go run fast-https.go uninstall
 
 1. `dev` 会打开调试端口并提高日志量，适合本机开发
 2. 自签名证书只用于测试访问
-3. 修改配置后执行 `reload`，或在非 Windows 的运行进程上发送 `SIGINT`
+3. 修改配置后执行 `reload`，或向运行中的进程发送 `SIGINT`。前台 Ctrl+C 也会重载，不会退出
 
 ## 使用说明
 

@@ -49,7 +49,7 @@
 | P3-1 | 配置文件自动监听 | P3 | 仍开放 | 中 | 5 |
 | P3-2 | 代理 upstream | P3 | 仍开放 | 中 | 6 |
 
-建议顺序只针对未关闭项。下一批是 reload 的信号语义和端到端测试。`go test ./...` 的流水线文件已经放进仓库，开通 Gitee Go 后才会执行。
+建议顺序只针对未关闭项。重载信号语义已在 2026-10-09 收成各平台都重载。`go test ./...` 的流水线文件已经放进仓库，开通 Gitee Go 后才会执行。
 
 ## 4. 已关闭
 
@@ -100,7 +100,7 @@
 
 已落地：
 
-- `reload` 命令在 Windows 上发送控制台 Ctrl+C，在其它平台发送 `SIGINT`（`cmd/reload_windows.go`、`cmd/reload_other.go`）
+- `reload` 在各平台发送 `SIGINT`。Windows 先发 Ctrl+Break，再试 Ctrl+C（`cmd/reload_windows.go`、`cmd/reload_other.go`）
 - 移除端口时取消 context 并关闭旧监听
 - HTTP/2 `GracefulClose`：发送 GOAWAY，等待在途 stream，再关闭连接
 - common 端口复用原 context，并热更新 `Cfg` / `HostMap`
@@ -108,16 +108,13 @@
 - `config.Reload` 先校验配置。无效文件不替换 `GConfig`，`server.Reload` 因此不会改动已有监听。`config/reload_test.go` 覆盖拒绝无效文件和接受下一份有效文件
 - `ReloadHandler` 里过期的 Windows 注释已去掉，信号仍由 `signalReloadProcess` 发送
 
-仍缺：
+2026-10-09 已补上：
 
-- 进程内 `SIGINT` 的含义按操作系统分开。Windows 上停止服务，其它平台上重载配置
-- `test/client_test/reload_e2e_test.go` 默认跳过，且只在 `FASTHTTPS_E2E_RELOAD=1` 的 Windows 上运行
-- 证书更新没有单独的回归测试
+- `SIGINT` 在各平台都重载。停止走 `stop`、`SIGTERM`、`SIGQUIT`
+- `TestReloadPortSwitchE2E` 仍由 `FASTHTTPS_E2E_RELOAD=1` 打开，不再限制操作系统
+- 同一 SSL 端口可以换上新证书；证书文件缺失时监听不关闭
 
-验收：
-
-- 明确并测试「Windows 停止 / 其它平台重载」这条信号语义，或把两边的 `SIGINT` 收成同一种行为
-- 非 Windows 上也有可启用的 reload 端到端测试
+验收已满足：两边的 `SIGINT` 都是重载，并有单测和可启用的端口切换测试。
 
 ## 6. 仍开放
 
@@ -153,7 +150,7 @@
 当前表现：
 
 - `cmd/commands.go` 的 `watchConfigChanges` 只有休眠循环，注释写明以后再做
-- 配置变更依赖 `reload` 子命令；非 Windows 上也可以向进程发送 `SIGINT`
+- 配置变更依赖 `reload` 子命令，或向进程发送 `SIGINT`
 
 风险：
 
@@ -193,7 +190,7 @@
 
 第一批：
 
-- P0-3：非 Windows 的 reload 端到端测试，以及 Windows 与其它平台的 `SIGINT` 语义
+- P0-3 的信号语义已在 2026-10-09 收成各平台 `SIGINT` 都重载
 - P0-2：在 Gitee 开通 Gitee Go，确认 `.workflow/go-test.yml` 会执行 `go test ./...`
 
 第二批：

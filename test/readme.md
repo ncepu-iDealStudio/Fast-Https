@@ -86,7 +86,7 @@ go test ./test/unit_test/utils/logger/...
 
 #### Reload 端到端回归（可选）
 
-该测试默认跳过，仅在需要验证 reload 端口切换时启用。
+该测试默认跳过，仅在需要验证 reload 端口切换时启用。它会临时改写 `config/fast-https.json`，结束时写回。
 
 Windows PowerShell:
 
@@ -260,7 +260,7 @@ go get github.com/stretchr/testify/assert
 2. 在 `0.0.0.0:10000` 打开 pprof
 3. 不进入 Linux 守护进程
 4. 与 `start` 相同，证书缺失时由 `init.CertInit` 生成自签名证书
-5. 配置变更通过 `reload` 子命令或非 Windows 上的 `SIGINT` 生效，启动流程不会监视配置文件
+5. 配置变更通过 `reload` 子命令或 `SIGINT` 生效。前台 Ctrl+C 会重载，不会退出。启动流程不会监视配置文件
 
 ### 2.2 使用方法
 
@@ -355,7 +355,7 @@ go tool pprof http://localhost:10000/debug/pprof/goroutine
 #### 运行注意事项
 
 1. 确保测试端口未被占用
-2. 使用 Ctrl+C 可以直接停止服务
+2. 前台 Ctrl+C 会重载配置。停止进程用 `fast-https stop`
 3. 定期清理日志文件
 4. 保持配置文件的正确格式
 

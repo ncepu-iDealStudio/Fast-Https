@@ -103,36 +103,37 @@ func ScanPorts() error {
 	return nil
 }
 
-// sigHandler handles system signals received by the server
-//
-// Parameters:
-//   - signal: The received system signal
-//
-// Signal handling:
-//   - SIGTERM: Terminate signal, stops the service
-//   - SIGINT: Interrupt signal (Ctrl+C)
-//   - In foreground mode: stops the service
-//   - In daemon mode: reloads the service
-//   - SIGQUIT: Quit signal, stops the service
-//
-// 处理服务器接收到的系统信号
-func (s *Server) SigHandler(signal os.Signal) {
-	if signal == syscall.SIGTERM {
-		message.PrintInfo("The server got a kill signal")
+// signalEffect is what the process should do with one OS signal.
+// SIGINT reloads on every platform. Stopping uses SIGTERM, SIGQUIT, or the stop command.
+type signalEffect int
+
+const (
+	signalIgnore signalEffect = iota
+	signalStop
+	signalReload
+)
+
+func signalEffectOf(sig os.Signal) signalEffect {
+	switch sig {
+	case syscall.SIGTERM, syscall.SIGQUIT:
+		return signalStop
+	case syscall.SIGINT:
+		return signalReload
+	default:
+		return signalIgnore
+	}
+}
+
+// SigHandler handles system signals received by the server.
+// SIGTERM and SIGQUIT stop the process. SIGINT reloads configuration.
+func (s *Server) SigHandler(sig os.Signal) {
+	switch signalEffectOf(sig) {
+	case signalStop:
+		message.PrintInfo("The server got a stop signal")
 		s.Wg.Done()
-	} else if signal == syscall.SIGINT {
-		if config.GOs == "windows" {
-			// windows 下，直接退出
-			logger.Info("The server got an interrupt signal (Ctrl+C)")
-			s.Wg.Done()
-		} else {
-			// linux 下，(Ctrl+C) 是重载信号
-			logger.Info("========= server reload start ========")
-			s.Reload()
-		}
-	} else if signal == syscall.SIGQUIT {
-		message.PrintInfo("The server got a quit signal")
-		s.Wg.Done()
+	case signalReload:
+		logger.Info("========= server reload start ========")
+		s.Reload()
 	}
 }
 
@@ -204,18 +205,12 @@ out:
 	logger.Debug("listening :%d shutdown ,it will not accept any connections", port_index)
 }
 
-// Reload reloads the server configuration
-//
-// Features:
-//   - Reloads configuration file
-//   - Updates listener configuration
-//   - Starts newly added ports
-//   - Reinitializes modules
-//   - Hot-updates configuration for common ports (in-place)
-//
-// 重新加载服务器配置
+var reloadConfig = config.Reload
+
+// Reload reloads the server configuration.
+// An invalid file, including a missing certificate, leaves the current listeners open.
 func (s *Server) Reload() {
-	if err := config.Reload(); err != nil {
+	if err := reloadConfig(); err != nil {
 		logger.Error("reload kept previous config: %s", err.Error())
 		return
 	}

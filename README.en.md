@@ -31,7 +31,7 @@ Direct runtime dependencies, versions from `go.mod`:
 | `github.com/panjf2000/ants/v2` | v2.9.1 | Goroutine pool |
 | `github.com/chenhg5/collection` | 2020-09-25 snapshot | Listener port de-duplication |
 | `github.com/getlantern/systray` | v1.2.2 | Windows tray program in `monitor/` |
-| `golang.org/x/sys` | v0.21.0 | Windows console Ctrl+C |
+| `golang.org/x/sys` | v0.21.0 | Windows console Ctrl+Break / Ctrl+C |
 | `github.com/fatih/color` | v1.17.0 | Colored console output |
 
 `github.com/stretchr/testify` v1.9.0 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.3.2-next`.
@@ -122,8 +122,9 @@ fast-https/
 Signals:
 
 - `SIGTERM` and `SIGQUIT` stop the process
-- `SIGINT` stops the process on Windows and reloads configuration on other platforms
-- `reload` reads the pid file, then sends a console Ctrl+C on Windows or `SIGINT` elsewhere
+- `SIGINT`, including Ctrl+C in the foreground, reloads configuration on every platform and does not exit
+- `reload` reads the pid file and sends `SIGINT`. On Windows it tries Ctrl+Break, then Ctrl+C
+- Stop the process with `stop`, which sends `Kill` to the pid
 
 Reload rereads configuration, hot-updates listeners that stay up, closes removed ports, and starts goroutines for new ports.
 

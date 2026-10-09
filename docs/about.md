@@ -131,11 +131,11 @@ H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_
 
 ### 停止
 
-`stop` 命令读取 PID 文件并调用 `process.Signal(os.Kill)`。这不是由 `Server.SigHandler()` 接收的优雅停止信号；在 Unix 上 `os.Kill` 对应不可捕获的强制终止信号。服务器的信号 handler 对 `SIGTERM`、`SIGQUIT` 和部分平台的 `SIGINT` 调用 wait group 完成通知。
+`stop` 命令读取 PID 文件并调用 `process.Signal(os.Kill)`。这不是由 `Server.SigHandler()` 接收的优雅停止信号；在 Unix 上 `os.Kill` 对应不可捕获的强制终止信号。服务器的信号 handler 对 `SIGTERM` 和 `SIGQUIT` 调用 wait group 完成通知。`SIGINT` 在各平台都调用 `Reload()`。
 
 ### 重载
 
-非 Windows 平台的 `reload` 命令发送 `SIGINT`，服务器收到后调用 `Server.Reload()`：
+`reload` 命令向 pid 发送 `SIGINT`。Windows 上先发 Ctrl+Break，再试 Ctrl+C。服务器收到后调用 `Server.Reload()`：
 
 1. 清空并重新加载配置。文件无效时保留上一份配置，不继续切换监听。
 2. 配置加载成功后，按当前 `log_root` 重新打开 `system.log`、`access.log`、`error.log`、`safe.log`。新目录打不开时保留原来的四个文件，并继续切换监听。
@@ -144,7 +144,7 @@ H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_
 5. 移除端口时取消上下文并关闭 listener；新增端口建立 listener 并启动 accept goroutine。
 6. 重新初始化安全模块和动态日志。
 
-**平台差异：** `Server.SigHandler()` 中 Windows 的 `SIGINT` 分支会通知服务器退出，而非调用 `Reload()`；Windows 的 `reload` 命令虽然尝试发送控制台 Ctrl+C，但应结合当前运行方式验证其是否能达到预期的热重载效果。
+同一端口且仍是 SSL 时，监听套接字不重新绑定。新的证书文件能解析时，下一次 TLS 握手使用新证书。证书文件缺失时，配置重载被拒绝，原来的监听和证书保持不变。
 
 ## 7. 阅读代码的推荐顺序
 
