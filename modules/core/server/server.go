@@ -219,6 +219,9 @@ func (s *Server) Reload() {
 		logger.Error("reload kept previous config: %s", err.Error())
 		return
 	}
+	if err := message.Reopen(config.GConfig.LogRoot); err != nil {
+		logger.Error("reload kept previous log files: %s", err.Error())
+	}
 
 	lisAll, lisAdded, removed := listener.ReloadListenCfg()
 

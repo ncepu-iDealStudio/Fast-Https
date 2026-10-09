@@ -157,7 +157,9 @@ go run fast-https.go install
 go run fast-https.go uninstall
 ```
 
-`status` 已注册为子命令，当前处理函数不输出状态。
+`status` 读取 `fast-https.pid`。进程在运行时打印 pid 并以 0 退出；没有 pid 文件，或 pid 对应的进程已经不在时，以非 0 退出。
+
+`reload` 成功后会按当前 `log_root` 重新打开 `logs` 下的四份日志。新目录打不开时，继续写原来的文件。
 
 ### 开发模式特性
 

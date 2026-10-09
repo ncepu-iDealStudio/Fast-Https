@@ -154,7 +154,9 @@ go run fast-https.go install
 go run fast-https.go uninstall
 ```
 
-`status` is a registered subcommand. Its handler currently returns without printing status.
+`status` reads `fast-https.pid`. It prints the pid and exits 0 when that process is running. It exits non-zero when the pid file is missing or the process is gone.
+
+A successful `reload` reopens the four log files under the current `log_root`. If the new directory cannot be created, logging stays on the previous files.
 
 ### Minimal Config
 

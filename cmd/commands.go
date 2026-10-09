@@ -299,7 +299,43 @@ func ReloadHandler() error {
 }
 
 func statusHandler() error {
-	return nil
+	state, pid, err := InspectProcess(config.PID_FILE)
+	if err != nil {
+		return err
+	}
+	switch state {
+	case ProcessRunning:
+		fmt.Printf("fast-https is running, pid %d\n", pid)
+		return nil
+	case ProcessStale:
+		return fmt.Errorf("fast-https is not running, stale pid %d", pid)
+	default:
+		return fmt.Errorf("fast-https is not running, no pid file")
+	}
+}
+
+// ProcessState is the result of reading the pid file and checking that process.
+type ProcessState int
+
+const (
+	ProcessAbsent ProcessState = iota
+	ProcessStale
+	ProcessRunning
+)
+
+// InspectProcess reports whether pidFile names a live process.
+func InspectProcess(pidFile string) (ProcessState, int, error) {
+	pid, err := readPid(pidFile)
+	if err != nil {
+		if err.Error() == "error reading file" {
+			return ProcessAbsent, 0, nil
+		}
+		return ProcessAbsent, 0, err
+	}
+	if !processRunning(pid) {
+		return ProcessStale, pid, nil
+	}
+	return ProcessRunning, pid, nil
 }
 
 // PreCheckHandler 在服务器启动前执行以下检查：

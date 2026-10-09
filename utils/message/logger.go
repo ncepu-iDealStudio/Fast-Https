@@ -28,18 +28,89 @@ type Logs struct {
 
 func MessageFormat(path string) {
 	logOnce.Do(func() {
-		Glog.SystemLog = loggerToFileAndCmd(path, config.SYSTEM_LOG_NAME)
-		Glog.SystemLog.SetFormatter(&SystemLogFormatter{})
-
-		Glog.AccessLog = loggerToFileAndCmd(path, config.ACCESS_LOG_NAME)
-		Glog.AccessLog.SetFormatter(&AccessLogFormatter{})
-
-		Glog.ErrorLog = loggerToFileAndCmd(path, config.ERROR_LOG_NAME)
-		Glog.ErrorLog.SetFormatter(&ErrorLogFormatter{})
-
-		Glog.SafeLog = loggerToFileAndCmd(path, config.SAFE_LOG_NAME)
-		Glog.SafeLog.SetFormatter(&SafeLogFormatter{})
+		_ = openLogs(path)
 	})
+}
+
+// Reopen closes the current log files and opens them again under path.
+// A failure leaves the previous files in place.
+func Reopen(path string) error {
+	logs, files, err := openLogSet(path)
+	if err != nil {
+		logger.Error("reload kept previous log files: %v", err)
+		return err
+	}
+	CloseLogFiles()
+	logFiles = files
+	Glog.SystemLog = logs.SystemLog
+	Glog.AccessLog = logs.AccessLog
+	Glog.ErrorLog = logs.ErrorLog
+	Glog.SafeLog = logs.SafeLog
+	return nil
+}
+
+func openLogs(path string) error {
+	logs, files, err := openLogSet(path)
+	if err != nil {
+		logger.Warn("log to file err: %v", err)
+		return err
+	}
+	logFiles = append(logFiles, files...)
+	Glog.SystemLog = logs.SystemLog
+	Glog.AccessLog = logs.AccessLog
+	Glog.ErrorLog = logs.ErrorLog
+	Glog.SafeLog = logs.SafeLog
+	return nil
+}
+
+func openLogSet(path string) (Logs, []*os.File, error) {
+	dir, err := mkdirLogDir(path)
+	if err != nil {
+		return Logs{}, nil, err
+	}
+	names := []string{
+		config.SYSTEM_LOG_NAME,
+		config.ACCESS_LOG_NAME,
+		config.ERROR_LOG_NAME,
+		config.SAFE_LOG_NAME,
+	}
+	opened := make([]*os.File, 0, len(names))
+	loggers := make([]*logrus.Logger, 0, len(names))
+	for _, name := range names {
+		file, err := os.OpenFile(filepath.Join(dir, name), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+		if err != nil {
+			for _, openedFile := range opened {
+				_ = openedFile.Close()
+			}
+			return Logs{}, nil, err
+		}
+		opened = append(opened, file)
+		lg := logrus.New()
+		lg.SetOutput(io.MultiWriter(os.Stdout, file))
+		lg.SetLevel(logrus.DebugLevel)
+		loggers = append(loggers, lg)
+	}
+	loggers[0].SetFormatter(&SystemLogFormatter{})
+	loggers[1].SetFormatter(&AccessLogFormatter{})
+	loggers[2].SetFormatter(&ErrorLogFormatter{})
+	loggers[3].SetFormatter(&SafeLogFormatter{})
+	return Logs{
+		SystemLog: loggers[0],
+		AccessLog: loggers[1],
+		ErrorLog:  loggers[2],
+		SafeLog:   loggers[3],
+	}, opened, nil
+}
+
+func mkdirLogDir(logPath string) (string, error) {
+	cleaned := strings.TrimSpace(logPath)
+	if cleaned == "" || cleaned == "." || cleaned == "./" || cleaned == `.\` {
+		cleaned = config.DEFAULT_LOG_ROOT
+	}
+	if err := os.MkdirAll(cleaned, 0o755); err != nil {
+		return "", err
+	}
+	return cleaned, nil
 }
 
 // ResolveLogDir picks the directory for access.log, error.log, safe.log and system.log.
@@ -48,65 +119,15 @@ func MessageFormat(path string) {
 // Console logs from utils/logger use a different rule: DEBUG and TRACE go to stderr, and lower levels go to stdout.
 // Those lines are not written into the four files above.
 func ResolveLogDir(logPath string) string {
-	cleaned := strings.TrimSpace(logPath)
-	if cleaned == "" || cleaned == "." || cleaned == "./" || cleaned == `.\` {
-		cleaned = config.DEFAULT_LOG_ROOT
-	}
-	if err := os.MkdirAll(cleaned, 0o755); err != nil {
-		logger.Warn("create log dir %s: %v", cleaned, err)
-	}
-	return cleaned
-}
-
-func loggerToFileAndCmd(logPath string, logName string) *logrus.Logger {
-	fileName := filepath.Join(ResolveLogDir(logPath), logName)
-	// 写入文件
-	src, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	dir, err := mkdirLogDir(logPath)
 	if err != nil {
-		logger.Warn("log to file err: %v", err)
-	} else {
-		logFiles = append(logFiles, src)
+		logger.Warn("create log dir %s: %v", logPath, err)
+		if strings.TrimSpace(logPath) == "" {
+			return config.DEFAULT_LOG_ROOT
+		}
+		return logPath
 	}
-	// 实例化
-	logger := logrus.New()
-	// 设置输出
-	// TODO:
-	fileAndStdoutWriter := io.MultiWriter(os.Stdout, src)
-	logger.SetOutput(fileAndStdoutWriter)
-	// 设置日志级别
-	logger.SetLevel(logrus.DebugLevel)
-	//// 设置 rotatelogs
-	//logWriter, err := rotatelogs.New(
-	//	// 分割后的文件名称
-	//	fileName+".%Y%m%d.log",
-	//
-	//	// 生成软链，指向最新日志文件
-	//	rotatelogs.WithLinkName(fileName),
-	//
-	//	// 设置最大保存时间(7天)
-	//	rotatelogs.WithMaxAge(7*24*time.Hour),
-	//
-	//	// 设置日志切割时间间隔(1天)
-	//	rotatelogs.WithRotationTime(24*time.Hour),
-	//)
-	//
-	//writeMap := lfshook.WriterMap{
-	//	logrus.InfoLevel:  logWriter,
-	//	logrus.FatalLevel: logWriter,
-	//	logrus.DebugLevel: logWriter,
-	//	logrus.WarnLevel:  logWriter,
-	//	logrus.ErrorLevel: logWriter,
-	//	logrus.PanicLevel: logWriter,
-	//}
-	//
-	//lfHook := lfshook.NewHook(writeMap, &logrus.JSONFormatter{
-	//	TimestampFormat: "2006-01-02 15:04:05",
-	//})
-	//
-	//// 新增 Hook
-	//logger.AddHook(lfHook)
-
-	return logger
+	return dir
 }
 
 // CloseLogFiles closes files opened for the four server logs.
