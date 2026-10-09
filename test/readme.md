@@ -133,6 +133,8 @@ go tool cover -html=coverage.out
 
 HTTP/2：未知帧丢掉后续读（`unknown_frame_test.go`），HPACK 索引 0 和越界返回错误并关闭流（`error_test.go`、`header_error_test.go`），对端窗口不够时停止写出（`window_test.go`）。`TestXssStripsScriptInJSONArray` 覆盖 JSON 数组里的 script。
 
+连接关闭：`TestCloseIsSilentWhenRepeated` 确认第二次 `Close` 不再关连接。`TestHandleEventExitsWhenContextCanceled` 和 `TestServeListenerExitsWhenContextCanceled` 确认取消上下文后处理协程和接受循环退出。`TestCountsInitReplacesSlice` 确认限流计数重建时不会叠在旧切片后面。
+
 示例：
 
 ```go

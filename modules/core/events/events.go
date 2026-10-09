@@ -21,9 +21,11 @@ import (
 
 func HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 	ev := core.NewEvent(l, conn)
+	defer ev.Close()
+	stopWatch := watchClose(ctx, ev)
+	defer stopWatch()
 
 	fif := filters.NewFilter() // Filter interface
-	// ev.EventWrite = core.EventWriteEarly
 
 	if !fif.Fif.ConnFilter(ev) {
 		return
@@ -31,48 +33,43 @@ func HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 
 	ev.EventWrite = EventWrite
 
-outerLoop:
 	for {
-
 		select {
 		case <-ctx.Done():
 			logger.Debug("Server on port %s is shutting down...\n", l.Port)
-			// connWG.Wait() // 等待所有连接关闭
-			logger.Debug("All connections on port %s closed.\n", l.Port)
 			return
 		default:
-
-			if ev.IsClose {
-				break outerLoop
-			}
-
-			// if shutdown.PortNeedShutdowm(port_num) {
-			// 	logger.Debug("event shutdown port: %d circle", port_num)
-			// 	shutdown.PortShutdowmOk(port_num)
-			// 	if err := l.Lfd.Close(); err != nil {
-			// 		logger.Debug("event close listen fd error %v", err)
-			// 	}
-			// 	break
-			// }
-
 			// websocket and tcp proxy through this
 			if fif.Fif.ListenFilter(ev) {
-				break outerLoop
+				return
 			}
 
-			if parseRequest(ev, fif) != 1 { // TODO: handle different cases...
-				ev.Close()
-				break outerLoop // client close
+			// parse failure and read timeout share this exit
+			if parseRequest(ev, fif) != 1 {
+				return
 			}
 
 			EventHandler(ev, fif)
 
 			if !ev.EventReuse() {
-				break outerLoop
+				return
 			}
 		}
 	}
+}
 
+// watchClose closes the connection when the listener context is cancelled,
+// so a blocked read returns and the handler goroutine can exit.
+func watchClose(ctx context.Context, ev *core.Event) func() {
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			ev.Close()
+		case <-done:
+		}
+	}()
+	return func() { close(done) }
 }
 
 // distribute event
@@ -161,14 +158,14 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			datasize, err := ev.Conn.Read(rr.ReqBuf)
 			if err != nil { // read error, like time out
 				logger.Debug("%s", color.RedString("read body error"))
-				break
+				return 0
 			}
 			byte_row = append(byte_row, rr.ReqBuf[:datasize]...)
 			rr.Req.TryFixBody(rr.ReqBuf[:datasize])
 			if rr.Req.Body.Len() > config.GConfig.Limit.MaxBodySize {
 				// body bytes beyond config
 				logger.Debug("%s", color.RedString("read body too big"))
-				break
+				return 0
 			}
 		}
 	}
@@ -184,6 +181,7 @@ func EventWrite(ev *core.Event, _data []byte) error {
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)
 		if err != nil {
+			ev.Reuse = false
 			if ev.CheckIfTimeOut(err) {
 				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
 				return err

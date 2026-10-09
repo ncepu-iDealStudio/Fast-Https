@@ -67,9 +67,7 @@ flowchart TD
 2. `MessageInit()` 启动异步日志消息处理，并初始化 system/access/error/safe 日志。
 3. `CertInit()` 初始化本地 CA；对于启用 SSL 的 server，如果默认证书文件不存在则尝试生成证书。
 4. 从磁盘加载代理缓存，并启动定期过期清理 goroutine。
-5. 调用 `safe.Init()` 初始化安全模块。
-
-`ServerInit()` 后续还会再次调用安全模块初始化，并注册动态访问日志格式。因此安全模块会在系统初始化和监听器初始化阶段分别触达。
+安全模块不在这里初始化。`ServerInit()` 创建监听器之后才调用 `safe.Init()`，重载成功后会再调用一次，按当前 location 重建限流计数。
 
 ### 3.3 配置来源和路径
 
@@ -99,7 +97,7 @@ flowchart TD
 - `LisType == 10`：调用 `events.H2HandleEvent()`。
 - 其他类型：调用 `events.HandleEvent()`。
 
-监听器上下文被取消或 `Accept()` 失败时，accept 循环退出。
+监听器上下文被取消时会关闭 listener，`Accept()` 随之返回，接受循环退出。HTTP/1.1 连接在同一取消下关闭正在读的套接字，处理 goroutine 返回。`Event.Close` 只执行一次。
 
 ### 5.2 HTTP/1.x 事件链
 
@@ -110,7 +108,7 @@ flowchart TD
 3. `RequestFilter` 按 Host 查找虚拟主机，再按配置顺序逐个匹配 `location.url` 正则。命中后得到该 location 的 `ListenCfg`。
 4. 对命中的 location 执行安全计数、认证检查，并根据 `ListenCfg.Type` 从 `core.GRRCHT` 处理器表中取出解析、过滤和请求处理函数。
 5. 执行模块过滤器，再进入对应请求处理器，生成或直接写出响应。
-6. 根据请求/响应的连接语义决定关闭连接或继续处理下一次请求。
+6. 根据请求/响应的连接语义决定关闭连接或继续处理下一次请求。解析失败、读超时、请求体过大、写失败和上下文取消都会离开这个循环，并由同一次 `Close` 关掉连接。
 
 当前核心处理器由包初始化时注册：
 
@@ -141,8 +139,8 @@ H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_
 2. 配置加载成功后，按当前 `log_root` 重新打开 `system.log`、`access.log`、`error.log`、`safe.log`。新目录打不开时保留原来的四个文件，并继续切换监听。
 3. 对比新旧端口，区分新增、移除和保留端口。
 4. 相同端口且监听类型不变时复用 listener，并更新 `Cfg`/`HostMap`。
-5. 移除端口时取消上下文并关闭 listener；新增端口建立 listener 并启动 accept goroutine。
-6. 重新初始化安全模块和动态日志。
+5. 移除端口时取消上下文并关闭 listener。接受循环和该端口上尚未结束的 HTTP/1.1 连接随之退出。新增端口建立 listener 并启动 accept goroutine。
+6. 再次初始化安全模块和动态日志。限流计数按新的 location 重建。
 
 同一端口且仍是 SSL 时，监听套接字不重新绑定。新的证书文件能解析时，下一次 TLS 握手使用新证书。证书文件缺失时，配置重载被拒绝，原来的监听和证书保持不变。
 

@@ -3,7 +3,6 @@ package init
 import (
 	"fast-https/config"
 	"fast-https/modules/cache"
-	"fast-https/modules/safe"
 	"fast-https/utils"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
@@ -37,9 +36,6 @@ func InitSystem() *sync.WaitGroup {
 	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]cache loadcache load disk cache finished")
 	CacheManagerInit()
 	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]cache manager initialization finished")
-
-	safe.Init()
-	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]safe moudle initialization finished")
 
 	return waitGroup
 }

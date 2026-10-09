@@ -81,7 +81,7 @@ fast-https/
 │   ├── base_dir.go               # 默认工作目录 ./
 │   └── base_dir_rpm.go           # -tags=rpm 时安装到 /usr/share/fast-https/
 ├── init/
-│   ├── init.go                   # 配置、日志、证书、缓存、安全模块初始化
+│   ├── init.go                   # 配置、日志、证书、缓存初始化
 │   └── autocert.go               # 自签名根证书与站点证书
 ├── modules/
 │   ├── module.go                 # 模块注册表
@@ -116,9 +116,9 @@ fast-https/
 
 1. `fast-https.go` 将日志级别设为 4，执行 `cmd.RootCmd()`。没有子命令时按 `start` 处理。
 2. `start` / `dev` 先做预检：校验 `config/fast-https.json` 及其 `include`、扫描端口、确认没有已在运行的实例。
-3. 打印 Logo 后调用 `init.InitSystem()`：加载配置与 `mime.json`、启动消息日志、生成或加载证书、从磁盘恢复缓存并启动过期清理、初始化安全模块。
+3. 打印 Logo 后调用 `init.InitSystem()`：加载配置与 `mime.json`、启动消息日志、生成或加载证书、从磁盘恢复缓存并启动过期清理。
 4. `start` 在容器外的 Linux amd64 上会 fork，并保持当前工作目录，再把子进程 pid 写入 `fast-https.pid`。Windows，以及设置了 `FASTHTTPS_FOREGROUND=1` 或检测到容器标记文件时，进程保持前台并写同一 pid 文件。`dev` 不进入守护进程，日志级别改为 6，并在 `0.0.0.0:10000` 打开 pprof。
-5. `server.ServerInit()` 注册信号处理，按配置创建监听器，再注册动态日志。
+5. `server.ServerInit()` 注册信号处理，按配置创建监听器，再初始化安全模块并注册动态日志。
 6. 每个端口一个协程接受连接。`listen` 含 `h2` 时走 HTTP/2，其余走 HTTP/1.1 事件循环。
 
 信号处理：
@@ -128,7 +128,7 @@ fast-https/
 - `reload` 读取 pid 后发送 `SIGINT`。Windows 上先发 Ctrl+Break，再试 Ctrl+C
 - 停止进程用 `stop`。它向 pid 发送 `Kill`
 
-重载会重新读取配置，热更新仍在监听的端口，关闭已删除的端口，并为新增端口启动协程。
+重载会重新读取配置，热更新仍在监听的端口，关闭已删除的端口，并为新增端口启动协程。被删掉的端口上，接受循环和尚未结束的 HTTP/1.1 连接会退出。
 
 ## 安装教程
 

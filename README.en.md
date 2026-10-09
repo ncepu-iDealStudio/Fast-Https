@@ -79,7 +79,7 @@ fast-https/
 │   ├── base_dir.go               # Default base directory ./
 │   └── base_dir_rpm.go           # /usr/share/fast-https/ when built with -tags=rpm
 ├── init/
-│   ├── init.go                   # Config, logs, certificates, cache, safe module
+│   ├── init.go                   # Config, logs, certificates, cache
 │   └── autocert.go               # Self-signed root and site certificates
 ├── modules/
 │   ├── module.go                 # Module registry
@@ -114,9 +114,9 @@ fast-https/
 
 1. `fast-https.go` sets the log level to 4 and runs `cmd.RootCmd()`. With no subcommand, the process starts as `start`.
 2. `start` and `dev` pre-check `config/fast-https.json` and its includes, scan ports, and refuse to start when a live pid is already recorded.
-3. After the logo, `init.InitSystem()` loads config and `mime.json`, starts the message logger, creates or loads certificates, restores the disk cache and its expiry loop, and initializes the safe module.
+3. After the logo, `init.InitSystem()` loads config and `mime.json`, starts the message logger, creates or loads certificates, and restores the disk cache and its expiry loop.
 4. Outside a container, Linux amd64 `start` forks without changing the working directory and writes the child pid to `fast-https.pid`. Windows, `FASTHTTPS_FOREGROUND=1`, and container marker files keep the process in the foreground and write the same pid file. `dev` does not daemonize, raises the log level to 6, and serves pprof on `0.0.0.0:10000`.
-5. `server.ServerInit()` installs the signal loop, opens listeners from config, and registers dynamic logs.
+5. `server.ServerInit()` installs the signal loop, opens listeners from config, initializes the safe module, and registers dynamic logs.
 6. Each port accepts in its own goroutine. A `listen` value that contains `h2` uses HTTP/2; every other listener uses the HTTP/1.1 event loop.
 
 Signals:
@@ -126,7 +126,7 @@ Signals:
 - `reload` reads the pid file and sends `SIGINT`. On Windows it tries Ctrl+Break, then Ctrl+C
 - Stop the process with `stop`, which sends `Kill` to the pid
 
-Reload rereads configuration, hot-updates listeners that stay up, closes removed ports, and starts goroutines for new ports.
+Reload rereads configuration, hot-updates listeners that stay up, closes removed ports, and starts goroutines for new ports. On a removed port, the accept loop and in-flight HTTP/1.1 connections exit.
 
 ## Installation
 

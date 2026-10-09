@@ -43,8 +43,8 @@ type Server struct {
 // 初始化所有需要在监听器之后初始化的模块
 // 包括安全模块和动态日志注册等
 func initModules() {
-	// TODO: improve this
-	safe.Init() // need to be call after listener inited ...
+	// The only safe.Init call. Listeners already exist; reload calls this again.
+	safe.Init()
 	dynlog.LogRegister()
 	// if config.GConfig.ServerEngine.Id != 0 {
 	//engine.EngineInit()
@@ -172,6 +172,12 @@ func (s *Server) serveListener(offset int, port_index int) {
 
 	listener1 := &s.Listens[offset]
 	ctx := listener1.Ctx
+	go func() {
+		<-ctx.Done()
+		if listener1.Lfd != nil {
+			_ = listener1.Lfd.Close()
+		}
+	}()
 
 out:
 
@@ -179,16 +185,15 @@ out:
 		select {
 		case <-ctx.Done():
 			logger.Debug("Server on port %d is shutting down...\n", offset)
-			// connWG.Wait() // 等待所有连接关闭
-			logger.Debug("All connections on port %d closed.\n", offset)
 			return
 		default:
 
 			conn, err := listener1.Lfd.Accept()
 			logger.Debug("listener ptr %p, conn ptr %p", listener1, conn)
 			if err != nil {
-				logger.Debug("Error accepting connection: %v", err)
-
+				if ctx.Err() == nil {
+					logger.Debug("Error accepting connection: %v", err)
+				}
 				break out
 			}
 

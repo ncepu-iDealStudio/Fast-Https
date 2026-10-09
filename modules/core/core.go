@@ -8,6 +8,7 @@ import (
 	"fast-https/utils/message"
 	"io"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -72,6 +73,7 @@ type Event struct {
 	IsClose    bool
 	ReadReady  bool
 	WriteReady bool
+	closeOnce  sync.Once
 }
 
 func (ev *Event) EventReuse() bool { return ev.Reuse }
@@ -160,16 +162,14 @@ func (ev *Event) WriteResponse(data []byte) error {
 
 // only close the connection
 // only for HTTP/1.1
+// Close closes the connection once. Later calls do nothing and do not log.
 func (ev *Event) Close() {
-	if !ev.IsClose {
-		err := ev.Conn.Close()
-		if err != nil {
-			message.PrintErr("Error --core Close ", err)
+	ev.closeOnce.Do(func() {
+		ev.IsClose = true
+		if ev.Conn != nil {
+			_ = ev.Conn.Close()
 		}
-	} else {
-		message.PrintWarn("Warn --core repeat close ")
-	}
-	ev.IsClose = true
+	})
 }
 
 func (ev *Event) WriteResponseClose(data []byte) {

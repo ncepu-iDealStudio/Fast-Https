@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"fast-https/modules/core/listener"
+
 	"golang.org/x/time/rate"
 )
 
@@ -47,5 +49,26 @@ func TestRateLimitRejectsAfterBurst(t *testing.T) {
 	}
 	if !allow(nil) {
 		t.Fatal("a nil limiter should allow the event")
+	}
+}
+
+func TestCountsInitReplacesSlice(t *testing.T) {
+	old := listener.GLisinfos
+	oldGcl := Gcl
+	t.Cleanup(func() {
+		listener.GLisinfos = old
+		Gcl = oldGcl
+	})
+
+	listener.GLisinfos = []listener.Listener{{
+		Cfg: []listener.ListenCfg{{}},
+	}}
+	countsInit()
+	if len(Gcl) != 1 {
+		t.Fatalf("first init length %d, want 1", len(Gcl))
+	}
+	countsInit()
+	if len(Gcl) != 1 {
+		t.Fatalf("second init length %d, want 1", len(Gcl))
 	}
 }
