@@ -79,8 +79,10 @@ func (stream *Stream) Read(f Frame, ev *core.Event, fif *filters.Filter) {
 
 	switch frame := f.(type) {
 	case *HeadersFrame:
-		// Decode Headers
-		header := stream.DecodeHeader(frame.HeaderBlockFragment)
+		header, ok := stream.takeHeader(frame.HeaderBlockFragment)
+		if !ok {
+			return
+		}
 		frame.Headers = header
 
 		for name, values := range header {
@@ -116,8 +118,10 @@ func (stream *Stream) Read(f Frame, ev *core.Event, fif *filters.Filter) {
 		Info("Window Update %d byte stream(%v)", frame.WindowSizeIncrement, stream.ID)
 		stream.Window.UpdatePeer(int32(frame.WindowSizeIncrement))
 	case *ContinuationFrame:
-		// Decode Headers
-		header := stream.DecodeHeader(frame.HeaderBlockFragment)
+		header, ok := stream.takeHeader(frame.HeaderBlockFragment)
+		if !ok {
+			return
+		}
 		frame.Headers = header
 
 		for name, values := range header {
@@ -179,7 +183,30 @@ func (stream *Stream) EncodeHeader(header http.Header) []byte {
 }
 
 // Decode Header using HPACK
-func (stream *Stream) DecodeHeader(headerBlockFragment []byte) http.Header {
-	stream.HpackContext.Decode(headerBlockFragment)
-	return stream.HpackContext.ES.ToHeader()
+func (stream *Stream) DecodeHeader(headerBlockFragment []byte) (http.Header, error) {
+	if err := stream.HpackContext.Decode(headerBlockFragment); err != nil {
+		return nil, err
+	}
+	return stream.HpackContext.ES.ToHeader(), nil
+}
+
+// takeHeader decodes a header block. A compression error sends RST_STREAM
+// and closes this stream so the callback does not run on a partial header.
+func (stream *Stream) takeHeader(fragment []byte) (http.Header, bool) {
+	header, err := stream.DecodeHeader(fragment)
+	if err != nil {
+		Error("hpack decode: %v", err)
+		if stream.WriteChan != nil {
+			rst := NewRstStreamFrame(stream.ID, COMPRESSION_ERROR)
+			select {
+			case stream.WriteChan <- rst:
+			default:
+			}
+		}
+		if !stream.Closed {
+			stream.Close()
+		}
+		return nil, false
+	}
+	return header, true
 }

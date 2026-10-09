@@ -94,7 +94,6 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
-// TODO: fixme
 func TestQuickCheckEncodeDecode(t *testing.T) {
 	f := func(expected []byte) bool {
 		var encoded, actual []byte

@@ -265,16 +265,27 @@ func (mw *XssMw) jsonToStringMap(buff bytes.Buffer, jsonBod interface{}) (bytes.
 		var sbuff bytes.Buffer
 		buff := mw.ConstructJson(xmj, sbuff)
 		return buff, nil
-	// TODO: need a test to prove this
 	case []interface{}:
+		if len(jbt) == 0 {
+			var empty bytes.Buffer
+			empty.WriteString("[]")
+			return empty, nil
+		}
 		var multiRec bytes.Buffer
 		multiRec.WriteByte('[')
 		for _, n := range jbt {
-			xmj := n.(map[string]interface{})
-			var sbuff bytes.Buffer
-			buff = mw.ConstructJson(xmj, sbuff)
-			multiRec.WriteString(buff.String())
-			multiRec.WriteByte(',')
+			switch item := n.(type) {
+			case map[string]interface{}:
+				var sbuff bytes.Buffer
+				built := mw.ConstructJson(item, sbuff)
+				multiRec.WriteString(built.String())
+				multiRec.WriteByte(',')
+			case string:
+				multiRec.WriteString(fmt.Sprintf("%q", mw.GetBlueMondayPolicy().Sanitize(item)))
+				multiRec.WriteByte(',')
+			default:
+				return bytes.Buffer{}, errors.New("json array element must be an object or string")
+			}
 		}
 		multiRec.Truncate(multiRec.Len() - 1) // remove last ','
 		multiRec.WriteByte(']')

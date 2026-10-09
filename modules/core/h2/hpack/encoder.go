@@ -11,7 +11,7 @@ func (frame *IndexedHeader) Encode() (buf *swrap.SWrap) {
 	buf = swrap.Make(integer.Encode(frame.Index, 7))
 	(*buf)[0] += 0x80
 	if frame.Index == 0 {
-		// TODO: Encoding Error
+		return nil
 	}
 	return buf
 }

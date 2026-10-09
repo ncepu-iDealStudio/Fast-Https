@@ -53,7 +53,9 @@ The server accepts connections, parses requests, and writes responses itself. `f
 | `listen` contains `ssl` | `modules/core/listener` | TLS |
 | `listen` contains `h2` | `modules/core/h2` | HTTP/2 |
 
-A request also passes connection filters (blacklist and rate limit in `modules/safe`), optional Basic auth (`modules/auth`), and access counting. Static and proxy paths run the application firewall: `xss` returns 403 after a `<script` tag is removed from a JSON body; `sql` is registered and does not intercept.
+A request also passes connection filters (blacklist and rate limit in `modules/safe`), optional Basic auth (`modules/auth`), and access counting. Static and proxy paths run the application firewall: `xss` returns 403 after a `<script` tag is removed from a JSON object or array; `sql` is registered and does not intercept.
+
+When `listen` contains `h2`, an unknown frame type is discarded and the next frame is read. An illegal HPACK index closes that stream. If the peer flow-control window cannot hold a DATA payload, the write loop stops and the connection closes.
 
 ### Project Structure
 
@@ -104,7 +106,8 @@ fast-https/
 ├── spec                          # RPM spec; build uses -tags=rpm
 ├── shell/.acme.sh/               # Bundled acme.sh; the Go process does not call it
 ├── engine.sh                     # Builds master/slave binaries after rewriting the engine id
-└── .goreleaser.yaml              # Linux, Darwin, and Windows release
+├── .goreleaser.yaml              # Linux, Darwin, and Windows release
+└── .workflow/go-test.yml         # Gitee Go: go test ./... on push and merge requests
 ```
 
 ### Service Startup
@@ -150,6 +153,7 @@ go run fast-https.go dev
 
 go run fast-https.go stop
 go run fast-https.go reload
+go run fast-https.go status
 go run fast-https.go install
 go run fast-https.go uninstall
 ```

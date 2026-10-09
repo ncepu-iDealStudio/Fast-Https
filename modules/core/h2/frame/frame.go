@@ -44,6 +44,9 @@ func (frameType FrameType) String() string {
 		"WINDOW_UPDATE",
 		"CONTINUATION",
 	}
+	if int(frameType) >= len(names) {
+		return fmt.Sprintf("UNKNOWN(%d)", frameType)
+	}
 	return names[int(frameType)]
 }
 
@@ -174,12 +177,6 @@ func (fh *FrameHeader) Read(r io.Reader) (err error) {
 	// last 8 bit for type
 	fh.Type = FrameType(first & 0xFF)
 	Trace("type = %s", fh.Type)
-
-	if fh.Type < 0 || 0x9 < fh.Type {
-		Error("ingore this frame")
-		// TODO: ignore this frame or return err ?
-		return
-	}
 
 	// first 24 bit for length
 	fh.Length = first >> 8
@@ -1285,7 +1282,13 @@ func ReadFrame(r io.Reader, settings map[SettingsID]int32) (frame Frame, err err
 
 	newframe, ok := FrameMap[fh.Type]
 	if !ok {
-		return nil, fmt.Errorf("unknown type: %v", fh.Type)
+		// RFC 7540: unknown frame types are ignored. The header is already
+		// consumed; discard the payload so the next frame stays aligned.
+		if _, err = io.CopyN(io.Discard, r, int64(fh.Length)); err != nil {
+			return nil, err
+		}
+		Debug("ignore unknown frame type %d", fh.Type)
+		return nil, nil
 	}
 
 	frame = newframe(fh)

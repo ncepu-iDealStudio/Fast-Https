@@ -54,6 +54,30 @@ func TestXssRejectsScriptAndAllowsPlainJSON(t *testing.T) {
 	}
 }
 
+func TestXssStripsScriptInJSONArray(t *testing.T) {
+	objects := jsonRequest(t, `[{"name":"<script>alert(1)</script>","ok":"keep"}]`)
+	if HandleXss(objects) {
+		t.Fatal("script inside a json array of objects should be rejected")
+	}
+	if strings.Contains(strings.ToLower(objects.Body.String()), "<script") {
+		t.Fatal("array object should not keep the script tag")
+	}
+	if !strings.Contains(objects.Body.String(), "keep") {
+		t.Fatal("non-script field should stay in the array")
+	}
+
+	values := jsonRequest(t, `["<script>alert(1)</script>","plain"]`)
+	if HandleXss(values) {
+		t.Fatal("script inside a json array of strings should be rejected")
+	}
+	if strings.Contains(strings.ToLower(values.Body.String()), "<script") {
+		t.Fatal("array string should not keep the script tag")
+	}
+	if !strings.Contains(values.Body.String(), "plain") {
+		t.Fatal("plain array value should stay")
+	}
+}
+
 func jsonRequest(t *testing.T, body string) *request.Request {
 	t.Helper()
 	req := request.RequestInit(false)

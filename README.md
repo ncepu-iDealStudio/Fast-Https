@@ -55,7 +55,9 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `listen` 含 `ssl` | `modules/core/listener` | TLS |
 | `listen` 含 `h2` | `modules/core/h2` | HTTP/2 |
 
-同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）和访问计数（`modules/safe`）。静态与代理路径会执行应用防火墙：`xss` 在 JSON 请求体里的 `<script` 被去掉后返回 403；`sql` 已注册，不会拦截请求。
+同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）和访问计数（`modules/safe`）。静态与代理路径会执行应用防火墙：`xss` 在 JSON 对象或数组里的 `<script` 被去掉后返回 403；`sql` 已注册，不会拦截请求。
+
+`listen` 含 `h2` 时，未知帧类型丢掉载荷后继续读下一帧。HPACK 索引非法时关闭这条流。对端流量窗口不够时，停止写出 DATA 并关闭连接。
 
 ### 项目结构
 
@@ -106,7 +108,8 @@ fast-https/
 ├── spec                          # RPM spec，构建时使用 -tags=rpm
 ├── shell/.acme.sh/               # 随仓库附带的 acme.sh，Go 启动流程不会调用
 ├── engine.sh                     # 替换引擎标识后分别编译 master/slave
-└── .goreleaser.yaml              # Linux、Darwin、Windows 发布
+├── .goreleaser.yaml              # Linux、Darwin、Windows 发布
+└── .workflow/go-test.yml         # Gitee Go：推送和合并请求上执行 go test ./...
 ```
 
 ### 服务启动流程
@@ -153,6 +156,7 @@ go run fast-https.go dev
 # 停止、重载、安装为系统服务、卸载
 go run fast-https.go stop
 go run fast-https.go reload
+go run fast-https.go status
 go run fast-https.go install
 go run fast-https.go uninstall
 ```

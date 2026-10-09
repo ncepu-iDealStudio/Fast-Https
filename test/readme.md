@@ -129,6 +129,9 @@ go tool cover -html=coverage.out
 - 根命令初始化
 - 服务启动/停止/重载
 - 服务安装/卸载
+- `cmd/status_test.go`：没有 pid 文件、pid 已过期、当前进程仍在运行
+
+HTTP/2：未知帧丢掉后续读（`unknown_frame_test.go`），HPACK 索引 0 和越界返回错误并关闭流（`error_test.go`、`header_error_test.go`），对端窗口不够时停止写出（`window_test.go`）。`TestXssStripsScriptInJSONArray` 覆盖 JSON 数组里的 script。
 
 示例：
 
@@ -168,6 +171,8 @@ func TestServerInit(t *testing.T) {
 - 各类型日志输出
 - 日志格式化
 - Fatal日志处理
+
+`test/unit_test/utils/message/logdir_test.go` 覆盖四份文件日志。`Reopen` 把新的一行写到新目录；新目录无法创建时，后续日志仍写进原来的文件。
 
 示例：
 

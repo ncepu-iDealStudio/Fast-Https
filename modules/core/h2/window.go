@@ -88,6 +88,10 @@ func (window *Window) ConsumePeer(length int32) {
 	Trace(Brown("consume peer window size (%v) - (%v) = (%v)"), current, length, window.peerCurrentSize)
 }
 
+func (window *Window) PeerSize() int32 {
+	return window.peerCurrentSize
+}
+
 func (window *Window) Consumable(length int32) int32 {
 	if window.peerCurrentSize < length {
 		return window.peerCurrentSize

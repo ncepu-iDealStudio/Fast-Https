@@ -22,7 +22,7 @@ func NewContext(SETTINGS_HEADER_TABLE_SIZE uint32) *Context {
 	}
 }
 
-func (c *Context) Decode(wire []byte) {
+func (c *Context) Decode(wire []byte) error {
 	// 各デコードごとに前回のをリセットする。
 	c.ES = NewHeaderList()
 	Debug("%s", Red("clean Emitted Set"))
@@ -38,8 +38,7 @@ func (c *Context) Decode(wire []byte) {
 			index := int(f.Index)
 
 			if index == 0 {
-				// TODO: Decoding Error
-				Fatal("Decoding Error: The index value of 0 is not used.")
+				return fmt.Errorf("hpack decoding error: index 0 is not used")
 			}
 
 			var headerField *HeaderField
@@ -50,6 +49,9 @@ func (c *Context) Decode(wire []byte) {
 				 */
 				// 実態は配列なので 0 オリジン
 				i := index - 1
+				if i < 0 || i >= len(StaticTable) {
+					return fmt.Errorf("hpack decoding error: index %d is out of range", index)
+				}
 				headerField = &StaticTable[i]
 
 				Debug("%s", Red("== Indexed - Add =="))
@@ -66,6 +68,9 @@ func (c *Context) Decode(wire []byte) {
 
 				// 実態は配列なので 0 オリジン
 				i := index - STATIC_HEADER_TABLE_SIZE - 1
+				if i < 0 || i >= len(c.HT.HeaderFields) || c.HT.HeaderFields[i] == nil {
+					return fmt.Errorf("hpack decoding error: index %d is out of range", index)
+				}
 				headerField = c.HT.HeaderFields[i]
 
 				/**
@@ -85,17 +90,26 @@ func (c *Context) Decode(wire []byte) {
 			index := int(f.Index)
 			var name, value string
 
+			if index == 0 {
+				return fmt.Errorf("hpack decoding error: index 0 is not used")
+			}
 			if index < STATIC_HEADER_TABLE_SIZE {
 				/**
 				 * Static Header Table の中にある場合
 				 */
 				i := index - 1
+				if i < 0 || i >= len(StaticTable) {
+					return fmt.Errorf("hpack decoding error: index %d is out of range", index)
+				}
 				name = StaticTable[i].Name
 			} else {
 				/**
 				 * Header Table の中にある場合
 				 */
 				i := index - STATIC_HEADER_TABLE_SIZE - 1
+				if i < 0 || i >= len(c.HT.HeaderFields) || c.HT.HeaderFields[i] == nil {
+					return fmt.Errorf("hpack decoding error: index %d is out of range", index)
+				}
 				name = c.HT.HeaderFields[i].Name
 			}
 
@@ -165,9 +179,10 @@ func (c *Context) Decode(wire []byte) {
 			Debug("%s", Red("Maximum Header Table Size Change"))
 			c.ChangeSize(f.MaxSize)
 		default:
-			Fatal("%T", f)
+			return fmt.Errorf("hpack decoding error: unknown representation %T", f)
 		}
 	}
+	return nil
 }
 
 func (c *Context) ChangeSize(size uint32) {

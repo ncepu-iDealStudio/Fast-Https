@@ -140,9 +140,10 @@ func (conn *Conn) ReadLoop(ev *core.Event, fif *filters.Filter) {
 			}
 			break
 		}
-		if frame != nil {
-			Notice("%v %v", Green("recv"), util.Indent(frame.String()))
+		if frame == nil {
+			continue
 		}
+		Notice("%v %v", Green("recv"), util.Indent(frame.String()))
 
 		streamID := frame.Header().StreamID
 		types := frame.Header().Type
@@ -272,12 +273,25 @@ func (conn *Conn) WriteLoop() (err error) {
 	for frame := range conn.WriteChan {
 		Notice("%v %v", Red("send"), util.Indent(frame.String()))
 
-		// TODO: Check the connection level WindowSize here
+		if data, ok := frame.(*DataFrame); ok && conn.Window != nil {
+			length := int32(data.Length)
+			if length > conn.Window.Consumable(length) {
+				err = fmt.Errorf("flow control: peer window exhausted, need %d have %d", length, conn.Window.PeerSize())
+				Error("%v", err)
+				conn.Close()
+				return err
+			}
+		}
+
 		err = frame.Write(conn.RW)
 		if err != nil {
 			Error("%v", err)
 			return err
 		}
+		if data, ok := frame.(*DataFrame); ok && conn.Window != nil {
+			conn.Window.ConsumePeer(int32(data.Length))
+		}
+		continue
 	}
 	return
 }

@@ -43,7 +43,7 @@ flowchart TD
 | `stop` | 读取 PID 文件并对进程调用 `os.Kill` |
 | `reload` | 读取 PID 并发送平台对应的重载信号 |
 | `install` / `uninstall` | 使用 `kardianos/service` 安装或卸载系统服务 |
-| `status` | 当前 handler 为空，尚未实现状态查询 |
+| `status` | 读取 `fast-https.pid`。进程在运行时打印 pid 并以 0 退出；没有 pid 文件，或文件里的 pid 已经没有对应进程时，以非 0 退出 |
 
 `start` 与 `dev` 的主要启动路径在 `StartHandler` 和 `DevStartHandler`。两者都会先执行 `PreCheckHandler`，再调用 `initialization.InitSystem()`、`server.ServerInit()` 和 `Server.Run()`。
 
@@ -125,7 +125,7 @@ flowchart TD
 
 ### 5.3 HTTP/2 事件链
 
-H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_h2.go) 处理：读取 H2 connection preface，启动帧写循环并读取 SETTINGS/stream 帧。每个 stream 在 callback 中转换成 `core.Event` 和 H2 request，再复用普通的 `EventHandler()` 完成 Host/Path 路由、安全检查、认证和模块分发。响应通过 HEADERS/DATA frame 写回；监听器关闭时尝试对 H2 连接做限时 graceful close。
+H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_h2.go) 处理：读取 H2 connection preface，启动帧写循环并读取 SETTINGS/stream 帧。类型大于 `0x9` 的帧丢掉载荷后继续读。HPACK 索引非法时，该流发出 `RST_STREAM`（`COMPRESSION_ERROR`）并关闭。写出 DATA 时若对端窗口不够，写循环停止并关闭连接。每个 stream 在 callback 中转换成 `core.Event` 和 H2 request，再复用普通的 `EventHandler()` 完成 Host/Path 路由、安全检查、认证和模块分发。响应通过 HEADERS/DATA frame 写回；监听器关闭时尝试对 H2 连接做限时 graceful close。
 
 ## 6. 停止与配置重载
 
@@ -137,11 +137,12 @@ H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_
 
 非 Windows 平台的 `reload` 命令发送 `SIGINT`，服务器收到后调用 `Server.Reload()`：
 
-1. 清空并重新加载配置。
-2. 对比新旧端口，区分新增、移除和保留端口。
-3. 相同端口且监听类型不变时复用 listener，并更新 `Cfg`/`HostMap`。
-4. 移除端口时取消上下文并关闭 listener；新增端口建立 listener 并启动 accept goroutine。
-5. 重新初始化安全模块和动态日志。
+1. 清空并重新加载配置。文件无效时保留上一份配置，不继续切换监听。
+2. 配置加载成功后，按当前 `log_root` 重新打开 `system.log`、`access.log`、`error.log`、`safe.log`。新目录打不开时保留原来的四个文件，并继续切换监听。
+3. 对比新旧端口，区分新增、移除和保留端口。
+4. 相同端口且监听类型不变时复用 listener，并更新 `Cfg`/`HostMap`。
+5. 移除端口时取消上下文并关闭 listener；新增端口建立 listener 并启动 accept goroutine。
+6. 重新初始化安全模块和动态日志。
 
 **平台差异：** `Server.SigHandler()` 中 Windows 的 `SIGINT` 分支会通知服务器退出，而非调用 `Reload()`；Windows 的 `reload` 命令虽然尝试发送控制台 Ctrl+C，但应结合当前运行方式验证其是否能达到预期的热重载效果。
 

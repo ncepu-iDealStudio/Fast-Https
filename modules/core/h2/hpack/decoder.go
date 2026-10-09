@@ -33,10 +33,6 @@ func DecodeHeader(buf *swrap.SWrap) Frame {
 		Trace("Indexed = %v", index)
 		frame := NewIndexedHeader(index)
 
-		if index == 0 {
-			// TODO: Decoding Error
-			// log.Fatal("Decoding Error: The index value of 0 is not used.")
-		}
 		return frame
 	}
 	if types == 0 { // 0000 0000
