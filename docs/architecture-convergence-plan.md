@@ -1,6 +1,8 @@
 # Fast-Https 架构收敛与优化开发计划
 
-修订日期：2026-10-13。本文只规划代码目录与软件架构边界的渐进式收敛，不安排协议功能扩展或产品能力对标。每阶段应单独评审、提交和验证；前一阶段未达到验收条件，不进入下一阶段。
+修订日期：2026-10-13。
+
+本文只规划代码目录与软件架构边界的渐进式收敛，不安排协议功能扩展或产品能力对标。每阶段应单独评审、提交和验证；前一阶段未达到验收条件，不进入下一阶段。
 
 ## 1. 目标
 
@@ -12,7 +14,8 @@
 - 配置读取、验证和运行时配置快照
 - 单元测试、集成测试和实验代码
 
-本计划不要求一次性搬迁目录，不改变现有 JSON 字段、默认部署目录或网络行为。优化以降低包间耦合、让依赖方向可理解、让结构调整可自动验证为完成标准。
+本计划不要求一次性搬迁目录，不改变现有 JSON 字段、默认部署目录或网络行为。
+优化以降低包间耦合、让依赖方向可理解、让结构调整可自动验证为完成标准。
 
 ## 2. 当前结构基线
 
@@ -32,10 +35,15 @@
 需要优先澄清的现状：
 
 1. 请求处理器通过 `core.GRRCHT` 注册，server 包通过 blank import 导入 `static`、`proxy`、`rewrite`、`dev_mod` 等包以触发注册。
+
 2. `modules/module.go` 还提供 `RegisterModule/GetModule` 通用注册表，但当前主要由 logger/workchain 示例和测试使用，不是 HTTP 请求分发主链。
+
 3. `modules/core/filters` 直接依赖 `safe`、`proxy_tcp`、`websocket` 等功能包；功能注册、连接协议分流和请求路由职责有交叉。
+
 4. 测试同时分布在源码目录和 `test/unit_test/`；E2E 位于 `test/client_test/`。
+
 5. `modules/core/engine`、`modules/core/routine_pool`、`modules/workchain/example` 等代码是否属于当前产品启动路径，需要继续明确，但不应仅因“暂未启用”就立即删除或搬迁。
+
 6. 配置路径和运行资源目录是现有部署契约的一部分。即使内部配置实现重构，也要先保持配置格式和安装包目录不变。
 
 ## 3. 收敛原则
@@ -87,19 +95,21 @@ modules/experimental/ # 已确认非生产功能的实验实现
 
 **难度：易；风险：低；建议作为本计划第一项。**
 
+**状态：已完成（2026-10-13）。** package 职责、生产入口、注册关系、构建路径和验证基线见 [architecture-map.md](architecture-map.md)。全量测试使用匹配的 Go 1.27.1 工具链串行通过；本机默认 GOROOT 混用问题及并行测试 exe 的 Windows `Access is denied` 已记入基线，不属于本阶段代码改动。
+
 #### 阶段 0：工作内容
 
-- 维护一份简短 package 清单：每个 package 的职责、生产入口、主要依赖者，以及是否进入默认服务器启动路径。
-- 区分主服务器、Windows monitor、测试工具和示例程序的构建入口。
-- 标注两种注册机制的调用方和用途，确认通用注册表是否承诺为外部 API。
-- 记录标准验证命令和当前基线，不在这一阶段移动代码。
+- 已维护 package 职责、生产入口、主要依赖者和默认服务器启动路径清单，见 [architecture-map.md](architecture-map.md) 第 1 节。
+- 已区分主服务器、Windows monitor、测试工具和示例程序的构建入口，见该文档第 4、5 节。
+- 已记录 `core.GRRCHT` 与通用 Module registry 的调用方和用途；通用 registry 是否作为正式扩展 API 留待阶段 3 决策，见第 2 节。
+- 已记录 package/import 结构及 Docker、GoReleaser、RPM、CI 入口；本阶段未移动目录或改变运行行为。
 
 #### 阶段 0：测试与验证
 
-- `go list ./...`：记录现有 package 和入口。
-- `go test ./...`：建立全仓基线；记录平台跳过项和依赖外部环境的测试。
-- `go test ./test/client_test -run TestProxyHTTPIntegration -v`：验证黑盒代理路径。
-- 检查构建脚本、Dockerfile、GoReleaser、RPM spec 中的入口和资源路径。
+- `go list ./...`：已记录约 62 个 package。
+- `go test ./...`：默认环境因 GOROOT 混用未能编译；使用匹配的 Go 1.27.1 toolchain 执行 `go test -p 1 ./...` 已通过。
+- `go test -count=1 ./test/client_test -run TestProxyHTTPIntegration -v`：代理 E2E 四个场景通过。
+- 已检查构建脚本、Dockerfile、GoReleaser、RPM spec 和 `.workflow/go-test.yml` 的入口与资源路径。
 
 #### 阶段 0：验收条件
 

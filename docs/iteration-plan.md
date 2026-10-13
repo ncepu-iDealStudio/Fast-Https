@@ -72,7 +72,7 @@
 
 ### R1 重载信号语义与端到端测试
 
-已落地。`SIGINT` 在各平台都调用 `Reload()`。`SIGTERM` 和 `SIGQUIT` 停止进程。`stop` 仍然发送 `Kill`。Windows 的 `reload` 先发 Ctrl+Break，再试 Ctrl+C，不再把进程停掉。前台 Ctrl+C 会重载，不会退出。
+已落地。`SIGINT` 在各平台都调用 `Reload()`。`SIGTERM` 和 `SIGQUIT` 停止接受新连接，最多等待 5 秒后退出。`stop` 仍然发送 `Kill`。Windows 的 `reload` 先发 Ctrl+Break，再试 Ctrl+C，不再把进程停掉。前台 Ctrl+C 会重载，不会退出。
 
 `modules/core/server/signal_test.go` 锁定这三种信号。`FASTHTTPS_E2E_RELOAD=1` 时，`TestReloadPortSwitchE2E` 在当前系统上切换端口；默认 `go test` 不跑它。同一 SSL 端口重载时不重新绑定套接字，能解析的新证书在下一次握手生效；证书文件缺失时监听保持打开。
 
