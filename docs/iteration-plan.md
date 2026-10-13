@@ -1,6 +1,6 @@
 # Fast-Https 开发迭代计划
 
-版本：2026-10-09。本文只排当前代码里还要做的事。已关闭项的过程记录留在 [iteration-hardening-plan.md](iteration-hardening-plan.md)。R1、R2、R3、R5、R6 已在 2026-10-09 落地。
+版本：2026-10-13。原先的加固计划已并入本文，不再单独维护。旧编号 P0–P3 与本文 R1–R8 的对应关系见第 3 节。
 
 ## 1. 目标
 
@@ -22,6 +22,11 @@
 - `SIGINT` 在各平台都重载配置。停止走 `stop`、`SIGTERM` 或 `SIGQUIT`
 - 未知 HTTP/2 帧会被丢掉并继续读；非法 HPACK 索引关闭该流；对端窗口不够时停止写出 DATA 并关闭连接
 - `xss` 会清洗 JSON 对象和 JSON 数组里的 script 标签
+- 运行时只读 `config/fast-https.json` 和 `http.include`。`config/dev.yaml` 不加载
+- 空日志目录、`.`、`./` 落到 `./logs`。DEBUG、TRACE 走 stderr，其余级别走 stdout
+- `ServerInit` 在监听前调用 `core.MissingHandlers`。已配置的 location 类型没有处理函数时直接退出，不会 `Accept`
+- `check` 只校验配置，不监听、不写 pid。`HEAD` 不写正文。`Transfer-Encoding: chunked` 按块读取。静态 gzip 只在客户端接受时压缩正文。`error_page.not_found` 和 `error_page.proxy` 可选，文件不可读时仍用默认响应
+- `SIGTERM`、`SIGQUIT` 停止接受并最多等待 5 秒。`stop` 仍发送 `Kill`
 
 ## 3. 分级
 
@@ -31,6 +36,24 @@
 - P3：体验和后续能力
 
 难易度：易为 0.5–2 天，中为 2–5 天，难为 1–3 周。
+
+旧编号并入关系：
+
+| 旧编号 | 本文 | 状态 |
+| --- | --- | --- |
+| P0-1 启动前配置校验 | 基线 | 已关闭 |
+| P0-2 测试基线与 CI | R2 | 流水线文件已落地，Gitee 上还没跑过 |
+| P0-3 Reload 跨平台与失败恢复 | R1 | 已关闭 |
+| P1-1 监听与连接生命周期 | R4 | 关闭路径已落地。连接数仍未做 |
+| P1-2 模块注册与启动期检测 | 基线 | 已关闭 |
+| P1-3 配置真源与说明文档 | 基线 | 已关闭 |
+| P2-1 两套日志管道 | 基线 | 已关闭 |
+| P2-2 HTTP/2 与 HPACK 边界 | R5 | 已关闭 |
+| P2-3 安全与限流验证 | 基线 | 已关闭 |
+| P3-1 配置文件自动监听 | R7 | 暂缓 |
+| P3-2 代理 upstream | R8 | 未做 |
+
+2026-06-23 的任务卡已在 2026-10-08 按代码复核，结果就是上表。不再单列过程记录。
 
 ## 4. 本版要做的事
 
