@@ -97,13 +97,28 @@ func (p *program) Stop(s service.Service) error {
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "fast-https",
-		Short:        "short log",
-		Long:         "long log",
+		Short:        "Fast-https is a high performance web server and proxy server",
+		Long: "Fast-https is a high performance web server and proxy server.\n\n" +
+			"Run it without any command to start the server.",
 		SilenceUsage: true, //用于在发生错误时静音使用情况。
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCommand(args)
 		},
 	}
+
+	// 把 commands 注册为 cobra 子命令，使 -h/--help 能列出全部命令及说明
+	for i := range commands {
+		sub := commands[i]
+		cmd.AddCommand(&cobra.Command{
+			Use:          sub.name,
+			Short:        sub.description,
+			SilenceUsage: true,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return sub.handler()
+			},
+		})
+	}
+
 	return cmd
 }
 

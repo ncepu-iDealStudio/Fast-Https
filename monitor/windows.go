@@ -18,9 +18,29 @@ import (
 
 var logFile *os.File
 
+// exeDir returns the directory that contains this monitor executable, so the
+// main program and the log directory are always found next to it, no matter
+// what the current working directory is.
+func exeDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		wd, _ := os.Getwd()
+		return wd
+	}
+	return filepath.Dir(exe)
+}
+
 // StartWindows start the taskBox window
 func StartWindows() {
-	logFile, _ = os.OpenFile(filepath.Join(config.DEFAULT_LOG_ROOT, config.MONIITOR_LOG_FILE_PATH), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	// The log directory lives next to the executable. Create it first, otherwise
+	// OpenFile fails (monitor has no console, so the file is the only log sink).
+	logDir := filepath.Join(exeDir(), config.DEFAULT_LOG_ROOT)
+	_ = os.MkdirAll(logDir, 0o755)
+	var err error
+	logFile, err = os.OpenFile(filepath.Join(logDir, config.MONIITOR_LOG_FILE_PATH), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		logFile = nil
+	}
 	log.SetOutput(logFile)
 	defer logFile.Close()
 
@@ -34,35 +54,35 @@ func StartWindows() {
 }
 
 func startServer() {
-	dir, err := os.Getwd()
-	command := exec.Command(filepath.Join(dir, "fast-https"))
+	command := exec.Command(filepath.Join(exeDir(), "fast-https.exe"))
+	command.Dir = exeDir()
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	command.Stdout = logFile
-	err = command.Start()
-	if err != nil {
-		log.Println(err)
+	command.Stderr = logFile
+	if err := command.Start(); err != nil {
+		log.Println("start fast-https failed:", err)
 	}
 }
 
 func stopServer() {
-	dir, err := os.Getwd()
-	command := exec.Command(filepath.Join(dir, "fast-https"), "stop")
+	command := exec.Command(filepath.Join(exeDir(), "fast-https.exe"), "stop")
+	command.Dir = exeDir()
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	command.Stdout = logFile
-	err = command.Run()
-	if err != nil {
-		log.Println(err)
+	command.Stderr = logFile
+	if err := command.Run(); err != nil {
+		log.Println("stop fast-https failed:", err)
 	}
 }
 
 func reloadServer() {
-	dir, err := os.Getwd()
-	command := exec.Command(filepath.Join(dir, "fast-https"), "reload")
+	command := exec.Command(filepath.Join(exeDir(), "fast-https.exe"), "reload")
+	command.Dir = exeDir()
 	command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	command.Stdout = logFile
-	err = command.Run()
-	if err != nil {
-		log.Println(err)
+	command.Stderr = logFile
+	if err := command.Run(); err != nil {
+		log.Println("reload fast-https failed:", err)
 	}
 }
 

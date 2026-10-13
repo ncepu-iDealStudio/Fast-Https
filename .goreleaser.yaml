@@ -3,11 +3,7 @@ version: 2
 before:
   hooks:
     - go mod tidy
-    - cmd: go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
-      env:
-        - CGO_ENABLED=0
-        - GOOS=windows
-        - GOARCH=amd64
+    - go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
 
 builds:
   - id: unix
@@ -81,7 +77,6 @@ archives:
       - logs/.keep
       - README.md
       - src: monitor/monitor.exe
-        dst: monitor.exe
         strip_parent: true
 
 checksum:
