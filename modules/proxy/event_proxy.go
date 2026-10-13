@@ -375,7 +375,7 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	// }
 	proxy, err := getProxy(ev, &ev.RR, cfg)
 	if err != nil { // one type error `ProxyErrorDialUpstream`
-		ev.RR.Res = response.DefaultServerError()
+		ev.RR.Res = DialFailureResponse(cfg)
 		ev.WriteResponseClose(nil)
 		return
 	}
@@ -386,6 +386,14 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	} else {
 		proxy.proxyNoCache(req_data, ev)
 	}
+}
+
+func DialFailureResponse(cfg *listener.ListenCfg) *response.Response {
+	res := response.DefaultServerError()
+	if cfg != nil {
+		response.UseFile(res, cfg.ErrorProxy)
+	}
+	return res
 }
 
 func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {

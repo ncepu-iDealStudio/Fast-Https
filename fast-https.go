@@ -3,6 +3,7 @@ package main
 import (
 	"fast-https/cmd"
 	"fast-https/utils/logger"
+	"os"
 )
 
 func init() {
@@ -16,6 +17,7 @@ func init() {
 func main() {
 	command := cmd.RootCmd()
 
-	// 不需要关心 Execute 的返回值，库会打印err信息
-	_ = command.Execute()
+	if err := command.Execute(); err != nil {
+		os.Exit(1)
+	}
 }

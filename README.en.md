@@ -55,6 +55,8 @@ The server accepts connections, parses requests, and writes responses itself. `f
 
 A request also passes connection filters (blacklist and rate limit in `modules/safe`), optional Basic auth (`modules/auth`), and access counting. Static and proxy paths run the application firewall: `xss` returns 403 after a `<script` tag is removed from a JSON object or array; `sql` is registered and does not intercept.
 
+`HEAD` keeps `Content-Length` and `Content-Type` and does not write a body. A body with `Content-Length` is read to that length. `Transfer-Encoding: chunked` is read chunk by chunk; a bad chunk or a body over `http.servers_limit.max_body_size` closes the connection. When a location `zip` includes `gzip` and the request accepts gzip, the static body is compressed and `Content-Length` matches the compressed bytes. Otherwise the response has no `Content-Encoding`. Optional `error_page.not_found` and `error_page.proxy` replace the 404 body and the upstream dial-failure body when those files can be read. A missing file keeps the default response.
+
 When `listen` contains `h2`, an unknown frame type is discarded and the next frame is read. An illegal HPACK index closes that stream. If the peer flow-control window cannot hold a DATA payload, the write loop stops and the connection closes.
 
 ### Project Structure
@@ -121,10 +123,10 @@ fast-https/
 
 Signals:
 
-- `SIGTERM` and `SIGQUIT` stop the process
+- `SIGTERM` and `SIGQUIT` stop accepting, wait up to 5 seconds for accepted requests to finish, then exit
 - `SIGINT`, including Ctrl+C in the foreground, reloads configuration on every platform and does not exit
 - `reload` reads the pid file and sends `SIGINT`. On Windows it tries Ctrl+Break, then Ctrl+C
-- Stop the process with `stop`, which sends `Kill` to the pid
+- Stop the process with `stop`, which sends `Kill` to the pid and does not wait for in-flight requests
 
 Reload rereads configuration, hot-updates listeners that stay up, closes removed ports, and starts goroutines for new ports. On a removed port, the accept loop and in-flight HTTP/1.1 connections exit.
 
@@ -155,11 +157,14 @@ go run fast-https.go dev
 go run fast-https.go stop
 go run fast-https.go reload
 go run fast-https.go status
+go run fast-https.go check
 go run fast-https.go install
 go run fast-https.go uninstall
 ```
 
 `status` reads `fast-https.pid`. It prints the pid and exits 0 when that process is running. It exits non-zero when the pid file is missing or the process is gone.
+
+`check` validates `config/fast-https.json` and `http.include`. It does not listen and does not write a pid file. Success prints `config ok` and exits 0. Failure prints the field or include path and exits non-zero. `start` still runs the same check before listening.
 
 A successful `reload` reopens the four log files under the current `log_root`. If the new directory cannot be created, logging stays on the previous files.
 

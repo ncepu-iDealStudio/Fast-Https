@@ -133,7 +133,9 @@ go tool cover -html=coverage.out
 
 HTTP/2：未知帧丢掉后续读（`unknown_frame_test.go`），HPACK 索引 0 和越界返回错误并关闭流（`error_test.go`、`header_error_test.go`），对端窗口不够时停止写出（`window_test.go`）。`TestXssStripsScriptInJSONArray` 覆盖 JSON 数组里的 script。
 
-连接关闭：`TestCloseIsSilentWhenRepeated` 确认第二次 `Close` 不再关连接。`TestHandleEventExitsWhenContextCanceled` 和 `TestServeListenerExitsWhenContextCanceled` 确认取消上下文后处理协程和接受循环退出。`TestCountsInitReplacesSlice` 确认限流计数重建时不会叠在旧切片后面。
+连接关闭：`TestCloseIsSilentWhenRepeated` 确认第二次 `Close` 不再关连接。`TestHandleEventExitsWhenContextCanceled` 和 `TestServeListenerExitsWhenContextCanceled` 确认取消上下文后处理协程和接受循环退出。`TestDrainConnectionsClosesInFlightHandler` 确认停止接受后，正在读的连接会关掉。`TestCountsInitReplacesSlice` 确认限流计数重建时不会叠在旧切片后面。
+
+`check`：`TestCheckFileAcceptsValidConfig` 和 `TestCheckFileRejectsInvalidConfig` 只校验临时配置，不监听。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `modules/core/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
 
 示例：
 

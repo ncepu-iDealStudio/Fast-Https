@@ -65,6 +65,11 @@ var (
 			description: "to check web server status", // 检查Web服务器状态
 			handler:     statusHandler,
 		},
+		{
+			name:        "check",
+			description: "to validate config without listening",
+			handler:     checkHandler,
+		},
 	}
 
 	srvConfig = &service.Config{
@@ -296,6 +301,19 @@ func ReloadHandler() error {
 		logger.Fatal("fast-https stop failed: %v", err)
 	}
 	return nil
+}
+
+// CheckFile validates one config file and its includes. It does not listen or write a pid file.
+func CheckFile(path string) error {
+	if err := config.ValidateConfigFile(path); err != nil {
+		return err
+	}
+	fmt.Println("config ok")
+	return nil
+}
+
+func checkHandler() error {
+	return CheckFile(config.CONFIG_FILE_PATH)
 }
 
 func statusHandler() error {

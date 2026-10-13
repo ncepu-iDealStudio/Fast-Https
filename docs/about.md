@@ -44,6 +44,7 @@ flowchart TD
 | `reload` | 读取 PID 并发送平台对应的重载信号 |
 | `install` / `uninstall` | 使用 `kardianos/service` 安装或卸载系统服务 |
 | `status` | 读取 `fast-https.pid`。进程在运行时打印 pid 并以 0 退出；没有 pid 文件，或文件里的 pid 已经没有对应进程时，以非 0 退出 |
+| `check` | 调用 `config.CheckConfig()`。不监听，不写 pid。通过时打印 `config ok` 并以 0 退出；失败时打印原因并以非 0 退出 |
 
 `start` 与 `dev` 的主要启动路径在 `StartHandler` 和 `DevStartHandler`。两者都会先执行 `PreCheckHandler`，再调用 `initialization.InitSystem()`、`server.ServerInit()` 和 `Server.Run()`。
 
@@ -104,7 +105,7 @@ flowchart TD
 普通连接处理位于 [`modules/core/events/events.go`](../modules/core/events/events.go)：
 
 1. 创建 `core.Event`，执行连接过滤器，包括安全限流/黑名单检查。
-2. 读取请求数据并解析 request line、headers 和 body；解析过程中提取 Host、查询参数，并根据 Content-Length 等信息继续读取请求体。
+2. 读取请求数据并解析 request line、headers 和 body。带 `Content-Length` 时按长度读完。`Transfer-Encoding: chunked` 按块解码，块错误或超过 `max_body_size` 时关闭连接。`HEAD` 在写出时保留头和 `Content-Length`，不写正文。
 3. `RequestFilter` 按 Host 查找虚拟主机，再按配置顺序逐个匹配 `location.url` 正则。命中后得到该 location 的 `ListenCfg`。
 4. 对命中的 location 执行安全计数、认证检查，并根据 `ListenCfg.Type` 从 `core.GRRCHT` 处理器表中取出解析、过滤和请求处理函数。
 5. 执行模块过滤器，再进入对应请求处理器，生成或直接写出响应。
@@ -114,8 +115,8 @@ flowchart TD
 
 | location 类型 | 处理模块 | 主要行为 |
 | --- | --- | --- |
-| `local` | `modules/static` | 根据 root/index/try 查找并返回静态文件 |
-| `proxy` + HTTP/HTTPS upstream | `modules/proxy` | 转发请求、读取上游响应并返回；可应用 proxy header、应用防火墙和缓存配置 |
+| `local` | `modules/static` | 根据 root/index/try 查找并返回静态文件。`zip` 含 gzip 且客户端接受 gzip 时压缩正文。`error_page.not_found` 可读时替换 404 正文 |
+| `proxy` + HTTP/HTTPS upstream | `modules/proxy` | 转发请求、读取上游响应并返回；可应用 proxy header、应用防火墙和缓存配置。拨号失败时，`error_page.proxy` 可读则替换默认 500 正文 |
 | `rewrite` | `modules/rewrite` | 返回重定向响应 |
 | `devmod` | `modules/dev_mod` | 开发模块处理 |
 
@@ -129,7 +130,7 @@ H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_
 
 ### 停止
 
-`stop` 命令读取 PID 文件并调用 `process.Signal(os.Kill)`。这不是由 `Server.SigHandler()` 接收的优雅停止信号；在 Unix 上 `os.Kill` 对应不可捕获的强制终止信号。服务器的信号 handler 对 `SIGTERM` 和 `SIGQUIT` 调用 wait group 完成通知。`SIGINT` 在各平台都调用 `Reload()`。
+`stop` 命令读取 PID 文件并调用 `process.Signal(os.Kill)`。这不是由 `Server.SigHandler()` 接收的信号；在 Unix 上 `os.Kill` 对应不可捕获的强制终止。`SIGTERM` 和 `SIGQUIT` 先取消各监听上下文，停止 `Accept`，并最多等待 5 秒让已跟踪的处理协程退出，然后 `Run` 返回。时限到了就退出。`SIGINT` 在各平台都调用 `Reload()`。
 
 ### 重载
 

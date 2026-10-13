@@ -47,9 +47,11 @@ type ListenCfg struct {
 	Limit config.PathLimit
 	Auth  config.PathAuth
 
-	StaticRoot  string
-	StaticIndex []string
-	Zip         uint16
+	StaticRoot    string
+	StaticIndex   []string
+	Zip           uint16
+	ErrorNotFound string
+	ErrorProxy    string
 }
 
 // one listen port arg
@@ -183,6 +185,8 @@ func processListenData(lisInfos *[]Listener) {
 					data.Auth = paths.Auth
 					data.StaticRoot = paths.Root
 					data.StaticIndex = paths.Index
+					data.ErrorNotFound = paths.ErrorNotFound
+					data.ErrorProxy = paths.ErrorProxy
 					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
 					data.Zip = paths.Zip
 					data.ReWrite = paths.Rewrite

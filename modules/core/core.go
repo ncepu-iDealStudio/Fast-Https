@@ -160,6 +160,15 @@ func (ev *Event) WriteResponse(data []byte) error {
 	return ev.EventWrite(ev, data)
 }
 
+// ResponseBytes is the bytes written for this response.
+// HEAD keeps the headers, including Content-Length, and omits the body.
+func (ev *Event) ResponseBytes() []byte {
+	if ev.RR.Req != nil && ev.RR.Req.Method == "HEAD" {
+		return ev.RR.Res.GenerateHeaderBytes()
+	}
+	return ev.RR.Res.GenerateResponse()
+}
+
 // only close the connection
 // only for HTTP/1.1
 // Close closes the connection once. Later calls do nothing and do not log.

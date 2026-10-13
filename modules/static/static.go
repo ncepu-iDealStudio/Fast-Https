@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"fast-https/config"
 	"fast-https/modules/appfirewall"
+	"fast-https/modules/compress"
 	"fast-https/modules/core"
 	"fast-https/modules/core/dynlog"
 	"fast-https/modules/core/listener"
+	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
 	"fast-https/utils/message"
 	"io"
@@ -54,12 +56,11 @@ func fileReadWrite(file *os.File, ev *core.Event) int {
 	for {
 		// 读取文件内容
 		n, err := file.Read(rr.ReqBuf)
-		if err != nil {
-			if err != io.EOF {
-				file.Close()
+		if n == 0 || err != nil {
+			file.Close()
+			if err != nil && err != io.EOF {
 				return -10
 			}
-			file.Close()
 			break
 		}
 
@@ -134,22 +135,51 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 		return -1
 	}
 
+	name := file.Name()
+	payloadLen := file_size
+	var payload []byte
+	stream := true
+	if gzipWanted(lisdata.Zip, acceptEncoding(ev)) {
+		raw, err := io.ReadAll(file)
+		file.Close()
+		file = nil
+		if err != nil {
+			return -10
+		}
+		compressed, err := compress.CompressBytesGzip(raw)
+		if err != nil {
+			return -10
+		}
+		payload = compressed
+		payloadLen = int64(len(payload))
+		stream = false
+	}
+
 	writeHeader(&rr, 200)
-	rr.Res.SetHeader("Content-Type", getContentType(file.Name()))
-	rr.Res.SetHeader("Content-Length", strconv.Itoa(int(file_size)))
-	if lisdata.Zip == 1 {
+	rr.Res.SetHeader("Content-Type", getContentType(name))
+	rr.Res.SetHeader("Content-Length", strconv.Itoa(int(payloadLen)))
+	if !stream {
 		rr.Res.SetHeader("Content-Encoding", "gzip")
 	}
 	rr.Res.SetHeader("Connection", connection)
 
-	// h2 的开发过程要注释掉
-	// 写头
-	// write first line and headers
-	ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes())
-
-	// 写body
-	if fileReadWrite(file, ev) != 0 { // some error
+	if _, err := ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes()); err != nil {
+		if file != nil {
+			file.Close()
+		}
 		return -10
+	}
+
+	if ev.RR.Req == nil || ev.RR.Req.Method != "HEAD" {
+		if !stream {
+			if _, err := ev.Conn.Write(payload); err != nil {
+				return -10
+			}
+		} else if fileReadWrite(file, ev) != 0 {
+			return -10
+		}
+	} else if file != nil {
+		file.Close()
 	}
 
 	/*  ============ 以下 h2 逻辑 ============= */
@@ -177,7 +207,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 
 	// log
 	dynlog.LogOther(log, "status", "200")
-	dynlog.LogOther(log, "size", strconv.Itoa(int(file_size)))
+	dynlog.LogOther(log, "size", strconv.Itoa(int(payloadLen)))
 	dynlog.LogClear(log)
 
 	return 1 // find source
@@ -216,6 +246,28 @@ func getContentType(path string) string {
  *************************************
  */
 
+func gzipWanted(zip uint16, accept string) bool {
+	if zip != config.ZIP_GZIP && zip != config.ZIP_GZIP_BR {
+		return false
+	}
+	return request.HasToken(accept, "gzip")
+}
+
+func acceptEncoding(ev *core.Event) string {
+	if ev == nil || ev.RR.Req == nil {
+		return ""
+	}
+	return ev.RR.Req.HeaderFold("Accept-Encoding")
+}
+
+func NotFoundResponse(cfg *listener.ListenCfg) *response.Response {
+	res := response.DefaultNotFound()
+	if cfg != nil {
+		response.UseFile(res, cfg.ErrorNotFound)
+	}
+	return res
+}
+
 func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
 	if ev.RR.OriginPath == "" && cfg.Path != "/" {
 		event301(ev, ev.RR.Req.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
@@ -246,17 +298,15 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	if rr.Req.IsKeepalive() {
 		res := getResBytes(&log, cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
-			rr.Res = response.DefaultNotFound()
-			// h2 dev need remove
-			ev.Conn.Write(rr.Res.GenerateResponse())
+			rr.Res = NotFoundResponse(cfg)
+			_ = ev.WriteResponse(nil)
 		}
 		ev.Reuse = true
 	} else {
 		res := getResBytes(&log, cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
-			rr.Res = response.DefaultNotFound()
-			// h2 dev need remove
-			ev.Conn.Write(rr.Res.GenerateResponse())
+			rr.Res = NotFoundResponse(cfg)
+			_ = ev.WriteResponse(nil)
 		}
 		if !rr.Req.H2 {
 			ev.Close()

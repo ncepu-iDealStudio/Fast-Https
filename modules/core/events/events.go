@@ -149,6 +149,24 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		logger.Debug("%s", color.RedString(err.Error()))
 	}
 
+	if request.HasToken(rr.Req.HeaderFold("Transfer-Encoding"), "chunked") {
+		body, err := request.ReadChunked(rr.Req.Body.Bytes(), func() ([]byte, error) {
+			ev.Conn.SetReadDeadline(time.Now().Add(time.Second))
+			n, err := ev.Conn.Read(rr.ReqBuf)
+			if err != nil {
+				return nil, err
+			}
+			return append([]byte(nil), rr.ReqBuf[:n]...), nil
+		}, maxBodySize())
+		if err != nil {
+			logger.Debug("%s", color.RedString(err.Error()))
+			return 0
+		}
+		rr.Req.Body.Reset()
+		rr.Req.Body.Write(body)
+		return 1
+	}
+
 	// headerOtherData := make([]byte, core.READ_BODY_BUF_LEN)
 	for {
 		if rr.Req.RequestBodyValid() {
@@ -173,10 +191,17 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	return 1
 }
 
+func maxBodySize() int {
+	if config.GConfig.Limit.MaxBodySize > 0 {
+		return config.GConfig.Limit.MaxBodySize
+	}
+	return config.DEFAULT_MAX_BODY_SIZE
+}
+
 func EventWrite(ev *core.Event, _data []byte) error {
 	//fmt.Printf("%p", ev)
 	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
-	data := ev.RR.Res.GenerateResponse()
+	data := ev.ResponseBytes()
 	// data := []byte("HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nhello world")
 	for len(data) > 0 {
 		n, err := ev.Conn.Write(data)

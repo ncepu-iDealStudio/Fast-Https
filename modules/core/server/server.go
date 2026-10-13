@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/dynlog"
@@ -28,6 +29,9 @@ import (
 
 // Server defines the core components of the server
 // 服务器核心组件定义
+// GracefulStopTimeout is how long SIGTERM and SIGQUIT wait for in-flight handlers.
+const GracefulStopTimeout = 5 * time.Second
+
 type Server struct {
 	// Wg is used for server startup and shutdown synchronization
 	// 用于同步服务器的启动和关闭
@@ -35,6 +39,11 @@ type Server struct {
 	// Listens holds all listener instances
 	// 保存所有监听器实例
 	Listens []listener.Listener
+
+	connWg   sync.WaitGroup
+	mu       sync.Mutex
+	stopping bool
+	stopOnce sync.Once
 }
 
 // initModules initializes all modules that need to be initialized after the listener
@@ -129,12 +138,64 @@ func signalEffectOf(sig os.Signal) signalEffect {
 func (s *Server) SigHandler(sig os.Signal) {
 	switch signalEffectOf(sig) {
 	case signalStop:
-		message.PrintInfo("The server got a stop signal")
-		s.Wg.Done()
+		s.gracefulStop()
 	case signalReload:
 		logger.Info("========= server reload start ========")
 		s.Reload()
 	}
+}
+
+// gracefulStop stops accepting, waits for in-flight handlers, then unblocks Run.
+// The wait ends at GracefulStopTimeout even if a handler is still running.
+func (s *Server) gracefulStop() {
+	s.stopOnce.Do(func() {
+		message.PrintInfo("The server got a stop signal")
+		s.drainConnections(GracefulStopTimeout)
+		s.Wg.Done()
+	})
+}
+
+// drainConnections cancels listeners and waits until tracked handlers return.
+func (s *Server) drainConnections(timeout time.Duration) {
+	s.mu.Lock()
+	s.stopping = true
+	s.mu.Unlock()
+	for i := range s.Listens {
+		if s.Listens[i].Cancel != nil {
+			s.Listens[i].Cancel()
+		}
+	}
+	done := make(chan struct{})
+	go func() {
+		s.connWg.Wait()
+		close(done)
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		logger.Info("graceful stop timed out")
+	}
+}
+
+func (s *Server) serveConn(lis *listener.Listener, conn net.Conn, ctx context.Context) {
+	s.mu.Lock()
+	if s.stopping {
+		s.mu.Unlock()
+		_ = conn.Close()
+		return
+	}
+	s.connWg.Add(1)
+	s.mu.Unlock()
+	go func() {
+		defer s.connWg.Done()
+		if lis.LisType == 10 {
+			events.H2HandleEvent(lis, conn, ctx)
+		} else {
+			events.HandleEvent(lis, conn, ctx)
+		}
+	}()
 }
 
 // setConnCfg configures connection parameters
@@ -197,12 +258,7 @@ out:
 				break out
 			}
 
-			if listener1.LisType == 10 {
-				// logger.Fatal("h2 not support in this branch")
-				go events.H2HandleEvent(listener1, conn, ctx)
-			} else {
-				go events.HandleEvent(listener1, conn, ctx)
-			}
+			s.serveConn(listener1, conn, ctx)
 
 		}
 	}

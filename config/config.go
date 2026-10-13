@@ -96,6 +96,8 @@ type Path struct {
 	ProxyCache     Cache
 	Limit          PathLimit
 	Auth           PathAuth
+	ErrorNotFound  string
+	ErrorProxy     string
 }
 
 type Server struct {
@@ -678,6 +680,10 @@ func processHttpServerPath(v *viper.Viper, pathPrefix string, locationKey int) P
 			Pswd: v.GetString(fmt.Sprintf("%s.%d.auth.pswd",
 				pathPrefix, locationKey)),
 		},
+		ErrorNotFound: v.GetString(fmt.Sprintf("%s.%d.error_page.not_found",
+			pathPrefix, locationKey)),
+		ErrorProxy: v.GetString(fmt.Sprintf("%s.%d.error_page.proxy",
+			pathPrefix, locationKey)),
 		Zip: processHttpServerZip(v, pathPrefix, locationKey),
 		PathType: processHttpServerPathType(v, pathPrefix, locationKey,
 			v.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey))),

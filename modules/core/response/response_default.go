@@ -3,6 +3,7 @@ package response
 import (
 	"fast-https/config"
 	"fmt"
+	"os"
 	"strconv"
 	"time"
 )
@@ -42,6 +43,21 @@ func DefaultTest() *Response {
 	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
 	res.SetBody(body)
 	return res
+}
+
+// UseFile replaces the response body when path names a readable file.
+// A missing or empty file leaves the original response in place.
+func UseFile(res *Response, path string) {
+	if res == nil || path == "" {
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) == 0 {
+		return
+	}
+	res.SetHeader("Content-Type", "text/html")
+	res.SetHeader("Content-Length", strconv.Itoa(len(data)))
+	res.SetBody(data)
 }
 
 func DefaultNotFound() *Response {

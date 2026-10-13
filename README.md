@@ -57,6 +57,8 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 
 同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）和访问计数（`modules/safe`）。静态与代理路径会执行应用防火墙：`xss` 在 JSON 对象或数组里的 `<script` 被去掉后返回 403；`sql` 已注册，不会拦截请求。
 
+`HEAD` 保留 `Content-Length` 和 `Content-Type`，不写正文。带 `Content-Length` 的请求体按长度读取。`Transfer-Encoding: chunked` 按块读完；块格式错误或超过 `http.servers_limit.max_body_size` 时关闭连接。location 的 `zip` 含 `gzip` 且请求接受 gzip 时，静态正文会压缩，并写上匹配的 `Content-Length`。未打开或客户端不接受时不写 `Content-Encoding`。location 可以选配 `error_page.not_found` 和 `error_page.proxy`：文件可读时分别替换 404 和上游拨号失败的正文，文件不存在时仍用默认响应。
+
 `listen` 含 `h2` 时，未知帧类型丢掉载荷后继续读下一帧。HPACK 索引非法时关闭这条流。对端流量窗口不够时，停止写出 DATA 并关闭连接。
 
 ### 项目结构
@@ -123,10 +125,10 @@ fast-https/
 
 信号处理：
 
-- `SIGTERM`、`SIGQUIT`：结束服务
+- `SIGTERM`、`SIGQUIT`：停止接受新连接，最多等待 5 秒让已接受的请求结束，然后退出
 - `SIGINT`（包含前台 Ctrl+C）：各平台都重载配置，不退出进程
 - `reload` 读取 pid 后发送 `SIGINT`。Windows 上先发 Ctrl+Break，再试 Ctrl+C
-- 停止进程用 `stop`。它向 pid 发送 `Kill`
+- 停止进程用 `stop`。它向 pid 发送 `Kill`，不等待在途请求
 
 重载会重新读取配置，热更新仍在监听的端口，关闭已删除的端口，并为新增端口启动协程。被删掉的端口上，接受循环和尚未结束的 HTTP/1.1 连接会退出。
 
@@ -158,11 +160,14 @@ go run fast-https.go dev
 go run fast-https.go stop
 go run fast-https.go reload
 go run fast-https.go status
+go run fast-https.go check
 go run fast-https.go install
 go run fast-https.go uninstall
 ```
 
 `status` 读取 `fast-https.pid`。进程在运行时打印 pid 并以 0 退出；没有 pid 文件，或 pid 对应的进程已经不在时，以非 0 退出。
+
+`check` 只校验 `config/fast-https.json` 和 `http.include`，不监听端口，也不写 pid 文件。通过时打印 `config ok` 并以 0 退出。失败时打印字段或 include 路径，并以非 0 退出。`start` 的预检仍然会做同一项校验。
 
 `reload` 成功后会按当前 `log_root` 重新打开 `logs` 下的四份日志。新目录打不开时，继续写原来的文件。
 
