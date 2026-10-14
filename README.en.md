@@ -84,7 +84,7 @@ fast-https/
 │   ├── init.go                   # Config, logs, certificates, cache
 │   └── autocert.go               # Self-signed root and site certificates
 ├── modules/
-│   ├── module.go                 # Module registry
+│   ├── module.go                 # Legacy registry; not used for request dispatch or default start
 │   ├── core/                     # Listeners, events, HTTP/1.1, HTTP/2, request and response
 │   │   ├── server/               # Start, signals, hot reload
 │   │   ├── listener/             # Listeners from the listen field
@@ -93,21 +93,23 @@ fast-https/
 │   │   ├── filters/
 │   │   ├── h2/                   # HTTP/2 frames, streams, HPACK
 │   │   ├── dynlog/
-│   │   └── engine/               # Master/slave registry (not called on the current start path)
+│   │   ├── engine/               # Unused: master/slave registry and heartbeat
+│   │   └── routine_pool/         # Unused: pool import in server stays commented out
 │   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
-│   ├── auth/  safe/  cache/  compress/  appfirewall/  logging/
+│   ├── auth/  safe/  cache/  compress/  appfirewall/
+│   ├── logging/                  # Unused: registers DefaultLogger on the legacy registry only
 │   ├── dev_mod/
-│   └── workchain/example/        # Registration samples; not loaded at startup
+│   └── workchain/example/        # Samples registered on the legacy registry; not loaded by start
 ├── output/                       # Logo and startup banners
 ├── utils/                        # Logger, messages, files, color, RSA
 ├── monitor/                      # Windows tray program (separate main)
 ├── httpdoc/root/                 # Default static site and self-signed root certificate
-├── test/                         # Unit tests, client tests, dev scripts
+├── test/                         # Automated tests; scripts/ and single/ are manual helpers, not go test
 ├── docker/                       # CentOS 7 and Ubuntu Dockerfiles
 ├── Dockerfile                    # Multi-stage image, exposes 8080 and 443
 ├── spec                          # RPM spec; build uses -tags=rpm
 ├── shell/.acme.sh/               # Bundled acme.sh; the Go process does not call it
-├── engine.sh                     # Builds master/slave binaries after rewriting the engine id
+├── engine.sh                     # Unused path: rewrites the engine id and builds master/slave; not go build .
 ├── .goreleaser.yaml              # Linux, Darwin, and Windows release
 └── .workflow/go-test.yml         # Gitee Go: go test ./... on push and merge requests
 ```

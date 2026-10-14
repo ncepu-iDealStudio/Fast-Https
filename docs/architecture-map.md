@@ -1,6 +1,6 @@
 # Fast-Https 当前架构地图与验证基线
 
-更新时间：2026-10-13。本文记录阶段 0 对当前 package、生产入口、模块注册和构建/测试入口的盘点。目录和依赖关系以 `go list ./...`、源码 import 及实际测试结果为准，不表示目标架构。
+更新时间：2026-10-14。本文记录阶段 0 的 package 盘点，以及阶段 1 对生产、未启用、示例和遗留注册表的标注。目录和依赖关系以源码 import 及当时的测试结果为准，不表示目标架构。本轮只改说明，不改 Go 代码。
 
 相关文档：[架构收敛计划](architecture-convergence-plan.md)、[启动与运行逻辑](about.md)。
 
@@ -27,8 +27,10 @@
 | `modules/static`、`proxy`、`rewrite`、`dev_mod` | local、HTTP/HTTPS proxy、rewrite 和开发 location handler | 由 server blank import 装配 |
 | `modules/proxy_tcp`、`websocket` | TCP 字节代理和 WebSocket upgrade | 通过 filters 分流使用 |
 | `modules/auth`、`safe`、`appfirewall`、`cache`、`compress` | 认证、安全检查/限流、防火墙、代理缓存和静态压缩 | 配置或请求路径启用时 |
-| `modules/core/engine`、`routine_pool` | 分布式 master/slave 相关代码、协程池 | 未见默认 server 启动路径调用 |
-| `modules/logging`、`modules/workchain`、`modules/workchain/example` | 通用 Logger 注册和 workchain 示例 | 未见默认 server 请求处理路径调用 |
+| `modules/core/engine` | master/slave 注册与心跳。`engine.sh` 会改标识后单独编译 | 未启用。默认 `start` 不调用 `EngineInit` |
+| `modules/core/routine_pool` | 协程池 | 未启用。`server.go` 里的导入保持注释 |
+| `modules/logging` | 向遗留注册表登记 `DefaultLogger` | 未启用。请求日志走 `utils/message` 和 `dynlog` |
+| `modules/workchain`、`modules/workchain/example` | 示例处理器，向遗留注册表登记 | 示例。默认 `start` 不导入 |
 | `monitor` | Windows/amd64 托盘程序，独立 `main` | 独立可执行程序，不在服务器进程内 |
 | `test`、`test/client_test`、`test/unit_test/...` | 根测试入口、子进程 E2E、集中式单测 | 测试专用 |
 | 源码目录中的 `*_test.go` | 与被测 package 同路径的测试 | 测试专用 |
@@ -46,12 +48,12 @@
 - `modules/core/events.EventHandler()` 根据匹配到的 location type 从 `GRRCHT` 取得处理函数。
 - TCP proxy 和 WebSocket 不使用 location handler 表的普通请求分发：`core/filters` 在监听/upgrade 阶段直接分流。
 
-### 通用 Module 注册表：示例与测试路径
+### 通用 Module 注册表：遗留机制
 
-- `modules/module.go` 定义 `RegisterModule`、`GetModule[T]` 和 package 级 registry。
-- 当前生产源码调用方是 `modules/logging` 的 `DefaultLogger`；`modules/workchain/example` 注册示例处理器。
-- registry 的主要读取和一致性验证出现在 `test/unit_test/modules`。
-- 未发现默认 server 启动代码调用 `GetModule`。它目前不等同于 HTTP request handler 插件系统，也不负责装配 `GRRCHT`。
+`modules/module.go` 的 `RegisterModule` / `GetModule` 是遗留注册表，不是请求分发 API，也不装配 `GRRCHT`。阶段 1 只做这个标注，不删除代码。以后若要去掉，再在阶段 3 和真实调用方一起处理。
+
+- 写入方是 `modules/logging` 的 `DefaultLogger`，以及 `modules/workchain/example` 的示例处理器。
+- 读出方在 `test/unit_test/modules`。默认 `start` 不调用 `GetModule`。
 
 ## 3. 主要依赖边界
 
@@ -87,13 +89,21 @@ handler modules -> core contracts + listener/config + required services
 
 运行配置和默认资源仍按安装包布局提供；配置路径由工作目录和 `config` 常量共同决定。架构迁移不能只移动 Go package，还必须同步检查 Docker、GoReleaser、RPM 和工作目录相关契约。
 
-## 5. 测试结构基线
+## 5. 测试、脚本和示例
 
-- 源码邻近测试：目前存在于 `config/`、`init/`、`modules/core/`、H2、listener、request、response、server、proxy、static、safe 等目录。
-- 集中单测：`test/unit_test/` 覆盖 cmd、config、compress、modules/core、safe、logger、message、security 等。
-- 集成测试：`test/client_test/` 包含隔离子进程 proxy E2E 和可选 reload E2E；同时保留手工客户端样例。
-- 根测试：`test/fast-https_test.go` 覆盖初始化集成路径。
-- CI 默认命令是全仓 `go test ./...`；环境变量门控的 E2E 需单独记录执行条件。
+自动测试：
+
+- 源码邻近的 `*_test.go`：`config/`、`init/`、`modules/core/`、H2、listener、request、response、server、proxy、static、safe 等。
+- 集中单测：`test/unit_test/`。
+- 子进程集成测试：`test/client_test/` 里的 `*_test.go`。`TestProxyHTTPIntegration` 默认会跑。`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`。
+- 根目录 `test/fast-https_test.go` 覆盖初始化路径。
+- CI 命令是 `go test ./...`。
+
+不进入 `go test` 的文件：
+
+- `test/scripts/dev-test.sh`、`dev-test.ps1`：手工拉起 `dev` 的脚本。
+- `test/single/workloop.go`：独立 `main`，只演示等待 `SIGINT`，不是服务器测试。
+- `engine.sh`：改写引擎标识后另编 master/slave，不是 `go build .` 的入口。
 
 ## 6. 阶段 0 验证结果
 
@@ -112,7 +122,7 @@ handler modules -> core contracts + listener/config + required services
 ## 7. 阶段 0 结论
 
 - 主服务器是根 package，`cmd/` 是 CLI 实现包；monitor 是独立 Windows/amd64 package。尚无必要为了目录惯例立即迁移可执行入口。
-- 请求 handler registry 与通用 Module registry 当前是两套不同机制，只有前者进入默认 server 请求处理链。阶段 3 需要先决定正式扩展契约，再统一组合入口。
+- 请求处理只有 `GRRCHT` 这一条生产路径。`modules/module.go` 已标为遗留注册表，默认启动不使用，本阶段不删除。阶段 3 再决定是否去掉它，并改掉 server 的空白导入。
 - 核心耦合的主要落点在 filters 直接调用 feature、WebSocket 依赖 proxy，以及配置/请求对象跨层传递；应按小步注入接口，不做批量目录搬迁。
 - 测试已经形成源码邻近单测、集中单测、E2E 三种形式。后续阶段 2 应明确规范，而不是先机械移动现有测试。
 - 基线测试可通过匹配的 Go 1.27.1 工具链以串行方式运行；本机 Go 环境本身存在 GOROOT 混用问题，需独立修复，不属于项目架构改造。

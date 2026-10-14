@@ -36,13 +36,13 @@
 
 1. 请求处理器通过 `core.GRRCHT` 注册，server 包通过 blank import 导入 `static`、`proxy`、`rewrite`、`dev_mod` 等包以触发注册。
 
-2. `modules/module.go` 还提供 `RegisterModule/GetModule` 通用注册表，但当前主要由 logger/workchain 示例和测试使用，不是 HTTP 请求分发主链。
+2. `modules/module.go` 的 `RegisterModule/GetModule` 已标为遗留注册表。调用方是 logger、workchain 示例和测试，不是 HTTP 请求分发主链。代码仍保留。
 
 3. `modules/core/filters` 直接依赖 `safe`、`proxy_tcp`、`websocket` 等功能包；功能注册、连接协议分流和请求路由职责有交叉。
 
 4. 测试同时分布在源码目录和 `test/unit_test/`；E2E 位于 `test/client_test/`。
 
-5. `modules/core/engine`、`modules/core/routine_pool`、`modules/workchain/example` 等代码是否属于当前产品启动路径，需要继续明确，但不应仅因“暂未启用”就立即删除或搬迁。
+5. `modules/core/engine`、`modules/core/routine_pool` 已标为未启用，`modules/workchain/example` 已标为示例。它们不在默认 `start` 路径上，本阶段不删除、不搬迁。
 
 6. 配置路径和运行资源目录是现有部署契约的一部分。即使内部配置实现重构，也要先保持配置格式和安装包目录不变。
 
@@ -121,12 +121,14 @@ modules/experimental/ # 已确认非生产功能的实验实现
 
 **难度：易；风险：低。**
 
+**状态：已完成（2026-10-14）。** 只改了说明。`engine` 和 `routine_pool` 标为未启用，`workchain/example` 标为示例，`modules/module.go` 标为遗留注册表。代码未删，导入未改。记录见 [architecture-map.md](architecture-map.md) 第 1、2、5 节，以及 README 的目录树。
+
 #### 阶段 1：工作内容
 
-- 为 `modules/core/engine`、`routine_pool`、`workchain/example` 等标注正式功能、可选能力、实验或示例状态。
-- 明确 `modules/module.go` 是正式模块 API 还是示例/遗留机制；在决策前不删除它。
-- 更新 README 和架构文档的目录说明，准确反映当前 package，不把未启用能力描述成主流程。
-- 将临时脚本、手工客户端样例和自动化测试的用途说明清楚。
+- 已标注 `modules/core/engine`、`routine_pool` 为未启用，`workchain/example` 为示例。
+- 已明确 `modules/module.go` 是遗留注册表，不是请求分发 API。代码仍保留。
+- README 与架构地图已按当前 package 区分生产路径和未启用路径。
+- 已写明 `test/scripts`、`test/single/workloop.go` 不进入 `go test`，`engine.sh` 不是标准构建入口。
 
 #### 阶段 1：测试与验证
 
@@ -267,7 +269,7 @@ modules/experimental/ # 已确认非生产功能的实验实现
 | 顺序 | 阶段 | 主要收益 | 优先级 |
 | --- | --- | --- | --- |
 | 1 | 阶段 0：地图与验证基线 | 后续决策有证据，低风险 | P0（前置） |
-| 2 | 阶段 1：标注目录语义 | 降低误读成本，不改行为 | P1 |
+| 2 | 阶段 1：标注目录语义 | 降低误读成本，不改行为 | 已完成（2026-10-14） |
 | 3 | 阶段 2：整理测试布局 | 为重构提供稳定回归网 | P1 |
 | 4 | 阶段 3：统一 handler 装配 | 修正最明显的依赖倒置和注册分裂 | P1 |
 | 5 | 阶段 4：配置快照与依赖注入 | 降低全局状态耦合，重构风险较高 | P2 |

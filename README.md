@@ -86,7 +86,7 @@ fast-https/
 │   ├── init.go                   # 配置、日志、证书、缓存初始化
 │   └── autocert.go               # 自签名根证书与站点证书
 ├── modules/
-│   ├── module.go                 # 模块注册表
+│   ├── module.go                 # 遗留注册表，不参与请求分发；默认 start 不调用
 │   ├── core/                     # 监听、事件、HTTP/1.1、HTTP/2、请求与响应
 │   │   ├── server/               # 启停、信号、热重载
 │   │   ├── listener/             # 按 listen 建监听器
@@ -95,21 +95,23 @@ fast-https/
 │   │   ├── filters/              # 连接、监听、解析、路由过滤
 │   │   ├── h2/                   # HTTP/2 帧、流、HPACK
 │   │   ├── dynlog/               # 访问日志注册
-│   │   └── engine/               # master/slave 注册与心跳（当前启动路径未调用）
+│   │   ├── engine/               # 未启用：master/slave 注册与心跳
+│   │   └── routine_pool/         # 未启用：协程池，server 中的导入保持注释
 │   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
-│   ├── auth/  safe/  cache/  compress/  appfirewall/  logging/
+│   ├── auth/  safe/  cache/  compress/  appfirewall/
+│   ├── logging/                  # 未启用：只向遗留注册表登记 DefaultLogger
 │   ├── dev_mod/                  # location type = devmod
-│   └── workchain/example/        # 模块注册示例，服务启动时不会加载
+│   └── workchain/example/        # 示例：向遗留注册表登记，默认 start 不加载
 ├── output/                       # 启动 Logo 与初始化提示
 ├── utils/                        # 日志、消息、文件、颜色、RSA
 ├── monitor/                      # Windows 托盘程序（独立 main）
 ├── httpdoc/root/                 # 默认静态站点与自签名根证书存放目录
-├── test/                         # 单元测试、客户端集成测试、开发脚本
+├── test/                         # 自动测试；scripts/ 与 single/ 是手工脚本和示例，不进入 go test
 ├── docker/                       # CentOS 7、Ubuntu 镜像
 ├── Dockerfile                    # 多阶段构建，暴露 8080 与 443
 ├── spec                          # RPM spec，构建时使用 -tags=rpm
 ├── shell/.acme.sh/               # 随仓库附带的 acme.sh，Go 启动流程不会调用
-├── engine.sh                     # 替换引擎标识后分别编译 master/slave
+├── engine.sh                     # 未启用路径：改写引擎标识后另编 master/slave，不是 go build .
 ├── .goreleaser.yaml              # Linux、Darwin、Windows 发布
 └── .workflow/go-test.yml         # Gitee Go：推送和合并请求上执行 go test ./...
 ```
