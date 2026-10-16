@@ -1,8 +1,10 @@
 # Fast-Https 架构收敛与优化开发计划
 
-修订日期：2026-10-13。
+修订日期：2026-10-16。
 
-本文只规划代码目录与软件架构边界的渐进式收敛，不安排协议功能扩展或产品能力对标。每阶段应单独评审、提交和验证；前一阶段未达到验收条件，不进入下一阶段。
+本文只规划代码目录与软件架构边界的渐进式收敛，不安排协议功能扩展或产品能力对标。每一步单独评审、提交和验证；前一步未达到验收条件，不进入下一步。
+
+2026-10-16 修订按当前代码重新核对了阶段 2 以后的内容：核心层反向依赖补全为三个包；阶段 3 拆成四步，并把依赖守卫放到最前；阶段 4 先做重载一致性，完整配置快照按需再做；阶段 2 并入测试约定，阶段 5 推迟到有发行需要时。
 
 ## 1. 目标
 
@@ -15,7 +17,7 @@
 - 单元测试、集成测试和实验代码
 
 本计划不要求一次性搬迁目录，不改变现有 JSON 字段、默认部署目录或网络行为。
-优化以降低包间耦合、让依赖方向可理解、让结构调整可自动验证为完成标准。
+完成标准是包间耦合降低、依赖方向可理解、结构约束可自动验证。
 
 ## 2. 当前结构基线
 
@@ -24,7 +26,7 @@
 | 路径 | 当前职责 |
 | --- | --- |
 | 根目录 `fast-https.go` | 主服务器可执行程序入口 |
-| `cmd/` | start、dev、stop、reload 等 CLI 命令及平台相关处理 |
+| `cmd/` | start、dev、stop、reload、check 等 CLI 命令及平台相关处理 |
 | `config/`、`init/` | 配置加载/验证与启动初始化 |
 | `modules/core/` | server、listener、events、filters、HTTP 请求响应、H2 等运行时代码 |
 | `modules/static`、`proxy`、`rewrite`、`safe` 等 | 请求处理及横切功能模块 |
@@ -34,66 +36,74 @@
 
 需要优先澄清的现状：
 
-1. 请求处理器通过 `core.GRRCHT` 注册，server 包通过 blank import 导入 `static`、`proxy`、`rewrite`、`dev_mod` 等包以触发注册。
+1. 请求处理器通过 `core.GRRCHT` 注册。`static`、`proxy`、`rewrite`、`dev_mod` 在各自的 `init()` 中调用 `core.RRHandlerRegister`，server 包用空白导入触发这些 `init()`。`ServerInit` 在监听前用 `core.MissingHandlers` 检查配置中的 location 类型。
 
-2. `modules/module.go` 的 `RegisterModule/GetModule` 已标为遗留注册表。调用方是 logger、workchain 示例和测试，不是 HTTP 请求分发主链。代码仍保留。
+2. `modules/module.go` 的 `RegisterModule/GetModule` 已标为遗留注册表。调用方只有 `modules/logging`、`modules/workchain/example` 和 `test/unit_test/modules` 下的两个测试，HTTP 请求分发主链不使用它。代码仍保留。
 
-3. `modules/core/filters` 直接依赖 `safe`、`proxy_tcp`、`websocket` 等功能包；功能注册、连接协议分流和请求路由职责有交叉。
+3. 核心层有三个包直接引用功能包：
 
-4. 测试同时分布在源码目录和 `test/unit_test/`；E2E 位于 `test/client_test/`。
+   | 核心包 | 引用的功能包 | 用途 |
+   | --- | --- | --- |
+   | `modules/core/filters` | `safe`、`proxy_tcp`、`websocket` | 黑名单和限流、TCP 转发、WebSocket 升级 |
+   | `modules/core/events` | `safe`、`auth` | 按 location 计数（`safe.Gcl[cfg.ID]`）、Basic 认证 |
+   | `modules/core/server` | `safe`；空白导入 `static`、`proxy`、`rewrite`、`dev_mod` | `initModules` 中调用 `safe.Init`；触发 handler 注册 |
 
-5. `modules/core/engine`、`modules/core/routine_pool` 已标为未启用，`modules/workchain/example` 已标为示例。它们不在默认 `start` 路径上，本阶段不删除、不搬迁。
+   `modules/websocket` 还引用 `modules/proxy`。这条依赖在功能包之间，不属于核心层违规。
 
-6. 配置路径和运行资源目录是现有部署契约的一部分。即使内部配置实现重构，也要先保持配置格式和安装包目录不变。
+4. 测试同时分布在源码目录和 `test/unit_test/`；E2E 位于 `test/client_test/`。2026-10 之后新增的单测已放在被测 package 旁边。
+
+5. `modules/core/engine`、`modules/core/routine_pool` 已标为未启用，`modules/workchain/example` 已标为示例。它们不在默认 `start` 路径上。
+
+6. 配置路径和运行资源目录是现有部署契约的一部分。根目录 `fast-https.go` 被 Dockerfile、GoReleaser 和 RPM spec 写死为构建入口。
+
+7. 重载有两个状态窗口（按代码阅读确认，尚未复现）：
+   - `config.ReloadFile` 校验通过后调用 `LoadFile`，其中先 `ClearConfig()` 把 `GConfig` 置空再逐项写回。在途请求这时读到的 `GConfig.Limit.MaxBodySize` 可能为 0，带请求体的请求会被当成超限断开。
+   - `safe.countsInit` 先把 `Gcl` 置空再按新 location 追加。在途请求仍持有旧 location 的 `cfg.ID`；`Gcl` 尚未建完或新配置 location 变少时，`events` 中的 `safe.Gcl[cfg.ID]` 会越界。处理协程没有 `recover`，越界会结束整个进程。
+
+8. `go.mod` 的模块名是 `fast-https`，不含域名，外部项目无法通过 `go get` 引入其中的 package。判断一个 package 能否删除或改名，只需检查仓库内调用方。
 
 ## 3. 收敛原则
 
-- 先确定依赖方向和职责，再移动文件；不要用目录重命名代替架构改进。
+- 先确定依赖方向和职责，再移动文件；目录重命名本身不算架构改进。
 - 每次只改变一个边界，保持现有启动命令、配置格式和服务行为兼容。
-- `core` 不应为了分发请求而直接依赖具体功能模块；功能模块依赖稳定的核心接口。
-- 只保留一种正式的请求处理器注册/装配机制。若通用模块注册表是公开扩展 API，需先定义其契约；若只是示例机制，应明确标注并避免和运行时插件概念混淆。
-- 生产代码、示例/实验代码、测试代码都应有明确归属。未确认调用方前，不删除未进入默认启动路径的包。
-- 架构约束要有自动验证，不只写在文档中。
+- `core` 为了分发请求只依赖接口和已装配的处理器表；功能模块依赖稳定的核心接口。
+- 只保留一种正式的请求处理器注册/装配机制。
+- 生产代码、示例/实验代码、测试代码都应有明确归属。删除前先处理完仓库内全部调用方。
+- 架构约束用 `go test` 可执行的检查保证，文档只记录规则和理由。
+- 正确性问题（如第 2 节第 7 项）优先于结构整理，可以不按阶段编号顺序插队。
 
 ## 4. 目标依赖方向
 
-建议逐步收敛到以下依赖关系，不要求立即采用这些精确目录名称：
-
 ```text
-main / cmd
-    -> app 或 runtime（启动组合层）
-        -> config snapshot
-        -> core（server、listener、protocol、routing contracts）
+fast-https.go
+    -> cmd（启动组合层：注册 handler、注入过滤和安全服务）
+        -> config
+        -> core（server、listener、events、filters、protocol、routing contracts）
         -> feature handlers（static、proxy、rewrite、devmod）
-        -> cross-cutting services（auth、safe、cache、logging）
+        -> cross-cutting services（auth、safe、proxy_tcp、websocket、cache）
 
 feature handlers -> core contracts + 所需的基础服务
-core             -X-> 具体 feature handlers
+core             -X-> 具体 feature handlers 和 cross-cutting services
 ```
 
-关键点是由组合层了解有哪些功能模块并注册它们，而 `core` 只认识接口和已装配的处理器表。这样既可以继续使用静态编译的 Go package，也可以单测替换 handler；不要求改造成 Go `plugin` 动态插件系统。
+`cmd` 已经导入 `server`，`start` 和 `dev` 都从这里进入，由它承担组合层职责，改动最小。只有当 `cmd` 中的装配代码明显膨胀，或 monitor 等其他入口也需要同一套装配时，再考虑抽出独立的 `internal/app`。继续使用静态编译的 Go package，不改造成 Go `plugin` 动态插件系统。
 
-可供后续讨论的目录形态示例：
+远期目录形态仅作参考，阶段 5 之前不按它搬迁：
 
 ```text
 cmd/fast-https/       # 仅在决定把主入口从仓库根迁入时采用
 cmd/monitor/          # 仅在需要统一多个可执行程序时采用
-internal/app/         # 程序组合与启动编排
-internal/config/      # 配置模型、加载和验证
-internal/core/        # server、listener、events、routing contracts
+internal/app/         # 仅在 cmd 中的装配代码需要复用时采用
 modules/<feature>/    # 静态、代理、重写等处理能力
-modules/experimental/ # 已确认非生产功能的实验实现
 *_test.go             # package 内单元测试
- test/e2e/             # 子进程或完整部署链路测试
+test/client_test/     # 子进程或完整部署链路测试
 ```
-
-这是目标参考，不是当前迭代的批量移动清单。Go `internal/` 也会改变外部 package 可见性，迁入前必须确认模块对外使用情况。
 
 ## 5. 分阶段实施计划
 
 ### 阶段 0：建立架构地图和验证基线
 
-**难度：易；风险：低；建议作为本计划第一项。**
+**难度：易；风险：低。**
 
 **状态：已完成（2026-10-13）。** package 职责、生产入口、注册关系、构建路径和验证基线见 [architecture-map.md](architecture-map.md)。全量测试使用匹配的 Go 1.27.1 工具链串行通过；本机默认 GOROOT 混用问题及并行测试 exe 的 Windows `Access is denied` 已记入基线，不属于本阶段代码改动。
 
@@ -101,7 +111,7 @@ modules/experimental/ # 已确认非生产功能的实验实现
 
 - 已维护 package 职责、生产入口、主要依赖者和默认服务器启动路径清单，见 [architecture-map.md](architecture-map.md) 第 1 节。
 - 已区分主服务器、Windows monitor、测试工具和示例程序的构建入口，见该文档第 4、5 节。
-- 已记录 `core.GRRCHT` 与通用 Module registry 的调用方和用途；通用 registry 是否作为正式扩展 API 留待阶段 3 决策，见第 2 节。
+- 已记录 `core.GRRCHT` 与通用 Module registry 的调用方和用途，见第 2 节；去留在阶段 3 第 4 步决定。
 - 已记录 package/import 结构及 Docker、GoReleaser、RPM、CI 入口；本阶段未移动目录或改变运行行为。
 
 #### 阶段 0：测试与验证
@@ -126,7 +136,7 @@ modules/experimental/ # 已确认非生产功能的实验实现
 #### 阶段 1：工作内容
 
 - 已标注 `modules/core/engine`、`routine_pool` 为未启用，`workchain/example` 为示例。
-- 已明确 `modules/module.go` 是遗留注册表，不是请求分发 API。代码仍保留。
+- 已标明 `modules/module.go` 是遗留注册表，请求分发不经过它。代码仍保留。
 - README 与架构地图已按当前 package 区分生产路径和未启用路径。
 - 已写明 `test/scripts`、`test/single/workloop.go` 不进入 `go test`，`engine.sh` 不是标准构建入口。
 
@@ -141,154 +151,177 @@ modules/experimental/ # 已确认非生产功能的实验实现
 - 目录中的“生产/示例/实验”身份明确。
 - 没有因为整理说明而改变构建、导入或运行行为。
 
-### 阶段 2：整理测试布局和测试职责
+### 阶段 2：固定测试位置约定
 
-**难度：易到中；风险：低到中。**
+**难度：易；风险：低。并入约定，不单独做目录迁移。**
+
+**状态：已完成（2026-10-16）。** 约定写在 [test/readme.md](../test/readme.md) 第 1.0 节，1.1 节目录树已按实际文件更新（去掉不存在的 `safe/safe_test.go`，补上 `handler_ready_test.go`、`utils/message`、H2 连接测试和 `client_test` 的进程辅助文件）。核对时发现两个存量文件需要说明：`test/fast-https_test.go` 有写 pid、生成证书的副作用；`test/client_test/http_https_change_test.go` 是只有 `func main` 的手工客户端。两者均已在 1.0 节写明，本阶段未移动。生产代码没有导入 `test/` 下的 package。
+
+现有测试已经形成三种稳定形式：源码旁的单测、`test/unit_test/` 下的集中单测、`test/client_test/` 下的子进程 E2E。批量迁移或把 `client_test` 改名为 `e2e` 会牵动 CI、文档和命令，对后续阶段没有帮助。
 
 #### 阶段 2：工作内容
 
-- 新增单元测试优先放在被测 package 旁，特别是需要验证未导出实现细节的测试。
-- `test/` 保留跨 package、跨进程、真实 listener/upstream 和部署流程测试；可将 `client_test` 逐步更名为 `e2e` 或 `integration`，一次只迁移一个 package。
-- 将共用 fixture 放到 `test/testdata` 或有明确边界的测试辅助 package；生产代码不能反向依赖 `test/`。
-- 将手工运行样例和 `go test` 自动测试分开命名和说明。
-
-#### 阶段 2：测试与验证
-
-- 迁移前后分别运行受影响 package 的 `go test`，再运行 `go test ./...`。
-- 确认 E2E 默认使用本地临时配置和临时目录，不改写用户工作区配置、不要求外网或真实应用运行时。
-- 验证 `.workflow/go-test.yml` 仍覆盖所有默认测试；环境变量控制的 E2E 要单独记录运行方式。
+- 在 [test/readme.md](../test/readme.md) 写明约定：新增单测放在被测 package 旁；`test/unit_test/` 只保留已有测试，不再新增；跨进程、真实 listener/upstream 的测试放在 `test/client_test/`。
+- `test/unit_test/` 中的测试只在所测代码被阶段 3、4 改动时顺带迁到对应 package 旁，不专门搬迁。
+- 生产代码不能依赖 `test/` 下的任何 package。
 
 #### 阶段 2：验收条件
 
-- 测试位置能区分单元测试和端到端测试。
-- 所有迁移后的测试仍进入标准 CI 命令，E2E 仍可独立运行。
-- 测试辅助代码不污染生产 package。
+- `test/readme.md` 描述的位置约定与仓库现状一致。
+- `go test ./...` 覆盖范围不变；环境变量控制的 E2E（`FASTHTTPS_E2E_RELOAD`）运行方式有记录。
 
 ### 阶段 3：统一请求处理器注册和启动装配
 
-**难度：中到难；风险：中到高；这是最重要的运行时边界改造。**
+**难度：中；风险：中。这是最重要的运行时边界改造，按以下四步依次进行，每步单独提交。**
 
-#### 阶段 3：工作内容
+#### 第 1 步：依赖守卫测试（约 0.5 天）
 
-1. 为 location handler、连接/监听过滤器定义稳定的小接口，说明注册时机和生命周期。
-2. 增加组合层（可先放在现有 server 附近，稳定后再决定是否使用 `internal/app`），由它导入并注册 static、proxy、rewrite、devmod 等生产 handler。
-3. 调整 `core/filters`：将 TCP proxy、WebSocket 和安全服务通过接口/依赖参数传入，避免 core import 具体 feature package。
-4. 保留启动期缺 handler 检查；检查对象改为最终装配结果，缺失时在监听前返回可诊断错误。
-5. 对通用 `modules.RegisterModule/GetModule` 作出明确决策：
-   - 若是正式 API，写清注册契约、重复注册和类型校验规则，并让它服务于真实功能；
-   - 若不是正式 API，先迁移或标注 logger/workchain 示例消费者，再弃用或删除孤立注册表。
-6. 不在该阶段变更 location JSON 名称、请求 handler 行为或功能模块目录。
+- 新增一个 Go 测试，用标准库 `go/parser` 只解析 `modules/core/...` 下非测试文件的 import，不引入第三方依赖。
+- 禁用清单集中维护：`modules/static`、`proxy`、`proxy_tcp`、`rewrite`、`dev_mod`、`websocket`、`safe`、`auth`、`appfirewall`、`cache`。
+- 第 2 节第 3 项中的现有违规写入允许清单，每项注明在本阶段第几步去掉。出现新违规时测试失败，并输出违规 package 和 import 路径。
+- 后续每一步只能缩短允许清单。
 
-#### 阶段 3：测试与验证
+验收：`go test ./...` 包含该检查；人为加一条违规 import 时测试失败。
 
-- 单测覆盖 handler 注册、重复/缺失 handler、TCP listener 特殊分流、默认 handler 集合。
-- 通过依赖图检查 core 不再 import 具体 feature package；允许组合层依赖 core 和 feature。
-- `go test ./modules/core/... ./modules/...`，再运行 `go test ./...`。
-- 运行 `go test ./test/client_test -run TestProxyHTTPIntegration -v`，验证代理、静态和错误响应不变。
-- 对主服务器和 monitor 运行构建，确认 blank import 移除后没有遗漏功能模块。
+#### 第 2 步：显式注册 handler（约 1 天）
 
-#### 阶段 3：验收条件
+- `static`、`proxy`、`rewrite`、`dev_mod` 把 `init()` 中的注册改为导出的注册函数，函数内部仍调用 `core.RRHandlerRegister`。
+- `cmd` 在 `start` 和 `dev` 路径上、`ServerInit` 之前调用这四个注册函数。
+- 删除 `modules/core/server` 中的四个空白导入。
+- `core.MissingHandlers` 检查保持原样，缺失时在监听前返回可诊断错误。
+- 不改变 location JSON 名称、handler 行为和功能模块目录。
 
-- 请求 handler 只有一种正式装配路径。
-- core 包不依赖具体请求功能包。
-- 所有当前配置的 `location.type` 仍在启动时完成 handler 检查。
-- 默认启动、静态站点、HTTP/HTTPS 代理、rewrite、devmod、TCP proxy 和 WebSocket 的既有入口有对应测试或明确的暂缺说明。
+验收：单测确认调用注册函数后四种 location 类型都已注册，未调用时 `MissingHandlers` 能报出缺失类型；代理 E2E 通过；允许清单去掉 server 的四项空白导入。
 
-### 阶段 4：让配置依赖从全局状态转为显式快照
+#### 第 3 步：过滤、计数、认证和安全初始化改为注入（约 1–2 天）
 
-**难度：难；风险：高；应在阶段 3 稳定后开始。**
+- `filters` 的连接过滤（黑名单、令牌桶）、TCP 转发、WebSocket 处理改为由组合层传入的函数。
+- `events` 的 location 计数和 Basic 认证改为由组合层传入的函数。
+- `server.initModules` 中的 `safe.Init` 改为组合层传入的初始化函数，重载时仍会再次调用。
+- 注入点集中在一个结构体里，`cmd` 统一填写；未填写的函数按“放行/不处理”的默认行为执行，便于单测。
+- 动手前先为 TCP 转发补一个测试（本地监听 + 上游回显）；WebSocket 若暂时无法覆盖，在本阶段记录中写明暂缺。
 
-#### 阶段 4：工作内容
+验收：允许清单清空；静态、HTTP/HTTPS 代理、rewrite、devmod、TCP 转发、WebSocket 都有对应测试或明确的暂缺说明；`go test ./modules/... ./cmd/...` 和代理 E2E 通过。
 
-- 定义不可变的运行时配置快照，加载和验证产生新快照，监听器和 handler 显式持有需要的配置。
-- 逐个迁移对 `config.GConfig`、`GContentTypeMap` 和包级全局状态的直接读取，不要求一次性消除所有全局量。
+#### 第 4 步：处理遗留注册表（约 0.5 天）
+
+- 依据第 2 节第 8 项，`modules/module.go` 没有仓库外调用方。`modules/logging` 和整个 `modules/workchain`（含 `example`）只被彼此和下列两个测试引用。
+- 先在 `module.go` 加 `Deprecated` 注释，再在单独一次提交中删除 `modules/module.go`、`modules/logging`、`modules/workchain`，以及 `test/unit_test/modules/module_test.go`、`module_registration_consistency_test.go`。
+- 同步更新 README、README.en.md 目录树和 [architecture-map.md](architecture-map.md)。
+
+验收：`go build ./...`、`go test ./...` 通过；文档中不再出现已删除 package 的生产路径描述。
+
+#### 阶段 3：整体验收条件
+
+- 请求 handler 只有一种正式装配路径，由 `cmd` 完成。
+- `modules/core/...` 不依赖具体功能包，并由依赖守卫测试持续保证。
+- 所有当前配置的 `location.type` 仍在监听前完成 handler 检查。
+- 主服务器和 monitor 均能构建。
+
+### 阶段 4：配置与重载状态
+
+**难度：4a 中、4b 难；风险：4a 中、4b 高。**
+
+#### 4a：重载一致性（约 1–2 天，可在阶段 3 之前做）
+
+修复第 2 节第 7 项的两个窗口，不做全局依赖注入：
+
+- 配置加载在局部变量中构造新的 `Fast_Https` 和 MIME 表，校验通过后一次性赋给 `GConfig`、`GContentTypeMap`；失败时旧值保持不动。
+- `safe.countsInit` 在局部切片中构建新的计数表，再整体替换 `Gcl`（可用 `atomic.Pointer`）。`events` 查找时 `cfg.ID` 越界按放行处理，不触发 panic。
+- 公开 API（`config.Reload`、`config.ReloadFile`、`safe.Init`）签名不变。
+
+测试与验收：
+
+- 新增并发测试：多个协程持续读取 `MaxBodySize` 和计数表，同时反复重载，断言读不到零值、不越界。
+- `-race` 在 Windows 上需要 cgo，可在 Linux 环境运行；Windows 至少运行不带 `-race` 的同一测试。
+- 现有 `config/reload_test.go`、`test/unit_test/modules/core/listener/reload_common_test.go` 和 reload E2E（`FASTHTTPS_E2E_RELOAD=1`）通过。
+- 同步更新 [iteration-plan.md](iteration-plan.md) 的已落地记录。
+
+#### 4b：完整配置快照（按需，暂不排期）
+
+只在出现以下需求之一时启动：listener 需要整体替换而不是原地修改 `Cfg`/`HostMap`；需要多份配置并存（如测试并行）；全局配置读取导致新的正确性问题。
+
+- 定义运行时配置快照，监听器和 handler 显式持有所需配置，逐个迁移对 `config.GConfig`、`GContentTypeMap` 的直接读取。
 - 拆分配置 schema、文件加载/校验、路径解析和默认值职责；按责任拆包，不为每个结构体创建小 package。
-- 明确相对路径基准和工作目录策略，保留安装包布局、`-tags=rpm` 路径、JSON 格式和现有 CLI 行为。
-- 让 reload 构造完整的新快照并验证，再原子地切换配置和 listener，避免半更新状态。
+- 保留安装包布局、`-tags=rpm` 路径、JSON 格式和现有 CLI 行为。
+- reload 构造完整的新快照并验证，再切换配置和 listener。
 
-#### 阶段 4：测试与验证
-
-- 配置解析单测覆盖主配置、include、默认值、相对/绝对路径和无效字段。
-- reload 测试确认无效快照不替换现有配置；有效快照更新 common listener 并正确新增/移除端口。
-- 在 Windows 与 Linux 构建/测试；对容器前台与 Linux daemon 路径分别验证工作目录和资源定位。
-- 运行 `go test ./...`、proxy E2E 和 reload E2E（`FASTHTTPS_E2E_RELOAD=1`）。
-
-#### 阶段 4：验收条件
-
-- listener 和 handler 的运行行为不再依赖“当前进程全局配置恰好已加载”。
-- reload 成功是整份配置切换，失败保留整份旧状态。
-- 现有发行目录、配置文件字段和命令兼容。
+验收：listener 和 handler 的运行行为不再依赖进程级全局配置；reload 成功是整份配置切换，失败保留整份旧状态；Windows 与 Linux 分别验证工作目录和资源定位。
 
 ### 阶段 5：按证据收拢目录和可执行入口
 
-**难度：中；风险：中。**
+**难度：中；风险：中。推迟，只在出现发行或多入口需求时启动。**
+
+根目录 `fast-https.go` 被 Dockerfile、GoReleaser、RPM spec 写死，搬迁入口的成本集中在发行链路，对代码边界没有直接收益。
+
+#### 阶段 5：启动条件
+
+- 需要统一主程序与 monitor 的构建方式，或发行工具要求 `cmd/<name>` 布局；
+- 或阶段 3 第 4 步之后，`engine`、`routine_pool` 仍需保留并需要与生产代码物理隔离。
 
 #### 阶段 5：工作内容
 
-- 只有在 package 边界稳定后，才考虑将主入口迁至 `cmd/fast-https`，并按需要将 monitor 入口放至 `cmd/monitor`。
-- 只有确认 engine/routine_pool/workchain 是实验或示例后，才迁入 `experimental/` 或 `examples/`；生产能力则保留在功能模块目录并补齐启动装配说明。
-- 根据阶段 2 决策整理测试目录；避免生产源码和测试文件被机械地整体搬迁。
+- 将主入口迁至 `cmd/fast-https`，按需要将 monitor 入口放至 `cmd/monitor`。
+- 未启用的 `engine`、`routine_pool`：仓库内无调用方时直接删除；仍要保留时迁入 `experimental/`。
 - 同步更新 Dockerfile、GoReleaser、RPM spec、Windows 资源、CI 工作目录和文档中的路径。
 
-#### 阶段 5：测试与验证
+#### 阶段 5：测试与验收
 
-- `go list ./...`：确认 package 路径变化完整且无旧路径残留。
-- `go test ./...` 和所有目标平台的 `go build`。
+- `go list ./...` 无旧路径残留；`go test ./...` 和所有目标平台的 `go build` 通过。
 - 实际构建 Linux/RPM、Windows 主程序和 monitor 发布物，检查包内配置、静态资源和启动工作目录。
 - 在临时安装目录运行 `check`、`start`、`status`、`reload`、`stop` 冒烟测试。
-
-#### 阶段 5：验收条件
-
-- 新目录在职责上比原目录更清晰，而不只是路径不同。
-- CI 和所有发行方式使用新路径并通过。
 - 用户可见命令、配置和安装包结构没有未说明的破坏性变化。
 
 ## 6. 架构约束的自动验证
 
-当阶段 3 开始时，新增至少一项可重复运行的依赖边界验证：
-
-- 短期可使用 `go list -f` 导出 import graph，并在 CI 检查 `modules/core` 不依赖列入禁用清单的 feature package。
-- 依赖名单应集中维护，允许项必须有说明，避免在脚本里散落大量字符串。
-- 若规则扩展到多个边界，再考虑小型 Go 架构测试或静态分析工具；不为单条规则引入大型依赖。
-- 保持 `go test ./...` 为全仓基础门禁；架构规则失败应指出违规 package 和 import 路径。
+- 依赖守卫在阶段 3 第 1 步落地，以普通 Go 测试形式存在，随 `go test ./...` 和 `.workflow/go-test.yml` 一起执行，不需要额外 CI 步骤。
+- 禁用清单和允许清单集中在同一个测试文件里，允许项必须注明原因和计划去掉的步骤。
+- 规则扩展到多个边界时，仍优先在同一测试中增加规则；不为单条规则引入第三方架构检查工具。
+- 失败信息必须指出违规 package 和 import 路径。
 
 ## 7. 阶段门禁与回退策略
 
-每个阶段合并前都必须满足：
+每一步合并前都必须满足：
 
-1. 先运行受影响 package 的测试，再运行 `go test ./...`。
-2. 结构变化同步更新 README/架构说明和构建路径。
+1. 先运行受影响 package 的测试，再运行 `go test ./...`（Windows 上使用 `-p 1`）。
+2. 结构变化同步更新 README、README.en.md、[architecture-map.md](architecture-map.md) 和构建路径；行为变化同步更新 [iteration-plan.md](iteration-plan.md)。
 3. 协议与配置不变时，运行代理 E2E；涉及重载时运行 reload E2E。
 4. Windows 与 Linux 相关文件有各自的编译或 CI 验证，不以单平台本地通过代替。
-5. 阶段 3 之后，架构依赖检查必须在 CI 执行。
+5. 测试不得改写仓库内的 `config/fast-https.json`。
 
-回退时按阶段 revert，而不是跨多个阶段一次性恢复。每阶段尽量通过 adapter 保持旧接口可用；若新装配路径影响既有配置或发行包，应先恢复旧组合入口，再保留可独立测试的新接口，不要留下两套同时生效的 handler 注册机制。
+回退时按步 revert。第 2、3 步若影响既有配置或发行包，先恢复旧的注册方式，同时保留可独立测试的新函数；任何时刻只能有一套 handler 注册机制生效。
 
 ## 8. 推荐执行顺序和优先级
 
-| 顺序 | 阶段 | 主要收益 | 优先级 |
-| --- | --- | --- | --- |
-| 1 | 阶段 0：地图与验证基线 | 后续决策有证据，低风险 | P0（前置） |
-| 2 | 阶段 1：标注目录语义 | 降低误读成本，不改行为 | 已完成（2026-10-14） |
-| 3 | 阶段 2：整理测试布局 | 为重构提供稳定回归网 | P1 |
-| 4 | 阶段 3：统一 handler 装配 | 修正最明显的依赖倒置和注册分裂 | P1 |
-| 5 | 阶段 4：配置快照与依赖注入 | 降低全局状态耦合，重构风险较高 | P2 |
-| 6 | 阶段 5：按稳定边界搬迁目录 | 统一入口和发布布局，收益依赖前序 | P3 |
+| 顺序 | 步骤 | 主要收益 | 工作量 | 优先级 |
+| --- | --- | --- | --- | --- |
+| — | 阶段 0：地图与验证基线 | 后续决策有证据 | — | 已完成（2026-10-13） |
+| — | 阶段 1：标注目录语义 | 降低误读成本 | — | 已完成（2026-10-14） |
+| 1 | 阶段 3 第 1 步：依赖守卫测试 | 冻结现有违规，后续只减不增 | 0.5 天 | P1 |
+| 2 | 阶段 4a：重载一致性 | 消除重载窗口内的误断连接和进程崩溃风险 | 1–2 天 | P1 |
+| 3 | 阶段 3 第 2 步：显式注册 handler | 去掉空白导入，装配入口唯一 | 1 天 | P1 |
+| 4 | 阶段 3 第 3 步：过滤与安全注入 | 核心层不再依赖功能包 | 1–2 天 | P1 |
+| 5 | 阶段 3 第 4 步：删除遗留注册表 | 只剩一套注册机制 | 0.5 天 | P2 |
+| — | 阶段 2：测试位置约定 | 新测试有固定归属 | — | 已完成（2026-10-16） |
+| — | 阶段 4b：完整配置快照 | 去除全局配置依赖 | 较大 | 按需 |
+| — | 阶段 5：目录与入口搬迁 | 统一发行布局 | 中 | 按需 |
+
+阶段 4a 与阶段 3 互不依赖，修的是正确性问题，因此排在阶段 3 第 2 步之前。
 
 ## 9. 本计划不包含
 
 - 增加 upstream 负载均衡、HTTP/3、FastCGI 等新协议或产品功能。
 - 重写 HTTP/1.1、HTTP/2、HPACK 或连接池实现。
 - 因目录偏好而一次性将所有包移入 `internal/`。
-- 未确认外部使用和产品状态就删除通用模块注册表、engine 或 workchain。
+- 配置文件变更后的自动重载（R7，已暂缓）。
 - 改变现有 JSON 配置、安装包运行目录或 daemon 行为作为“顺便整理”。
 
 ## 10. 完成定义
 
-架构收敛完成不以目录数量或重命名数量衡量，而以以下结果衡量：
+架构收敛完成以以下结果衡量，目录数量和重命名数量不计入：
 
 - package 职责和生产启动路径可被文档准确描述。
-- core 与具体功能模块的依赖方向清晰，模块装配只有一个权威入口。
-- 配置加载、校验、运行时使用和 reload 的边界清楚，状态可测试。
+- core 与具体功能模块的依赖方向清晰，模块装配只有 `cmd` 一个入口，并由测试持续检查。
+- 重载期间配置和计数表的切换没有中间状态。
 - 单元测试、集成测试和实验代码各有稳定归属。
 - CI 能验证行为回归与关键依赖规则；发布构建和现有部署方式保持兼容。

@@ -2,42 +2,69 @@
 
 ## 一、单元测试框架
 
+### 1.0 测试位置约定
+
+| 测试类型 | 位置 | 说明 |
+| --- | --- | --- |
+| 单元测试（新增） | 被测 package 旁的 `*_test.go` | 可以测试未导出实现，如 `modules/core/close_test.go`、`modules/static/body_test.go` |
+| 集中单元测试（存量） | `test/unit_test/` | 只保留已有测试，不再新增。所测代码被架构收敛阶段 3、4 改动时，顺带迁到对应 package 旁 |
+| 子进程集成测试 | `test/client_test/` | 启动 Fast-Https 子进程，使用临时目录和本地上游，不改写仓库内 `config/fast-https.json` |
+| 手工脚本和样例 | `test/scripts/`、`test/single/` | 不进入 `go test` |
+
+其他约定：
+
+- 生产代码不能导入 `test/` 下的任何 package。测试辅助代码放在 `test/unit_test/helpers`，只供测试使用。
+- 需要外部条件或会改写仓库文件的测试，默认 `t.Skip`，用环境变量开启。目前有 `FASTHTTPS_E2E_RELOAD=1`（reload 端到端）；`FASTHTTPS_PROXY_HELPER` 只由 `TestProxyHTTPIntegration` 内部设置，不需要手工开启。
+- CI（`.workflow/go-test.yml`）运行 `go test ./...`，覆盖上表前三类中默认不跳过的测试。Windows 本地建议加 `-p 1`，避免并行测试 exe 出现 `Access is denied`。
+
+两个存量文件的现状：
+
+- `test/fast-https_test.go` 的 `TestServerInit` 会切换到仓库根目录、写入 pid 文件、加载配置并在证书缺失时生成自签名证书，有副作用，不监听端口。
+- `test/client_test/http_https_change_test.go` 是手工使用的 HTTP/HTTPS 客户端，只有 `func main`，没有测试函数。它会被编进 `client_test` 的测试二进制但不会执行；文件名以 `_test.go` 结尾，`go run` 不能直接运行它。
+
 ### 1.1 目录结构
 
 ```text
 test/
 ├── readme.md
-├── fast-https_test.go
-├── scripts/                         # 开发模式启动脚本
+├── fast-https_test.go               # 启动初始化步骤（有副作用，见 1.0）
+├── scripts/                         # 开发模式启动脚本，不进入 go test
 │   ├── dev-test.sh
 │   └── dev-test.ps1
-├── single/
+├── single/                          # 手工样例，不进入 go test
 │   └── workloop.go
 ├── client_test/                     # 子进程集成测试
 │   ├── proxy_e2e_test.go
-│   ├── reload_e2e_test.go
-│   └── http_https_change_test.go
-└── unit_test/
+│   ├── reload_e2e_test.go           # FASTHTTPS_E2E_RELOAD=1 时运行
+│   ├── reload_proc_windows.go       # 子进程信号辅助（Windows）
+│   ├── reload_proc_other.go         # 子进程信号辅助（其他平台）
+│   └── http_https_change_test.go    # 手工客户端，无测试函数
+└── unit_test/                       # 存量集中单测，不再新增
     ├── helpers/
     │   ├── mock_system.go           # 进程和信号处理模拟
     │   └── mock_io.go               # 文件和输出模拟
     ├── cmd/commands_test.go
     ├── config/check_config_test.go
     ├── compress/compress_test.go
-    ├── safe/safe_test.go
     ├── modules/
     │   ├── module_test.go
     │   ├── module_registration_consistency_test.go
     │   └── core/
+    │       ├── handler_ready_test.go
     │       ├── server/server_test.go
     │       ├── listener/reload_common_test.go
     │       ├── request/parse_test.go
     │       ├── response/response_test.go
     │       └── h2/conn/
+    │           ├── conn_graceful_test.go
+    │           └── conn_reload_test.go
     └── utils/
         ├── logger/logger_test.go
+        ├── message/logdir_test.go
         └── security/rsa_test.go
 ```
+
+源码旁的单元测试分布在 `cmd/`、`config/`、`init/`、`modules/appfirewall`、`modules/core/...`、`modules/proxy`、`modules/safe`、`modules/static` 等目录，不在上面的树中逐一列出。
 
 ### 1.2 测试辅助工具
 
@@ -71,6 +98,14 @@ output := mockIO.Stdout.String()                     // 获取标准输出
 #### 运行测试命令
 
 在仓库根目录执行。`go.mod` 在根目录，下面的包路径相对仓库根目录。
+
+全量测试（与 CI 相同）：
+
+```bash
+go test ./...
+```
+
+只跑存量集中单测：
 
 ```bash
 go test ./test/unit_test/...
@@ -190,6 +225,8 @@ func TestLoggerLevel(t *testing.T) {
 ### 1.5 测试开发指南
 
 #### 测试文件模板
+
+新测试文件放在被测 package 旁（见 1.0）。需要 mock 时可导入 `test/unit_test/helpers`。
 
 ```go
 package xxx_test

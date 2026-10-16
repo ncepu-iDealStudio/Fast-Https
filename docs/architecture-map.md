@@ -124,5 +124,5 @@ handler modules -> core contracts + listener/config + required services
 - 主服务器是根 package，`cmd/` 是 CLI 实现包；monitor 是独立 Windows/amd64 package。尚无必要为了目录惯例立即迁移可执行入口。
 - 请求处理只有 `GRRCHT` 这一条生产路径。`modules/module.go` 已标为遗留注册表，默认启动不使用，本阶段不删除。阶段 3 再决定是否去掉它，并改掉 server 的空白导入。
 - 核心耦合的主要落点在 filters 直接调用 feature、WebSocket 依赖 proxy，以及配置/请求对象跨层传递；应按小步注入接口，不做批量目录搬迁。
-- 测试已经形成源码邻近单测、集中单测、E2E 三种形式。后续阶段 2 应明确规范，而不是先机械移动现有测试。
+- 测试已经形成源码邻近单测、集中单测、E2E 三种形式。阶段 2（2026-10-16）已把位置约定写进 [test/readme.md](../test/readme.md) 第 1.0 节，现有测试未移动。
 - 基线测试可通过匹配的 Go 1.27.1 工具链以串行方式运行；本机 Go 环境本身存在 GOROOT 混用问题，需独立修复，不属于项目架构改造。
