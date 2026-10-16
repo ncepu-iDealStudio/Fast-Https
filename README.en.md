@@ -84,7 +84,6 @@ fast-https/
 │   ├── init.go                   # Config, logs, certificates, cache
 │   └── autocert.go               # Self-signed root and site certificates
 ├── modules/
-│   ├── module.go                 # Legacy registry; not used for request dispatch or default start
 │   ├── core/                     # Listeners, events, HTTP/1.1, HTTP/2, request and response
 │   │   ├── server/               # Start, signals, hot reload
 │   │   ├── listener/             # Listeners from the listen field
@@ -97,9 +96,7 @@ fast-https/
 │   │   └── routine_pool/         # Unused: pool import in server stays commented out
 │   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
 │   ├── auth/  safe/  cache/  compress/  appfirewall/
-│   ├── logging/                  # Unused: registers DefaultLogger on the legacy registry only
-│   ├── dev_mod/
-│   └── workchain/example/        # Samples registered on the legacy registry; not loaded by start
+│   └── dev_mod/
 ├── output/                       # Logo and startup banners
 ├── utils/                        # Logger, messages, files, color, RSA
 ├── monitor/                      # Windows tray program (separate main)

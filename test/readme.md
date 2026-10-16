@@ -48,8 +48,6 @@ test/
     ├── config/check_config_test.go
     ├── compress/compress_test.go
     ├── modules/
-    │   ├── module_test.go
-    │   ├── module_registration_consistency_test.go
     │   └── core/
     │       ├── handler_ready_test.go
     │       ├── server/server_test.go

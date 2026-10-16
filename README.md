@@ -86,7 +86,6 @@ fast-https/
 │   ├── init.go                   # 配置、日志、证书、缓存初始化
 │   └── autocert.go               # 自签名根证书与站点证书
 ├── modules/
-│   ├── module.go                 # 遗留注册表，不参与请求分发；默认 start 不调用
 │   ├── core/                     # 监听、事件、HTTP/1.1、HTTP/2、请求与响应
 │   │   ├── server/               # 启停、信号、热重载
 │   │   ├── listener/             # 按 listen 建监听器
@@ -99,9 +98,7 @@ fast-https/
 │   │   └── routine_pool/         # 未启用：协程池，server 中的导入保持注释
 │   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
 │   ├── auth/  safe/  cache/  compress/  appfirewall/
-│   ├── logging/                  # 未启用：只向遗留注册表登记 DefaultLogger
-│   ├── dev_mod/                  # location type = devmod
-│   └── workchain/example/        # 示例：向遗留注册表登记，默认 start 不加载
+│   └── dev_mod/                  # location type = devmod
 ├── output/                       # 启动 Logo 与初始化提示
 ├── utils/                        # 日志、消息、文件、颜色、RSA
 ├── monitor/                      # Windows 托盘程序（独立 main）

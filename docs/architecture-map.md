@@ -29,8 +29,6 @@
 | `modules/auth`、`safe`、`appfirewall`、`cache`、`compress` | 认证、安全检查/限流、防火墙、代理缓存和静态压缩 | 配置或请求路径启用时 |
 | `modules/core/engine` | master/slave 注册与心跳。`engine.sh` 会改标识后单独编译 | 未启用。默认 `start` 不调用 `EngineInit` |
 | `modules/core/routine_pool` | 协程池 | 未启用。`server.go` 里的导入保持注释 |
-| `modules/logging` | 向遗留注册表登记 `DefaultLogger` | 未启用。请求日志走 `utils/message` 和 `dynlog` |
-| `modules/workchain`、`modules/workchain/example` | 示例处理器，向遗留注册表登记 | 示例。默认 `start` 不导入 |
 | `monitor` | Windows/amd64 托盘程序，独立 `main` | 独立可执行程序，不在服务器进程内 |
 | `test`、`test/client_test`、`test/unit_test/...` | 根测试入口、子进程 E2E、集中式单测 | 测试专用 |
 | 源码目录中的 `*_test.go` | 与被测 package 同路径的测试 | 测试专用 |
@@ -48,12 +46,7 @@
 - `modules/core/events.EventHandler()` 根据匹配到的 location type 从 `GRRCHT` 取得处理函数。
 - TCP proxy 和 WebSocket 不使用 location handler 表的普通请求分发。`cmd.RegisterServices` 把它们放进监听钩子，`filters` 只调用这个钩子。
 
-### 通用 Module 注册表：遗留机制
-
-`modules/module.go` 的 `RegisterModule` / `GetModule` 是遗留注册表，不是请求分发 API，也不装配 `GRRCHT`。阶段 1 只做这个标注，不删除代码。以后若要去掉，再在阶段 3 和真实调用方一起处理。
-
-- 写入方是 `modules/logging` 的 `DefaultLogger`，以及 `modules/workchain/example` 的示例处理器。
-- 读出方在 `test/unit_test/modules`。默认 `start` 不调用 `GetModule`。
+阶段 3 第 4 步（2026-10-16）已删除 `modules/module.go` 的 `RegisterModule` / `GetModule`，以及只被它使用的 `modules/logging`、`modules/workchain` 和对应测试。请求日志仍走 `utils/message` 和 `dynlog`。
 
 ## 3. 主要依赖边界
 
@@ -61,7 +54,7 @@
 
 ```text
 fast-https main -> cmd -> init/config/server + handler Register()
-server -> core + listener + events + safety/logging
+server -> core + listener + events + safe hook + dynlog
 handler modules -> core contracts + listener/config + required services
 ```
 
@@ -121,7 +114,7 @@ handler modules -> core contracts + listener/config + required services
 ## 7. 阶段 0 结论
 
 - 主服务器是根 package，`cmd/` 是 CLI 实现包；monitor 是独立 Windows/amd64 package。尚无必要为了目录惯例立即迁移可执行入口。
-- 请求处理只有 `GRRCHT` 这一条生产路径，由 `cmd.RegisterHandlers` 装配。`modules/module.go` 已标为遗留注册表，默认启动不使用，本阶段不删除。阶段 3 第 4 步再决定是否去掉它。
+- 请求处理只有 `GRRCHT` 这一条生产路径，由 `cmd.RegisterHandlers` 装配。遗留注册表已在阶段 3 第 4 步删除。
 - 核心层通过 `core.Services` 调用功能包，由 `cmd.RegisterServices` 填写。WebSocket 仍依赖 proxy，配置和请求对象仍跨层传递。
 - 测试已经形成源码邻近单测、集中单测、E2E 三种形式。阶段 2（2026-10-16）已把位置约定写进 [test/readme.md](../test/readme.md) 第 1.0 节，现有测试未移动。
 - 基线测试可通过匹配的 Go 1.27.1 工具链以串行方式运行；本机 Go 环境本身存在 GOROOT 混用问题，需独立修复，不属于项目架构改造。

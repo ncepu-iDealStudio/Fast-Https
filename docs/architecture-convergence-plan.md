@@ -38,13 +38,13 @@
 
 1. 请求处理器通过 `core.GRRCHT` 注册。`static`、`proxy`、`rewrite`、`dev_mod` 导出 `Register()`，由 `cmd.RegisterHandlers` 在 `start`、`dev` 的 `ServerInit` 之前调用。`ServerInit` 在监听前用 `core.MissingHandlers` 检查配置中的 location 类型。
 
-2. `modules/module.go` 的 `RegisterModule/GetModule` 已标为遗留注册表。调用方只有 `modules/logging`、`modules/workchain/example` 和 `test/unit_test/modules` 下的两个测试，HTTP 请求分发主链不使用它。代码仍保留。
+2. 遗留注册表已在阶段 3 第 4 步删除（2026-10-16）。当时的调用方只有 `modules/logging`、`modules/workchain`（含 `example`）和 `test/unit_test/modules` 下的两个测试。这些文件已一起删除，其中包括只给该注册表使用的 `modules/definition.go`。请求分发只走 `core.GRRCHT`。
 
 3. 核心层不再引用功能包。连接过滤、TCP 转发、WebSocket、location 计数、Basic 认证和 `safe.Init` 由 `cmd.RegisterServices` 写入 `core.Services`，`modules/core` 只调用这些钩子；钩子为 nil 时放行或不处理。依赖守卫的允许清单已空。`modules/websocket` 仍引用 `modules/proxy`，这条依赖在功能包之间。
 
 4. 测试同时分布在源码目录和 `test/unit_test/`；E2E 位于 `test/client_test/`。2026-10 之后新增的单测已放在被测 package 旁边。
 
-5. `modules/core/engine`、`modules/core/routine_pool` 已标为未启用，`modules/workchain/example` 已标为示例。它们不在默认 `start` 路径上。
+5. `modules/core/engine`、`modules/core/routine_pool` 已标为未启用，不在默认 `start` 路径上。`modules/workchain` 已在阶段 3 第 4 步删除。
 
 6. 配置路径和运行资源目录是现有部署契约的一部分。根目录 `fast-https.go` 被 Dockerfile、GoReleaser 和 RPM spec 写死为构建入口。
 
@@ -205,13 +205,22 @@ test/client_test/     # 子进程或完整部署链路测试
 
 #### 第 4 步：处理遗留注册表（约 0.5 天）
 
-- 依据第 2 节第 8 项，`modules/module.go` 没有仓库外调用方。`modules/logging` 和整个 `modules/workchain`（含 `example`）只被彼此和下列两个测试引用。
-- 先在 `module.go` 加 `Deprecated` 注释，再在单独一次提交中删除 `modules/module.go`、`modules/logging`、`modules/workchain`，以及 `test/unit_test/modules/module_test.go`、`module_registration_consistency_test.go`。
-- 同步更新 README、README.en.md 目录树和 [architecture-map.md](architecture-map.md)。
+**状态：已完成（2026-10-16）。** 仓库内调用方已在删除前核对完毕，没有仓库外引用。本步直接删除，没有单独做一次只加 `Deprecated` 注释的提交。
 
-验收：`go build ./...`、`go test ./...` 通过；文档中不再出现已删除 package 的生产路径描述。
+已删除：
+
+- `modules/module.go`、`modules/definition.go`（`Logger` 接口只被该注册表使用）
+- `modules/logging`
+- `modules/workchain`（含 `example`）
+- `test/unit_test/modules/module_test.go`、`module_registration_consistency_test.go`
+
+README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) 已去掉这些路径。`engine` 和 `routine_pool` 仍保留，标为未启用。
+
+验收结果：`go build ./...` 与 `go test -p 1 ./...` 通过。文档不再把已删除 package 写成生产路径。
 
 #### 阶段 3：整体验收条件
+
+**状态：已完成（2026-10-16）。** 四步都已落地。
 
 - 请求 handler 只有一种正式装配路径，由 `cmd` 完成。
 - `modules/core/...` 不依赖具体功能包，并由依赖守卫测试持续保证。
@@ -309,7 +318,7 @@ test/client_test/     # 子进程或完整部署链路测试
 | — | 阶段 4a：重载一致性 | 消除重载窗口内的误断连接和进程崩溃风险 | — | 已完成（2026-10-16） |
 | — | 阶段 3 第 2 步：显式注册 handler | 去掉空白导入，装配入口唯一 | — | 已完成（2026-10-16） |
 | — | 阶段 3 第 3 步：过滤与安全注入 | 核心层不再依赖功能包 | — | 已完成（2026-10-16） |
-| 5 | 阶段 3 第 4 步：删除遗留注册表 | 只剩一套注册机制 | 0.5 天 | P2 |
+| — | 阶段 3 第 4 步：删除遗留注册表 | 只剩一套注册机制 | — | 已完成（2026-10-16） |
 | — | 阶段 2：测试位置约定 | 新测试有固定归属 | — | 已完成（2026-10-16） |
 | — | 阶段 4b：完整配置快照 | 去除全局配置依赖 | 较大 | 按需 |
 | — | 阶段 5：目录与入口搬迁 | 统一发行布局 | 中 | 按需 |
