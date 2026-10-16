@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fast-https/cmd"
 	initialization "fast-https/init"
 	"fast-https/modules/core/server"
 	"fmt"
@@ -174,6 +175,7 @@ func TestProxyServerProcess(t *testing.T) {
 		t.Skip("helper process for TestProxyHTTPIntegration")
 	}
 	initialization.InitSystem()
+	cmd.RegisterHandlers()
 	server.ServerInit().Run()
 }
 

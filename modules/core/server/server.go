@@ -20,11 +20,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	_ "fast-https/modules/dev_mod"
-	_ "fast-https/modules/proxy"
-	_ "fast-https/modules/rewrite"
-	_ "fast-https/modules/static"
 )
 
 // Server defines the core components of the server

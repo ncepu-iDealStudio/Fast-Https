@@ -35,7 +35,8 @@ type Proxy struct {
 	ev             *core.Event
 }
 
-func init() {
+// Register installs the reverse-proxy handlers for HTTP and HTTPS upstreams.
+func Register() {
 	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFilterHandler, ProxyEvent, nil)
 	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFilterHandler, ProxyEvent, nil)
 }

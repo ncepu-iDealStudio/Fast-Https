@@ -20,7 +20,8 @@ import (
 	"time"
 )
 
-func init() {
+// Register installs the static file handler for location type local.
+func Register() {
 	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent, nil)
 }
 

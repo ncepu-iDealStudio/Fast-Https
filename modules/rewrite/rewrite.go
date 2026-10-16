@@ -6,7 +6,8 @@ import (
 	"fast-https/modules/core/listener"
 )
 
-func init() {
+// Register installs the redirect handler for location type rewrite.
+func Register() {
 	core.RRHandlerRegister(config.REWRITE, ReWriteFilter, ReWriteEvent, nil)
 }
 

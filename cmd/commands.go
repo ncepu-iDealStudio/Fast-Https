@@ -222,6 +222,7 @@ func DevStartHandler() error {
 	initialization.InitSystem()
 	output.PrintInitialEnd()
 
+	RegisterHandlers()
 	server := server.ServerInit()
 	server.Run()
 
@@ -250,6 +251,7 @@ func StartHandler() error {
 	} else {
 		_ = WritePid(config.PID_FILE)
 	}
+	RegisterHandlers()
 	server := server.ServerInit()
 	server.Run()
 

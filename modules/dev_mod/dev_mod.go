@@ -6,7 +6,8 @@ import (
 	"fast-https/modules/core/listener"
 )
 
-func init() {
+// Register installs the development handler for location type devmod.
+func Register() {
 	core.RRHandlerRegister(config.DEVMOD, DevFilter, DevEvent, nil)
 }
 

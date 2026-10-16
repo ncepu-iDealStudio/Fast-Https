@@ -40,7 +40,7 @@ Direct runtime dependencies, versions from `go.mod`:
 
 The server accepts connections, parses requests, and writes responses itself. `fast-https.go` is the entry point, `cmd` dispatches subcommands, `config` loads JSON, `init` prepares certificates and caches, and `modules/core` owns listeners and protocol handling. Each configured port runs its own accept loop, then hands the connection to the HTTP/1.1 event loop or the HTTP/2 path.
 
-`location.type` selects the handler. `modules/core/server` blank-imports the static, proxy, rewrite, and dev modules so their handlers are registered before the accept loops start.
+`location.type` selects the handler. `start` and `dev` call `cmd.RegisterHandlers` before listening, which registers the static, proxy, rewrite, and dev modules.
 
 | `location.type` / `listen` | Package | Behavior |
 | --- | --- | --- |

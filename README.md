@@ -42,7 +42,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 
 服务自己完成监听、请求解析和响应写出。入口在 `fast-https.go`，命令由 `cmd` 分发，配置由 `config` 加载，初始化在 `init`，连接与协议处理在 `modules/core`。每个监听端口由独立协程 `Accept`，再按连接类型进入 HTTP/1.1 事件循环或 HTTP/2 处理。
 
-`location.type` 决定请求交给哪个处理函数。`modules/core/server` 通过空白导入注册静态文件、反向代理、重写和开发模块。
+`location.type` 决定请求交给哪个处理函数。`start` 和 `dev` 在监听前调用 `cmd.RegisterHandlers`，登记静态文件、反向代理、重写和开发模块。
 
 | `location.type` / `listen` | 处理位置 | 行为 |
 | --- | --- | --- |

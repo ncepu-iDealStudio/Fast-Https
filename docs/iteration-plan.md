@@ -11,7 +11,7 @@
 这些能力已经在代码和测试里，本计划不再排期：
 
 - 启动前校验 `config/fast-https.json` 和 `http.include`
-- 缺处理函数的 `location.type` 不会进入监听
+- 缺处理函数的 `location.type` 不会进入监听。`start` 和 `dev` 由 `cmd.RegisterHandlers` 登记 static、proxy、rewrite、devmod（2026-10-16，架构收敛阶段 3 第 2 步）
 - 日志默认写到 `logs/`，控制台 DEBUG/TRACE 走 stderr
 - 黑名单、限流、`xss` 有拒绝和放行测试；`sql` 明确不拦截
 - 无效配置重载不会替换内存中的 `GConfig`，也不会继续切换监听

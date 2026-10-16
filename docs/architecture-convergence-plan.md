@@ -36,7 +36,7 @@
 
 需要优先澄清的现状：
 
-1. 请求处理器通过 `core.GRRCHT` 注册。`static`、`proxy`、`rewrite`、`dev_mod` 在各自的 `init()` 中调用 `core.RRHandlerRegister`，server 包用空白导入触发这些 `init()`。`ServerInit` 在监听前用 `core.MissingHandlers` 检查配置中的 location 类型。
+1. 请求处理器通过 `core.GRRCHT` 注册。`static`、`proxy`、`rewrite`、`dev_mod` 导出 `Register()`，由 `cmd.RegisterHandlers` 在 `start`、`dev` 的 `ServerInit` 之前调用。`ServerInit` 在监听前用 `core.MissingHandlers` 检查配置中的 location 类型。
 
 2. `modules/module.go` 的 `RegisterModule/GetModule` 已标为遗留注册表。调用方只有 `modules/logging`、`modules/workchain/example` 和 `test/unit_test/modules` 下的两个测试，HTTP 请求分发主链不使用它。代码仍保留。
 
@@ -46,7 +46,7 @@
    | --- | --- | --- |
    | `modules/core/filters` | `safe`、`proxy_tcp`、`websocket` | 黑名单和限流、TCP 转发、WebSocket 升级 |
    | `modules/core/events` | `safe`、`auth` | 按 location 计数（`safe.CountLimitFor(cfg.ID)`）、Basic 认证 |
-   | `modules/core/server` | `safe`；空白导入 `static`、`proxy`、`rewrite`、`dev_mod` | `initModules` 中调用 `safe.Init`；触发 handler 注册 |
+   | `modules/core/server` | `safe` | `initModules` 中调用 `safe.Init` |
 
    `modules/websocket` 还引用 `modules/proxy`。这条依赖在功能包之间，不属于核心层违规。
 
@@ -182,20 +182,22 @@ test/client_test/     # 子进程或完整部署链路测试
 
 - 用标准库 `go/parser` 解析 `modules/core/...` 下所有非测试 `.go` 文件的 import（包括带构建标签的平台文件），不引入第三方依赖。
 - 规则按前缀判断：`modules/core/...` 不得导入 `fast-https/modules` 及其下除 `fast-https/modules/core/...` 以外的任何 package。新增的功能包自动受约束，不需要维护禁用名单。
-- 第 2 节第 3 项的 10 条现有违规写入 `coreImportAllowlist`，每条注明在第 2 步或第 3 步去掉。
+- 第 2 节第 3 项原先的 10 条违规写入 `coreImportAllowlist`。第 2 步已去掉 server 对 `static`、`proxy`、`rewrite`、`dev_mod` 的 4 条；其余 6 条仍注明在第 3 步去掉。
 - 出现新违规时测试失败，输出 `违规 package -> import 路径`；允许清单中的某条 import 已不存在时测试同样失败，要求删掉该条，保证清单只减不增。
 
 验收结果：`go test ./modules/core/` 通过；临时放入引用 `modules/compress` 的探针文件时，测试失败并指出 `fast-https/modules/core/filters -> fast-https/modules/compress`。
 
 #### 第 2 步：显式注册 handler（约 1 天）
 
-- `static`、`proxy`、`rewrite`、`dev_mod` 把 `init()` 中的注册改为导出的注册函数，函数内部仍调用 `core.RRHandlerRegister`。
-- `cmd` 在 `start` 和 `dev` 路径上、`ServerInit` 之前调用这四个注册函数。
-- 删除 `modules/core/server` 中的四个空白导入。
-- `core.MissingHandlers` 检查保持原样，缺失时在监听前返回可诊断错误。
-- 不改变 location JSON 名称、handler 行为和功能模块目录。
+**状态：已完成（2026-10-16）。**
 
-验收：单测确认调用注册函数后四种 location 类型都已注册，未调用时 `MissingHandlers` 能报出缺失类型；代理 E2E 通过；允许清单去掉 server 的四项空白导入。
+- `static.Register`、`proxy.Register`、`rewrite.Register`、`devmod.Register` 取代各自的 `init()`，内部仍调用 `core.RRHandlerRegister`。
+- `cmd.RegisterHandlers` 在 `start` 和 `dev` 路径上、`ServerInit` 之前调用这四个函数。代理 E2E 的子进程同样调用它，再进入 `ServerInit`。
+- 已删除 `modules/core/server` 中的四个空白导入。
+- `core.MissingHandlers` 检查保持原样，缺失时在监听前返回可诊断错误。
+- location JSON 名称、handler 行为和功能模块目录未改。
+
+验收结果：`cmd/register_test.go` 先清空五种 location 类型，确认 `MissingHandlers` 报出 `local`、`proxy-http`、`proxy-https`、`rewrite`、`devmod`，再调用 `RegisterHandlers` 后全部就绪。代理 E2E 通过。允许清单已去掉 server 对这四个包的导入，依赖守卫测试通过。
 
 #### 第 3 步：过滤、计数、认证和安全初始化改为注入（约 1–2 天）
 
@@ -311,7 +313,7 @@ test/client_test/     # 子进程或完整部署链路测试
 | — | 阶段 1：标注目录语义 | 降低误读成本 | — | 已完成（2026-10-14） |
 | — | 阶段 3 第 1 步：依赖守卫测试 | 冻结现有违规，后续只减不增 | — | 已完成（2026-10-16） |
 | — | 阶段 4a：重载一致性 | 消除重载窗口内的误断连接和进程崩溃风险 | — | 已完成（2026-10-16） |
-| 3 | 阶段 3 第 2 步：显式注册 handler | 去掉空白导入，装配入口唯一 | 1 天 | P1 |
+| — | 阶段 3 第 2 步：显式注册 handler | 去掉空白导入，装配入口唯一 | — | 已完成（2026-10-16） |
 | 4 | 阶段 3 第 3 步：过滤与安全注入 | 核心层不再依赖功能包 | 1–2 天 | P1 |
 | 5 | 阶段 3 第 4 步：删除遗留注册表 | 只剩一套注册机制 | 0.5 天 | P2 |
 | — | 阶段 2：测试位置约定 | 新测试有固定归属 | — | 已完成（2026-10-16） |

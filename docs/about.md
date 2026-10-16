@@ -111,7 +111,7 @@ flowchart TD
 5. 执行模块过滤器，再进入对应请求处理器，生成或直接写出响应。
 6. 根据请求/响应的连接语义决定关闭连接或继续处理下一次请求。解析失败、读超时、请求体过大、写失败和上下文取消都会离开这个循环，并由同一次 `Close` 关掉连接。
 
-当前核心处理器由包初始化时注册：
+当前核心处理器由 `cmd.RegisterHandlers` 在监听前注册：
 
 | location 类型 | 处理模块 | 主要行为 |
 | --- | --- | --- |
@@ -120,7 +120,7 @@ flowchart TD
 | `rewrite` | `modules/rewrite` | 返回重定向响应 |
 | `devmod` | `modules/dev_mod` | 开发模块处理 |
 
-代理、静态和重写模块由 server 包 blank import，利用 Go 包初始化函数向 `core.GRRCHT` 注册处理器。WebSocket upgrade 在 HTTP 解析过滤阶段识别，之后由监听过滤器交给 WebSocket 模块。TCP 代理则按 TCP 类型的监听器在 HTTP 解析前分流。
+`cmd.RegisterHandlers` 在 `start` 和 `dev` 进入 `ServerInit` 之前，调用静态、代理、重写和开发模块的 `Register`，向 `core.GRRCHT` 登记处理器。WebSocket upgrade 在 HTTP 解析过滤阶段识别，之后由监听过滤器交给 WebSocket 模块。TCP 代理则按 TCP 类型的监听器在 HTTP 解析前分流。
 
 ### 5.3 HTTP/2 事件链
 

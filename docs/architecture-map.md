@@ -24,7 +24,7 @@
 | `modules/core/request`、`response` | HTTP 请求解析/请求体，以及响应生成 | 是 |
 | `modules/core/h2/{conn,frame,hpack,util}` | HTTP/2 连接、帧、HPACK 和辅助逻辑 | H2 listener 启用时 |
 | `modules/core/dynlog`、`timer` | 动态访问日志字段、计时器 | 是/按路径使用 |
-| `modules/static`、`proxy`、`rewrite`、`dev_mod` | local、HTTP/HTTPS proxy、rewrite 和开发 location handler | 由 server blank import 装配 |
+| `modules/static`、`proxy`、`rewrite`、`dev_mod` | local、HTTP/HTTPS proxy、rewrite 和开发 location handler | 由 `cmd.RegisterHandlers` 在启动时装配 |
 | `modules/proxy_tcp`、`websocket` | TCP 字节代理和 WebSocket upgrade | 通过 filters 分流使用 |
 | `modules/auth`、`safe`、`appfirewall`、`cache`、`compress` | 认证、安全检查/限流、防火墙、代理缓存和静态压缩 | 配置或请求路径启用时 |
 | `modules/core/engine` | master/slave 注册与心跳。`engine.sh` 会改标识后单独编译 | 未启用。默认 `start` 不调用 `EngineInit` |
@@ -42,8 +42,8 @@
 ### 请求 handler 表：生产主链
 
 - `modules/core/core.go` 定义 `GRRCHT` 和 `RRHandlerRegister`。
-- `modules/static` 注册 `LOCAL`；`modules/proxy` 注册 HTTP/HTTPS proxy；`modules/rewrite` 注册 rewrite；`modules/dev_mod` 注册 devmod。
-- `modules/core/server/server.go` blank import 这些包，利用包初始化函数完成注册。
+- `modules/static` 的 `Register` 登记 `LOCAL`；`modules/proxy` 登记 HTTP/HTTPS proxy；`modules/rewrite` 登记 rewrite；`modules/dev_mod` 登记 devmod。
+- `cmd.RegisterHandlers` 在 `start`、`dev` 的 `ServerInit` 之前调用这四个函数。导入这些包本身不再注册。
 - `ServerInit()` 调用 `core.MissingHandlers()`，确认配置中非 TCP 的 location type 已有 handler，再创建监听器。
 - `modules/core/events.EventHandler()` 根据匹配到的 location type 从 `GRRCHT` 取得处理函数。
 - TCP proxy 和 WebSocket 不使用 location handler 表的普通请求分发：`core/filters` 在监听/upgrade 阶段直接分流。
@@ -60,8 +60,8 @@
 从源码 imports 和 `go list` 看，核心运行方向大致是：
 
 ```text
-fast-https main -> cmd -> init/config/server
-server -> core + listener + events + safety/logging + blank-imported handlers
+fast-https main -> cmd -> init/config/server + handler Register()
+server -> core + listener + events + safety/logging
 handler modules -> core contracts + listener/config + required services
 ```
 
@@ -122,7 +122,7 @@ handler modules -> core contracts + listener/config + required services
 ## 7. 阶段 0 结论
 
 - 主服务器是根 package，`cmd/` 是 CLI 实现包；monitor 是独立 Windows/amd64 package。尚无必要为了目录惯例立即迁移可执行入口。
-- 请求处理只有 `GRRCHT` 这一条生产路径。`modules/module.go` 已标为遗留注册表，默认启动不使用，本阶段不删除。阶段 3 再决定是否去掉它，并改掉 server 的空白导入。
+- 请求处理只有 `GRRCHT` 这一条生产路径，由 `cmd.RegisterHandlers` 装配。`modules/module.go` 已标为遗留注册表，默认启动不使用，本阶段不删除。阶段 3 第 4 步再决定是否去掉它。
 - 核心耦合的主要落点在 filters 直接调用 feature、WebSocket 依赖 proxy，以及配置/请求对象跨层传递；应按小步注入接口，不做批量目录搬迁。
 - 测试已经形成源码邻近单测、集中单测、E2E 三种形式。阶段 2（2026-10-16）已把位置约定写进 [test/readme.md](../test/readme.md) 第 1.0 节，现有测试未移动。
 - 基线测试可通过匹配的 Go 1.27.1 工具链以串行方式运行；本机 Go 环境本身存在 GOROOT 混用问题，需独立修复，不属于项目架构改造。

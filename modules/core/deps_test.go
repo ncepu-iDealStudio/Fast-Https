@@ -12,10 +12,9 @@ import (
 )
 
 const (
-	corePkg     = "fast-https/modules/core"
-	modulesPkg  = "fast-https/modules"
-	stepHandler = "阶段 3 第 2 步：handler 改为由 cmd 显式注册"
-	stepInject  = "阶段 3 第 3 步：改为由组合层注入"
+	corePkg    = "fast-https/modules/core"
+	modulesPkg = "fast-https/modules"
+	stepInject = "阶段 3 第 3 步：改为由组合层注入"
 )
 
 // Existing violations of the core -> feature rule. Entries may only be removed.
@@ -25,11 +24,7 @@ var coreImportAllowlist = map[string]string{
 	"fast-https/modules/core/filters -> fast-https/modules/proxy_tcp": stepInject,
 	"fast-https/modules/core/filters -> fast-https/modules/safe":      stepInject,
 	"fast-https/modules/core/filters -> fast-https/modules/websocket": stepInject,
-	"fast-https/modules/core/server -> fast-https/modules/safe":       stepInject,
-	"fast-https/modules/core/server -> fast-https/modules/dev_mod":    stepHandler,
-	"fast-https/modules/core/server -> fast-https/modules/proxy":      stepHandler,
-	"fast-https/modules/core/server -> fast-https/modules/rewrite":    stepHandler,
-	"fast-https/modules/core/server -> fast-https/modules/static":     stepHandler,
+	"fast-https/modules/core/server -> fast-https/modules/safe": stepInject,
 }
 
 func forbiddenForCore(path string) bool {
