@@ -87,7 +87,7 @@
 
 已落地。`Server.Reload` 在 `config.Reload` 成功之后调用 `message.Reopen`，关闭旧文件并按当前 `log_root` 打开 `system.log`、`access.log`、`error.log`、`safe.log`。新目录打开失败时保留原来的四个文件，监听仍按新配置切换。
 
-`test/unit_test/utils/message/logdir_test.go` 覆盖切换到新目录，以及新目录无法创建时旧文件仍然可写。
+`tests/unit_test/utils/message/logdir_test.go` 覆盖切换到新目录，以及新目录无法创建时旧文件仍然可写。
 
 ### R4 连接关闭与请求失败路径
 

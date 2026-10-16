@@ -7,26 +7,26 @@
 | 测试类型 | 位置 | 说明 |
 | --- | --- | --- |
 | 单元测试（新增） | 被测 package 旁的 `*_test.go` | 可以测试未导出实现，如 `modules/core/close_test.go`、`modules/static/body_test.go` |
-| 集中单元测试（存量） | `test/unit_test/` | 只保留已有测试，不再新增。所测代码被架构收敛阶段 3、4 改动时，顺带迁到对应 package 旁 |
-| 子进程集成测试 | `test/client_test/` | 启动 Fast-Https 子进程，使用临时目录和本地上游，不改写仓库内 `config/fast-https.json` |
-| 手工脚本和样例 | `test/scripts/`、`test/single/` | 不进入 `go test` |
+| 集中单元测试（存量） | `tests/unit_test/` | 只保留已有测试，不再新增。所测代码被架构收敛阶段 3、4 改动时，顺带迁到对应 package 旁 |
+| 子进程集成测试 | `tests/client_test/` | 启动 Fast-Https 子进程，使用临时目录和本地上游，不改写仓库内 `config/fast-https.json` |
+| 手工脚本和样例 | `tests/scripts/`、`tests/single/` | 不进入 `go test` |
 
 其他约定：
 
-- 生产代码不能导入 `test/` 下的任何 package。测试辅助代码放在 `test/unit_test/helpers`，只供测试使用。
+- 生产代码不能导入 `tests/` 下的任何 package。测试辅助代码放在 `tests/unit_test/helpers`，只供测试使用。
 - 需要外部条件或会改写仓库文件的测试，默认 `t.Skip`，用环境变量开启。目前有 `FASTHTTPS_E2E_RELOAD=1`（reload 端到端）；`FASTHTTPS_PROXY_HELPER` 只由 `TestProxyHTTPIntegration` 内部设置，不需要手工开启。
 - CI（`.workflow/go-test.yml`）运行 `go test ./...`，覆盖上表前三类中默认不跳过的测试。Windows 本地建议加 `-p 1`，避免并行测试 exe 出现 `Access is denied`。
 
 存量文件的说明：
 
-- `test/fast-https_test.go` 的 `TestServerInit` 会切换到仓库根目录、写入 pid 文件、加载配置并在证书缺失时生成自签名证书，有副作用，不监听端口。
-- 手工 HTTP/HTTPS 客户端在 `test/single/httpclient/main.go`，请求 `localhost:4443`，用法 `go run ./test/single/httpclient http|https`。它原先是 `test/client_test/http_https_change_test.go`，2026-10-16 移出。
-- `test/client_test/` 只含 `_test.go` 文件，子进程信号辅助按平台放在 `reload_proc_windows_test.go`、`reload_proc_other_test.go`，因此 `go build ./...` 不再在该目录报 `function main is undeclared`。
+- `tests/fast-https_test.go` 的 `TestServerInit` 会切换到仓库根目录、写入 pid 文件、加载配置并在证书缺失时生成自签名证书，有副作用，不监听端口。
+- 手工 HTTP/HTTPS 客户端在 `tests/single/httpclient/main.go`，请求 `localhost:4443`，用法 `go run ./tests/single/httpclient http|https`。它原先是 `tests/client_test/http_https_change_test.go`，2026-10-16 移出。
+- `tests/client_test/` 只含 `_test.go` 文件，子进程信号辅助按平台放在 `reload_proc_windows_test.go`、`reload_proc_other_test.go`，因此 `go build ./...` 不再在该目录报 `function main is undeclared`。
 
 ### 1.1 目录结构
 
 ```text
-test/
+tests/
 ├── readme.md
 ├── fast-https_test.go               # 启动初始化步骤（有副作用，见 1.0）
 ├── scripts/                         # 开发模式启动脚本，不进入 go test
@@ -107,15 +107,15 @@ go test ./...
 只跑存量集中单测：
 
 ```bash
-go test ./test/unit_test/...
+go test ./tests/unit_test/...
 ```
 
 #### 特定模块测试
 
 ```bash
-go test ./test/unit_test/cmd/...
-go test ./test/unit_test/modules/core/server/...
-go test ./test/unit_test/utils/logger/...
+go test ./tests/unit_test/cmd/...
+go test ./tests/unit_test/modules/core/server/...
+go test ./tests/unit_test/utils/logger/...
 ```
 
 #### Reload 端到端回归（可选）
@@ -126,7 +126,7 @@ Windows PowerShell:
 
 ```powershell
 $env:FASTHTTPS_E2E_RELOAD = "1"
-go test ./test/client_test -run TestReloadPortSwitchE2E -v
+go test ./tests/client_test -run TestReloadPortSwitchE2E -v
 ```
 
 完成后可清理环境变量：
@@ -140,7 +140,7 @@ Remove-Item Env:FASTHTTPS_E2E_RELOAD
 该测试会在临时工作目录启动 Fast-Https 子进程，并使用本地 HTTP 服务模拟动态 HTML 页面、JSON API 和静态资源上游。测试覆盖 GET 查询参数、POST 请求体、自定义请求头、响应状态码、响应头和响应体，不需要安装 JSP 或 Python Web 运行时，也不会修改仓库配置。
 
 ```bash
-go test ./test/client_test -run TestProxyHTTPIntegration -v
+go test ./tests/client_test -run TestProxyHTTPIntegration -v
 ```
 
 #### 测试覆盖率
@@ -212,7 +212,7 @@ func TestServerInit(t *testing.T) {
 - 日志格式化
 - Fatal日志处理
 
-`test/unit_test/utils/message/logdir_test.go` 覆盖四份文件日志。`Reopen` 把新的一行写到新目录；新目录无法创建时，后续日志仍写进原来的文件。
+`tests/unit_test/utils/message/logdir_test.go` 覆盖四份文件日志。`Reopen` 把新的一行写到新目录；新目录无法创建时，后续日志仍写进原来的文件。
 
 示例：
 
@@ -227,14 +227,14 @@ func TestLoggerLevel(t *testing.T) {
 
 #### 测试文件模板
 
-新测试文件放在被测 package 旁（见 1.0）。需要 mock 时可导入 `test/unit_test/helpers`。
+新测试文件放在被测 package 旁（见 1.0）。需要 mock 时可导入 `tests/unit_test/helpers`。
 
 ```go
 package xxx_test
 
 import (
     "testing"
-    "fast-https/test/unit_test/helpers"
+    "fast-https/tests/unit_test/helpers"
     "github.com/stretchr/testify/assert"
 )
 
@@ -322,7 +322,7 @@ Linux/Mac:
 
 ```bash
 # 在仓库根目录使用开发测试脚本
-./test/scripts/dev-test.sh
+./tests/scripts/dev-test.sh
 
 # 或直接运行
 go run fast-https.go dev

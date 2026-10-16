@@ -103,7 +103,7 @@ fast-https/
 ├── utils/                        # 日志、消息、文件、颜色、RSA
 ├── monitor/                      # Windows 托盘程序（独立 main）
 ├── httpdoc/root/                 # 默认静态站点与自签名根证书存放目录
-├── test/                         # 自动测试；scripts/ 与 single/ 是手工脚本和示例，不进入 go test
+├── tests/                        # 自动测试；scripts/ 与 single/ 是手工脚本和示例，不进入 go test
 ├── docker/                       # CentOS 7、Ubuntu 镜像
 ├── Dockerfile                    # 多阶段构建，暴露 8080 与 443
 ├── spec                          # RPM spec，构建时使用 -tags=rpm
@@ -222,7 +222,7 @@ go run fast-https.go uninstall
 
 见文档：<https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#> 《Fast-Https产品说明》
 
-测试布局与运行方式见 [test/readme.md](test/readme.md)。
+测试布局与运行方式见 [tests/readme.md](tests/readme.md)。
 
 ## 打包与发布
 

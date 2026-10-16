@@ -1,7 +1,7 @@
 package main
 
 // Manual client for a server listening on localhost:4443.
-// Usage (from the repository root): go run ./test/single/httpclient http|https
+// Usage (from the repository root): go run ./tests/single/httpclient http|https
 
 import (
 	"crypto/tls"
@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run ./test/single/httpclient [http|https]")
+		fmt.Println("Usage: go run ./tests/single/httpclient [http|https]")
 		return
 	}
 

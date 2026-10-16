@@ -101,7 +101,7 @@ fast-https/
 ├── utils/                        # Logger, messages, files, color, RSA
 ├── monitor/                      # Windows tray program (separate main)
 ├── httpdoc/root/                 # Default static site and self-signed root certificate
-├── test/                         # Automated tests; scripts/ and single/ are manual helpers, not go test
+├── tests/                        # Automated tests; scripts/ and single/ are manual helpers, not go test
 ├── docker/                       # CentOS 7 and Ubuntu Dockerfiles
 ├── Dockerfile                    # Multi-stage image, exposes 8080 and 443
 ├── spec                          # RPM spec; build uses -tags=rpm
@@ -199,7 +199,7 @@ The repository default also serves `443 ssl` for `localhost`, using `config/cert
 
 Product manual: <https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#>
 
-Test layout: [test/readme.md](test/readme.md).
+Test layout: [tests/readme.md](tests/readme.md).
 
 ## Packaging
 

@@ -30,7 +30,7 @@
 | `modules/core/engine` | master/slave 注册与心跳。`engine.sh` 会改标识后单独编译 | 未启用。默认 `start` 不调用 `EngineInit` |
 | `modules/core/routine_pool` | 协程池 | 未启用。`server.go` 里的导入保持注释 |
 | `monitor` | Windows/amd64 托盘程序，独立 `main` | 独立可执行程序，不在服务器进程内 |
-| `test`、`test/client_test`、`test/unit_test/...` | 根测试入口、子进程 E2E、集中式单测 | 测试专用 |
+| `tests`、`tests/client_test`、`tests/unit_test/...` | 根测试入口、子进程 E2E、集中式单测 | 测试专用 |
 | 源码目录中的 `*_test.go` | 与被测 package 同路径的测试 | 测试专用 |
 
 `modules/core/h2` 下还包含顶层 H2 stream/state/window 与子包 `conn`、`frame`、`hpack`、`util`；`hpack` 的 Huffman 和整数编码也分别作为独立 package。
@@ -86,15 +86,15 @@ handler modules -> core contracts + listener/config + required services
 自动测试：
 
 - 源码邻近的 `*_test.go`：`config/`、`init/`、`modules/core/`、H2、listener、request、response、server、proxy、static、safe 等。
-- 集中单测：`test/unit_test/`。
-- 子进程集成测试：`test/client_test/` 里的 `*_test.go`。`TestProxyHTTPIntegration` 默认会跑。`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`。
-- 根目录 `test/fast-https_test.go` 覆盖初始化路径。
+- 集中单测：`tests/unit_test/`。
+- 子进程集成测试：`tests/client_test/` 里的 `*_test.go`。`TestProxyHTTPIntegration` 默认会跑。`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`。
+- 根目录 `tests/fast-https_test.go` 覆盖初始化路径。
 - CI 命令是 `go test ./...`。
 
 不进入 `go test` 的文件：
 
-- `test/scripts/dev-test.sh`、`dev-test.ps1`：手工拉起 `dev` 的脚本。
-- `test/single/workloop.go`：独立 `main`，只演示等待 `SIGINT`，不是服务器测试。
+- `tests/scripts/dev-test.sh`、`dev-test.ps1`：手工拉起 `dev` 的脚本。
+- `tests/single/workloop.go`：独立 `main`，只演示等待 `SIGINT`，不是服务器测试。
 - `engine.sh`：改写引擎标识后另编 master/slave，不是 `go build .` 的入口。
 
 ## 6. 阶段 0 验证结果
@@ -107,7 +107,7 @@ handler modules -> core contracts + listener/config + required services
 | `go test ./...`（当前默认环境） | 首次失败在编译阶段：`go` 命令为 1.27.1，但 `GOROOT=C:\Users\xjg\.g\go` 的标准库/工具带有 1.26.3 产物标记；未进入项目断言 |
 | 匹配工具链的 `go test ./...` | 并行运行时仅 `modules/core/h2/hpack` 测试进程启动返回 Windows `Access is denied`，其他包通过；未显示 Go 断言失败 |
 | 匹配工具链的 `go test -p 1 ./...` | 通过。串行验证避免了上述 Windows 测试可执行文件启动错误；输出中 `[no test files]` 是无测试 package 的正常结果 |
-| `go test -count=1 ./test/client_test -run TestProxyHTTPIntegration -v` | 通过；动态 HTML、JSON API 请求体/头、静态资源和上游 404 四个场景均通过 |
+| `go test -count=1 ./tests/client_test -run TestProxyHTTPIntegration -v` | 通过；动态 HTML、JSON API 请求体/头、静态资源和上游 404 四个场景均通过 |
 
 匹配工具链通过当前终端临时设置 `GOROOT` 为缓存内 Go 1.27.1 toolchain 目录执行，没有修改系统安装或仓库文件。若在本机复现全量基线，先确保 `GOROOT`、`go`、`compile`、`asm` 来自同一个 Go 版本；Windows 环境若偶发测试 exe 启动拒绝，可使用 `go test -p 1 ./...`。
 
@@ -116,5 +116,5 @@ handler modules -> core contracts + listener/config + required services
 - 主服务器是根 package，`cmd/` 是 CLI 实现包；monitor 是独立 Windows/amd64 package。尚无必要为了目录惯例立即迁移可执行入口。
 - 请求处理只有 `GRRCHT` 这一条生产路径，由 `cmd.RegisterHandlers` 装配。遗留注册表已在阶段 3 第 4 步删除。
 - 核心层通过 `core.Services` 调用功能包，由 `cmd.RegisterServices` 填写。WebSocket 仍依赖 proxy，配置和请求对象仍跨层传递。
-- 测试已经形成源码邻近单测、集中单测、E2E 三种形式。阶段 2（2026-10-16）已把位置约定写进 [test/readme.md](../test/readme.md) 第 1.0 节，现有测试未移动。
+- 测试已经形成源码邻近单测、集中单测、E2E 三种形式。阶段 2（2026-10-16）已把位置约定写进 [tests/readme.md](../tests/readme.md) 第 1.0 节，现有测试未移动。
 - 基线测试可通过匹配的 Go 1.27.1 工具链以串行方式运行；本机 Go 环境本身存在 GOROOT 混用问题，需独立修复，不属于项目架构改造。

@@ -190,7 +190,7 @@ func TestReloadCommonPortUpdatesCfgAfterConfigChange(t *testing.T) {
 //
 // Note: This test is skipped because added ports trigger listenTcp/listenSsl
 // which requires the message system to be initialized. The added-port path
-// is covered by the E2E reload test (test/client_test/reload_e2e_test.go).
+// is covered by the E2E reload test (tests/client_test/reload_e2e_test.go).
 func TestReloadAddedPortGetsNewCtx(t *testing.T) {
 	t.Skip("added ports trigger real listenTcp/listenSsl which requires message system init; covered by E2E test")
 }

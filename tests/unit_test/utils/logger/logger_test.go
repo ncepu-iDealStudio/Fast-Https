@@ -1,7 +1,7 @@
 package logger_test
 
 import (
-	"fast-https/test/unit_test/helpers"
+	"fast-https/tests/unit_test/helpers"
 	"fast-https/utils/logger"
 	"os"
 	"os/exec"
