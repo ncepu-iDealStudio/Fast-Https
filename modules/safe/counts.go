@@ -6,12 +6,14 @@ import (
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/response"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 const defaultTimeLength = 1
 
-var Gcl []*CountLimit
+// Replaced as a whole on reload; requests in flight keep reading the old table.
+var gcl atomic.Pointer[[]*CountLimit]
 
 type countIP struct {
 	curr   int //现在的开始时间
@@ -29,13 +31,33 @@ type CountLimit struct {
 }
 
 func countsInit() {
-	Gcl = nil
+	size := 0
 	for _, item := range listener.GLisinfos {
 		for _, path := range item.Cfg {
-			tempCountLimit := NewCountLimit(0, path.Limit.Rate, path.Limit.Size*1024*1024/16)
-			Gcl = append(Gcl, tempCountLimit)
+			if path.ID >= size {
+				size = path.ID + 1
+			}
 		}
 	}
+	next := make([]*CountLimit, size)
+	for _, item := range listener.GLisinfos {
+		for _, path := range item.Cfg {
+			if path.ID >= 0 {
+				next[path.ID] = NewCountLimit(0, path.Limit.Rate, path.Limit.Size*1024*1024/16)
+			}
+		}
+	}
+	gcl.Store(&next)
+}
+
+// CountLimitFor returns nil when id is not in the current table,
+// e.g. a request matched before reload shrank the location list.
+func CountLimitFor(id int) *CountLimit {
+	table := gcl.Load()
+	if table == nil || id < 0 || id >= len(*table) {
+		return nil
+	}
+	return (*table)[id]
 }
 
 func (l *countIP) Set(r int, now time.Time) {

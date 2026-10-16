@@ -27,6 +27,7 @@
 - `ServerInit` 在监听前调用 `core.MissingHandlers`。已配置的 location 类型没有处理函数时直接退出，不会 `Accept`
 - `check` 只校验配置，不监听、不写 pid。`HEAD` 不写正文。`Transfer-Encoding: chunked` 按块读取。静态 gzip 只在客户端接受时压缩正文。`error_page.not_found` 和 `error_page.proxy` 可选，文件不可读时仍用默认响应
 - `SIGTERM`、`SIGQUIT` 停止接受并最多等待 5 秒。`stop` 仍发送 `Kill`
+- 重载时新配置和 MIME 表先在局部建好，再一次性替换 `GConfig`、`GContentTypeMap`，处理中的请求不会读到清空的配置或写入中的 MIME 表。限流计数表整体替换，按 location `ID` 定位；`ID` 不在新表中时这次请求不计数（2026-10-16，架构收敛阶段 4a）
 
 ## 3. 分级
 
@@ -96,7 +97,7 @@
 - HTTP/1.1 处理函数退出时都会关闭连接。解析失败、读请求体超时、请求体过大，以及监听上下文取消，都走这一条关闭。取消时会先关掉正在读的连接，处理 goroutine 随之返回。
 - 写响应失败时不再复用连接，处理函数返回后关闭。
 - 监听上下文取消时关闭该端口的 listener，`Accept` 返回后接受循环退出。重载删掉端口时仍先取消上下文再关监听。
-- `safe.Init` 只在监听器创建之后调用，重载时再调用一次。限流计数每次重建，不会在旧切片后面继续追加。
+- `safe.Init` 只在监听器创建之后调用，重载时再调用一次。限流计数每次重建为新表后整体替换，不会在旧切片后面继续追加。
 
 `TestCloseIsSilentWhenRepeated`、`TestHandleEventExitsWhenContextCanceled`、`TestServeListenerExitsWhenContextCanceled`、`TestCountsInitReplacesSlice` 覆盖上述行为。HTTP/2 连接关闭仍由已有的 `closeOnce` 和 `GracefulClose` 负责。连接数统计还没有做。
 

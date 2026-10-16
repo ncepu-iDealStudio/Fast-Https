@@ -45,7 +45,7 @@
    | 核心包 | 引用的功能包 | 用途 |
    | --- | --- | --- |
    | `modules/core/filters` | `safe`、`proxy_tcp`、`websocket` | 黑名单和限流、TCP 转发、WebSocket 升级 |
-   | `modules/core/events` | `safe`、`auth` | 按 location 计数（`safe.Gcl[cfg.ID]`）、Basic 认证 |
+   | `modules/core/events` | `safe`、`auth` | 按 location 计数（`safe.CountLimitFor(cfg.ID)`）、Basic 认证 |
    | `modules/core/server` | `safe`；空白导入 `static`、`proxy`、`rewrite`、`dev_mod` | `initModules` 中调用 `safe.Init`；触发 handler 注册 |
 
    `modules/websocket` 还引用 `modules/proxy`。这条依赖在功能包之间，不属于核心层违规。
@@ -56,9 +56,11 @@
 
 6. 配置路径和运行资源目录是现有部署契约的一部分。根目录 `fast-https.go` 被 Dockerfile、GoReleaser 和 RPM spec 写死为构建入口。
 
-7. 重载有两个状态窗口（按代码阅读确认，尚未复现）：
+7. 重载有以下状态窗口（按代码阅读确认，尚未复现；已在阶段 4a 修复）：
    - `config.ReloadFile` 校验通过后调用 `LoadFile`，其中先 `ClearConfig()` 把 `GConfig` 置空再逐项写回。在途请求这时读到的 `GConfig.Limit.MaxBodySize` 可能为 0，带请求体的请求会被当成超限断开。
+   - `serverContentType` 先把 `GContentTypeMap` 换成空 map，再用 `json.Unmarshal` 往同一个 map 写入。静态请求同时读这张表时，Go 运行时会报 `concurrent map read and map write` 并结束进程，无法 recover。
    - `safe.countsInit` 先把 `Gcl` 置空再按新 location 追加。在途请求仍持有旧 location 的 `cfg.ID`；`Gcl` 尚未建完或新配置 location 变少时，`events` 中的 `safe.Gcl[cfg.ID]` 会越界。处理协程没有 `recover`，越界会结束整个进程。
+   - 另有一处与重载无关的错位：location `ID` 按 server → location 顺序编号，`countsInit` 按端口 → location 顺序追加。多个 server 交错使用同一端口时，部分 location 会用到别的 location 的限流计数器。
 
 8. `go.mod` 的模块名是 `fast-https`，不含域名，外部项目无法通过 `go get` 引入其中的 package。判断一个 package 能否删除或改名，只需检查仓库内调用方。
 
@@ -176,12 +178,14 @@ test/client_test/     # 子进程或完整部署链路测试
 
 #### 第 1 步：依赖守卫测试（约 0.5 天）
 
-- 新增一个 Go 测试，用标准库 `go/parser` 只解析 `modules/core/...` 下非测试文件的 import，不引入第三方依赖。
-- 禁用清单集中维护：`modules/static`、`proxy`、`proxy_tcp`、`rewrite`、`dev_mod`、`websocket`、`safe`、`auth`、`appfirewall`、`cache`。
-- 第 2 节第 3 项中的现有违规写入允许清单，每项注明在本阶段第几步去掉。出现新违规时测试失败，并输出违规 package 和 import 路径。
-- 后续每一步只能缩短允许清单。
+**状态：已完成（2026-10-16）。** 测试位于 `modules/core/deps_test.go`。
 
-验收：`go test ./...` 包含该检查；人为加一条违规 import 时测试失败。
+- 用标准库 `go/parser` 解析 `modules/core/...` 下所有非测试 `.go` 文件的 import（包括带构建标签的平台文件），不引入第三方依赖。
+- 规则按前缀判断：`modules/core/...` 不得导入 `fast-https/modules` 及其下除 `fast-https/modules/core/...` 以外的任何 package。新增的功能包自动受约束，不需要维护禁用名单。
+- 第 2 节第 3 项的 10 条现有违规写入 `coreImportAllowlist`，每条注明在第 2 步或第 3 步去掉。
+- 出现新违规时测试失败，输出 `违规 package -> import 路径`；允许清单中的某条 import 已不存在时测试同样失败，要求删掉该条，保证清单只减不增。
+
+验收结果：`go test ./modules/core/` 通过；临时放入引用 `modules/compress` 的探针文件时，测试失败并指出 `fast-https/modules/core/filters -> fast-https/modules/compress`。
 
 #### 第 2 步：显式注册 handler（约 1 天）
 
@@ -224,18 +228,26 @@ test/client_test/     # 子进程或完整部署链路测试
 
 #### 4a：重载一致性（约 1–2 天，可在阶段 3 之前做）
 
-修复第 2 节第 7 项的两个窗口，不做全局依赖注入：
+**状态：已完成（2026-10-16）。** 验证结果：
 
-- 配置加载在局部变量中构造新的 `Fast_Https` 和 MIME 表，校验通过后一次性赋给 `GConfig`、`GContentTypeMap`；失败时旧值保持不动。
-- `safe.countsInit` 在局部切片中构建新的计数表，再整体替换 `Gcl`（可用 `atomic.Pointer`）。`events` 查找时 `cfg.ID` 越界按放行处理，不触发 panic。
-- 公开 API（`config.Reload`、`config.ReloadFile`、`safe.Init`）签名不变。
+- 生产 package 编译和改动包的 `go vet` 通过。
+- `go test -p 1 ./...` 除 `test/unit_test/cmd` 的 `TestRootCmdUnknownCommand` 外全部通过；该失败来自 `878e3df` 把命令注册为 cobra 子命令后未知命令返回错误，与本阶段无关，待单独处理。
+- 代理 E2E 和 reload E2E（`FASTHTTPS_E2E_RELOAD=1`）通过，`config/fast-https.json` 未被改写。
+- 本机有 gcc，`-race` 下 `config`、`modules/safe`、`modules/core/events`、`server`、`listener` 及集中单测中的 listener 重载测试通过。
+- 反向验证：把 `config/config.go` 临时换回改动前版本，`TestReloadNeverExposesClearedConfig` 在读取 MIME 表处触发 Go 运行时并发 map 读写致命错误，证实第 2 节第 7 项中的 MIME 表问题存在。
 
-测试与验收：
+修复第 2 节第 7 项的窗口，不做全局依赖注入：
 
-- 新增并发测试：多个协程持续读取 `MaxBodySize` 和计数表，同时反复重载，断言读不到零值、不越界。
-- `-race` 在 Windows 上需要 cgo，可在 Linux 环境运行；Windows 至少运行不带 `-race` 的同一测试。
-- 现有 `config/reload_test.go`、`test/unit_test/modules/core/listener/reload_common_test.go` 和 reload E2E（`FASTHTTPS_E2E_RELOAD=1`）通过。
-- 同步更新 [iteration-plan.md](iteration-plan.md) 的已落地记录。
+- `config.LoadFile` 由 `processRoot` 在局部 `Fast_Https` 中构建配置，`loadContentTypes` 在局部 map 中解析 MIME 表，两者都成功后一次性赋给 `GConfig`、`GContentTypeMap`；失败时旧值保持不动。`ReloadFile` 不再需要先清空再恢复，`ClearConfig` 已删除。`SetDefault`、`ResolveRuntimePaths` 改为接收 `*Fast_Https`（仓库内无外部调用方）。
+- `safe` 的计数表改为 `atomic.Pointer` 持有，`countsInit` 建好新表后整体替换，并按 location `ID` 放到对应下标，顺带修正编号顺序错位。导出的 `Gcl` 由 `safe.CountLimitFor(id)` 取代；`ID` 不在当前表中时返回 nil，`events` 对这次请求不计数。
+- `config.Reload`、`config.ReloadFile`、`safe.Init` 签名不变。
+
+测试：
+
+- `config/reload_window_test.go`：一个协程持续读取 `MaxBodySize`、`Servers` 和 MIME 表，同时反复 `ReloadFile`，断言读不到零值或空表。`GConfig` 仍是无锁的结构体整体赋值，竞态检测器会把它标为数据竞争，所以该测试带 `!race` 构建标签；彻底消除属于 4b。
+- `modules/safe/policy_test.go`：`TestCountLimitForUsesLocationID`（同一端口持有 ID 0 和 2 时各自拿到正确的计数器）、`TestCountLimitForOutOfRange`、`TestCountLimitForDuringRebuild`（反复在 3 个和 1 个 location 之间重建时并发查找不越界）。后者在 `-race` 下通过；Windows 上 `-race` 需要 cgo 和 gcc。
+- 回归：`config/reload_test.go`、`config/paths_test.go`、`test/unit_test/modules/core/listener/reload_common_test.go`、reload E2E（`FASTHTTPS_E2E_RELOAD=1`）。
+- 已同步 [iteration-plan.md](iteration-plan.md) 第 2 节和 R4。
 
 #### 4b：完整配置快照（按需，暂不排期）
 
@@ -275,7 +287,7 @@ test/client_test/     # 子进程或完整部署链路测试
 ## 6. 架构约束的自动验证
 
 - 依赖守卫在阶段 3 第 1 步落地，以普通 Go 测试形式存在，随 `go test ./...` 和 `.workflow/go-test.yml` 一起执行，不需要额外 CI 步骤。
-- 禁用清单和允许清单集中在同一个测试文件里，允许项必须注明原因和计划去掉的步骤。
+- 规则和允许清单集中在 `modules/core/deps_test.go`，允许项必须注明计划去掉的步骤。
 - 规则扩展到多个边界时，仍优先在同一测试中增加规则；不为单条规则引入第三方架构检查工具。
 - 失败信息必须指出违规 package 和 import 路径。
 
@@ -297,8 +309,8 @@ test/client_test/     # 子进程或完整部署链路测试
 | --- | --- | --- | --- | --- |
 | — | 阶段 0：地图与验证基线 | 后续决策有证据 | — | 已完成（2026-10-13） |
 | — | 阶段 1：标注目录语义 | 降低误读成本 | — | 已完成（2026-10-14） |
-| 1 | 阶段 3 第 1 步：依赖守卫测试 | 冻结现有违规，后续只减不增 | 0.5 天 | P1 |
-| 2 | 阶段 4a：重载一致性 | 消除重载窗口内的误断连接和进程崩溃风险 | 1–2 天 | P1 |
+| — | 阶段 3 第 1 步：依赖守卫测试 | 冻结现有违规，后续只减不增 | — | 已完成（2026-10-16） |
+| — | 阶段 4a：重载一致性 | 消除重载窗口内的误断连接和进程崩溃风险 | — | 已完成（2026-10-16） |
 | 3 | 阶段 3 第 2 步：显式注册 handler | 去掉空白导入，装配入口唯一 | 1 天 | P1 |
 | 4 | 阶段 3 第 3 步：过滤与安全注入 | 核心层不再依赖功能包 | 1–2 天 | P1 |
 | 5 | 阶段 3 第 4 步：删除遗留注册表 | 只剩一套注册机制 | 0.5 天 | P2 |

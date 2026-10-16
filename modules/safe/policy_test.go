@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"fast-https/config"
 	"fast-https/modules/core/listener"
 
 	"golang.org/x/time/rate"
@@ -52,23 +53,104 @@ func TestRateLimitRejectsAfterBurst(t *testing.T) {
 	}
 }
 
-func TestCountsInitReplacesSlice(t *testing.T) {
+func keepCounts(t *testing.T) {
+	t.Helper()
 	old := listener.GLisinfos
-	oldGcl := Gcl
+	oldTable := gcl.Load()
 	t.Cleanup(func() {
 		listener.GLisinfos = old
-		Gcl = oldGcl
+		gcl.Store(oldTable)
 	})
+}
+
+func TestCountsInitReplacesSlice(t *testing.T) {
+	keepCounts(t)
 
 	listener.GLisinfos = []listener.Listener{{
 		Cfg: []listener.ListenCfg{{}},
 	}}
 	countsInit()
-	if len(Gcl) != 1 {
-		t.Fatalf("first init length %d, want 1", len(Gcl))
+	if n := len(*gcl.Load()); n != 1 {
+		t.Fatalf("first init length %d, want 1", n)
 	}
 	countsInit()
-	if len(Gcl) != 1 {
-		t.Fatalf("second init length %d, want 1", len(Gcl))
+	if n := len(*gcl.Load()); n != 1 {
+		t.Fatalf("second init length %d, want 1", n)
 	}
+}
+
+func TestCountLimitForUsesLocationID(t *testing.T) {
+	keepCounts(t)
+
+	// IDs follow server order, so one port may hold IDs 0 and 2.
+	listener.GLisinfos = []listener.Listener{
+		{Cfg: []listener.ListenCfg{
+			{ID: 0, Limit: config.PathLimit{Rate: 10}},
+			{ID: 2, Limit: config.PathLimit{Rate: 30}},
+		}},
+		{Cfg: []listener.ListenCfg{
+			{ID: 1, Limit: config.PathLimit{Rate: 20}},
+		}},
+	}
+	countsInit()
+	for id, want := range []int{10, 20, 30} {
+		cl := CountLimitFor(id)
+		if cl == nil {
+			t.Fatalf("CountLimitFor(%d) = nil", id)
+		}
+		if cl.rate != want {
+			t.Fatalf("CountLimitFor(%d).rate = %d, want %d", id, cl.rate, want)
+		}
+	}
+}
+
+func TestCountLimitForOutOfRange(t *testing.T) {
+	keepCounts(t)
+
+	listener.GLisinfos = []listener.Listener{{
+		Cfg: []listener.ListenCfg{{ID: 0}},
+	}}
+	countsInit()
+	for _, id := range []int{-1, 1, 99} {
+		if cl := CountLimitFor(id); cl != nil {
+			t.Fatalf("CountLimitFor(%d) = %v, want nil", id, cl)
+		}
+	}
+}
+
+func TestCountLimitForDuringRebuild(t *testing.T) {
+	keepCounts(t)
+
+	large := []listener.Listener{{Cfg: []listener.ListenCfg{{ID: 0}, {ID: 1}, {ID: 2}}}}
+	small := []listener.Listener{{Cfg: []listener.ListenCfg{{ID: 0}}}}
+	listener.GLisinfos = large
+	countsInit()
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			for id := 0; id < 3; id++ {
+				if cl := CountLimitFor(id); cl != nil {
+					cl.Insert("127.0.0.1")
+				}
+			}
+		}
+	}()
+	for i := 0; i < 200; i++ {
+		if i%2 == 0 {
+			listener.GLisinfos = small
+		} else {
+			listener.GLisinfos = large
+		}
+		countsInit()
+	}
+	close(stop)
+	<-done
 }

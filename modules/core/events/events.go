@@ -84,7 +84,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 	}
 	// found specific "servername && url"
 
-	cl := safe.Gcl[cfg.ID]
+	cl := safe.CountLimitFor(cfg.ID)
 	ip := ""
 	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
 	// 如果找到了该字符
@@ -92,7 +92,7 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 		// 截取字符串，不包括该字符及其后面的字符
 		ip = ev.Conn.RemoteAddr().String()[:index]
 	}
-	if !cl.Insert(ip) {
+	if cl != nil && !cl.Insert(ip) {
 		safe.CountHandler(ev.RR)
 		return
 	}

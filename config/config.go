@@ -171,16 +171,20 @@ func Init() error {
 	return LoadFile(CONFIG_FILE_PATH)
 }
 
-// LoadFile reads one config file into GConfig.
+// LoadFile reads one config file and the MIME table, then replaces GConfig
+// and GContentTypeMap together. Both stay unchanged on error, and readers
+// never observe a cleared or half-filled value.
 func LoadFile(path string) error {
-	err := processRoot(path)
+	cfg, err := processRoot(path)
 	if err != nil {
 		return err
 	}
-	err = serverContentType()
+	mime, err := loadContentTypes()
 	if err != nil {
 		return err
 	}
+	GConfig = cfg
+	GContentTypeMap = mime
 	return nil
 }
 
@@ -191,20 +195,12 @@ func Reload() error {
 }
 
 // ReloadFile validates path before replacing GConfig.
-// Validation or load errors restore the previous config.
+// Validation or load errors leave the previous config in place.
 func ReloadFile(path string) error {
 	if err := ValidateConfigFile(path); err != nil {
 		return err
 	}
-	previous := GConfig
-	previousMIME := GContentTypeMap
-	ClearConfig()
-	if err := LoadFile(path); err != nil {
-		GConfig = previous
-		GContentTypeMap = previousMIME
-		return err
-	}
-	return nil
+	return LoadFile(path)
 }
 
 // CheckConfig check whether config is correct
@@ -471,88 +467,76 @@ func asSlice(v interface{}) ([]interface{}, bool) {
 	return s, ok
 }
 
-func ClearConfig() {
-	GConfig = Fast_Https{}
-	GContentTypeMap = map[string]string{}
-}
-
 // content types of server
-func serverContentType() error {
-
-	GContentTypeMap = make(map[string]string)
-
-	// wd, _ := os.Getwd()
-	// confPath := filepath.Join(wd, MIME_FILE_PATH)
-	// fmt.Println(MIME_FILE_PATH)
+func loadContentTypes() (map[string]string, error) {
 	confBytes, err := files.ReadFile(MIME_FILE_PATH)
-
 	if err != nil {
 		logger.Fatal("can't open mime.types file")
-		return errors.New("can't open mime.types file")
+		return nil, errors.New("can't open mime.types file")
 	}
 
-	err = json.Unmarshal(confBytes, &GContentTypeMap)
+	mime := make(map[string]string)
+	err = json.Unmarshal(confBytes, &mime)
 	if err != nil {
 		logger.Fatal("can't unmarshal mime.json file")
-		return errors.New("can't unmarshal mime.json file")
+		return nil, errors.New("can't unmarshal mime.json file")
 	}
 
-	return nil
+	return mime, nil
 }
 
-func processRoot(configPath string) error {
+func processRoot(configPath string) (Fast_Https, error) {
+	var cfg Fast_Https
 	rootViper.SetConfigFile(configPath)
 
 	err := rootViper.ReadInConfig()
 	if err != nil {
-		return fmt.Errorf("error reading config file: %s", err)
+		return cfg, fmt.Errorf("error reading config file: %s", err)
 	}
 
 	var parsed Fast_Https
 	err = rootViper.Unmarshal(&parsed)
 	if err != nil {
-		return fmt.Errorf("error unmarshaling config: %w", err)
+		return cfg, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
-	GConfig.Pid = rootViper.GetString("pid")
-	GConfig.LogRoot = rootViper.GetString("log_root")
-	processEngine()
-	processHttp()
-	SetDefault()
-	return nil
+	cfg.Pid = rootViper.GetString("pid")
+	cfg.LogRoot = rootViper.GetString("log_root")
+	processEngine(&cfg)
+	processHttp(&cfg)
+	SetDefault(&cfg)
+	return cfg, nil
 }
 
-func processEngine() error {
-	GConfig.ServerEngine = Engine{
+func processEngine(cfg *Fast_Https) {
+	cfg.ServerEngine = Engine{
 		IsMaster:     rootViper.GetBool("engine.is_master"),
 		Id:           rootViper.GetInt("engine.id"),
 		RegisterPort: rootViper.GetInt("engine.register_port"),
 		SlaveIp:      rootViper.GetString("engine.slave_ip"),
 		SlavePort:    rootViper.GetInt("engine.slave_port"),
 	}
-	return nil
 }
 
-func processHttp() error {
-	GConfig.Include = rootViper.GetStringSlice("http.include")
-	GConfig.DefaultType = rootViper.GetString("http.default_type")
-	GConfig.Limit = ServerLimit{
+func processHttp(cfg *Fast_Https) {
+	cfg.Include = rootViper.GetStringSlice("http.include")
+	cfg.DefaultType = rootViper.GetString("http.default_type")
+	cfg.Limit = ServerLimit{
 		MaxHeaderSize: rootViper.GetInt("http.servers_limit.max_header_size"),
 		MaxBodySize:   rootViper.GetInt("http.servers_limit.max_body_size"),
 		Rate:          rootViper.GetInt("http.servers_limit.limit"),
 		Burst:         rootViper.GetInt("http.servers_limit.burst"),
 	}
 
-	GConfig.BlackList = rootViper.GetStringSlice("http.blaklist")
-	GConfig.LogFormat = rootViper.GetStringSlice("http.log_format")
-	GConfig.LogSplit = rootViper.GetString("http.log_split")
-	processHttpServer("http.server")
-	processIncludeCfg()
-	return nil
+	cfg.BlackList = rootViper.GetStringSlice("http.blaklist")
+	cfg.LogFormat = rootViper.GetStringSlice("http.log_format")
+	cfg.LogSplit = rootViper.GetString("http.log_split")
+	cfg.Servers = processHttpServer("http.server")
+	processIncludeCfg(cfg)
 }
 
-func processIncludeCfg() {
-	for _, item := range GConfig.Include {
+func processIncludeCfg(cfg *Fast_Https) {
+	for _, item := range cfg.Include {
 
 		err := filepath.Walk(item, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -592,7 +576,7 @@ func processIncludeCfg() {
 			}
 			server.Path = paths
 
-			GConfig.Servers = append(GConfig.Servers, server)
+			cfg.Servers = append(cfg.Servers, server)
 			return nil
 		})
 		if err != nil {
@@ -601,7 +585,7 @@ func processIncludeCfg() {
 	}
 }
 
-func processHttpServer(pathPrefix string) error {
+func processHttpServer(pathPrefix string) []Server {
 	var servers []Server
 
 	serverKeys := rootViper.GetStringSlice(pathPrefix)
@@ -629,8 +613,7 @@ func processHttpServer(pathPrefix string) error {
 		server.Path = paths
 		servers = append(servers, server)
 	}
-	GConfig.Servers = servers
-	return nil
+	return servers
 }
 
 func processHttpServerPath(v *viper.Viper, pathPrefix string, locationKey int) Path {
@@ -759,33 +742,33 @@ func trimProxyPass(proxyData string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(proxyData, "https://"), "http://")
 }
 
-func SetDefault() {
-	if GConfig.Limit.MaxHeaderSize == 0 {
-		GConfig.Limit.MaxHeaderSize = DEFAULT_MAX_HEADER_SIZE
+func SetDefault(cfg *Fast_Https) {
+	if cfg.Limit.MaxHeaderSize == 0 {
+		cfg.Limit.MaxHeaderSize = DEFAULT_MAX_HEADER_SIZE
 	}
-	if GConfig.Limit.MaxBodySize == 0 {
-		GConfig.Limit.MaxBodySize = DEFAULT_MAX_BODY_SIZE
+	if cfg.Limit.MaxBodySize == 0 {
+		cfg.Limit.MaxBodySize = DEFAULT_MAX_BODY_SIZE
 	}
-	if GConfig.DefaultType == "" {
-		GConfig.DefaultType = HTTP_DEFAULT_CONTENT_TYPE
+	if cfg.DefaultType == "" {
+		cfg.DefaultType = HTTP_DEFAULT_CONTENT_TYPE
 	}
 
-	if GConfig.LogRoot == "" {
-		GConfig.LogRoot = DEFAULT_LOG_ROOT
+	if cfg.LogRoot == "" {
+		cfg.LogRoot = DEFAULT_LOG_ROOT
 	}
-	ResolveRuntimePaths()
+	ResolveRuntimePaths(cfg)
 }
 
 // ResolveRuntimePaths turns site, certificate, log and include paths into
 // absolute paths before the process listens. Later directory changes then
 // still open the files that were configured.
-func ResolveRuntimePaths() {
-	GConfig.LogRoot = absConfigPath(GConfig.LogRoot)
-	for i := range GConfig.Include {
-		GConfig.Include[i] = absConfigPath(GConfig.Include[i])
+func ResolveRuntimePaths(cfg *Fast_Https) {
+	cfg.LogRoot = absConfigPath(cfg.LogRoot)
+	for i := range cfg.Include {
+		cfg.Include[i] = absConfigPath(cfg.Include[i])
 	}
-	for i := range GConfig.Servers {
-		server := &GConfig.Servers[i]
+	for i := range cfg.Servers {
+		server := &cfg.Servers[i]
 		server.SSLCertificate = absConfigPath(server.SSLCertificate)
 		server.SSLCertificateKey = absConfigPath(server.SSLCertificateKey)
 		for j := range server.Path {

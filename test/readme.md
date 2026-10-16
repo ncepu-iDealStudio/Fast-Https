@@ -20,7 +20,7 @@
 两个存量文件的现状：
 
 - `test/fast-https_test.go` 的 `TestServerInit` 会切换到仓库根目录、写入 pid 文件、加载配置并在证书缺失时生成自签名证书，有副作用，不监听端口。
-- `test/client_test/http_https_change_test.go` 是手工使用的 HTTP/HTTPS 客户端，只有 `func main`，没有测试函数。它会被编进 `client_test` 的测试二进制但不会执行；文件名以 `_test.go` 结尾，`go run` 不能直接运行它。
+- `test/client_test/http_https_change_test.go` 是手工使用的 HTTP/HTTPS 客户端，只有 `func main`，没有测试函数。它会被编进 `client_test` 的测试二进制但不会执行；文件名以 `_test.go` 结尾，`go run` 不能直接运行它。由于 `client_test` 是 `package main` 而 `func main` 只在这个测试文件里，`go build ./...` 会在该目录报 `function main is undeclared`；`go test ./...` 不受影响。
 
 ### 1.1 目录结构
 
@@ -169,6 +169,8 @@ go tool cover -html=coverage.out
 HTTP/2：未知帧丢掉后续读（`unknown_frame_test.go`），HPACK 索引 0 和越界返回错误并关闭流（`error_test.go`、`header_error_test.go`），对端窗口不够时停止写出（`window_test.go`）。`TestXssStripsScriptInJSONArray` 覆盖 JSON 数组里的 script。
 
 连接关闭：`TestCloseIsSilentWhenRepeated` 确认第二次 `Close` 不再关连接。`TestHandleEventExitsWhenContextCanceled` 和 `TestServeListenerExitsWhenContextCanceled` 确认取消上下文后处理协程和接受循环退出。`TestDrainConnectionsClosesInFlightHandler` 确认停止接受后，正在读的连接会关掉。`TestCountsInitReplacesSlice` 确认限流计数重建时不会叠在旧切片后面。
+
+依赖边界：`modules/core/deps_test.go` 的 `TestCoreDoesNotImportFeaturePackages` 检查 `modules/core/...` 不导入 `modules` 下的功能包，现有例外列在 `coreImportAllowlist` 中，只能删减。
 
 `check`：`TestCheckFileAcceptsValidConfig` 和 `TestCheckFileRejectsInvalidConfig` 只校验临时配置，不监听。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `modules/core/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
 
