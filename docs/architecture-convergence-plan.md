@@ -40,15 +40,7 @@
 
 2. `modules/module.go` 的 `RegisterModule/GetModule` 已标为遗留注册表。调用方只有 `modules/logging`、`modules/workchain/example` 和 `test/unit_test/modules` 下的两个测试，HTTP 请求分发主链不使用它。代码仍保留。
 
-3. 核心层有三个包直接引用功能包：
-
-   | 核心包 | 引用的功能包 | 用途 |
-   | --- | --- | --- |
-   | `modules/core/filters` | `safe`、`proxy_tcp`、`websocket` | 黑名单和限流、TCP 转发、WebSocket 升级 |
-   | `modules/core/events` | `safe`、`auth` | 按 location 计数（`safe.CountLimitFor(cfg.ID)`）、Basic 认证 |
-   | `modules/core/server` | `safe` | `initModules` 中调用 `safe.Init` |
-
-   `modules/websocket` 还引用 `modules/proxy`。这条依赖在功能包之间，不属于核心层违规。
+3. 核心层不再引用功能包。连接过滤、TCP 转发、WebSocket、location 计数、Basic 认证和 `safe.Init` 由 `cmd.RegisterServices` 写入 `core.Services`，`modules/core` 只调用这些钩子；钩子为 nil 时放行或不处理。依赖守卫的允许清单已空。`modules/websocket` 仍引用 `modules/proxy`，这条依赖在功能包之间。
 
 4. 测试同时分布在源码目录和 `test/unit_test/`；E2E 位于 `test/client_test/`。2026-10 之后新增的单测已放在被测 package 旁边。
 
@@ -182,7 +174,7 @@ test/client_test/     # 子进程或完整部署链路测试
 
 - 用标准库 `go/parser` 解析 `modules/core/...` 下所有非测试 `.go` 文件的 import（包括带构建标签的平台文件），不引入第三方依赖。
 - 规则按前缀判断：`modules/core/...` 不得导入 `fast-https/modules` 及其下除 `fast-https/modules/core/...` 以外的任何 package。新增的功能包自动受约束，不需要维护禁用名单。
-- 第 2 节第 3 项原先的 10 条违规写入 `coreImportAllowlist`。第 2 步已去掉 server 对 `static`、`proxy`、`rewrite`、`dev_mod` 的 4 条；其余 6 条仍注明在第 3 步去掉。
+- 第 2 节第 3 项原先的 10 条违规写入 `coreImportAllowlist`。第 2 步去掉 4 条，第 3 步去掉其余 6 条，允许清单现已为空。
 - 出现新违规时测试失败，输出 `违规 package -> import 路径`；允许清单中的某条 import 已不存在时测试同样失败，要求删掉该条，保证清单只减不增。
 
 验收结果：`go test ./modules/core/` 通过；临时放入引用 `modules/compress` 的探针文件时，测试失败并指出 `fast-https/modules/core/filters -> fast-https/modules/compress`。
@@ -201,13 +193,15 @@ test/client_test/     # 子进程或完整部署链路测试
 
 #### 第 3 步：过滤、计数、认证和安全初始化改为注入（约 1–2 天）
 
-- `filters` 的连接过滤（黑名单、令牌桶）、TCP 转发、WebSocket 处理改为由组合层传入的函数。
-- `events` 的 location 计数和 Basic 认证改为由组合层传入的函数。
-- `server.initModules` 中的 `safe.Init` 改为组合层传入的初始化函数，重载时仍会再次调用。
-- 注入点集中在一个结构体里，`cmd` 统一填写；未填写的函数按“放行/不处理”的默认行为执行，便于单测。
-- 动手前先为 TCP 转发补一个测试（本地监听 + 上游回显）；WebSocket 若暂时无法覆盖，在本阶段记录中写明暂缺。
+**状态：已完成（2026-10-16）。**
 
-验收：允许清单清空；静态、HTTP/HTTPS 代理、rewrite、devmod、TCP 转发、WebSocket 都有对应测试或明确的暂缺说明；`go test ./modules/... ./cmd/...` 和代理 E2E 通过。
+- `core.Services` 集中保存连接拒绝、监听分流、location 限流、认证和监听后初始化五个钩子。未设置的钩子放行或不处理。
+- `cmd.RegisterServices` 在 `start`、`dev` 和代理 E2E 子进程里、`ServerInit` 之前填写这些钩子：黑名单和令牌桶、TCP 转发、WebSocket、`safe.CountLimitFor`、Basic 认证，以及 `safe.Init`。重载仍通过 `initModules` 调用 `AfterListen`。
+- `filters`、`events`、`server` 不再导入功能包。允许清单已清空，依赖守卫测试通过。
+- TCP 字节转发由 `TestProxyEventTcpEcho` 覆盖：本地上游回显 `ping`。WebSocket 字节转发由 `TestWebSocketHandlerEcho` 覆盖，不包含 HTTP Upgrade 握手。
+- 监听分流仍沿用原来的比较：`LisType == config.PROXY_TCP`（值为 3）。监听器把带 `tcp` 的 listen 记为 `LisType` 2，因此这条分支在现有配置下不会进入 `ProxyEventTcp`。本步没有改这个判断。
+
+验收结果：`go test ./modules/... ./cmd/...` 与代理 E2E 通过。静态、HTTP/HTTPS 代理、rewrite、devmod 仍由第 2 步的注册测试和代理 E2E 覆盖。
 
 #### 第 4 步：处理遗留注册表（约 0.5 天）
 
@@ -314,7 +308,7 @@ test/client_test/     # 子进程或完整部署链路测试
 | — | 阶段 3 第 1 步：依赖守卫测试 | 冻结现有违规，后续只减不增 | — | 已完成（2026-10-16） |
 | — | 阶段 4a：重载一致性 | 消除重载窗口内的误断连接和进程崩溃风险 | — | 已完成（2026-10-16） |
 | — | 阶段 3 第 2 步：显式注册 handler | 去掉空白导入，装配入口唯一 | — | 已完成（2026-10-16） |
-| 4 | 阶段 3 第 3 步：过滤与安全注入 | 核心层不再依赖功能包 | 1–2 天 | P1 |
+| — | 阶段 3 第 3 步：过滤与安全注入 | 核心层不再依赖功能包 | — | 已完成（2026-10-16） |
 | 5 | 阶段 3 第 4 步：删除遗留注册表 | 只剩一套注册机制 | 0.5 天 | P2 |
 | — | 阶段 2：测试位置约定 | 新测试有固定归属 | — | 已完成（2026-10-16） |
 | — | 阶段 4b：完整配置快照 | 去除全局配置依赖 | 较大 | 按需 |

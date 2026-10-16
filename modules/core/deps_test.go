@@ -14,18 +14,11 @@ import (
 const (
 	corePkg    = "fast-https/modules/core"
 	modulesPkg = "fast-https/modules"
-	stepInject = "阶段 3 第 3 步：改为由组合层注入"
 )
 
 // Existing violations of the core -> feature rule. Entries may only be removed.
-var coreImportAllowlist = map[string]string{
-	"fast-https/modules/core/events -> fast-https/modules/auth":       stepInject,
-	"fast-https/modules/core/events -> fast-https/modules/safe":       stepInject,
-	"fast-https/modules/core/filters -> fast-https/modules/proxy_tcp": stepInject,
-	"fast-https/modules/core/filters -> fast-https/modules/safe":      stepInject,
-	"fast-https/modules/core/filters -> fast-https/modules/websocket": stepInject,
-	"fast-https/modules/core/server -> fast-https/modules/safe": stepInject,
-}
+// Stage 3 step 3 removed the last entries.
+var coreImportAllowlist = map[string]string{}
 
 func forbiddenForCore(path string) bool {
 	if path == corePkg || strings.HasPrefix(path, corePkg+"/") {

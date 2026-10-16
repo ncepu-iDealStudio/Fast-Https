@@ -176,6 +176,7 @@ func TestProxyServerProcess(t *testing.T) {
 	}
 	initialization.InitSystem()
 	cmd.RegisterHandlers()
+	cmd.RegisterServices()
 	server.ServerInit().Run()
 }
 

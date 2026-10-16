@@ -68,7 +68,7 @@ flowchart TD
 2. `MessageInit()` 启动异步日志消息处理，并初始化 system/access/error/safe 日志。
 3. `CertInit()` 初始化本地 CA；对于启用 SSL 的 server，如果默认证书文件不存在则尝试生成证书。
 4. 从磁盘加载代理缓存，并启动定期过期清理 goroutine。
-安全模块不在这里初始化。`ServerInit()` 创建监听器之后才调用 `safe.Init()`，重载成功后会再调用一次，按当前 location 重建限流计数。
+安全模块不在这里初始化。`cmd.RegisterServices` 把 `safe.Init` 交给 `core.Services.AfterListen`。`ServerInit()` 创建监听器之后调用它，重载成功后会再调用一次，按当前 location 重建限流计数。
 
 ### 3.3 配置来源和路径
 

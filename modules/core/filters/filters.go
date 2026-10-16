@@ -4,9 +4,6 @@ import (
 	"fast-https/config"
 	"fast-https/modules/core"
 	"fast-https/modules/core/listener"
-	"fast-https/modules/proxy_tcp"
-	"fast-https/modules/safe"
-	"fast-https/modules/websocket"
 )
 
 type FilterInterface struct {
@@ -21,27 +18,11 @@ type Filter struct {
 }
 
 func GConnFilter(each_event *core.Event) bool {
-	if !safe.Bucket(each_event) {
-		return false
-	}
-
-	if safe.IsInBlacklist(each_event) {
-		return false
-	}
-	return true
+	return !core.ConnRejected(each_event)
 }
 
 func GListenFilter(ev *core.Event) bool {
-	// handle tcp proxy
-	if ev.LisInfo.LisType == config.PROXY_TCP {
-		proxy_tcp.ProxyEventTcp(ev, ev.LisInfo.Cfg[0].ProxyAddr)
-		return true
-	}
-	if ev.Upgrade == "websocket" {
-		websocket.WebSocketHandler(ev)
-		return true
-	}
-	return false
+	return core.ListenHandled(ev)
 }
 
 func GHttpParseFilter(rr *core.RRcircle) bool {

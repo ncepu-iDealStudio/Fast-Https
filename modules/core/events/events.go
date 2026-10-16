@@ -3,17 +3,14 @@ package events
 import (
 	"context"
 	"fast-https/config"
-	"fast-https/modules/auth"
 	"fast-https/modules/core"
 	"fast-https/modules/core/filters"
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
-	"fast-https/modules/safe"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/fatih/color"
@@ -84,20 +81,11 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 	}
 	// found specific "servername && url"
 
-	cl := safe.CountLimitFor(cfg.ID)
-	ip := ""
-	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
-	// 如果找到了该字符
-	if index != -1 {
-		// 截取字符串，不包括该字符及其后面的字符
-		ip = ev.Conn.RemoteAddr().String()[:index]
-	}
-	if cl != nil && !cl.Insert(ip) {
-		safe.CountHandler(ev.RR)
+	if core.LocationRejected(cfg, ev) {
 		return
 	}
 
-	if !auth.AuthHandler(cfg, ev) {
+	if core.AuthRejected(cfg, ev) {
 		return
 	}
 	ev.Type = cfg.Type

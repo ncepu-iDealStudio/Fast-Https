@@ -20,7 +20,7 @@
 | `modules/core/server` | 启停、信号、连接跟踪、listener 生命周期和 reload | 是 |
 | `modules/core/listener` | 配置转 Listener/ListenCfg、虚拟主机表、TCP/TLS socket、端口 reload | 是 |
 | `modules/core/events` | HTTP/1.x 连接事件、请求解析、统一事件分发及 HTTP/2 stream 事件 | 是 |
-| `modules/core/filters` | 连接、监听、HTTP 解析、Host/Path 过滤 | 是；目前还直接调用具体 feature 包 |
+| `modules/core/filters` | 连接、监听、HTTP 解析、Host/Path 过滤 | 是。连接拒绝和监听分流调用 `core.Services` 钩子 |
 | `modules/core/request`、`response` | HTTP 请求解析/请求体，以及响应生成 | 是 |
 | `modules/core/h2/{conn,frame,hpack,util}` | HTTP/2 连接、帧、HPACK 和辅助逻辑 | H2 listener 启用时 |
 | `modules/core/dynlog`、`timer` | 动态访问日志字段、计时器 | 是/按路径使用 |
@@ -46,7 +46,7 @@
 - `cmd.RegisterHandlers` 在 `start`、`dev` 的 `ServerInit` 之前调用这四个函数。导入这些包本身不再注册。
 - `ServerInit()` 调用 `core.MissingHandlers()`，确认配置中非 TCP 的 location type 已有 handler，再创建监听器。
 - `modules/core/events.EventHandler()` 根据匹配到的 location type 从 `GRRCHT` 取得处理函数。
-- TCP proxy 和 WebSocket 不使用 location handler 表的普通请求分发：`core/filters` 在监听/upgrade 阶段直接分流。
+- TCP proxy 和 WebSocket 不使用 location handler 表的普通请求分发。`cmd.RegisterServices` 把它们放进监听钩子，`filters` 只调用这个钩子。
 
 ### 通用 Module 注册表：遗留机制
 
@@ -65,14 +65,13 @@ server -> core + listener + events + safety/logging
 handler modules -> core contracts + listener/config + required services
 ```
 
-目前需要在后续阶段进一步解耦的反向/横向引用：
+目前功能包之间仍有的横向引用：
 
-- `modules/core/filters` import `modules/proxy_tcp`、`modules/safe`、`modules/websocket`，core 子层认识具体功能实现。
 - `modules/websocket` import `modules/proxy`，WebSocket 与 HTTP proxy 实现存在较强耦合。
 - `modules/core/request` import `modules/core/listener`，请求 Host 解析接收 listener 对象；可作为后续接口边界评估项。
 - `modules/static` 和 `modules/proxy` 都直接依赖 `appfirewall`；安全处理横切功能当前由 handler 显式调用。
 
-这些是依赖结构观察，不等价于要求立即拆包。后续重构应结合调用方向和测试替换需求，优先消除 core 对具体 feature 的直接依赖。
+这些是依赖结构观察，不等价于要求立即拆包。core 对功能包的直接引用已在阶段 3 第 3 步去掉。
 
 ## 4. 可执行程序和构建入口
 
@@ -123,6 +122,6 @@ handler modules -> core contracts + listener/config + required services
 
 - 主服务器是根 package，`cmd/` 是 CLI 实现包；monitor 是独立 Windows/amd64 package。尚无必要为了目录惯例立即迁移可执行入口。
 - 请求处理只有 `GRRCHT` 这一条生产路径，由 `cmd.RegisterHandlers` 装配。`modules/module.go` 已标为遗留注册表，默认启动不使用，本阶段不删除。阶段 3 第 4 步再决定是否去掉它。
-- 核心耦合的主要落点在 filters 直接调用 feature、WebSocket 依赖 proxy，以及配置/请求对象跨层传递；应按小步注入接口，不做批量目录搬迁。
+- 核心层通过 `core.Services` 调用功能包，由 `cmd.RegisterServices` 填写。WebSocket 仍依赖 proxy，配置和请求对象仍跨层传递。
 - 测试已经形成源码邻近单测、集中单测、E2E 三种形式。阶段 2（2026-10-16）已把位置约定写进 [test/readme.md](../test/readme.md) 第 1.0 节，现有测试未移动。
 - 基线测试可通过匹配的 Go 1.27.1 工具链以串行方式运行；本机 Go 环境本身存在 GOROOT 混用问题，需独立修复，不属于项目架构改造。

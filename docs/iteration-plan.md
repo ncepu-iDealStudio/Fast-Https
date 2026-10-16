@@ -97,7 +97,7 @@
 - HTTP/1.1 处理函数退出时都会关闭连接。解析失败、读请求体超时、请求体过大，以及监听上下文取消，都走这一条关闭。取消时会先关掉正在读的连接，处理 goroutine 随之返回。
 - 写响应失败时不再复用连接，处理函数返回后关闭。
 - 监听上下文取消时关闭该端口的 listener，`Accept` 返回后接受循环退出。重载删掉端口时仍先取消上下文再关监听。
-- `safe.Init` 只在监听器创建之后调用，重载时再调用一次。限流计数每次重建为新表后整体替换，不会在旧切片后面继续追加。
+- `safe.Init` 由 `cmd.RegisterServices` 装入 `core.Services.AfterListen`，只在监听器创建之后调用，重载时再调用一次。限流计数每次重建为新表后整体替换，不会在旧切片后面继续追加。未设置该钩子时不做安全初始化。
 
 `TestCloseIsSilentWhenRepeated`、`TestHandleEventExitsWhenContextCanceled`、`TestServeListenerExitsWhenContextCanceled`、`TestCountsInitReplacesSlice` 覆盖上述行为。HTTP/2 连接关闭仍由已有的 `closeOnce` 和 `GracefulClose` 负责。连接数统计还没有做。
 

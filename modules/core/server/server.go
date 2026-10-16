@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	// routinepool "fast-https/modules/core/routine_pool"
-	"fast-https/modules/safe"
 	"fast-https/output"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
@@ -47,8 +46,8 @@ type Server struct {
 // 初始化所有需要在监听器之后初始化的模块
 // 包括安全模块和动态日志注册等
 func initModules() {
-	// The only safe.Init call. Listeners already exist; reload calls this again.
-	safe.Init()
+	// Listeners already exist. Reload calls this again.
+	core.RunAfterListen()
 	dynlog.LogRegister()
 	// if config.GConfig.ServerEngine.Id != 0 {
 	//engine.EngineInit()
