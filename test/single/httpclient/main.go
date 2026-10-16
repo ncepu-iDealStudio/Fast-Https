@@ -1,20 +1,19 @@
 package main
 
-/*  ============ usage ============= */
-/*  go run https.go http/https */
-/*  http://localhost:1234/   or  https://localhost:1234/  */
+// Manual client for a server listening on localhost:4443.
+// Usage (from the repository root): go run ./test/single/httpclient http|https
 
 import (
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 )
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go [http|https]")
+		fmt.Println("Usage: go run ./test/single/httpclient [http|https]")
 		return
 	}
 
@@ -47,7 +46,7 @@ func main() {
 	defer resp.Body.Close()
 
 	// 读取响应内容
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Error reading response:", err)
 		return

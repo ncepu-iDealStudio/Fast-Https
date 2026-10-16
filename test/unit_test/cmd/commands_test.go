@@ -15,10 +15,13 @@ func TestRootCmd(t *testing.T) {
 	assert.True(t, rootCmd.SilenceUsage, "SilenceUsage should be true")
 }
 
-// TestRootCmdUnknownCommand verifies unknown command path is non-fatal.
+// TestRootCmdUnknownCommand verifies an unknown command is reported as an
+// error, which makes the process exit with status 1.
 func TestRootCmdUnknownCommand(t *testing.T) {
 	rootCmd := cmd.RootCmd()
 	rootCmd.SetArgs([]string{"__unknown__"})
 	err := rootCmd.Execute()
-	assert.NoError(t, err, "Unknown command should return nil and print usage hint")
+	if assert.Error(t, err, "Unknown command should return an error") {
+		assert.Contains(t, err.Error(), `unknown command "__unknown__"`)
+	}
 }

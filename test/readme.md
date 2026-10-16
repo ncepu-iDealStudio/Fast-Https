@@ -17,10 +17,11 @@
 - 需要外部条件或会改写仓库文件的测试，默认 `t.Skip`，用环境变量开启。目前有 `FASTHTTPS_E2E_RELOAD=1`（reload 端到端）；`FASTHTTPS_PROXY_HELPER` 只由 `TestProxyHTTPIntegration` 内部设置，不需要手工开启。
 - CI（`.workflow/go-test.yml`）运行 `go test ./...`，覆盖上表前三类中默认不跳过的测试。Windows 本地建议加 `-p 1`，避免并行测试 exe 出现 `Access is denied`。
 
-两个存量文件的现状：
+存量文件的说明：
 
 - `test/fast-https_test.go` 的 `TestServerInit` 会切换到仓库根目录、写入 pid 文件、加载配置并在证书缺失时生成自签名证书，有副作用，不监听端口。
-- `test/client_test/http_https_change_test.go` 是手工使用的 HTTP/HTTPS 客户端，只有 `func main`，没有测试函数。它会被编进 `client_test` 的测试二进制但不会执行；文件名以 `_test.go` 结尾，`go run` 不能直接运行它。由于 `client_test` 是 `package main` 而 `func main` 只在这个测试文件里，`go build ./...` 会在该目录报 `function main is undeclared`；`go test ./...` 不受影响。
+- 手工 HTTP/HTTPS 客户端在 `test/single/httpclient/main.go`，请求 `localhost:4443`，用法 `go run ./test/single/httpclient http|https`。它原先是 `test/client_test/http_https_change_test.go`，2026-10-16 移出。
+- `test/client_test/` 只含 `_test.go` 文件，子进程信号辅助按平台放在 `reload_proc_windows_test.go`、`reload_proc_other_test.go`，因此 `go build ./...` 不再在该目录报 `function main is undeclared`。
 
 ### 1.1 目录结构
 
@@ -32,13 +33,13 @@ test/
 │   ├── dev-test.sh
 │   └── dev-test.ps1
 ├── single/                          # 手工样例，不进入 go test
-│   └── workloop.go
+│   ├── workloop.go
+│   └── httpclient/main.go           # 手工 HTTP/HTTPS 客户端
 ├── client_test/                     # 子进程集成测试
 │   ├── proxy_e2e_test.go
 │   ├── reload_e2e_test.go           # FASTHTTPS_E2E_RELOAD=1 时运行
-│   ├── reload_proc_windows.go       # 子进程信号辅助（Windows）
-│   ├── reload_proc_other.go         # 子进程信号辅助（其他平台）
-│   └── http_https_change_test.go    # 手工客户端，无测试函数
+│   ├── reload_proc_windows_test.go  # 子进程信号辅助（Windows）
+│   └── reload_proc_other_test.go    # 子进程信号辅助（其他平台）
 └── unit_test/                       # 存量集中单测，不再新增
     ├── helpers/
     │   ├── mock_system.go           # 进程和信号处理模拟

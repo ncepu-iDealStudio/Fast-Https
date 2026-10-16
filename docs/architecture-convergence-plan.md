@@ -157,7 +157,7 @@ test/client_test/     # 子进程或完整部署链路测试
 
 **难度：易；风险：低。并入约定，不单独做目录迁移。**
 
-**状态：已完成（2026-10-16）。** 约定写在 [test/readme.md](../test/readme.md) 第 1.0 节，1.1 节目录树已按实际文件更新（去掉不存在的 `safe/safe_test.go`，补上 `handler_ready_test.go`、`utils/message`、H2 连接测试和 `client_test` 的进程辅助文件）。核对时发现两个存量文件需要说明：`test/fast-https_test.go` 有写 pid、生成证书的副作用；`test/client_test/http_https_change_test.go` 是只有 `func main` 的手工客户端。两者均已在 1.0 节写明，本阶段未移动。生产代码没有导入 `test/` 下的 package。
+**状态：已完成（2026-10-16）。** 约定写在 [test/readme.md](../test/readme.md) 第 1.0 节，1.1 节目录树已按实际文件更新（去掉不存在的 `safe/safe_test.go`，补上 `handler_ready_test.go`、`utils/message`、H2 连接测试和 `client_test` 的进程辅助文件）。核对时发现两个存量文件需要说明：`test/fast-https_test.go` 有写 pid、生成证书的副作用；`test/client_test/http_https_change_test.go` 是只有 `func main` 的手工客户端。两者均已在 1.0 节写明。后者已于同日移到 `test/single/httpclient/main.go`，`client_test` 的进程辅助文件改为 `_test.go` 后缀，`go build ./...` 整体通过。生产代码没有导入 `test/` 下的 package。
 
 现有测试已经形成三种稳定形式：源码旁的单测、`test/unit_test/` 下的集中单测、`test/client_test/` 下的子进程 E2E。批量迁移或把 `client_test` 改名为 `e2e` 会牵动 CI、文档和命令，对后续阶段没有帮助。
 
@@ -231,7 +231,7 @@ test/client_test/     # 子进程或完整部署链路测试
 **状态：已完成（2026-10-16）。** 验证结果：
 
 - 生产 package 编译和改动包的 `go vet` 通过。
-- `go test -p 1 ./...` 除 `test/unit_test/cmd` 的 `TestRootCmdUnknownCommand` 外全部通过；该失败来自 `878e3df` 把命令注册为 cobra 子命令后未知命令返回错误，与本阶段无关，待单独处理。
+- `go test -p 1 ./...` 全部通过。其间 `TestRootCmdUnknownCommand` 曾失败：`878e3df` 把命令注册为 cobra 子命令后，未知命令返回错误并以退出码 1 结束，测试仍期望返回 nil。已按现行为改为断言返回 `unknown command` 错误。
 - 代理 E2E 和 reload E2E（`FASTHTTPS_E2E_RELOAD=1`）通过，`config/fast-https.json` 未被改写。
 - 本机有 gcc，`-race` 下 `config`、`modules/safe`、`modules/core/events`、`server`、`listener` 及集中单测中的 listener 重载测试通过。
 - 反向验证：把 `config/config.go` 临时换回改动前版本，`TestReloadNeverExposesClearedConfig` 在读取 MIME 表处触发 Go 运行时并发 map 读写致命错误，证实第 2 节第 7 项中的 MIME 表问题存在。
