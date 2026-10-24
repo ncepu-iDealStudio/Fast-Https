@@ -41,7 +41,7 @@ func TestServerInit(t *testing.T) {
 	t.Log("step2: read config")
 
 	// 3. open the four log files under the resolved log directory
-	_ = logging.Open(config.GConfig.LogRoot)
+	_ = logging.Open(config.Current().LogRoot)
 	t.Log("step3: system message initialization")
 
 	// 5. self-signed certification initialization

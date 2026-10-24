@@ -20,7 +20,7 @@ func InitSystem() {
 	logging.ConsoleLog.Info().Msg("config initialization finished")
 
 	// logging initialization
-	_ = logging.Open(config.GConfig.LogRoot)
+	_ = logging.Open(config.Current().LogRoot)
 	logging.ConsoleLog.Info().Msg("message initialization finished")
 
 	// cert  initialization

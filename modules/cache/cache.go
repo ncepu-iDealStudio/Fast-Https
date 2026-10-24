@@ -142,7 +142,7 @@ func readEntryHead(realPath string) (CacheHead, string, int, error) {
 
 // LoadCache 在启动时扫描配置里的缓存目录，重建内存索引。
 func (CC *CacheContainer) LoadCache() {
-	for _, server := range config.GConfig.Servers {
+	for _, server := range config.Current().Servers {
 		for _, path := range server.Path {
 			if path.ProxyCache.Path == "" {
 				continue

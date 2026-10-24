@@ -23,11 +23,10 @@ func TestReloadFileKeepsPreviousConfigWhenInvalid(t *testing.T) {
 		_ = os.Chdir(wd)
 	})
 
-	previousConfig := config.GConfig
-	previousMIME := config.GContentTypeMap
+	previousConfig := *config.Current()
+	previousMIME := config.MIME()
 	t.Cleanup(func() {
-		config.GConfig = previousConfig
-		config.GContentTypeMap = previousMIME
+		config.Store(&previousConfig, previousMIME)
 	})
 
 	dir := t.TempDir()
@@ -51,7 +50,7 @@ func TestReloadFileKeepsPreviousConfigWhenInvalid(t *testing.T) {
 	if err := config.LoadFile(path); err != nil {
 		t.Fatalf("load valid config: %v", err)
 	}
-	if got := config.GConfig.Servers[0].ServerName; got != "keep.local" {
+	if got := config.Current().Servers[0].ServerName; got != "keep.local" {
 		t.Fatalf("server name = %q", got)
 	}
 
@@ -61,7 +60,7 @@ func TestReloadFileKeepsPreviousConfigWhenInvalid(t *testing.T) {
 	if err := config.ReloadFile(path); err == nil {
 		t.Fatal("invalid config should be rejected")
 	}
-	if got := config.GConfig.Servers[0].ServerName; got != "keep.local" {
+	if got := config.Current().Servers[0].ServerName; got != "keep.local" {
 		t.Fatalf("invalid reload changed server name to %q", got)
 	}
 
@@ -84,7 +83,7 @@ func TestReloadFileKeepsPreviousConfigWhenInvalid(t *testing.T) {
 	if err := config.ReloadFile(path); err != nil {
 		t.Fatalf("valid reload: %v", err)
 	}
-	if got := config.GConfig.Servers[0].ServerName; got != "next.local" {
+	if got := config.Current().Servers[0].ServerName; got != "next.local" {
 		t.Fatalf("server name = %q", got)
 	}
 }
@@ -110,11 +109,10 @@ func TestReloadFileRejectsMissingCertificate(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(wd) })
 
-	previousConfig := config.GConfig
-	previousMIME := config.GContentTypeMap
+	previousConfig := *config.Current()
+	previousMIME := config.MIME()
 	t.Cleanup(func() {
-		config.GConfig = previousConfig
-		config.GContentTypeMap = previousMIME
+		config.Store(&previousConfig, previousMIME)
 	})
 
 	dir := t.TempDir()
@@ -160,7 +158,7 @@ func TestReloadFileRejectsMissingCertificate(t *testing.T) {
 	if err := config.ReloadFile(path); err == nil {
 		t.Fatal("missing certificate should be rejected")
 	}
-	if got := config.GConfig.Servers[0].ServerName; got != "keep.local" {
+	if got := config.Current().Servers[0].ServerName; got != "keep.local" {
 		t.Fatalf("server name = %q", got)
 	}
 }

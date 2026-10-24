@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/spf13/viper"
 )
@@ -144,10 +144,40 @@ type Fast_Https struct {
 	TcpNodelay                string
 }
 
-// Define Configuration Structure
-var GConfig Fast_Https
-var GContentTypeMap map[string]string
-var GOs = runtime.GOOS
+// 运行时配置快照。reload 校验通过后整体替换快照，读取端要么看到完整的
+// 旧配置、要么看到完整的新配置，失败时旧快照保持不动。
+// （架构收敛计划阶段 4b：消除对进程级全局配置的无同步读写。）
+var (
+	currentConfig atomic.Pointer[Fast_Https]
+	currentMIME   atomic.Pointer[map[string]string]
+)
+
+func init() {
+	currentConfig.Store(&Fast_Https{})
+	emptyMIME := map[string]string{}
+	currentMIME.Store(&emptyMIME)
+}
+
+// Current 返回当前生效的配置快照。尚未加载配置时是零值快照。
+func Current() *Fast_Https {
+	return currentConfig.Load()
+}
+
+// MIME 返回当前生效的 MIME 表。表在发布后不再修改，读取方无需加锁。
+func MIME() map[string]string {
+	return *currentMIME.Load()
+}
+
+// Store 替换配置快照。LoadFile/ReloadFile 在校验全部通过后调用；
+// 导出是为了测试能够保存与恢复快照。
+func Store(cfg *Fast_Https, mime map[string]string) {
+	if cfg != nil {
+		currentConfig.Store(cfg)
+	}
+	if mime != nil {
+		currentMIME.Store(&mime)
+	}
+}
 
 var rootViper = viper.New()
 
@@ -171,9 +201,9 @@ func Init() error {
 	return LoadFile(CONFIG_FILE_PATH)
 }
 
-// LoadFile reads one config file and the MIME table, then replaces GConfig
-// and GContentTypeMap together. Both stay unchanged on error, and readers
-// never observe a cleared or half-filled value.
+// LoadFile reads one config file and the MIME table, then replaces the
+// config snapshot with both. Neither changes on error, and readers never
+// observe a cleared or half-filled value.
 func LoadFile(path string) error {
 	cfg, err := processRoot(path)
 	if err != nil {
@@ -183,18 +213,17 @@ func LoadFile(path string) error {
 	if err != nil {
 		return err
 	}
-	GConfig = cfg
-	GContentTypeMap = mime
+	Store(&cfg, mime)
 	return nil
 }
 
 // Reload reloads the runtime config file.
-// An invalid file leaves GConfig unchanged.
+// An invalid file leaves the current snapshot unchanged.
 func Reload() error {
 	return ReloadFile(CONFIG_FILE_PATH)
 }
 
-// ReloadFile validates path before replacing GConfig.
+// ReloadFile validates path before replacing the config snapshot.
 // Validation or load errors leave the previous config in place.
 func ReloadFile(path string) error {
 	if err := ValidateConfigFile(path); err != nil {

@@ -24,7 +24,7 @@ func TestCertInitCreatesLocalhostCert(t *testing.T) {
 	if err := config.Init(); err != nil {
 		t.Fatal(err)
 	}
-	for i, server := range config.GConfig.Servers {
+	for i, server := range config.Current().Servers {
 		t.Logf("server[%d] listen=%q name=%q cert=%q key=%q", i, server.Listen, server.ServerName, server.SSLCertificate, server.SSLCertificateKey)
 	}
 	CertInit()

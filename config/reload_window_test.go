@@ -1,8 +1,5 @@
-//go:build !race
-
-// GConfig is still assigned without synchronization (see stage 4b of
-// docs/architecture-convergence-plan.md), so the race detector would flag
-// this test even though readers only ever see a complete old or new value.
+// 配置已改为 atomic 快照（架构收敛计划阶段 4b），本测试在 -race 下运行，
+// 验证 reload 期间读取端永远看到完整的新配置或完整的旧配置。
 
 package config_test
 
@@ -24,11 +21,10 @@ func TestReloadNeverExposesClearedConfig(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(wd) })
 
-	previousConfig := config.GConfig
-	previousMIME := config.GContentTypeMap
+	previousConfig := *config.Current()
+	previousMIME := config.MIME()
 	t.Cleanup(func() {
-		config.GConfig = previousConfig
-		config.GContentTypeMap = previousMIME
+		config.Store(&previousConfig, previousMIME)
 	})
 
 	path := filepath.Join(t.TempDir(), "fast-https.json")
@@ -63,10 +59,10 @@ func TestReloadNeverExposesClearedConfig(t *testing.T) {
 				return
 			default:
 			}
-			if config.GConfig.Limit.MaxBodySize == 0 || len(config.GConfig.Servers) == 0 {
+			if config.Current().Limit.MaxBodySize == 0 || len(config.Current().Servers) == 0 {
 				bad.Add(1)
 			}
-			if config.GContentTypeMap["css"] == "" {
+			if config.MIME()["css"] == "" {
 				bad.Add(1)
 			}
 		}

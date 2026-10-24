@@ -225,7 +225,7 @@ func getContentType(path string) string {
 		return config.HTTP_DEFAULT_CONTENT_TYPE
 	}
 	pointAfter := path_type[len(path_type)-1]
-	row := config.GContentTypeMap[pointAfter]
+	row := config.MIME()[pointAfter]
 	if row == "" {
 		sep := "?"
 		index := strings.Index(pointAfter, sep)
@@ -233,7 +233,7 @@ func getContentType(path string) string {
 			// delete chars from "?" to the end of string
 			pointAfter = pointAfter[:index]
 		}
-		secondFind := config.GContentTypeMap[pointAfter]
+		secondFind := config.MIME()[pointAfter]
 		if secondFind != "" {
 			return secondFind
 		} else {

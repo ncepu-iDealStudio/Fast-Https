@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-// setupTestConfig sets up config.GConfig.Servers with the given servers
+// setupTestConfig sets up config.Current().Servers with the given servers
 // and returns a cleanup function to restore the original config.
 func setupTestConfig(servers []config.Server) func() {
-	origServers := config.GConfig.Servers
-	config.GConfig.Servers = servers
+	origServers := config.Current().Servers
+	config.Current().Servers = servers
 	return func() {
-		config.GConfig.Servers = origServers
+		config.Current().Servers = origServers
 	}
 }
 
@@ -168,7 +168,7 @@ func TestReloadCommonPortUpdatesCfgAfterConfigChange(t *testing.T) {
 	defer cleanupLis()
 
 	// Change config: update root path
-	config.GConfig.Servers[0].Path[0].Root = "./new-root"
+	config.Current().Servers[0].Path[0].Root = "./new-root"
 
 	newAll, _, _ := listener.ReloadListenCfg()
 

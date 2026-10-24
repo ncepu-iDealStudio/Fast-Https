@@ -188,7 +188,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			}
 			byte_row = append(byte_row, rr.ReqBuf[:datasize]...)
 			rr.Req.TryFixBody(rr.ReqBuf[:datasize])
-			if rr.Req.Body.Len() > config.GConfig.Limit.MaxBodySize {
+			if rr.Req.Body.Len() > config.Current().Limit.MaxBodySize {
 				// body bytes beyond config
 				logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
 				return 0
@@ -200,15 +200,15 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 }
 
 func maxBodySize() int {
-	if config.GConfig.Limit.MaxBodySize > 0 {
-		return config.GConfig.Limit.MaxBodySize
+	if config.Current().Limit.MaxBodySize > 0 {
+		return config.Current().Limit.MaxBodySize
 	}
 	return config.DEFAULT_MAX_BODY_SIZE
 }
 
 func maxHeaderSize() int {
-	if config.GConfig.Limit.MaxHeaderSize > 0 {
-		return config.GConfig.Limit.MaxHeaderSize
+	if config.Current().Limit.MaxHeaderSize > 0 {
+		return config.Current().Limit.MaxHeaderSize
 	}
 	return config.DEFAULT_MAX_HEADER_SIZE
 }

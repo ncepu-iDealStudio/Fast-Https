@@ -70,7 +70,7 @@ func ServerInit() *Server {
 	}(&s)
 	//  to do : ScanPorts
 
-	if err := core.MissingHandlers(config.GConfig.Servers); err != nil {
+	if err := core.MissingHandlers(config.Current().Servers); err != nil {
 		logging.ConsoleLog.Fatal().Msgf("refuse to listen: %s", err.Error())
 	}
 
@@ -276,7 +276,7 @@ func (s *Server) Reload() {
 		logging.ConsoleLog.Error().Msgf("reload kept previous config: %s", err.Error())
 		return
 	}
-	if err := logging.Open(config.GConfig.LogRoot); err != nil {
+	if err := logging.Open(config.Current().LogRoot); err != nil {
 		logging.ConsoleLog.Error().Msgf("reload kept previous log files: %s", err.Error())
 	}
 

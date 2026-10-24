@@ -48,11 +48,11 @@ var fieldFuncs = map[string]fieldFunc{
 // LogRegister 按 http.log_format 重建字段函数表。
 // 重复调用（例如 reload）先清空，避免字段被重复追加。
 func LogRegister() {
-	if config.GConfig.LogFormat == nil {
-		config.GConfig.LogFormat = []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}
+	if config.Current().LogFormat == nil {
+		config.Current().LogFormat = []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}
 	}
 	GLogMap = GLogMap[:0]
-	for _, name := range config.GConfig.LogFormat {
+	for _, name := range config.Current().LogFormat {
 		if fn, ok := fieldFuncs[name]; ok {
 			GLogMap = append(GLogMap, fn)
 		}

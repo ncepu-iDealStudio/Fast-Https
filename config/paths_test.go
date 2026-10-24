@@ -21,11 +21,10 @@ func TestLoadFileResolvesRelativePaths(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chdir(wd) })
 
-	previousConfig := config.GConfig
-	previousMIME := config.GContentTypeMap
+	previousConfig := *config.Current()
+	previousMIME := config.MIME()
 	t.Cleanup(func() {
-		config.GConfig = previousConfig
-		config.GContentTypeMap = previousMIME
+		config.Store(&previousConfig, previousMIME)
 	})
 
 	dir := t.TempDir()
@@ -52,17 +51,17 @@ func TestLoadFileResolvesRelativePaths(t *testing.T) {
 	if err := config.LoadFile(path); err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	server := config.GConfig.Servers[0]
+	server := config.Current().Servers[0]
 	if !filepath.IsAbs(server.Path[0].Root) {
 		t.Fatalf("site root = %q", server.Path[0].Root)
 	}
 	if !filepath.IsAbs(server.SSLCertificate) || !filepath.IsAbs(server.SSLCertificateKey) {
 		t.Fatalf("cert = %q key = %q", server.SSLCertificate, server.SSLCertificateKey)
 	}
-	if !filepath.IsAbs(config.GConfig.LogRoot) {
-		t.Fatalf("log root = %q", config.GConfig.LogRoot)
+	if !filepath.IsAbs(config.Current().LogRoot) {
+		t.Fatalf("log root = %q", config.Current().LogRoot)
 	}
-	if len(config.GConfig.Include) == 0 || !filepath.IsAbs(config.GConfig.Include[0]) {
-		t.Fatalf("include = %#v", config.GConfig.Include)
+	if len(config.Current().Include) == 0 || !filepath.IsAbs(config.Current().Include[0]) {
+		t.Fatalf("include = %#v", config.Current().Include)
 	}
 }

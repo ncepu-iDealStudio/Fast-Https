@@ -97,8 +97,8 @@ func (rka *ReadKeepAlive) parseChunked() error {
 }
 
 func maxChunkedBody() int {
-	if config.GConfig.Limit.MaxBodySize > 0 {
-		return config.GConfig.Limit.MaxBodySize
+	if config.Current().Limit.MaxBodySize > 0 {
+		return config.Current().Limit.MaxBodySize
 	}
 	return config.DEFAULT_MAX_BODY_SIZE
 }

@@ -72,7 +72,7 @@ var GLisinfos []Listener
 
 func FindPorts() []string {
 	var Ports []string
-	for _, each := range config.GConfig.Servers {
+	for _, each := range config.Current().Servers {
 		arr := strings.Split(each.Listen, " ")
 		if !collection.Collect(Ports).Contains(arr[0]) {
 			Ports = append(Ports, arr[0])
@@ -99,7 +99,7 @@ func FindOldPorts() []string {
 func SortByPort(lisInfos *[]Listener) {
 	var Ports []string
 	lis_temp := Listener{}
-	for _, each := range config.GConfig.Servers {
+	for _, each := range config.Current().Servers {
 
 		arr := strings.Split(each.Listen, " ")
 		if !collection.Collect(Ports).Contains(arr[0]) {
@@ -128,7 +128,7 @@ func SortByPort(lisInfos *[]Listener) {
 
 func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
 	for _, port := range ports {
-		for _, each := range config.GConfig.Servers { // new config
+		for _, each := range config.Current().Servers { // new config
 			if port == strings.Split(each.Listen, " ")[0] {
 				lis_temp := Listener{}
 				lis_temp.Cfg = nil
@@ -158,7 +158,7 @@ func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
 // sort configure from "path"
 func processListenData(lisInfos *[]Listener) {
 	Id := 0
-	for _, server := range config.GConfig.Servers {
+	for _, server := range config.Current().Servers {
 		for _, paths := range server.Path {
 
 			for index, eachlisten := range *lisInfos {
