@@ -14,6 +14,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -108,6 +109,13 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	path_type := strings.Split(path, "?")
 
 	realPath := path_type[0]
+	// /../ 之类的逃逸路径按未找到处理，不读任何文件
+	realPath, inRoot := staticPathInRoot(lisdata.StaticRoot, realPath)
+	if !inRoot {
+		log.Status(404)
+		log.Size(50)
+		return -1
+	}
 	// var file_data = cache.Get_data_from_cache(realPath)
 	// var file_data = []byte("cache.Get_data_from_cache(realPath)")
 
@@ -214,6 +222,19 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	log.Size(int(payloadLen))
 
 	return 1 // find source
+}
+
+// staticPathInRoot 清洗拼接后的文件路径并校验没有逃出站点根目录。
+// StaticRoot 在配置加载时已解析为绝对路径；rooted 是 StaticRoot 与
+// URL 路径直接拼接的结果。本服务不做 URL 解码，%2e%2e 不会被还原
+// 成 ..。返回清洗后的路径；ok=false 表示逃逸，调用方按 404 处理。
+func staticPathInRoot(root, rooted string) (string, bool) {
+	rootAbs := filepath.Clean(root)
+	full := filepath.Clean(rooted)
+	if full != rootAbs && !strings.HasPrefix(full, rootAbs+string(filepath.Separator)) {
+		return "", false
+	}
+	return full, true
 }
 
 // get this endpoint's content type
