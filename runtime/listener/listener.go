@@ -9,11 +9,10 @@ import (
 	"fast-https/infra/logging"
 	"net"
 	"regexp"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
-
-	"github.com/chenhg5/collection"
 )
 
 // donmain cert and key
@@ -116,7 +115,7 @@ func FindPorts() []string {
 	var Ports []string
 	for _, each := range config.Current().Servers {
 		arr := strings.Split(each.Listen, " ")
-		if !collection.Collect(Ports).Contains(arr[0]) {
+		if !slices.Contains(Ports, arr[0]) {
 			Ports = append(Ports, arr[0])
 		}
 	}
@@ -126,7 +125,7 @@ func FindPorts() []string {
 func FindOldPorts() []string {
 	var Ports []string
 	for _, item := range GLisinfos {
-		if !collection.Collect(Ports).Contains(item.Port) {
+		if !slices.Contains(Ports, item.Port) {
 			// always true
 			Ports = append(Ports, item.Port)
 		} else {
@@ -143,7 +142,7 @@ func SortByPort(lisInfos *[]*Listener) {
 	for _, each := range config.Current().Servers {
 
 		arr := strings.Split(each.Listen, " ")
-		if !collection.Collect(Ports).Contains(arr[0]) {
+		if !slices.Contains(Ports, arr[0]) {
 			Ports = append(Ports, arr[0])
 
 			lis_temp := &Listener{
@@ -246,7 +245,7 @@ func processHostMap(lisInfos *[]*Listener) {
 func processEachPort(lisPort *Listener) {
 	var nameArray []string
 	for _, item := range lisPort.Cfg {
-		if !collection.Collect(nameArray).Contains(item.ServerName) {
+		if !slices.Contains(nameArray, item.ServerName) {
 			nameArray = append(nameArray, item.ServerName)
 		}
 	}
