@@ -228,6 +228,15 @@ func (CC *CacheContainer) ReadCache(key string) (*CacheEntry, bool) {
 	return entry, true
 }
 
+// ExpireCache 清理已过期条目：先在索引里摘除，再删除磁盘文件并释放容量记账。
+func (CC *CacheContainer) ExpireCache() {
+	now := int(time.Now().Unix())
+	for _, node := range CC.RbRoot.TakeExpired(now) {
+		RemoveFromDisk(*node)
+		CC.release(node.Md5)
+	}
+}
+
 // RemoveFromDisk 删除一条缓存的磁盘文件。
 func RemoveFromDisk(node CacheNode) {
 	_ = os.Remove(filepath.Join(node.Path, node.Md5))
