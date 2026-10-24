@@ -301,14 +301,14 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	if rr.Req.IsKeepalive() {
 		res := getResBytes(&log, cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
-			rr.Res = NotFoundResponse(cfg)
+			ev.RR.Res = NotFoundResponse(cfg)
 			_ = ev.WriteResponse(nil)
 		}
 		ev.Reuse = true
 	} else {
 		res := getResBytes(&log, cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {
-			rr.Res = NotFoundResponse(cfg)
+			ev.RR.Res = NotFoundResponse(cfg)
 			_ = ev.WriteResponse(nil)
 		}
 		if !rr.Req.H2 {
