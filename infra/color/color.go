@@ -1,95 +1,100 @@
 // Package color 提供终端输出使用的 ANSI 颜色辅助函数。
+//
+// 着色统一委托给 github.com/fatih/color：NO_COLOR 环境变量、TERM=dumb、
+// 输出不是终端这三种情况都会自动降级为无色，避免把转义序列写进日志文件。
 package color
 
 import (
-	"fmt"
+	"github.com/fatih/color"
 )
 
-type ColorCode string
-
-const (
-	black  ColorCode = "0;30m"
-	red    ColorCode = "0;31m"
-	green  ColorCode = "0;32m"
-	brown  ColorCode = "0;33m"
-	navy   ColorCode = "0;34m"
-	purple ColorCode = "0;35m"
-	cyan   ColorCode = "0;36m"
-	gray   ColorCode = "0;37m"
-	dim    ColorCode = "1;30m"
-	orange ColorCode = "1;31m"
-	lime   ColorCode = "1;32m"
-	yellow ColorCode = "1;33m"
-	blue   ColorCode = "1;34m"
-	pink   ColorCode = "1;35m"
-	aqua   ColorCode = "1;36m"
-	white  ColorCode = "1;37m"
+// 常规色对应原 SGR 0;3Xm，加粗色对应 1;3Xm，保留原调色板语义。
+var (
+	black  = color.New(color.FgBlack)
+	red    = color.New(color.FgRed)
+	green  = color.New(color.FgGreen)
+	brown  = color.New(color.FgYellow)
+	navy   = color.New(color.FgBlue)
+	purple = color.New(color.FgMagenta)
+	cyan   = color.New(color.FgCyan)
+	gray   = color.New(color.FgWhite)
+	dim    = color.New(color.FgBlack, color.Bold)
+	orange = color.New(color.FgRed, color.Bold)
+	lime   = color.New(color.FgGreen, color.Bold)
+	yellow = color.New(color.FgYellow, color.Bold)
+	blue   = color.New(color.FgBlue, color.Bold)
+	pink   = color.New(color.FgMagenta, color.Bold)
+	aqua   = color.New(color.FgCyan, color.Bold)
+	white  = color.New(color.FgWhite, color.Bold)
 )
 
-func colorize(row interface{}, color ColorCode) string {
-	return fmt.Sprintf("\033[%s%v\033[0m", color, row)
+func colorize(c *color.Color, row interface{}) string {
+	if s, ok := row.(string); ok {
+		return c.Sprint(s)
+	}
+	return c.Sprint(row)
 }
 
 func Black(row interface{}) string {
-	return colorize(row, black)
+	return colorize(black, row)
 }
 
 func Red(row interface{}) string {
-	return colorize(row, red)
+	return colorize(red, row)
 }
 
 func Green(row interface{}) string {
-	return colorize(row, green)
+	return colorize(green, row)
 }
 
 func Brown(row interface{}) string {
-	return colorize(row, brown)
+	return colorize(brown, row)
 }
 
 func Navy(row interface{}) string {
-	return colorize(row, navy)
+	return colorize(navy, row)
 }
 
 func Purple(row interface{}) string {
-	return colorize(row, purple)
+	return colorize(purple, row)
 }
 
 func Cyan(row interface{}) string {
-	return colorize(row, cyan)
+	return colorize(cyan, row)
 }
 
 func Gray(row interface{}) string {
-	return colorize(row, gray)
+	return colorize(gray, row)
 }
 
 func Dim(row interface{}) string {
-	return colorize(row, dim)
+	return colorize(dim, row)
 }
 
 func Orange(row interface{}) string {
-	return colorize(row, orange)
+	return colorize(orange, row)
 }
 
 func Lime(row interface{}) string {
-	return colorize(row, lime)
+	return colorize(lime, row)
 }
 
 func Yellow(row interface{}) string {
-	return colorize(row, yellow)
+	return colorize(yellow, row)
 }
 
 func Blue(row interface{}) string {
-	return colorize(row, blue)
+	return colorize(blue, row)
 }
 
 func Pink(row interface{}) string {
-	return colorize(row, pink)
+	return colorize(pink, row)
 }
 
 func Aqua(row interface{}) string {
-	return colorize(row, aqua)
+	return colorize(aqua, row)
 }
 
 func White(row interface{}) string {
-	return colorize(row, white)
+	return colorize(white, row)
 }

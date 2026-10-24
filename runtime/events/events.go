@@ -9,11 +9,10 @@ import (
 	"fast-https/runtime/listener"
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
+	"fast-https/infra/color"
 	"fast-https/infra/logging"
 	"net"
 	"time"
-
-	"github.com/fatih/color"
 )
 
 func HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
@@ -142,7 +141,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	rr.Req.ParseHost(ev.LisInfo)
 
 	if err := rr.Req.ParseBody(byte_row); err != nil {
-		logging.ConsoleLog.Debug().Msgf("%s", color.RedString(err.Error()))
+		logging.ConsoleLog.Debug().Msgf("%s", color.Red(err.Error()))
 	}
 
 	if request.HasToken(rr.Req.HeaderFold("Transfer-Encoding"), "chunked") {
@@ -155,7 +154,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			return append([]byte(nil), rr.ReqBuf[:n]...), nil
 		}, maxBodySize())
 		if err != nil {
-			logging.ConsoleLog.Debug().Msgf("%s", color.RedString(err.Error()))
+			logging.ConsoleLog.Debug().Msgf("%s", color.Red(err.Error()))
 			return 0
 		}
 		rr.Req.Body.Reset()
@@ -171,14 +170,14 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			ev.Conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 			datasize, err := ev.Conn.Read(rr.ReqBuf)
 			if err != nil { // read error, like time out
-				logging.ConsoleLog.Debug().Msgf("%s", color.RedString("read body error"))
+				logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body error"))
 				return 0
 			}
 			byte_row = append(byte_row, rr.ReqBuf[:datasize]...)
 			rr.Req.TryFixBody(rr.ReqBuf[:datasize])
 			if rr.Req.Body.Len() > config.GConfig.Limit.MaxBodySize {
 				// body bytes beyond config
-				logging.ConsoleLog.Debug().Msgf("%s", color.RedString("read body too big"))
+				logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
 				return 0
 			}
 		}

@@ -2,7 +2,9 @@ package hpack
 
 import (
 	assert "github.com/Jxck/assertion"
-	. "github.com/Jxck/color"
+
+	. "fast-https/infra/color"
+
 	. "github.com/Jxck/logger"
 	"sort"
 	"testing"

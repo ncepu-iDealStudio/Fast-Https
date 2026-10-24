@@ -4,7 +4,8 @@ package hpack
 import (
 	"fmt"
 
-	. "github.com/Jxck/color"
+	. "fast-https/infra/color"
+
 	. "github.com/Jxck/logger"
 	"github.com/Jxck/swrap"
 )

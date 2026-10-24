@@ -1,7 +1,5 @@
 github.com/Jxck/assertion v0.0.0-20140506062536-def1e0ae1f89 h1:q33d5Z8+xxugaQM7Przwr+jHynAleEaZCp82XXMV2LE=
 github.com/Jxck/assertion v0.0.0-20140506062536-def1e0ae1f89/go.mod h1:LgO2MYaHHZZtFh1oceY40CEXLGcRbesUic1nyV5uXZo=
-github.com/Jxck/color v0.0.0-20150710091843-32f7aabefa1d h1:Q3O8p8Fbe8PvEHxnVuBJLrfbXUaBgjCazJzWGhtN5nI=
-github.com/Jxck/color v0.0.0-20150710091843-32f7aabefa1d/go.mod h1:THNSAC5ei1Met3VY1gssexpmnddctUKk7GcN9+Tinw8=
 github.com/Jxck/hpack v0.0.0-20150713130059-4fb806e55ed9 h1:f24S1BqLHtHmXw8r6BNpqHaRzEiFXT4cw305zSXZ4dU=
 github.com/Jxck/hpack v0.0.0-20150713130059-4fb806e55ed9/go.mod h1:mx8YQOFRaSRPMVjABc/DU4JTgR5RLrQq9E0J190BSSY=
 github.com/Jxck/logger v0.0.0-20141016174915-6123e712dcb9 h1:ljasPpIqiDeGp8QKV8ZFixfj5dPUP7bWkDT/ZUuWB4g=

@@ -14,11 +14,10 @@ import (
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/response"
+	"fast-https/infra/color"
 	"fast-https/infra/logging"
 	"net"
 	"strings"
-
-	"github.com/fatih/color"
 )
 
 type Proxy struct {
@@ -238,7 +237,7 @@ func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 			logging.ConsoleLog.Debug().Msg("send to upstream server time out")
 			err = ProxyErrorSendToUpstreamTimeout
 		} else if ok {
-			logging.ConsoleLog.Debug().Msgf("%s%s", color.RedString("unhandled send to upstream server: "), err.Error())
+			logging.ConsoleLog.Debug().Msgf("%s%s", color.Red("unhandled send to upstream server: "), err.Error())
 		} else {
 			logging.ConsoleLog.Fatal().Msg("convent net error")
 		}
