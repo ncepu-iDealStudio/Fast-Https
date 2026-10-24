@@ -14,7 +14,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 模块声明的 Go 版本是 **1.27.0**，工具链固定为 **go1.27.1**，见 `go.mod`。这是 2026 年 10 月仍在官方支持期内的当前主流版本，同时受支持的还有 1.26。根目录 `Dockerfile` 使用 `golang:1.27-alpine` 编译；`spec` 里的 RPM 构建脚本下载 Go 1.27.1。
 
 
-服务自己解析 HTTP/1.1 和 HTTP/2。标准库提供 TCP、`crypto/tls` 和 `gzip`。开发模式在 `0.0.0.0:10000` 使用 `net/http` 的默认多路复用器提供 pprof。
+服务自己解析 HTTP/1.1。HTTP/2 的协议栈（分帧、HPACK、流状态机、流量控制）委托给 `golang.org/x/net/http2`，项目只保留连接接入与 `core.Event` 适配层。标准库提供 TCP、`crypto/tls` 和 `gzip`。开发模式在 `0.0.0.0:10000` 使用 `net/http` 的默认多路复用器提供 pprof。
 
 运行时直接依赖如下，版本以 `go.mod` 为准：
 
@@ -28,7 +28,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `golang.org/x/time` | v0.5.0 | 连接限流 |
 | `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` 规则清理 JSON 中的 HTML |
 | `github.com/andybalholm/brotli` | v1.1.0 | Brotli 压缩 |
-| `github.com/Jxck/hpack` | 2015-07-13 快照 | HTTP/2 HPACK 整数编码与 Huffman |
+| `golang.org/x/net` | v0.59.0 | HTTP/2 协议栈（`http2.Server` / `Transport` / HPACK） |
 | `github.com/emirpasic/gods` | v1.18.1 | 缓存使用的红黑树 |
 | `github.com/panjf2000/ants/v2` | v2.9.1 | 协程池 |
 | `github.com/chenhg5/collection` | 2020-09-25 快照 | 监听端口去重 |
@@ -53,13 +53,13 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `devmod` | `modules/dev_mod` | 返回固定的开发响应 |
 | `listen` 含 `tcp` | `modules/proxy_tcp` | 按 TCP 双向转发，不走 HTTP 解析 |
 | `listen` 含 `ssl` | `runtime/listener` | TLS |
-| `listen` 含 `h2` | `runtime/h2` | HTTP/2 |
+| `listen` 含 `h2` | `runtime/events` | 交给 `golang.org/x/net/http2` 处理 |
 
 同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）和访问计数（`modules/safe`）。静态与代理路径会执行应用防火墙：`xss` 在 JSON 对象或数组里的 `<script` 被去掉后返回 403；`sql` 已注册，不会拦截请求。
 
 `HEAD` 保留 `Content-Length` 和 `Content-Type`，不写正文。带 `Content-Length` 的请求体按长度读取。`Transfer-Encoding: chunked` 按块读完；块格式错误或超过 `http.servers_limit.max_body_size` 时关闭连接。location 的 `zip` 含 `gzip` 且请求接受 gzip 时，静态正文会压缩，并写上匹配的 `Content-Length`。未打开或客户端不接受时不写 `Content-Encoding`。location 可以选配 `error_page.not_found` 和 `error_page.proxy`：文件可读时分别替换 404 和上游拨号失败的正文，文件不存在时仍用默认响应。
 
-`listen` 含 `h2` 时，未知帧类型丢掉载荷后继续读下一帧。HPACK 索引非法时关闭这条流。对端流量窗口不够时，停止写出 DATA 并关闭连接。
+`listen` 含 `h2` 时，TLS 握手与 ALPN 协商由 `net/http` 完成，`h2` 协商成功后进入 `http2.Server`；重载或停止时通过 `http.Server.Shutdown` 发送 GOAWAY 并等待在途 stream，最长 `5s`。响应头使用 HPACK 静态表和动态表压缩，帧大小受对端 `SETTINGS_MAX_FRAME_SIZE` 约束，逐跳首部（`Connection` 等）不会写到 HTTP/2 响应里。
 
 ### 项目结构
 
@@ -97,7 +97,6 @@ fast-https/
 │   ├── events/                   # 连接与请求分发
 │   ├── request/  response/       # 报文解析与默认响应
 │   ├── filters/                  # 连接、监听、解析、路由过滤
-│   ├── h2/                       # HTTP/2 帧、流、HPACK
 │   └── dynlog/                   # 访问日志字段组装
 ├── modules/                      # 可插拔功能
 │   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/

@@ -163,6 +163,33 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	}
 	rr.Res.SetHeader("Connection", connection)
 
+	// HTTP/2 由协议层负责分帧与流控，不能直接写底层连接，
+	// 把响应体交给 Res，由 EventWrite 统一写出。
+	if rr.Req != nil && rr.Req.H2 {
+		var body []byte
+		if !stream {
+			body = payload
+			if file != nil {
+				file.Close()
+				file = nil
+			}
+		} else {
+			var err error
+			body, err = io.ReadAll(file)
+			if file != nil {
+				file.Close()
+				file = nil
+			}
+			if err != nil {
+				return -10
+			}
+		}
+		rr.Res.Body = body
+		log.Status(200)
+		log.Size(len(body))
+		return 1
+	}
+
 	if _, err := ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes()); err != nil {
 		if file != nil {
 			file.Close()
@@ -181,29 +208,6 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	} else if file != nil {
 		file.Close()
 	}
-
-	/*  ============ 以下 h2 逻辑 ============= */
-	// 写头
-	// responseHeader := http.Header{}
-	// firstLine := strings.Split(ev.RR.Res.FirstLine, " ")
-	// if len(firstLine) != 3 {
-	// 	fmt.Println("-----------ev.RR.Res_.FirstLine-------------")
-	// }
-	// responseHeader.Add(":status", firstLine[1])
-	// for header, content := range ev.RR.Res.Headers {
-	// 	if header == "Connection" || header == "Content-Length" {
-	// 		continue
-	// 	}
-	// 	responseHeader.Add(header, content)
-	// }
-	// // fmt.Println(responseHeader)
-	// events.WriteHeader(ev, responseHeader)
-
-	// // // 写body
-	// var file_data = make([]byte, file_size)
-	// file.Read(file_data)
-	// events.H2EventWrite(ev, file_data)
-	/* =========== h2 逻辑结束 ==================== */
 
 	// log
 	log.Status(200)

@@ -19,7 +19,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | `server` / `listen` / `server_name` / `location` | JSON 的 `http.server` 和 `location`。`listen` 里的 `ssl`、`h2`、`tcp` 选择 TLS、HTTP/2 或 TCP 转发。`location.url` 编译成正则 |
 | `root` / `index` / `try_files` | `local` 类型按 `root`、`index` 和 `try` 找文件。目录没有自动列表 |
 | `ssl_certificate` | 站点证书可配置。同一 SSL 端口重载时不重新绑定，下一次握手用新证书。缺省证书文件时启动前会尝试生成自签名证书 |
-| `http2` | `listen` 含 `h2` 时走自带的帧、流和 HPACK。未知帧丢掉后续读，非法 HPACK 索引关闭该流 |
+| `http2` | `listen` 含 `h2` 时协议栈交给 `golang.org/x/net/http2`：ALPN 协商、HPACK、流状态机与流量控制均由它处理，重载时发 GOAWAY 优雅关闭 |
 | `proxy_pass` | 每个 location 一个 `proxy_pass`，支持 `http://` 和 `https://`。可配 `proxy_set_header` 和一份磁盘缓存 |
 | `stream` 里的 TCP 转发 | `listen` 含 `tcp` 时做双向字节转发，注释写明是简单演示 |
 | `rewrite` / `return` | `rewrite` 类型固定返回 301，`Location` 来自配置 |

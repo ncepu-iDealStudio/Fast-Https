@@ -57,10 +57,7 @@ tests/
         ├── server/server_test.go
         ├── listener/reload_common_test.go
         ├── request/parse_test.go
-        ├── response/response_test.go
-        └── h2/conn/
-            ├── conn_graceful_test.go
-            └── conn_reload_test.go
+        └── response/response_test.go
 ```
 
 源码旁的单元测试分布在 `cmd/`、`config/`、`init/`、`modules/appfirewall`、`core/...`、`modules/proxy`、`modules/safe`、`modules/static` 等目录，不在上面的树中逐一列出。
@@ -165,7 +162,7 @@ go tool cover -html=coverage.out
 - 服务安装/卸载
 - `cmd/status_test.go`：没有 pid 文件、pid 已过期、当前进程仍在运行
 
-HTTP/2：未知帧丢掉后续读（`unknown_frame_test.go`），HPACK 索引 0 和越界返回错误并关闭流（`error_test.go`、`header_error_test.go`），对端窗口不够时停止写出（`window_test.go`）。`TestXssStripsScriptInJSONArray` 覆盖 JSON 数组里的 script。
+HTTP/2：协议栈由 `golang.org/x/net/http2` 承担，`tests/client_test` 的 `TestH2Integration` 用真实自签名 TLS + ALPN 起一个 `listen: "<port> ssl h2"` 的子进程，校验协商结果是 HTTP/2、静态正文与 `Content-Type` 正确、逐跳首部 `Connection` 被过滤掉、缺失文件返回 404。`TestXssStripsScriptInJSONArray` 覆盖 JSON 数组里的 script。
 
 连接关闭：`TestCloseIsSilentWhenRepeated` 确认第二次 `Close` 不再关连接。`TestHandleEventExitsWhenContextCanceled` 和 `TestServeListenerExitsWhenContextCanceled` 确认取消上下文后处理协程和接受循环退出。`TestDrainConnectionsClosesInFlightHandler` 确认停止接受后，正在读的连接会关掉。`TestCountsInitReplacesSlice` 确认限流计数重建时不会叠在旧切片后面。
 

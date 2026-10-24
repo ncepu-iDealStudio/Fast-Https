@@ -16,7 +16,7 @@
 | 配置 | `config` | `infra/*` | 唯一持有 viper 的包，`TestNoViperLeak` 保证不外泄 |
 | 契约 | `core` | `infra/*`、`config`、`runtime/{listener,request,response}` | 只放 `Event`、处理器注册表与生命周期钩子；后三个是 `Event` 内嵌的数据模型，属登记例外 |
 | 数据面运行时 | `runtime/*` | `infra/*`、`config`、`core`、`runtime/*` | 不允许依赖 `modules` |
-| 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters,h2}` |
+| 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters}` |
 | 组合根 | `cmd`、`init`、`output`、`monitor`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
 
 ## 2. Package 与生产职责
@@ -29,22 +29,20 @@
 | `init` | 配置、日志、证书、缓存初始化 | 是 |
 | `output` | logo、启动提示和 listener 启动提示 | 由组合根调用 |
 | `infra/logging` | 进程唯一日志出口：控制台一路 + 文件四路，全部 JSON | 是 |
-| `infra/files`、`color`、`timeutil` | 文件读取、ANSI 颜色、nginx 风格时长解析 | 是 |
+| `infra/color`、`timeutil` | 终端着色（唯一入口，后端为 `fatih/color`）、nginx 风格时长解析 | 是 |
 | `core` | `Event`、处理器注册表、默认命令变量、`Services` 生命周期钩子 | 是 |
 | `runtime/server` | 启停、信号、连接跟踪、listener 生命周期和 reload | 是 |
 | `runtime/listener` | 配置转 Listener/ListenCfg、虚拟主机表、TCP/TLS socket、端口 reload | 是 |
-| `runtime/events` | HTTP/1.x 连接事件、请求解析、统一事件分发及 HTTP/2 stream 事件 | 是 |
+| `runtime/events` | HTTP/1.x 连接事件、请求解析、统一事件分发；HTTP/2 走 `golang.org/x/net/http2`，这里只做 `http.Request`/`http.ResponseWriter` 与 `core.Event` 的适配 | 是 |
 | `runtime/filters` | 连接、监听、HTTP 解析、Host/Path 过滤 | 是。连接拒绝和监听分流调用 `core.Services` 钩子 |
 | `runtime/request`、`response` | HTTP 请求解析/请求体，以及响应生成 | 是 |
 | `runtime/dynlog` | 按 `http.log_format` 组装访问日志结构化字段 | 是 |
-| `runtime/h2/{conn,frame,hpack,util}` | HTTP/2 连接、帧、HPACK 和辅助逻辑 | H2 listener 启用时 |
+| `golang.org/x/net/http2` | HTTP/2 协议栈：分帧、HPACK、流状态机、流量控制 | H2 listener 启用时 |
 | `modules/static`、`proxy`、`rewrite`、`dev_mod` | local、HTTP/HTTPS proxy、rewrite 和开发 location handler | 由 `cmd.RegisterHandlers` 在启动时装配 |
 | `modules/proxy_tcp`、`websocket` | TCP 字节代理和 WebSocket upgrade | 通过监听钩子分流 |
 | `modules/auth`、`safe`、`appfirewall`、`cache`、`compress` | 认证、安全检查/限流、防火墙、代理缓存和静态压缩 | 配置或请求路径启用时 |
 | `monitor` | Windows/amd64 托盘程序，独立 `main` | 独立可执行程序 |
 | `tests`、`tests/client_test`、`tests/unit_test/...`、`tests/arch` | 根测试入口、子进程 E2E、集中式单测、分层约束 | 测试专用 |
-
-`runtime/h2` 下还包含顶层 H2 stream/state/window 与子包 `conn`、`frame`、`hpack`、`util`。
 
 ## 3. 请求 handler 注册机制
 
@@ -83,7 +81,6 @@
 - `modules/websocket` import `modules/proxy`，WebSocket 与 HTTP proxy 实现存在较强耦合。
 - `runtime/request` import `runtime/listener`，请求 Host 解析接收 listener 对象。
 - `modules/static` 与 `modules/proxy` 都直接依赖 `modules/appfirewall`；安全处理由 handler 显式调用。
-- `runtime/h2` import `runtime/filters`，传输层依赖了过滤层类型。
 
 这些是依赖结构观察，不等价于要求立即拆包。
 
@@ -119,7 +116,7 @@
 | --- | --- |
 | `go list ./...` | 成功 |
 | `go test ./...`（当前默认环境） | 首次失败在编译阶段：`go` 为 1.27.1，但 `GOROOT` 标准库带有 1.26.3 产物标记 |
-| 匹配工具链的 `go test ./...` | 并行运行时仅 `runtime/h2/hpack` 测试进程启动返回 Windows `Access is denied` |
+| 匹配工具链的 `go test ./...` | 并行运行时偶发测试进程启动返回 Windows `Access is denied` |
 | 匹配工具链的 `go test -p 1 ./...` | 通过 |
 | `go test -count=1 ./tests/client_test -run TestProxyHTTPIntegration -v` | 通过 |
 

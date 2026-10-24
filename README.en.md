@@ -26,7 +26,7 @@ Direct runtime dependencies, versions from `go.mod`:
 | `golang.org/x/time` | v0.5.0 | Connection rate limit |
 | `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` HTML cleanup for JSON bodies |
 | `github.com/andybalholm/brotli` | v1.1.0 | Brotli compression |
-| `github.com/Jxck/hpack` | 2015-07-13 snapshot | HTTP/2 HPACK integer coding and Huffman |
+| `golang.org/x/net` | v0.59.0 | HTTP/2 stack (`http2.Server` / `Transport` / HPACK) |
 | `github.com/emirpasic/gods` | v1.18.1 | Red-black tree used by the cache |
 | `github.com/panjf2000/ants/v2` | v2.9.1 | Goroutine pool |
 | `github.com/chenhg5/collection` | 2020-09-25 snapshot | Listener port de-duplication |
@@ -51,7 +51,7 @@ The server accepts connections, parses requests, and writes responses itself. `f
 | `devmod` | `modules/dev_mod` | Fixed development response |
 | `listen` contains `tcp` | `modules/proxy_tcp` | Bidirectional TCP proxy, no HTTP parse |
 | `listen` contains `ssl` | `runtime/listener` | TLS |
-| `listen` contains `h2` | `runtime/h2` | HTTP/2 |
+| `listen` contains `h2` | `runtime/events` | Delegated to `golang.org/x/net/http2` |
 
 A request also passes connection filters (blacklist and rate limit in `modules/safe`), optional Basic auth (`modules/auth`), and access counting. Static and proxy paths run the application firewall: `xss` returns 403 after a `<script` tag is removed from a JSON object or array; `sql` is registered and does not intercept.
 
@@ -95,7 +95,6 @@ fast-https/
 │   ├── events/                   # Connection and request dispatch
 │   ├── request/  response/
 │   ├── filters/
-│   ├── h2/                       # HTTP/2 frames, streams, HPACK
 │   └── dynlog/                   # Access-log field assembly
 ├── modules/                      # Pluggable features
 │   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/

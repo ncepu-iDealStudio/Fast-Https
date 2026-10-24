@@ -42,8 +42,11 @@ func Bucket(ev *core.Event) bool {
 		log := dynlog.DynLogger{}
 		dynlog.Log(&log, ev)
 
-		buffer := make([]byte, 1024)
-		ev.Conn.Read(buffer)
+		// HTTP/2 下底层连接由协议栈持有，直接 Read 会吞掉帧数据。
+		if ev.RR.Req == nil || !ev.RR.Req.H2 {
+			buffer := make([]byte, 1024)
+			ev.Conn.Read(buffer)
+		}
 		ev.RR.Res = response.DefaultTooMany()
 		ev.WriteResponseClose(nil)
 		return false

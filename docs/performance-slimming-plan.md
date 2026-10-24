@@ -42,17 +42,17 @@
 
 | 依赖 | 处置 | 依据 |
 | --- | --- | --- |
-| `github.com/Jxck/assertion` | 保留 | 经 `go mod why` 核实为 `runtime/h2/hpack` 的传递依赖，非死依赖 |
+| `github.com/Jxck/assertion` | 已删除 | 随 `runtime/h2/hpack` 一起移除 |
 | `github.com/panjf2000/ants/v2` | 删除（连 `core/routine_pool`） | 仅死包，`server.go` 导入为注释 |
 | `github.com/andybalholm/brotli` | 删除（连 `modules/compress` 的 br 函数） | 生产响应只用 gzip，br 仅测试引用 |
 | `github.com/chenhg5/collection` | 替换为 stdlib | 热路径逐请求线性 `Contains`，改用 `slices.Contains` / `map` |
 | `github.com/fufuok/chanx` | 评估替换为固定 worker + buffered chan | 现每条日志起一个 goroutine |
-| `github.com/Jxck/logger` | 统一到 `infra/logging` | 与项目日志两套级别，无法统一关闭 |
+| `github.com/Jxck/logger` | 已删除 | `modules/proxy` 改为 `infra/logging`（zerolog），两套日志合并为一套 |
 | `github.com/spf13/viper` | 最后评估换 `encoding/json` | 拖入 yaml/toml/properties/afero 等大量间接依赖，风险高 |
-| `cobra`、`kardianos/service`、`logrus`、`fatih/color`、`bluemonday`、`gods`、`x/sys`、`x/time`、`Jxck/hpack` | 保留 | 功能需要 |
+| `cobra`、`kardianos/service`、`logrus`、`fatih/color`、`bluemonday`、`gods`、`x/sys`、`x/time`、`golang.org/x/net` | 保留 | 功能需要。`x/net` 提供 HTTP/2 协议栈 |
 | `getlantern/systray` | 保留但隔离 | 只在独立 `monitor` 二进制，不进服务器 |
 
-> 预计可移除 3 个直接依赖（ants、brotli、collection）与若干间接依赖；`assertion` 经核实为 hpack 传递依赖，保留。
+> 预计可移除 3 个直接依赖（ants、brotli、collection）与若干间接依赖。Jxck 系列（`hpack`、`logger`、`swrap`、`assertion`、`color`）已全部移除。
 
 ### 3.2 死代码/死包
 
