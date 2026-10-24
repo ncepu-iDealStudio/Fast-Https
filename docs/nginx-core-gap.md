@@ -1,12 +1,12 @@
 # Fast-Https 与 Nginx 核心功能对比
 
-版本：2026-10-13。对照的是当前仓库代码和 Nginx 开源版里站点日常会用到的能力。本文只做差距和建议，不改服务器。
+版本：2026-10-13，2026-10-24 修订。对照的是当前仓库代码和 Nginx 开源版里站点日常会用到的能力。本文只做差距和建议，不改服务器。
 
 Nginx Plus 的主动健康检查、动态 API，以及 mail、perl、xslt、image_filter、mp4、dav 这类专用模块，不放进“核心缺口”。
 
 ## 1. 结论
 
-Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态文件、TLS、HTTP/1.1、HTTP/2、HTTP/HTTPS 反向代理、TCP 字节转发、手工重载、四份日志、黑名单、全局限流和 Basic 认证。默认配置是本地静态站，不是反向代理集群。
+Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态文件、TLS、HTTP/1.1、HTTP/2、HTTP/HTTPS 反向代理、TCP 字节转发、手工重载、JSON 日志、黑名单、全局限流和 Basic 认证。默认配置是本地静态站，不是反向代理集群。
 
 它不需要长成 Nginx 的模块集合。
 配置预检命令、停止时收口连接、`HEAD`、分块请求体、按 `Accept-Encoding` 压缩正文、以及 404 和上游拨号失败的可选错误页，已在 2026-10-13 落地。
@@ -28,7 +28,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | `limit_req` | 全局令牌桶，加上按 location、按 IP 的计数。黑名单支持单 IP 和地址段 |
 | `include` | `http.include` 引入其它 JSON，每个文件描述一个 server |
 | `reload` | `reload` 子命令或 `SIGINT`。无效文件保留旧配置和旧监听 |
-| 访问日志 | `logs/` 下 system、access、error、safe 四份文件。重载成功后按 `log_root` 重新打开 |
+| 访问日志 | `logs/` 下 system、access、error、safe 四份 JSON 文件，另加一路控制台输出。每条带 `kind` 区分来源，时间为 RFC3339。重载成功后按 `log_root` 重新打开 |
 | 进程状态 | `status` 只回答进程在不在，不报告连接数和状态码 |
 
 ## 3. 核心缺口
@@ -46,17 +46,17 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | 运行计数 | `stub_status` 看连接和请求 | 没有连接数、4xx/5xx、限流拒绝计数。2.0 设计依赖这些数 | 随 2.0 做，不单独对齐 `stub_status` 文本 |
 | 上游故障转移 | `upstream` 里多个地址，拨号失败试下一个 | 一个 `proxy_pass`。这就是迭代计划里的 R8 | 暂缓 |
 | 重写引擎 | `rewrite` 正则替换，`last` / `break`，多种状态码 | 只有固定 301 | 暂缓完整引擎。301 保持现状 |
-| 代理超时和缓冲 | `proxy_connect_timeout`、`proxy_read_timeout`、缓冲开关 | 上游连接有固定 20 秒期限，不能按 location 配置 | 暂缓。先保持一个固定期限 |
-| 可信代理和真实 IP | `real_ip`、`set_real_ip_from` | 限流和黑名单使用连接上的地址 | 暂缓。出现多层代理再做可信网段 |
-| 代理缓存 | `proxy_cache`、过期、陈旧响应、清理 | 已有按 key 落盘的缓存，没有 Nginx 那套锁和清理接口 | 暂缓。不重写 |
+| 代理超时和缓冲 | `proxy_connect_timeout`、`proxy_read_timeout`、缓冲开关 | 连接建立后有固定 20 秒读写 deadline，不能按 location 配置；拨号本身没有超时，上游不响应时受操作系统 TCP 超时约束 | 完整配置暂缓；拨号超时应单独补 |
+| 可信代理和真实 IP | `real_ip`、`set_real_ip_from` | 限流和黑名单使用连接上的地址，前面挂 CDN 或负载均衡时所有客户端会被认成同一个 IP | 有反代层时必须做，纯直连可等 |
+| 代理缓存 | `proxy_cache`、过期、陈旧响应、清理 | 按 key 落盘的缓存，已支持状态码到有效期的匹配、命中回放、`methods` 方法过滤、`Set-Cookie` 剥离与 `max_size` 软上限。仍缺 `proxy_cache_lock` 请求合并和 purge 接口 | 按需补缺项，不整体重写 |
 | 证书自动申请 | 常配合外部 ACME 客户端 | `shell/.acme.sh` 在仓库里，启动流程不调用 | 暂缓。继续用外部客户端写出 pem |
 | HTTP/3 | `http3` / QUIC | 没有 | 暂缓 |
 | 二进制热升级 | 新可执行文件接手监听，旧进程退出 | 能热更新配置和同一端口的证书，不能热替换二进制 | 暂缓 |
 | 自动重载 | 有人用外部工具监视文件 | `watchConfigChanges` 没有调用方 | 已决定不做。继续手工重载 |
-| 多进程 worker | `worker_processes`、`accept_mutex`、共享内存 | 每个连接一个协程。`core/engine` 的 master/slave 不在启动路径上 | 不做 |
+| 多进程 worker | `worker_processes`、`accept_mutex`、共享内存 | 每个连接一个协程，没有 worker 进程模型和共享内存 | 不做 |
 | FastCGI、uWSGI、SCGI、gRPC | 把请求交给应用进程或 gRPC 后端 | 没有。HTTP 反向代理可以转到本机 HTTP 端口 | 不做 |
 | `auth_request` | 用子请求问认证服务 | 只有配置文件里的 Basic 口令 | 不做 |
-| 配置变量语言 | `set`、`map`、`if`、`geo` | JSON 字段，没有表达式 | 不做 |
+| 配置变量语言 | `set`、`map`、`if`、`geo` | JSON 字段，没有表达式。`proxy_cache.key`、`proxy_set_header` 里的 `$变量` 只是一次性字符串替换，不是表达式求值 | 不做 |
 | WebDAV、SSI、目录列表、地理、切流、视频 | 专用模块 | 没有 | 不做 |
 | UDP、`proxy_protocol`、邮件 | `stream` 的其余部分和 mail | TCP 转发是字节管道 | 不做 |
 
@@ -77,7 +77,9 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 
 - **R8 多上游。** 默认站点没有 `proxy_pass`。单地址代理在上游拒绝连接时失败，这是当前产品的正常结果。有两台可互换后端时再做“拨号失败试下一个”。健康检查和权重仍放在那之后。
 - **完整 rewrite。** 内部跳转、正则替换和多种状态码会碰到路由循环。现有 301 够用。
-- **代理超时配置、真实 IP、代理缓存增强、ACME、HTTP/3、二进制热升级。** 都有使用场景，但当前发布不依赖它们。
+- **代理超时完整配置、ACME、HTTP/3、二进制热升级。** 都有使用场景，但当前发布不依赖它们。拨号超时是缺陷、不是配置项，单独补，不在暂缓之列。
+- **代理缓存剩余缺项。** `proxy_cache_lock` 请求合并和 purge 接口按需补，不整体重写已有实现。
+- **真实 IP。** 只要前面挂 CDN 或负载均衡就必须做：现在限流和黑名单取的是连接地址，多层代理下会把所有客户端识别成同一个 IP，按 IP 限流失效、黑名单会误封。没有代理层时可以等。
 - **运行计数。** 2.0 智能体需要连接数、4xx/5xx 和限流拒绝。做到 2.0 的状态接口里，不必先做一份 Nginx `stub_status` 兼容文本。
 
 ## 6. 建议不做
