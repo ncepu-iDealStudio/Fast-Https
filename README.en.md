@@ -12,7 +12,7 @@ The project is part of the openEuler community (<https://gitee.com/src-openeuler
 
 The product version is `V1.3.2` (`CURRENT_VERSION` in `config/consts.go`). The module declares **Go 1.27.0** and toolchain **go1.27.1** in `go.mod`. That is the current supported release as of October 2026; Go 1.26 is the other supported line. The root `Dockerfile` builds with `golang:1.27-alpine`. The RPM `spec` downloads Go 1.27.1.
 
-The server parses HTTP/1.1 and HTTP/2 itself. The standard library supplies TCP, `crypto/tls`, and gzip. Development mode serves pprof from the default `net/http` mux on `0.0.0.0:10000`.
+The server parses HTTP/1.1 itself; the HTTP/2 stack (framing, HPACK, flow control) is delegated to `golang.org/x/net/http2`, with only the connection intake and `core.Event` adapter kept in-tree. The standard library supplies TCP, `crypto/tls`, and gzip. Development mode serves pprof from the default `net/http` mux on `0.0.0.0:10000`.
 
 Direct runtime dependencies, versions from `go.mod`:
 
@@ -22,19 +22,14 @@ Direct runtime dependencies, versions from `go.mod`:
 | `github.com/spf13/viper` | v1.19.0 | Loads `config/fast-https.json` and `http.include` |
 | `github.com/kardianos/service` | v1.2.2 | Install and remove the OS service |
 | `github.com/rs/zerolog` | v1.35.1 | Console plus system, access, error, and safe JSON logs under `logs/` |
-| `github.com/fufuok/chanx` | v1.2.2 | Log message queue |
 | `golang.org/x/time` | v0.5.0 | Connection rate limit |
 | `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` HTML cleanup for JSON bodies |
-| `github.com/andybalholm/brotli` | v1.1.0 | Brotli compression |
 | `golang.org/x/net` | v0.59.0 | HTTP/2 stack (`http2.Server` / `Transport` / HPACK) |
-| `github.com/emirpasic/gods` | v1.18.1 | Red-black tree used by the cache |
-| `github.com/panjf2000/ants/v2` | v2.9.1 | Goroutine pool |
-| `github.com/chenhg5/collection` | 2020-09-25 snapshot | Listener port de-duplication |
 | `github.com/getlantern/systray` | v1.2.2 | Windows tray program in `monitor/` |
-| `golang.org/x/sys` | v0.21.0 | Windows console Ctrl+Break / Ctrl+C |
+| `golang.org/x/sys` | v0.48.0 | Windows console Ctrl+Break / Ctrl+C |
 | `github.com/fatih/color` | v1.17.0 | Colored console output |
 
-`github.com/stretchr/testify` v1.9.0 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.3.2-next`.
+Everything else comes from the standard library: TCP listening, `crypto/tls`, gzip compression, a plain map for the cache index, `slices` for listener port de-duplication, and the in-house HTTP/1.1 parser. `github.com/stretchr/testify` v1.9.0 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.3.2-next`.
 
 ## Software Architecture
 

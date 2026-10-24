@@ -1,4 +1,4 @@
-// Package cache 实现反向代理响应缓存：以请求 MD5 为键落盘，内存用红黑树索引过期时间。
+// Package cache 实现反向代理响应缓存：以请求 MD5 为键落盘，内存用 map 索引过期时间。
 //
 // 一条缓存由两部分组成：内存里的 CacheNode 只记录过期时间与落盘位置，
 // 磁盘上的 CacheEntry 保存可直接回放的响应（状态行、头部、响应体）。
@@ -42,7 +42,7 @@ type CacheEntry struct {
 
 // CacheContainer 持有缓存索引与容量记账。
 type CacheContainer struct {
-	RbRoot *RBtree
+	Index *CacheIndex
 
 	mu        sync.Mutex
 	sizes     map[string]int
@@ -66,7 +66,7 @@ func init() {
 // NewCacheContainer 创建一个空的缓存容器。
 func NewCacheContainer() *CacheContainer {
 	return &CacheContainer{
-		RbRoot: NewRBtree(),
+		Index: NewCacheIndex(),
 		sizes:  make(map[string]int),
 	}
 }
@@ -88,7 +88,7 @@ func (CC *CacheContainer) WriteToDisk() {
 			continue
 		}
 		node := CacheNode(entry.Head)
-		CC.RbRoot.AddInRbtree(&node)
+		CC.Index.Set(&node)
 	}
 }
 
@@ -163,7 +163,7 @@ func (CC *CacheContainer) LoadCache() {
 					continue
 				}
 				node := CacheNode(head)
-				CC.RbRoot.AddInRbtree(&node)
+				CC.Index.Set(&node)
 				CC.admit(node.Md5, size, 0)
 			}
 		}
@@ -209,7 +209,7 @@ func (CC *CacheContainer) WriteCache(key string, expire, maxSize int, path strin
 // ReadCache 读取一条缓存，命中时顺延过期时间（读即续期）。
 // 索引与磁盘不一致或遇到旧格式条目时按未命中处理，并清理索引。
 func (CC *CacheContainer) ReadCache(key string) (*CacheEntry, bool) {
-	node, ok := CC.RbRoot.TouchNode(key)
+	node, ok := CC.Index.Touch(key)
 	if !ok {
 		return nil, false
 	}
@@ -231,7 +231,7 @@ func (CC *CacheContainer) ReadCache(key string) (*CacheEntry, bool) {
 // ExpireCache 清理已过期条目：先在索引里摘除，再删除磁盘文件并释放容量记账。
 func (CC *CacheContainer) ExpireCache() {
 	now := int(time.Now().Unix())
-	for _, node := range CC.RbRoot.TakeExpired(now) {
+	for _, node := range CC.Index.TakeExpired(now) {
 		RemoveFromDisk(*node)
 		CC.release(node.Md5)
 	}
@@ -245,7 +245,7 @@ func RemoveFromDisk(node CacheNode) {
 // unindex 只摘除索引与容量记账，不动磁盘文件。
 // 文件可能正在被覆盖写入，删文件会与写协程竞争。
 func (CC *CacheContainer) unindex(key string) {
-	CC.RbRoot.RemoveFromRBtreeByKey(key)
+	CC.Index.Remove(key)
 	CC.release(key)
 }
 

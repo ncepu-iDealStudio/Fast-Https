@@ -5,8 +5,6 @@ go 1.27.0
 toolchain go1.27.1
 
 require (
-	github.com/chenhg5/collection v0.0.0-20200925143926-f403b87088f9
-	github.com/emirpasic/gods v1.18.1
 	github.com/fatih/color v1.17.0
 	github.com/getlantern/systray v1.2.2
 	github.com/kardianos/service v1.2.2
@@ -43,7 +41,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
-	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect

@@ -24,19 +24,14 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `github.com/spf13/viper` | v1.19.0 | 读取 `config/fast-https.json` 和 `http.include` |
 | `github.com/kardianos/service` | v1.2.2 | 安装、卸载系统服务 |
 | `github.com/rs/zerolog` | v1.35.1 | 控制台与 `logs/` 下的系统、访问、错误、安全 JSON 日志 |
-| `github.com/fufuok/chanx` | v1.2.2 | 日志消息队列 |
 | `golang.org/x/time` | v0.5.0 | 连接限流 |
 | `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` 规则清理 JSON 中的 HTML |
-| `github.com/andybalholm/brotli` | v1.1.0 | Brotli 压缩 |
 | `golang.org/x/net` | v0.59.0 | HTTP/2 协议栈（`http2.Server` / `Transport` / HPACK） |
-| `github.com/emirpasic/gods` | v1.18.1 | 缓存使用的红黑树 |
-| `github.com/panjf2000/ants/v2` | v2.9.1 | 协程池 |
-| `github.com/chenhg5/collection` | 2020-09-25 快照 | 监听端口去重 |
 | `github.com/getlantern/systray` | v1.2.2 | Windows 托盘程序 `monitor/` |
-| `golang.org/x/sys` | v0.21.0 | Windows 控制台 Ctrl+Break / Ctrl+C |
+| `golang.org/x/sys` | v0.48.0 | Windows 控制台 Ctrl+Break / Ctrl+C |
 | `github.com/fatih/color` | v1.17.0 | 控制台着色 |
 
-测试依赖 `github.com/stretchr/testify` v1.9.0，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml`。快照版本号是 `1.3.2-next`。
+其余能力全部用标准库：TCP 监听、`crypto/tls`、`gzip` 压缩、缓存索引用内置 map、监听端口去重用 `slices`、HTTP/1.1 解析自研。测试依赖 `github.com/stretchr/testify` v1.9.0，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml`。快照版本号是 `1.3.2-next`。
 
 ## 软件架构
 

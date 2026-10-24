@@ -43,7 +43,7 @@ func TestReadRefreshesExpire(t *testing.T) {
 	GCacheContainer.WriteCache(key, 60, 0, dir, CacheEntry{FirstLine: "HTTP/1.1 200 OK", Status: 200, Data: []byte("x")})
 	waitEntry(t, key)
 
-	node, ok := GCacheContainer.RbRoot.TouchNode(key)
+	node, ok := GCacheContainer.Index.Touch(key)
 	if !ok {
 		t.Fatal("index entry missing")
 	}
@@ -52,7 +52,7 @@ func TestReadRefreshesExpire(t *testing.T) {
 	if _, ok := GCacheContainer.ReadCache(key); !ok {
 		t.Fatal("expected a cache hit")
 	}
-	refreshed, _ := GCacheContainer.RbRoot.TouchNode(key)
+	refreshed, _ := GCacheContainer.Index.Touch(key)
 	if refreshed.Expire <= 1 {
 		t.Errorf("Expire = %d, want it refreshed past 1", refreshed.Expire)
 	}
@@ -67,7 +67,7 @@ func TestExpireCacheRemovesExpiredEntry(t *testing.T) {
 	entry := waitEntry(t, key)
 	_ = entry
 
-	node, ok := GCacheContainer.RbRoot.TouchNode(key)
+	node, ok := GCacheContainer.Index.Touch(key)
 	if !ok {
 		t.Fatal("index entry missing")
 	}
@@ -114,7 +114,7 @@ func TestReadCacheMissesWhenFileIsGone(t *testing.T) {
 	GCacheContainer.WriteCache(key, 60, 0, dir, CacheEntry{FirstLine: "HTTP/1.1 200 OK", Status: 200, Data: []byte("x")})
 	waitEntry(t, key)
 
-	node, _ := GCacheContainer.RbRoot.TouchNode(key)
+	node, _ := GCacheContainer.Index.Touch(key)
 	if err := os.Remove(filepath.Join(node.Path, key)); err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestReadCacheMissesWhenFileIsGone(t *testing.T) {
 	if _, ok := GCacheContainer.ReadCache(key); ok {
 		t.Error("missing file must be a miss")
 	}
-	if _, ok := GCacheContainer.RbRoot.TouchNode(key); ok {
+	if _, ok := GCacheContainer.Index.Touch(key); ok {
 		t.Error("index entry should be dropped after a miss")
 	}
 }
@@ -135,7 +135,7 @@ func TestReadCacheRejectsLegacyEntry(t *testing.T) {
 	GCacheContainer.WriteCache(key, 60, 0, dir, CacheEntry{FirstLine: "HTTP/1.1 200 OK", Status: 200, Data: []byte("x")})
 	waitEntry(t, key)
 
-	node, _ := GCacheContainer.RbRoot.TouchNode(key)
+	node, _ := GCacheContainer.Index.Touch(key)
 	realPath := filepath.Join(node.Path, key)
 
 	// 旧格式条目只有 Head/Size/Data，没有状态行与头部，无法回放。
@@ -160,7 +160,7 @@ func TestReadCacheRejectsLegacyEntry(t *testing.T) {
 
 // discard 清理测试写入的索引与容量记账。
 func discard(key string) {
-	GCacheContainer.RbRoot.RemoveFromRBtreeByKey(key)
+	GCacheContainer.Index.Remove(key)
 	GCacheContainer.release(key)
 }
 
