@@ -468,18 +468,18 @@ func asSlice(v interface{}) ([]interface{}, bool) {
 }
 
 // content types of server
+// mime 文件缺失或非法返回错误：启动时由组合根决定是否退出，
+// reload 时保留旧配置继续服务。
 func loadContentTypes() (map[string]string, error) {
 	confBytes, err := os.ReadFile(MIME_FILE_PATH)
 	if err != nil {
-		logging.ConsoleLog.Fatal().Msg("can't open mime.types file")
-		return nil, errors.New("can't open mime.types file")
+		return nil, fmt.Errorf("can't open mime.types file: %w", err)
 	}
 
 	mime := make(map[string]string)
 	err = json.Unmarshal(confBytes, &mime)
 	if err != nil {
-		logging.ConsoleLog.Fatal().Msg("can't unmarshal mime.json file")
-		return nil, errors.New("can't unmarshal mime.json file")
+		return nil, fmt.Errorf("can't unmarshal mime.json file: %w", err)
 	}
 
 	return mime, nil
@@ -503,7 +503,9 @@ func processRoot(configPath string) (Fast_Https, error) {
 	cfg.Pid = rootViper.GetString("pid")
 	cfg.LogRoot = rootViper.GetString("log_root")
 	processEngine(&cfg)
-	processHttp(&cfg)
+	if err := processHttp(&cfg); err != nil {
+		return cfg, err
+	}
 	SetDefault(&cfg)
 	return cfg, nil
 }
@@ -518,7 +520,7 @@ func processEngine(cfg *Fast_Https) {
 	}
 }
 
-func processHttp(cfg *Fast_Https) {
+func processHttp(cfg *Fast_Https) error {
 	cfg.Include = rootViper.GetStringSlice("http.include")
 	cfg.DefaultType = rootViper.GetString("http.default_type")
 	cfg.Limit = ServerLimit{
@@ -531,10 +533,12 @@ func processHttp(cfg *Fast_Https) {
 	cfg.BlackList = rootViper.GetStringSlice("http.blaklist")
 	cfg.LogFormat = rootViper.GetStringSlice("http.log_format")
 	cfg.Servers = processHttpServer("http.server")
-	processIncludeCfg(cfg)
+	return processIncludeCfg(cfg)
 }
 
-func processIncludeCfg(cfg *Fast_Https) {
+// processIncludeCfg 展开	include 指向的站点配置。任何 include 文件读不了、
+// 解不开都返回错误：reload 路径上不能因为 Fatal 把整个进程带走。
+func processIncludeCfg(cfg *Fast_Https) error {
 	for _, item := range cfg.Include {
 
 		err := filepath.Walk(item, func(path string, info os.FileInfo, err error) error {
@@ -549,14 +553,12 @@ func processIncludeCfg(cfg *Fast_Https) {
 			logging.ConsoleLog.Info().Msgf("Include config dir: %s", path)
 			incViper := viper.New()
 			incViper.SetConfigFile(path)
-			err = incViper.ReadInConfig()
-			if err != nil {
-				logging.ConsoleLog.Fatal().Msgf("Error reading config file: %s", err)
+			if err := incViper.ReadInConfig(); err != nil {
+				return fmt.Errorf("error reading include config file %s: %w", path, err)
 			}
 			var config Fast_Https
-			err = incViper.Unmarshal(&config)
-			if err != nil {
-				logging.ConsoleLog.Fatal().Msgf("Error unmarshaling config: %s", err)
+			if err := incViper.Unmarshal(&config); err != nil {
+				return fmt.Errorf("error unmarshaling include config %s: %w", path, err)
 			}
 
 			server := Server{
@@ -579,9 +581,11 @@ func processIncludeCfg(cfg *Fast_Https) {
 			return nil
 		})
 		if err != nil {
-			logging.ConsoleLog.Fatal().Msg("processIncludeCfg can not walk")
+			return fmt.Errorf("process include config failed: %w", err)
 		}
 	}
+
+	return nil
 }
 
 func processHttpServer(pathPrefix string) []Server {
@@ -653,7 +657,7 @@ func processHttpServerPath(v *viper.Viper, pathPrefix string, locationKey int) P
 				pathPrefix, locationKey)),
 			Burst: v.GetInt(fmt.Sprintf("%s.%d.limit.burst",
 				pathPrefix, locationKey)),
-			Nodelay: v.GetBool(fmt.Sprintf("%s.%d.limit.mem",
+			Nodelay: v.GetBool(fmt.Sprintf("%s.%d.limit.nodelay",
 				pathPrefix, locationKey)),
 		},
 		Auth: PathAuth{

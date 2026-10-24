@@ -12,10 +12,10 @@ import (
 func InitSystem() {
 
 	// config initialization
-	// 日志尚未就绪时也只能走控制台。
-	err := config.Init()
-	if err != nil {
-		logging.ConsoleLog.Error().Err(err).Msg("config initialization failed")
+	// 启动期配置不合法直接退出；reload 路径走 config.Reload，
+	// 失败时保留旧配置继续服务。
+	if err := config.Init(); err != nil {
+		logging.ConsoleLog.Fatal().Err(err).Msg("config initialization failed")
 	}
 	logging.ConsoleLog.Info().Msg("config initialization finished")
 
