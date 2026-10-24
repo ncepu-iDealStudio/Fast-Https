@@ -5,7 +5,6 @@ import (
 	"fast-https/core"
 	"fast-https/modules/proxy"
 	"fast-https/infra/logging"
-	"fmt"
 	"io"
 	"net"
 	"time"
@@ -17,8 +16,11 @@ func WebSocketHandler(ev *core.Event) {
 	// fmt.Println("+++++++++++++++++++++++++")
 
 	proxy, flag := (ev.RR.CircleData).(*proxy.Proxy)
-	if !flag {
+	if !flag || proxy == nil || proxy.ProxyConn == nil {
+		// 断言失败或上游连接未初始化时必须返回，否则下面就是空指针解引用
 		logging.PrintErr("--proxy can not convert circle data to *Proxy")
+		ev.Close()
+		return
 	}
 
 	go func() {
@@ -28,10 +30,8 @@ func WebSocketHandler(ev *core.Event) {
 			n, err := ev.Conn.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
-					fmt.Println("eof 1")
 					break
 				} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-					// fmt.Println("time out once 1")
 					continue
 				} else {
 					logging.PrintWarn("[1]websocket: Proxy read error ", err.Error())
@@ -40,12 +40,9 @@ func WebSocketHandler(ev *core.Event) {
 				}
 			}
 
-			// fmt.Println("read from postman:", buffer[:n])
-
 			_, err = proxy.ProxyConn.Write(buffer[:n])
 			if err != nil {
 				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-					fmt.Println("websocket server closed ...")
 					ev.Close()
 					return
 				} else {
@@ -64,10 +61,8 @@ func WebSocketHandler(ev *core.Event) {
 		n, err := proxy.ProxyConn.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
-				fmt.Println("eof 2")
 				break
 			} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				// fmt.Println("time out once 2")
 				continue
 			} else {
 				logging.PrintWarn("websocket: Proxy read error ", err.Error())
@@ -77,13 +72,10 @@ func WebSocketHandler(ev *core.Event) {
 
 		}
 
-		// fmt.Println("read from websocket server", buffer[:n])
-
 		_, err = ev.Conn.Write(buffer[:n])
 		if err != nil {
 
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				fmt.Println("postman client closed ...")
 				proxy.ProxyConn.Close()
 				return
 			} else {

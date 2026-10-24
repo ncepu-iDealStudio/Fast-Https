@@ -7,7 +7,6 @@ import (
 	"fast-https/config"
 	"fast-https/modules/appfirewall"
 	"fast-https/core"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -341,7 +340,6 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else if ev.Upgrade == "websocket" {
-		fmt.Println("-------------------- websocket -------------")
 		ev.WriteResponse(nil)
 		// events.Handle_event(ev)
 		ev.Reuse = true

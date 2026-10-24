@@ -4,7 +4,6 @@ package proxy_tcp
 import (
 	"fast-https/core"
 	"fast-https/infra/logging"
-	"fmt"
 	"io"
 	"net"
 	"time"
@@ -15,7 +14,10 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 
 	conn2, err := net.Dial("tcp", proxyaddr)
 	if err != nil {
+		// 建连失败必须返回，否则下面 conn2 就是空指针解引用
 		logging.PrintErr("Can't connect to "+proxyaddr, err.Error())
+		ev.Close()
+		return
 	}
 
 	go func() {
@@ -25,10 +27,8 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 			n, err := ev.Conn.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
-					fmt.Println("eof 1")
 					break
 				} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-					// fmt.Println("time out once 1")
 					continue
 				} else {
 					logging.PrintWarn("[1]tcp_proxy: Proxy read error ", err.Error())
@@ -37,12 +37,9 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 				}
 			}
 
-			// fmt.Println("read from postman:", buffer[:n])
-
 			_, err = conn2.Write(buffer[:n])
 			if err != nil {
 				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-					fmt.Println("tcp_proxy server closed ...")
 					ev.Close()
 					return
 				} else {
@@ -61,10 +58,8 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 		n, err := conn2.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
-				fmt.Println("eof 2")
 				break
 			} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				// fmt.Println("time out once 2")
 				continue
 			} else {
 				logging.PrintWarn("tcp_proxy: Proxy read error ", err.Error())
@@ -74,13 +69,10 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 
 		}
 
-		// fmt.Println("read from tcp_proxy server", buffer[:n])
-
 		_, err = ev.Conn.Write(buffer[:n])
 		if err != nil {
 
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				fmt.Println("chrome client closed ...")
 				conn2.Close()
 				return
 			} else {
