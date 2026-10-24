@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fast-https/config"
 	"fast-https/modules/appfirewall"
-	"fast-https/modules/cache"
 	"fast-https/core"
 	"fmt"
 	"strconv"
@@ -254,15 +253,16 @@ func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 	return nil
 }
 
-// fast-https will send data to real server and get response from target
-func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
+// fast-https will send data to real server and get response from target.
+// 返回上游状态码，调用方据此决定是否缓存。
+func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) (int, error) {
 
 	//logging.ConsoleLog.Debug().Msgf("\n\n" + string(req_data) + "\n\n")
 	if err := p.sendToUpstreamServer(req_data); err != nil {
 		if err != ProxyErrorSendToUpstreamTimeout {
 			logging.ConsoleLog.Debug().Msg("unhandled send to upstream server errror")
 		}
-		return err
+		return 0, err
 	}
 
 	resData, err := p.readFromUpstreamServer(ev)
@@ -271,68 +271,60 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
 			logging.ConsoleLog.Debug().Msg("unhandled read form upstream server error")
 		}
 		// logging.ConsoleLog.Debug().Msgf("	send\n%s\nto server%s", string(ev.DEBUG_BUFFER), ev.Conn.RemoteAddr().String())
-		return err
+		return 0, err
 	}
 
 	if !ev.RR.Req.IsKeepalive() && ev.Upgrade == "" { // connection close
 		p.Close()
 	}
 
-	head_code := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
-	b_len := len(ev.RR.Res.Body)
+	headCode := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
+	status, _ := strconv.Atoi(headCode)
+	logProxyAccess(ev, status, len(ev.RR.Res.Body))
 
-	status, _ := strconv.Atoi(head_code)
-	log := dynlog.DynLogger{}
-	log.Status(status)
-	log.Size(b_len)
-	dynlog.Log(&log, ev)
-
-	return nil // no error
+	return status, nil
 }
 
 /*  ====  这两个函数可以用 event ===== */
 func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
-	var res []byte
-	var err error
-
-	flag := false
-	uriStringMd5, _ := pc.ProcessCacheConfig(ev, "")
-	_, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
-
-	if ev.RR.Req.Headers["Cache-Control"] == "no-cache" {
-		flag = false
+	if status, ok := pc.Serve(ev); ok {
+		// 命中缓存：直接回放缓存里的响应，不回源。
+		logProxyAccess(ev, status, len(ev.RR.Res.Body))
+		writeProxyResponse(ev)
+		return
 	}
 
-	if !flag {
-
-		err = p.getDataFromServer(ev, req_data)
-
-		// Server error
-		if err != nil {
-			ev.RR.Res = response.DefaultServerError()
-			ev.WriteResponseClose(nil)
-			return
-		}
-		pc.CacheData(ev, "200", res, len(res))
-
-	} else {
-		log := dynlog.DynLogger{}
-		dynlog.Log(&log, ev)
+	status, err := p.getDataFromServer(ev, req_data)
+	if err != nil {
+		ev.RR.Res = response.DefaultServerError()
+		ev.WriteResponseClose(nil)
+		return
 	}
+	pc.Store(ev, status)
+	writeProxyResponse(ev)
+}
 
-	// proxy server return valid data
+// logProxyAccess 按响应状态与长度写一条访问日志。
+func logProxyAccess(ev *core.Event, status, size int) {
+	log := dynlog.DynLogger{}
+	log.Status(status)
+	log.Size(size)
+	dynlog.Log(&log, ev)
+}
+
+// writeProxyResponse 写出响应，并按连接可复用性决定是否关闭。
+func writeProxyResponse(ev *core.Event) {
 	if ev.RR.Req.IsKeepalive() {
 		ev.WriteResponse(nil)
-		// events.Handle_event(ev)
 		ev.Reuse = true
-	} else {
-		ev.WriteResponseClose(nil)
+		return
 	}
+	ev.WriteResponseClose(nil)
 }
 
 func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 
-	err := p.getDataFromServer(ev, req_data)
+	_, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
 		if err == ProxyErrorSendToUpstreamTimeout || err == ProxyErrorReadFromUpstreamTimeout {
@@ -381,7 +373,8 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	}
 
 	if proxy.ProxyNeedCache {
-		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid, cfg.ProxyCache.Path)
+		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid,
+			cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize)
 		proxy.proxyNeedCache(proxyCache, req_data, ev)
 	} else {
 		proxy.proxyNoCache(req_data, ev)
