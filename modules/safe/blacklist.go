@@ -1,6 +1,7 @@
 package safe
 
 import (
+	"bytes"
 	"fast-https/config"
 	"fast-https/core"
 	"fast-https/runtime/dynlog"
@@ -140,8 +141,13 @@ func (b *Blacklist) isInBlacklist(ipOrRange string) bool {
 
 // api
 func IsInBlacklist(ev *core.Event) bool {
-	// fmt.Println(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0])
-	if g_list.isInBlacklist(strings.Split(ev.Conn.RemoteAddr().String(), ":")[0]) {
+	// IPv6 地址形如 "[::1]:8080"，按 ":" 切分取首段会得到 "["，
+	// 必须用 SplitHostPort 取主机部分
+	host, _, err := net.SplitHostPort(ev.Conn.RemoteAddr().String())
+	if err != nil {
+		host = ev.Conn.RemoteAddr().String()
+	}
+	if g_list.isInBlacklist(host) {
 
 		ev.RR.Res = response.ResponseInit()
 		ev.RR.Req = request.RequestInit(false)
@@ -174,6 +180,10 @@ func parseIPList(ipListStr string) ([]string, error) {
 	return result, nil
 }
 
+// maxIPRangeSize 限制一个 IP 段展开后的地址个数，
+// 防止 "0.0.0.0-255.255.255.255" 这类配置展开成数十亿个字符串。
+const maxIPRangeSize = 1 << 16
+
 // 解析 IP 段并返回 IP 地址列表
 func parseIPRange(ipRange string) ([]string, error) {
 	parts := strings.Split(ipRange, "-")
@@ -187,13 +197,22 @@ func parseIPRange(ipRange string) ([]string, error) {
 	if startIP == nil || endIP == nil {
 		return nil, fmt.Errorf("无效的 IP 地址")
 	}
-
-	var ips []string
-	for ip := startIP; ip.String() != endIP.String(); {
-		ips = append(ips, ip.String())
-		ip = nextIP(ip)
+	if bytes.Compare(startIP.To16(), endIP.To16()) > 0 {
+		return nil, fmt.Errorf("IP 段起始地址大于结束地址")
 	}
-	ips = append(ips, endIP.String())
+
+	// 旧实现以字符串相等作为循环终止条件：起止反序时 nextIP 永远追不上
+	// 终点，会死循环；这里改为 Equal 判定并用上限兜底任何异常配置。
+	var ips []string
+	for ip := startIP; ; ip = nextIP(ip) {
+		ips = append(ips, ip.String())
+		if ip.Equal(endIP) {
+			break
+		}
+		if len(ips) > maxIPRangeSize {
+			return nil, fmt.Errorf("IP 段过大（超过 %d 个地址），拒绝展开", maxIPRangeSize)
+		}
+	}
 
 	return ips, nil
 }

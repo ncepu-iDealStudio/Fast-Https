@@ -23,11 +23,12 @@ type countIP struct {
 }
 
 type CountLimit struct {
-	size int
-	rate int
-	num  int
-	mu   sync.RWMutex
-	gMap map[string]countIP
+	size      int
+	rate      int
+	num       int
+	mu        sync.RWMutex
+	gMap      map[string]countIP
+	lastSweep int // 上次过期清扫的 Unix 秒，每秒至多一次
 }
 
 func countsInit() {
@@ -109,37 +110,42 @@ func NewCountLimit(num int, rate int, size int) *CountLimit {
 }
 
 func (cl *CountLimit) Insert(ipstr string) bool {
-	// 获取 gMap 中的 countIP 结构体值
 	cl.mu.Lock()
-	a, ok := cl.gMap[ipstr]
+	defer cl.mu.Unlock()
 
-	var flag bool
+	now := int(time.Now().Unix())
+	cl.sweepExpired(now)
+
 	if cl.num > cl.size {
-		cl.mu.Unlock()
 		return true
 	}
 
-	if ok {
-		if a.Allow(ipstr) {
-			flag = true
-		} else {
-			flag = false
-		}
-		cl.gMap[ipstr] = a
-	} else {
-
+	a, ok := cl.gMap[ipstr]
+	if !ok {
 		// 如果键不存在，初始化 countIP 结构体值
-		cl.gMap[ipstr] = countIP{int(time.Now().Unix()),
-			int(time.Now().Unix()) + defaultTimeLength, 0, cl.rate}
-		a = cl.gMap[ipstr] // 获取新添加的 countIP 结构体值的引用
+		cl.gMap[ipstr] = countIP{now, now + defaultTimeLength, 0, cl.rate}
 		cl.num++
-		cl.mu.Unlock()
 		return true
 	}
 
-	// 进行其他操作
-	cl.mu.Unlock()
+	flag := a.Allow(ipstr)
+	cl.gMap[ipstr] = a
 	return flag
+}
+
+// sweepExpired 删除不活跃 IP 的条目，防止 map 无界增长：
+// 窗口只有 1 秒，过期的条目下次命中也会被重置，删除与重置等价。
+func (cl *CountLimit) sweepExpired(now int) {
+	if now == cl.lastSweep {
+		return
+	}
+	cl.lastSweep = now
+	for key, c := range cl.gMap {
+		if now >= c.expire {
+			delete(cl.gMap, key)
+			cl.num--
+		}
+	}
 }
 
 func CountHandler(rr core.RRcircle) {
