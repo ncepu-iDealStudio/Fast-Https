@@ -37,10 +37,12 @@ func fileFdSize(pathName string) (file *os.File, size int64) {
 	var info fs.FileInfo
 	info, err = file.Stat()
 	if err != nil {
+		file.Close()
 		return nil, -1
 	}
 	size = info.Size()
 	if info.IsDir() { // pathName is a dir
+		file.Close()
 		return nil, -1
 	}
 	return
@@ -68,6 +70,7 @@ func fileReadWrite(file *os.File, ev *core.Event) int {
 		// 发送读取到的内容
 		_, err = ev.Conn.Write(rr.ReqBuf[:n])
 		if err != nil {
+			file.Close()
 			return -10
 		}
 	}
