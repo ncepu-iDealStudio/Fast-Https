@@ -28,7 +28,7 @@
 | 根目录 `fast-https.go` | 主服务器可执行程序入口 |
 | `cmd/` | start、dev、stop、reload、check 等 CLI 命令及平台相关处理 |
 | `config/`、`init/` | 配置加载/验证与启动初始化 |
-| `modules/core/` | server、listener、events、filters、HTTP 请求响应、H2 等运行时代码 |
+| `core/` | server、listener、events、filters、HTTP 请求响应、H2 等运行时代码 |
 | `modules/static`、`proxy`、`rewrite`、`safe` 等 | 请求处理及横切功能模块 |
 | `monitor/` | 独立的 Windows 托盘程序 |
 | `tests/` | 集中式单测、客户端 E2E、开发脚本和遗留测试入口 |
@@ -36,15 +36,15 @@
 
 需要优先澄清的现状：
 
-1. 请求处理器通过 `core.GRRCHT` 注册。`static`、`proxy`、`rewrite`、`dev_mod` 导出 `Register()`，由 `cmd.RegisterHandlers` 在 `start`、`dev` 的 `ServerInit` 之前调用。`ServerInit` 在监听前用 `core.MissingHandlers` 检查配置中的 location 类型。
+1. 请求处理器通过 `core.RegisterHandler` 注册。`static`、`proxy`、`rewrite`、`dev_mod` 导出 `Register()`，由 `cmd.RegisterHandlers` 在 `start`、`dev` 的 `ServerInit` 之前调用。`ServerInit` 在监听前用 `core.MissingHandlers` 检查配置中的 location 类型。
 
-2. 遗留注册表已在阶段 3 第 4 步删除（2026-10-16）。当时的调用方只有 `modules/logging`、`modules/workchain`（含 `example`）和 `tests/unit_test/modules` 下的两个测试。这些文件已一起删除，其中包括只给该注册表使用的 `modules/definition.go`。请求分发只走 `core.GRRCHT`。
+2. 遗留注册表已在阶段 3 第 4 步删除（2026-10-16）。当时的调用方只有 `modules/logging`、`modules/workchain`（含 `example`）和 `tests/unit_test/modules` 下的两个测试。这些文件已一起删除，其中包括只给该注册表使用的 `modules/definition.go`。请求分发只走 `core.RegisterHandler`。
 
-3. 核心层不再引用功能包。连接过滤、TCP 转发、WebSocket、location 计数、Basic 认证和 `safe.Init` 由 `cmd.RegisterServices` 写入 `core.Services`，`modules/core` 只调用这些钩子；钩子为 nil 时放行或不处理。依赖守卫的允许清单已空。`modules/websocket` 仍引用 `modules/proxy`，这条依赖在功能包之间。
+3. 核心层不再引用功能包。连接过滤、TCP 转发、WebSocket、location 计数、Basic 认证和 `safe.Init` 由 `cmd.RegisterServices` 写入 `core.Services`，`core` 只调用这些钩子；钩子为 nil 时放行或不处理。依赖守卫的允许清单已空。`modules/websocket` 仍引用 `modules/proxy`，这条依赖在功能包之间。
 
 4. 测试同时分布在源码目录和 `tests/unit_test/`；E2E 位于 `tests/client_test/`。2026-10 之后新增的单测已放在被测 package 旁边。
 
-5. `modules/core/engine`、`modules/core/routine_pool` 已标为未启用，不在默认 `start` 路径上。`modules/workchain` 已在阶段 3 第 4 步删除。
+5. `core/engine`、`core/routine_pool` 已标为未启用，不在默认 `start` 路径上。`modules/workchain` 已在阶段 3 第 4 步删除。
 
 6. 配置路径和运行资源目录是现有部署契约的一部分。根目录 `fast-https.go` 被 Dockerfile、GoReleaser 和 RPM spec 写死为构建入口。
 
@@ -105,7 +105,7 @@ tests/client_test/     # 子进程或完整部署链路测试
 
 - 已维护 package 职责、生产入口、主要依赖者和默认服务器启动路径清单，见 [architecture-map.md](architecture-map.md) 第 1 节。
 - 已区分主服务器、Windows monitor、测试工具和示例程序的构建入口，见该文档第 4、5 节。
-- 已记录 `core.GRRCHT` 与通用 Module registry 的调用方和用途，见第 2 节；去留在阶段 3 第 4 步决定。
+- 已记录 `core.Handler` 与通用 Module registry 的调用方和用途，见第 2 节；去留在阶段 3 第 4 步决定。
 - 已记录 package/import 结构及 Docker、GoReleaser、RPM、CI 入口；本阶段未移动目录或改变运行行为。
 
 #### 阶段 0：测试与验证
@@ -129,7 +129,7 @@ tests/client_test/     # 子进程或完整部署链路测试
 
 #### 阶段 1：工作内容
 
-- 已标注 `modules/core/engine`、`routine_pool` 为未启用，`workchain/example` 为示例。
+- 已标注 `core/engine`、`routine_pool` 为未启用，`workchain/example` 为示例。
 - 已标明 `modules/module.go` 是遗留注册表，请求分发不经过它。代码仍保留。
 - README 与架构地图已按当前 package 区分生产路径和未启用路径。
 - 已写明 `tests/scripts`、`tests/single/workloop.go` 不进入 `go test`，`engine.sh` 不是标准构建入口。
@@ -149,7 +149,7 @@ tests/client_test/     # 子进程或完整部署链路测试
 
 **难度：易；风险：低。并入约定，不单独做目录迁移。**
 
-**状态：已完成（2026-10-16）。** 约定写在 [tests/readme.md](../tests/readme.md) 第 1.0 节，1.1 节目录树已按实际文件更新（去掉不存在的 `safe/safe_test.go`，补上 `handler_ready_test.go`、`utils/message`、H2 连接测试和 `client_test` 的进程辅助文件）。核对时发现两个存量文件需要说明：`tests/fast-https_test.go` 有写 pid、生成证书的副作用；`tests/client_test/http_https_change_test.go` 是只有 `func main` 的手工客户端。两者均已在 1.0 节写明。后者已于同日移到 `tests/single/httpclient/main.go`，`client_test` 的进程辅助文件改为 `_test.go` 后缀，`go build ./...` 整体通过。生产代码没有导入 `tests/` 下的 package。
+**状态：已完成（2026-10-16）。** 约定写在 [tests/readme.md](../tests/readme.md) 第 1.0 节，1.1 节目录树已按实际文件更新（去掉不存在的 `safe/safe_test.go`，补上 `handler_ready_test.go`、`infra/logging`、H2 连接测试和 `client_test` 的进程辅助文件）。核对时发现两个存量文件需要说明：`tests/fast-https_test.go` 有写 pid、生成证书的副作用；`tests/client_test/http_https_change_test.go` 是只有 `func main` 的手工客户端。两者均已在 1.0 节写明。后者已于同日移到 `tests/single/httpclient/main.go`，`client_test` 的进程辅助文件改为 `_test.go` 后缀，`go build ./...` 整体通过。生产代码没有导入 `tests/` 下的 package。
 
 现有测试已经形成三种稳定形式：源码旁的单测、`tests/unit_test/` 下的集中单测、`tests/client_test/` 下的子进程 E2E。批量迁移或把 `client_test` 改名为 `e2e` 会牵动 CI、文档和命令，对后续阶段没有帮助。
 
@@ -170,14 +170,14 @@ tests/client_test/     # 子进程或完整部署链路测试
 
 #### 第 1 步：依赖守卫测试（约 0.5 天）
 
-**状态：已完成（2026-10-16）。** 测试位于 `modules/core/deps_test.go`。
+**状态：已完成（2026-10-16）。** 测试位于 `core/deps_test.go`。
 
-- 用标准库 `go/parser` 解析 `modules/core/...` 下所有非测试 `.go` 文件的 import（包括带构建标签的平台文件），不引入第三方依赖。
-- 规则按前缀判断：`modules/core/...` 不得导入 `fast-https/modules` 及其下除 `fast-https/modules/core/...` 以外的任何 package。新增的功能包自动受约束，不需要维护禁用名单。
+- 用标准库 `go/parser` 解析 `core/...` 下所有非测试 `.go` 文件的 import（包括带构建标签的平台文件），不引入第三方依赖。
+- 规则按前缀判断：`core/...` 不得导入 `fast-https/modules` 及其下除 `fast-https/core/...` 以外的任何 package。新增的功能包自动受约束，不需要维护禁用名单。
 - 第 2 节第 3 项原先的 10 条违规写入 `coreImportAllowlist`。第 2 步去掉 4 条，第 3 步去掉其余 6 条，允许清单现已为空。
 - 出现新违规时测试失败，输出 `违规 package -> import 路径`；允许清单中的某条 import 已不存在时测试同样失败，要求删掉该条，保证清单只减不增。
 
-验收结果：`go test ./modules/core/` 通过；临时放入引用 `modules/compress` 的探针文件时，测试失败并指出 `fast-https/modules/core/filters -> fast-https/modules/compress`。
+验收结果：`go test ./core/` 通过；临时放入引用 `modules/compress` 的探针文件时，测试失败并指出 `fast-https/runtime/filters -> fast-https/modules/compress`。
 
 #### 第 2 步：显式注册 handler（约 1 天）
 
@@ -185,7 +185,7 @@ tests/client_test/     # 子进程或完整部署链路测试
 
 - `static.Register`、`proxy.Register`、`rewrite.Register`、`devmod.Register` 取代各自的 `init()`，内部仍调用 `core.RRHandlerRegister`。
 - `cmd.RegisterHandlers` 在 `start` 和 `dev` 路径上、`ServerInit` 之前调用这四个函数。代理 E2E 的子进程同样调用它，再进入 `ServerInit`。
-- 已删除 `modules/core/server` 中的四个空白导入。
+- 已删除 `runtime/server` 中的四个空白导入。
 - `core.MissingHandlers` 检查保持原样，缺失时在监听前返回可诊断错误。
 - location JSON 名称、handler 行为和功能模块目录未改。
 
@@ -223,7 +223,7 @@ README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) �
 **状态：已完成（2026-10-16）。** 四步都已落地。
 
 - 请求 handler 只有一种正式装配路径，由 `cmd` 完成。
-- `modules/core/...` 不依赖具体功能包，并由依赖守卫测试持续保证。
+- `core/...` 不依赖具体功能包，并由依赖守卫测试持续保证。
 - 所有当前配置的 `location.type` 仍在监听前完成 handler 检查。
 - 主服务器和 monitor 均能构建。
 
@@ -238,7 +238,7 @@ README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) �
 - 生产 package 编译和改动包的 `go vet` 通过。
 - `go test -p 1 ./...` 全部通过。其间 `TestRootCmdUnknownCommand` 曾失败：`878e3df` 把命令注册为 cobra 子命令后，未知命令返回错误并以退出码 1 结束，测试仍期望返回 nil。已按现行为改为断言返回 `unknown command` 错误。
 - 代理 E2E 和 reload E2E（`FASTHTTPS_E2E_RELOAD=1`）通过，`config/fast-https.json` 未被改写。
-- 本机有 gcc，`-race` 下 `config`、`modules/safe`、`modules/core/events`、`server`、`listener` 及集中单测中的 listener 重载测试通过。
+- 本机有 gcc，`-race` 下 `config`、`modules/safe`、`runtime/events`、`server`、`listener` 及集中单测中的 listener 重载测试通过。
 - 反向验证：把 `config/config.go` 临时换回改动前版本，`TestReloadNeverExposesClearedConfig` 在读取 MIME 表处触发 Go 运行时并发 map 读写致命错误，证实第 2 节第 7 项中的 MIME 表问题存在。
 
 修复第 2 节第 7 项的窗口，不做全局依赖注入：
@@ -251,7 +251,7 @@ README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) �
 
 - `config/reload_window_test.go`：一个协程持续读取 `MaxBodySize`、`Servers` 和 MIME 表，同时反复 `ReloadFile`，断言读不到零值或空表。`GConfig` 仍是无锁的结构体整体赋值，竞态检测器会把它标为数据竞争，所以该测试带 `!race` 构建标签；彻底消除属于 4b。
 - `modules/safe/policy_test.go`：`TestCountLimitForUsesLocationID`（同一端口持有 ID 0 和 2 时各自拿到正确的计数器）、`TestCountLimitForOutOfRange`、`TestCountLimitForDuringRebuild`（反复在 3 个和 1 个 location 之间重建时并发查找不越界）。后者在 `-race` 下通过；Windows 上 `-race` 需要 cgo 和 gcc。
-- 回归：`config/reload_test.go`、`config/paths_test.go`、`tests/unit_test/modules/core/listener/reload_common_test.go`、reload E2E（`FASTHTTPS_E2E_RELOAD=1`）。
+- 回归：`config/reload_test.go`、`config/paths_test.go`、`tests/unit_test/runtime/listener/reload_common_test.go`、reload E2E（`FASTHTTPS_E2E_RELOAD=1`）。
 - 已同步 [iteration-plan.md](iteration-plan.md) 第 2 节和 R4。
 
 #### 4b：完整配置快照（按需，暂不排期）
@@ -292,7 +292,7 @@ README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) �
 ## 6. 架构约束的自动验证
 
 - 依赖守卫在阶段 3 第 1 步落地，以普通 Go 测试形式存在，随 `go test ./...` 和 `.workflow/go-test.yml` 一起执行，不需要额外 CI 步骤。
-- 规则和允许清单集中在 `modules/core/deps_test.go`，允许项必须注明计划去掉的步骤。
+- 规则和允许清单集中在 `core/deps_test.go`，允许项必须注明计划去掉的步骤。
 - 规则扩展到多个边界时，仍优先在同一测试中增加规则；不为单条规则引入第三方架构检查工具。
 - 失败信息必须指出违规 package 和 import 路径。
 

@@ -23,7 +23,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `github.com/spf13/cobra` | v1.8.1 | 命令行：`start`、`dev`、`stop`、`reload`、`install`、`uninstall`、`status` |
 | `github.com/spf13/viper` | v1.19.0 | 读取 `config/fast-https.json` 和 `http.include` |
 | `github.com/kardianos/service` | v1.2.2 | 安装、卸载系统服务 |
-| `github.com/sirupsen/logrus` | v1.9.3 | `logs/` 下的系统、访问、错误、安全日志 |
+| `github.com/rs/zerolog` | v1.35.1 | 控制台与 `logs/` 下的系统、访问、错误、安全 JSON 日志 |
 | `github.com/fufuok/chanx` | v1.2.2 | 日志消息队列 |
 | `golang.org/x/time` | v0.5.0 | 连接限流 |
 | `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` 规则清理 JSON 中的 HTML |
@@ -40,7 +40,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 
 ## 软件架构
 
-服务自己完成监听、请求解析和响应写出。入口在 `fast-https.go`，命令由 `cmd` 分发，配置由 `config` 加载，初始化在 `init`，连接与协议处理在 `modules/core`。每个监听端口由独立协程 `Accept`，再按连接类型进入 HTTP/1.1 事件循环或 HTTP/2 处理。
+服务自己完成监听、请求解析和响应写出。入口在 `fast-https.go`，命令由 `cmd` 分发，配置由 `config` 加载，初始化在 `init`，连接与协议处理在 `core`。每个监听端口由独立协程 `Accept`，再按连接类型进入 HTTP/1.1 事件循环或 HTTP/2 处理。
 
 `location.type` 决定请求交给哪个处理函数。`start` 和 `dev` 在监听前调用 `cmd.RegisterHandlers` 登记静态文件、反向代理、重写和开发模块，并调用 `cmd.RegisterServices` 装入黑名单、限流、认证、TCP 转发和 WebSocket。
 
@@ -52,8 +52,8 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `rewrite` | `modules/rewrite` | 返回 301，`Location` 为配置中的重写地址 |
 | `devmod` | `modules/dev_mod` | 返回固定的开发响应 |
 | `listen` 含 `tcp` | `modules/proxy_tcp` | 按 TCP 双向转发，不走 HTTP 解析 |
-| `listen` 含 `ssl` | `modules/core/listener` | TLS |
-| `listen` 含 `h2` | `modules/core/h2` | HTTP/2 |
+| `listen` 含 `ssl` | `runtime/listener` | TLS |
+| `listen` 含 `h2` | `runtime/h2` | HTTP/2 |
 
 同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）和访问计数（`modules/safe`）。静态与代理路径会执行应用防火墙：`xss` 在 JSON 对象或数组里的 `<script` 被去掉后返回 403；`sql` 已注册，不会拦截请求。
 
@@ -85,22 +85,28 @@ fast-https/
 ├── init/
 │   ├── init.go                   # 配置、日志、证书、缓存初始化
 │   └── autocert.go               # 自签名根证书与站点证书
-├── modules/
-│   ├── core/                     # 监听、事件、HTTP/1.1、HTTP/2、请求与响应
-│   │   ├── server/               # 启停、信号、热重载
-│   │   ├── listener/             # 按 listen 建监听器
-│   │   ├── events/               # 连接与请求分发
-│   │   ├── request/  response/   # 报文解析与默认响应
-│   │   ├── filters/              # 连接、监听、解析、路由过滤
-│   │   ├── h2/                   # HTTP/2 帧、流、HPACK
-│   │   ├── dynlog/               # 访问日志注册
-│   │   ├── engine/               # 未启用：master/slave 注册与心跳
-│   │   └── routine_pool/         # 未启用：协程池，server 中的导入保持注释
+├── core/                         # 契约层：Event、处理器注册表、生命周期钩子
+│   ├── event.go                  # Event / RRcircle / RRcircleHandler
+│   ├── registry.go               # map 注册表：RegisterHandler / Handler
+│   ├── services.go               # 连接、监听、鉴权与停机钩子
+│   ├── handlers.go               # handler 缺失检查与类型名
+│   └── commands.go               # 默认命令解析
+├── runtime/                      # 数据面运行时（不依赖 modules）
+│   ├── server/                   # 启停、信号、热重载
+│   ├── listener/                 # 按 listen 建监听器
+│   ├── events/                   # 连接与请求分发
+│   ├── request/  response/       # 报文解析与默认响应
+│   ├── filters/                  # 连接、监听、解析、路由过滤
+│   ├── h2/                       # HTTP/2 帧、流、HPACK
+│   └── dynlog/                   # 访问日志字段组装
+├── modules/                      # 可插拔功能
 │   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
 │   ├── auth/  safe/  cache/  compress/  appfirewall/
 │   └── dev_mod/                  # location type = devmod
+├── infra/                        # 基础设施：不依赖 config
+│   ├── logging/                  # 唯一日志出口：控制台 + 四路 JSON 文件
+│   └── files/  color/  timeutil/
 ├── output/                       # 启动 Logo 与初始化提示
-├── utils/                        # 日志、消息、文件、颜色、RSA
 ├── monitor/                      # Windows 托盘程序（独立 main）
 ├── httpdoc/root/                 # 默认静态站点与自签名根证书存放目录
 ├── tests/                        # 自动测试；scripts/ 与 single/ 是手工脚本和示例，不进入 go test
@@ -115,10 +121,10 @@ fast-https/
 
 ### 服务启动流程
 
-1. `fast-https.go` 将日志级别设为 4，执行 `cmd.RootCmd()`。没有子命令时按 `start` 处理。
+1. `fast-https.go` 执行 `cmd.RootCmd()`。没有子命令时按 `start` 处理。控制台日志级别由 `infra/logging` 默认为 `info`。
 2. `start` / `dev` 先做预检：校验 `config/fast-https.json` 及其 `include`、扫描端口、确认没有已在运行的实例。
-3. 打印 Logo 后调用 `init.InitSystem()`：加载配置与 `mime.json`、启动消息日志、生成或加载证书、从磁盘恢复缓存并启动过期清理。
-4. `start` 在容器外的 Linux amd64 上会 fork，并保持当前工作目录，再把子进程 pid 写入 `fast-https.pid`。Windows，以及设置了 `FASTHTTPS_FOREGROUND=1` 或检测到容器标记文件时，进程保持前台并写同一 pid 文件。`dev` 不进入守护进程，日志级别改为 6，并在 `0.0.0.0:10000` 打开 pprof。
+3. 打印 Logo 后调用 `init.InitSystem()`：加载配置与 `mime.json`、打开四路 JSON 日志文件、生成或加载证书、从磁盘恢复缓存并启动过期清理。
+4. `start` 在容器外的 Linux amd64 上会 fork，并保持当前工作目录，再把子进程 pid 写入 `fast-https.pid`。Windows，以及设置了 `FASTHTTPS_FOREGROUND=1` 或检测到容器标记文件时，进程保持前台并写同一 pid 文件。`dev` 不进入守护进程，控制台日志级别提到 `trace`，并在 `0.0.0.0:10000` 打开 pprof。
 5. `server.ServerInit()` 注册信号处理，按配置创建监听器，再初始化安全模块并注册动态日志。
 6. 每个端口一个协程接受连接。`listen` 含 `h2` 时走 HTTP/2，其余走 HTTP/1.1 事件循环。
 

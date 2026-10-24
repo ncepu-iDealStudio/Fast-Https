@@ -6,7 +6,7 @@
 
 | 测试类型 | 位置 | 说明 |
 | --- | --- | --- |
-| 单元测试（新增） | 被测 package 旁的 `*_test.go` | 可以测试未导出实现，如 `modules/core/close_test.go`、`modules/static/body_test.go` |
+| 单元测试（新增） | 被测 package 旁的 `*_test.go` | 可以测试未导出实现，如 `core/close_test.go`、`modules/static/body_test.go` |
 | 集中单元测试（存量） | `tests/unit_test/` | 只保留已有测试，不再新增。所测代码被架构收敛阶段 3、4 改动时，顺带迁到对应 package 旁 |
 | 子进程集成测试 | `tests/client_test/` | 启动 Fast-Https 子进程，使用临时目录和本地上游，不改写仓库内 `config/fast-https.json` |
 | 手工脚本和样例 | `tests/scripts/`、`tests/single/` | 不进入 `go test` |
@@ -47,23 +47,23 @@ tests/
     ├── cmd/commands_test.go
     ├── config/check_config_test.go
     ├── compress/compress_test.go
-    ├── modules/
-    │   └── core/
-    │       ├── handler_ready_test.go
-    │       ├── server/server_test.go
-    │       ├── listener/reload_common_test.go
-    │       ├── request/parse_test.go
-    │       ├── response/response_test.go
-    │       └── h2/conn/
-    │           ├── conn_graceful_test.go
-    │           └── conn_reload_test.go
-    └── utils/
-        ├── logger/logger_test.go
-        ├── message/logdir_test.go
-        └── security/rsa_test.go
+    ├── core/
+    │   └── handler_ready_test.go
+    ├── infra/
+    │   └── logging/
+    │       ├── format_test.go
+    │       └── logdir_test.go
+    └── runtime/
+        ├── server/server_test.go
+        ├── listener/reload_common_test.go
+        ├── request/parse_test.go
+        ├── response/response_test.go
+        └── h2/conn/
+            ├── conn_graceful_test.go
+            └── conn_reload_test.go
 ```
 
-源码旁的单元测试分布在 `cmd/`、`config/`、`init/`、`modules/appfirewall`、`modules/core/...`、`modules/proxy`、`modules/safe`、`modules/static` 等目录，不在上面的树中逐一列出。
+源码旁的单元测试分布在 `cmd/`、`config/`、`init/`、`modules/appfirewall`、`core/...`、`modules/proxy`、`modules/safe`、`modules/static` 等目录，不在上面的树中逐一列出。
 
 ### 1.2 测试辅助工具
 
@@ -114,8 +114,8 @@ go test ./tests/unit_test/...
 
 ```bash
 go test ./tests/unit_test/cmd/...
-go test ./tests/unit_test/modules/core/server/...
-go test ./tests/unit_test/utils/logger/...
+go test ./tests/unit_test/runtime/server/...
+go test ./tests/unit_test/infra/logging/...
 ```
 
 #### Reload 端到端回归（可选）
@@ -169,9 +169,9 @@ HTTP/2：未知帧丢掉后续读（`unknown_frame_test.go`），HPACK 索引 0 
 
 连接关闭：`TestCloseIsSilentWhenRepeated` 确认第二次 `Close` 不再关连接。`TestHandleEventExitsWhenContextCanceled` 和 `TestServeListenerExitsWhenContextCanceled` 确认取消上下文后处理协程和接受循环退出。`TestDrainConnectionsClosesInFlightHandler` 确认停止接受后，正在读的连接会关掉。`TestCountsInitReplacesSlice` 确认限流计数重建时不会叠在旧切片后面。
 
-依赖边界：`modules/core/deps_test.go` 的 `TestCoreDoesNotImportFeaturePackages` 检查 `modules/core/...` 不导入 `modules` 下的功能包，现有例外列在 `coreImportAllowlist` 中，只能删减。
+依赖边界：`core/deps_test.go` 的 `TestCoreDoesNotImportFeaturePackages` 检查 `core/...` 不导入 `modules` 下的功能包，现有例外列在 `coreImportAllowlist` 中，只能删减。
 
-`check`：`TestCheckFileAcceptsValidConfig` 和 `TestCheckFileRejectsInvalidConfig` 只校验临时配置，不监听。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `modules/core/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
+`check`：`TestCheckFileAcceptsValidConfig` 和 `TestCheckFileRejectsInvalidConfig` 只校验临时配置，不监听。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `runtime/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
 
 示例：
 
@@ -212,7 +212,7 @@ func TestServerInit(t *testing.T) {
 - 日志格式化
 - Fatal日志处理
 
-`tests/unit_test/utils/message/logdir_test.go` 覆盖四份文件日志。`Reopen` 把新的一行写到新目录；新目录无法创建时，后续日志仍写进原来的文件。
+`tests/unit_test/infra/logging/logdir_test.go` 覆盖四份文件日志。`Open` 把新的一行写到新目录；新目录无法创建时，后续日志仍写进原来的文件。
 
 示例：
 

@@ -75,7 +75,7 @@
 
 已落地。`SIGINT` 在各平台都调用 `Reload()`。`SIGTERM` 和 `SIGQUIT` 停止接受新连接，最多等待 5 秒后退出。`stop` 仍然发送 `Kill`。Windows 的 `reload` 先发 Ctrl+Break，再试 Ctrl+C，不再把进程停掉。前台 Ctrl+C 会重载，不会退出。
 
-`modules/core/server/signal_test.go` 锁定这三种信号。`FASTHTTPS_E2E_RELOAD=1` 时，`TestReloadPortSwitchE2E` 在当前系统上切换端口；默认 `go test` 不跑它。同一 SSL 端口重载时不重新绑定套接字，能解析的新证书在下一次握手生效；证书文件缺失时监听保持打开。
+`runtime/server/signal_test.go` 锁定这三种信号。`FASTHTTPS_E2E_RELOAD=1` 时，`TestReloadPortSwitchE2E` 在当前系统上切换端口；默认 `go test` 不跑它。同一 SSL 端口重载时不重新绑定套接字，能解析的新证书在下一次握手生效；证书文件缺失时监听保持打开。
 
 ### R2 持续集成门禁
 
@@ -85,9 +85,9 @@
 
 ### R3 重载后日志文件重新打开
 
-已落地。`Server.Reload` 在 `config.Reload` 成功之后调用 `message.Reopen`，关闭旧文件并按当前 `log_root` 打开 `system.log`、`access.log`、`error.log`、`safe.log`。新目录打开失败时保留原来的四个文件，监听仍按新配置切换。
+已落地。`Server.Reload` 在 `config.Reload` 成功之后调用 `logging.Open`，关闭旧文件并按当前 `log_root` 打开 `system.log`、`access.log`、`error.log`、`safe.log`。新目录打开失败时保留原来的四个文件，监听仍按新配置切换。
 
-`tests/unit_test/utils/message/logdir_test.go` 覆盖切换到新目录，以及新目录无法创建时旧文件仍然可写。
+`tests/unit_test/infra/logging/logdir_test.go` 覆盖切换到新目录，以及新目录无法创建时旧文件仍然可写。
 
 ### R4 连接关闭与请求失败路径
 

@@ -33,7 +33,7 @@ flowchart TD
 
 ## 2. 进程入口与命令
 
-入口位于 [`fast-https.go`](../fast-https.go)。程序设置默认日志级别后创建并执行 `cmd.RootCmd()`。命令由 [`cmd/commands.go`](../cmd/commands.go) 分发：
+入口位于 [`fast-https.go`](../fast-https.go)。程序只创建并执行 `cmd.RootCmd()`；控制台日志级别由 `infra/logging` 的默认值（`info`）决定，`dev` 子命令在启动时把级别提到 `trace`。命令由 [`cmd/commands.go`](../cmd/commands.go) 分发：
 
 | 命令 | 当前行为 |
 | --- | --- |
@@ -65,7 +65,7 @@ flowchart TD
 系统初始化位于 [`init/init.go`](../init/init.go)：
 
 1. `config.Init()` 读取运行配置并加载 MIME 类型映射。
-2. `MessageInit()` 启动异步日志消息处理，并初始化 system/access/error/safe 日志。
+2. `logging.Open()` 打开 system/access/error/safe 四个 JSON 日志文件。
 3. `CertInit()` 初始化本地 CA；对于启用 SSL 的 server，如果默认证书文件不存在则尝试生成证书。
 4. 从磁盘加载代理缓存，并启动定期过期清理 goroutine。
 安全模块不在这里初始化。`cmd.RegisterServices` 把 `safe.Init` 交给 `core.Services.AfterListen`。`ServerInit()` 创建监听器之后调用它，重载成功后会再调用一次，按当前 location 重建限流计数。
@@ -80,7 +80,7 @@ flowchart TD
 
 ## 4. 从配置到监听器
 
-监听器由 [`modules/core/listener/listener.go`](../modules/core/listener/listener.go) 中的 `ListenWithCfg()` 创建，主要经过以下转换：
+监听器由 [`runtime/listener/listener.go`](../runtime/listener/listener.go) 中的 `ListenWithCfg()` 创建，主要经过以下转换：
 
 1. `SortByPort()` 按 `listen` 配置中的端口合并监听器，并根据 `ssl`、`h2`、`tcp` 标记确定监听类型。
 2. `processListenData()` 将每个 server/location 转成 `ListenCfg`。其中 `location.url` 会编译为正则表达式；代理地址、静态目录、证书、认证、安全和缓存配置也随之装入。
@@ -102,12 +102,12 @@ flowchart TD
 
 ### 5.2 HTTP/1.x 事件链
 
-普通连接处理位于 [`modules/core/events/events.go`](../modules/core/events/events.go)：
+普通连接处理位于 [`runtime/events/events.go`](../runtime/events/events.go)：
 
 1. 创建 `core.Event`，执行连接过滤器，包括安全限流/黑名单检查。
 2. 读取请求数据并解析 request line、headers 和 body。带 `Content-Length` 时按长度读完。`Transfer-Encoding: chunked` 按块解码，块错误或超过 `max_body_size` 时关闭连接。`HEAD` 在写出时保留头和 `Content-Length`，不写正文。
 3. `RequestFilter` 按 Host 查找虚拟主机，再按配置顺序逐个匹配 `location.url` 正则。命中后得到该 location 的 `ListenCfg`。
-4. 对命中的 location 执行安全计数、认证检查，并根据 `ListenCfg.Type` 从 `core.GRRCHT` 处理器表中取出解析、过滤和请求处理函数。
+4. 对命中的 location 执行安全计数、认证检查，并根据 `ListenCfg.Type` 从 `core.Handler` 处理器表中取出解析、过滤和请求处理函数。
 5. 执行模块过滤器，再进入对应请求处理器，生成或直接写出响应。
 6. 根据请求/响应的连接语义决定关闭连接或继续处理下一次请求。解析失败、读超时、请求体过大、写失败和上下文取消都会离开这个循环，并由同一次 `Close` 关掉连接。
 
@@ -120,11 +120,11 @@ flowchart TD
 | `rewrite` | `modules/rewrite` | 返回重定向响应 |
 | `devmod` | `modules/dev_mod` | 开发模块处理 |
 
-`cmd.RegisterHandlers` 在 `start` 和 `dev` 进入 `ServerInit` 之前，调用静态、代理、重写和开发模块的 `Register`，向 `core.GRRCHT` 登记处理器。WebSocket upgrade 在 HTTP 解析过滤阶段识别，之后由监听过滤器交给 WebSocket 模块。TCP 代理则按 TCP 类型的监听器在 HTTP 解析前分流。
+`cmd.RegisterHandlers` 在 `start` 和 `dev` 进入 `ServerInit` 之前，调用静态、代理、重写和开发模块的 `Register`，通过 `core.RegisterHandler` 登记处理器。WebSocket upgrade 在 HTTP 解析过滤阶段识别，之后由监听过滤器交给 WebSocket 模块。TCP 代理则按 TCP 类型的监听器在 HTTP 解析前分流。
 
 ### 5.3 HTTP/2 事件链
 
-H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_h2.go) 处理：读取 H2 connection preface，启动帧写循环并读取 SETTINGS/stream 帧。类型大于 `0x9` 的帧丢掉载荷后继续读。HPACK 索引非法时，该流发出 `RST_STREAM`（`COMPRESSION_ERROR`）并关闭。写出 DATA 时若对端窗口不够，写循环停止并关闭连接。每个 stream 在 callback 中转换成 `core.Event` 和 H2 request，再复用普通的 `EventHandler()` 完成 Host/Path 路由、安全检查、认证和模块分发。响应通过 HEADERS/DATA frame 写回；监听器关闭时尝试对 H2 连接做限时 graceful close。
+H2 连接由 [`runtime/events/events_h2.go`](../runtime/events/events_h2.go) 处理：读取 H2 connection preface，启动帧写循环并读取 SETTINGS/stream 帧。类型大于 `0x9` 的帧丢掉载荷后继续读。HPACK 索引非法时，该流发出 `RST_STREAM`（`COMPRESSION_ERROR`）并关闭。写出 DATA 时若对端窗口不够，写循环停止并关闭连接。每个 stream 在 callback 中转换成 `core.Event` 和 H2 request，再复用普通的 `EventHandler()` 完成 Host/Path 路由、安全检查、认证和模块分发。响应通过 HEADERS/DATA frame 写回；监听器关闭时尝试对 H2 连接做限时 graceful close。
 
 ## 6. 停止与配置重载
 
@@ -149,6 +149,6 @@ H2 连接由 [`modules/core/events/events_h2.go`](../modules/core/events/events_
 
 1. [`fast-https.go`](../fast-https.go) → [`cmd/commands.go`](../cmd/commands.go)：入口、命令与启动前检查。
 2. [`init/init.go`](../init/init.go) → [`config/config.go`](../config/config.go)：系统初始化和配置转换。
-3. [`modules/core/server/server.go`](../modules/core/server/server.go) → [`modules/core/listener/listener.go`](../modules/core/listener/listener.go)：服务生命周期和 socket 监听。
-4. [`modules/core/events/events.go`](../modules/core/events/events.go) → [`modules/core/filters/filters.go`](../modules/core/filters/filters.go) → [`modules/core/core.go`](../modules/core/core.go)：请求解析、路由与处理器注册。
-5. 按需继续阅读 `modules/static`、`modules/proxy`、`modules/rewrite`、`modules/safe` 和 `modules/core/events/events_h2.go`。
+3. [`runtime/server/server.go`](../runtime/server/server.go) → [`runtime/listener/listener.go`](../runtime/listener/listener.go)：服务生命周期和 socket 监听。
+4. [`runtime/events/events.go`](../runtime/events/events.go) → [`runtime/filters/filters.go`](../runtime/filters/filters.go) → [`core/event.go`](../core/event.go)：请求解析、路由与处理器注册。
+5. 按需继续阅读 `modules/static`、`modules/proxy`、`modules/rewrite`、`modules/safe` 和 `runtime/events/events_h2.go`。

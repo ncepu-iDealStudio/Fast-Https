@@ -21,7 +21,7 @@ Direct runtime dependencies, versions from `go.mod`:
 | `github.com/spf13/cobra` | v1.8.1 | CLI: `start`, `dev`, `stop`, `reload`, `install`, `uninstall`, `status` |
 | `github.com/spf13/viper` | v1.19.0 | Loads `config/fast-https.json` and `http.include` |
 | `github.com/kardianos/service` | v1.2.2 | Install and remove the OS service |
-| `github.com/sirupsen/logrus` | v1.9.3 | System, access, error, and safe logs under `logs/` |
+| `github.com/rs/zerolog` | v1.35.1 | Console plus system, access, error, and safe JSON logs under `logs/` |
 | `github.com/fufuok/chanx` | v1.2.2 | Log message queue |
 | `golang.org/x/time` | v0.5.0 | Connection rate limit |
 | `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` HTML cleanup for JSON bodies |
@@ -38,7 +38,7 @@ Direct runtime dependencies, versions from `go.mod`:
 
 ## Software Architecture
 
-The server accepts connections, parses requests, and writes responses itself. `fast-https.go` is the entry point, `cmd` dispatches subcommands, `config` loads JSON, `init` prepares certificates and caches, and `modules/core` owns listeners and protocol handling. Each configured port runs its own accept loop, then hands the connection to the HTTP/1.1 event loop or the HTTP/2 path.
+The server accepts connections, parses requests, and writes responses itself. `fast-https.go` is the entry point, `cmd` dispatches subcommands, `config` loads JSON, `init` prepares certificates and caches, and `core` owns listeners and protocol handling. Each configured port runs its own accept loop, then hands the connection to the HTTP/1.1 event loop or the HTTP/2 path.
 
 `location.type` selects the handler. `start` and `dev` call `cmd.RegisterHandlers` before listening, which registers the static, proxy, rewrite, and dev modules, and `cmd.RegisterServices`, which installs the blacklist, rate limit, authentication, TCP proxy, and WebSocket hooks.
 
@@ -50,8 +50,8 @@ The server accepts connections, parses requests, and writes responses itself. `f
 | `rewrite` | `modules/rewrite` | 301 with the configured `Location` |
 | `devmod` | `modules/dev_mod` | Fixed development response |
 | `listen` contains `tcp` | `modules/proxy_tcp` | Bidirectional TCP proxy, no HTTP parse |
-| `listen` contains `ssl` | `modules/core/listener` | TLS |
-| `listen` contains `h2` | `modules/core/h2` | HTTP/2 |
+| `listen` contains `ssl` | `runtime/listener` | TLS |
+| `listen` contains `h2` | `runtime/h2` | HTTP/2 |
 
 A request also passes connection filters (blacklist and rate limit in `modules/safe`), optional Basic auth (`modules/auth`), and access counting. Static and proxy paths run the application firewall: `xss` returns 403 after a `<script` tag is removed from a JSON object or array; `sql` is registered and does not intercept.
 
@@ -83,22 +83,28 @@ fast-https/
 ├── init/
 │   ├── init.go                   # Config, logs, certificates, cache
 │   └── autocert.go               # Self-signed root and site certificates
-├── modules/
-│   ├── core/                     # Listeners, events, HTTP/1.1, HTTP/2, request and response
-│   │   ├── server/               # Start, signals, hot reload
-│   │   ├── listener/             # Listeners from the listen field
-│   │   ├── events/               # Connection and request dispatch
-│   │   ├── request/  response/
-│   │   ├── filters/
-│   │   ├── h2/                   # HTTP/2 frames, streams, HPACK
-│   │   ├── dynlog/
-│   │   ├── engine/               # Unused: master/slave registry and heartbeat
-│   │   └── routine_pool/         # Unused: pool import in server stays commented out
+├── core/                         # Contracts: Event, handler registry, lifecycle hooks
+│   ├── event.go                  # Event / RRcircle / RRcircleHandler
+│   ├── registry.go               # Map registry: RegisterHandler / Handler
+│   ├── services.go               # Connect, listen, auth and shutdown hooks
+│   ├── handlers.go               # Missing-handler check and type names
+│   └── commands.go               # Default command parser
+├── runtime/                      # Data-plane runtime; must not import modules
+│   ├── server/                   # Start, signals, hot reload
+│   ├── listener/                 # Listeners from the listen field
+│   ├── events/                   # Connection and request dispatch
+│   ├── request/  response/
+│   ├── filters/
+│   ├── h2/                       # HTTP/2 frames, streams, HPACK
+│   └── dynlog/                   # Access-log field assembly
+├── modules/                      # Pluggable features
 │   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
 │   ├── auth/  safe/  cache/  compress/  appfirewall/
 │   └── dev_mod/
+├── infra/                        # Infrastructure; must not depend on config
+│   ├── logging/                  # Single log exit: console plus four JSON files
+│   └── files/  color/  timeutil/
 ├── output/                       # Logo and startup banners
-├── utils/                        # Logger, messages, files, color, RSA
 ├── monitor/                      # Windows tray program (separate main)
 ├── httpdoc/root/                 # Default static site and self-signed root certificate
 ├── tests/                        # Automated tests; scripts/ and single/ are manual helpers, not go test
@@ -113,10 +119,10 @@ fast-https/
 
 ### Service Startup
 
-1. `fast-https.go` sets the log level to 4 and runs `cmd.RootCmd()`. With no subcommand, the process starts as `start`.
+1. `fast-https.go` runs `cmd.RootCmd()`. With no subcommand, the process starts as `start`. Console log level defaults to `info` in `infra/logging`.
 2. `start` and `dev` pre-check `config/fast-https.json` and its includes, scan ports, and refuse to start when a live pid is already recorded.
 3. After the logo, `init.InitSystem()` loads config and `mime.json`, starts the message logger, creates or loads certificates, and restores the disk cache and its expiry loop.
-4. Outside a container, Linux amd64 `start` forks without changing the working directory and writes the child pid to `fast-https.pid`. Windows, `FASTHTTPS_FOREGROUND=1`, and container marker files keep the process in the foreground and write the same pid file. `dev` does not daemonize, raises the log level to 6, and serves pprof on `0.0.0.0:10000`.
+4. Outside a container, Linux amd64 `start` forks without changing the working directory and writes the child pid to `fast-https.pid`. Windows, `FASTHTTPS_FOREGROUND=1`, and container marker files keep the process in the foreground and write the same pid file. `dev` does not daemonize, raises the console log level to `trace`, and serves pprof on `0.0.0.0:10000`.
 5. `server.ServerInit()` installs the signal loop, opens listeners from config, initializes the safe module, and registers dynamic logs.
 6. Each port accepts in its own goroutine. A `listen` value that contains `h2` uses HTTP/2; every other listener uses the HTTP/1.1 event loop.
 
@@ -150,7 +156,7 @@ Reload rereads configuration, hot-updates listeners that stay up, closes removed
 # Foreground or daemon start (no args is the same as start)
 go run fast-https.go start
 
-# Development mode: log level 6 and pprof on port 10000
+# Development mode: console log level trace and pprof on port 10000
 go run fast-https.go dev
 
 go run fast-https.go stop

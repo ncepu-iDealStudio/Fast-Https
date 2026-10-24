@@ -53,7 +53,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | HTTP/3 | `http3` / QUIC | 没有 | 暂缓 |
 | 二进制热升级 | 新可执行文件接手监听，旧进程退出 | 能热更新配置和同一端口的证书，不能热替换二进制 | 暂缓 |
 | 自动重载 | 有人用外部工具监视文件 | `watchConfigChanges` 没有调用方 | 已决定不做。继续手工重载 |
-| 多进程 worker | `worker_processes`、`accept_mutex`、共享内存 | 每个连接一个协程。`modules/core/engine` 的 master/slave 不在启动路径上 | 不做 |
+| 多进程 worker | `worker_processes`、`accept_mutex`、共享内存 | 每个连接一个协程。`core/engine` 的 master/slave 不在启动路径上 | 不做 |
 | FastCGI、uWSGI、SCGI、gRPC | 把请求交给应用进程或 gRPC 后端 | 没有。HTTP 反向代理可以转到本机 HTTP 端口 | 不做 |
 | `auth_request` | 用子请求问认证服务 | 只有配置文件里的 Basic 口令 | 不做 |
 | 配置变量语言 | `set`、`map`、`if`、`geo` | JSON 字段，没有表达式 | 不做 |
