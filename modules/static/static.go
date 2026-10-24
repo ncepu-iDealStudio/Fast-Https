@@ -152,15 +152,16 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	name := file.Name()
 	payloadLen := file_size
 	var payload []byte
+	encoding := encodingWanted(lisdata.Zip, acceptEncoding(ev))
 	stream := true
-	if gzipWanted(lisdata.Zip, acceptEncoding(ev)) {
+	if encoding != "" {
 		raw, err := io.ReadAll(file)
 		file.Close()
 		file = nil
 		if err != nil {
 			return -10
 		}
-		compressed, err := compress.CompressBytesGzip(raw)
+		compressed, err := compress.CompressBytes(raw, encoding)
 		if err != nil {
 			return -10
 		}
@@ -173,7 +174,12 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	rr.Res.SetHeader("Content-Type", getContentType(name))
 	rr.Res.SetHeader("Content-Length", strconv.Itoa(int(payloadLen)))
 	if !stream {
-		rr.Res.SetHeader("Content-Encoding", "gzip")
+		rr.Res.SetHeader("Content-Encoding", encoding)
+	}
+	if lisdata.Zip != config.ZIP_NONE {
+		// 响应随 Accept-Encoding 变化，告知下游缓存不要把压缩结果
+		// 串给不支持该编码的客户端
+		rr.Res.SetHeader("Vary", "Accept-Encoding")
 	}
 	rr.Res.SetHeader("Connection", connection)
 
@@ -276,11 +282,29 @@ func getContentType(path string) string {
  *************************************
  */
 
-func gzipWanted(zip uint16, accept string) bool {
-	if zip != config.ZIP_GZIP && zip != config.ZIP_GZIP_BR {
-		return false
+// encodingWanted 按配置与客户端 Accept-Encoding 协商响应压缩编码。
+// ZIP_GZIP_BR 两种都配置时优先选压缩率更好的 br，客户端不认再回退
+// gzip；q 值只判断是否接受（q>0），不做加权择优。
+// 返回空串表示不压缩。
+func encodingWanted(zip uint16, accept string) string {
+	switch zip {
+	case config.ZIP_GZIP:
+		if request.HasToken(accept, "gzip") {
+			return "gzip"
+		}
+	case config.ZIP_BR:
+		if request.HasToken(accept, "br") {
+			return "br"
+		}
+	case config.ZIP_GZIP_BR:
+		if request.HasToken(accept, "br") {
+			return "br"
+		}
+		if request.HasToken(accept, "gzip") {
+			return "gzip"
+		}
 	}
-	return request.HasToken(accept, "gzip")
+	return ""
 }
 
 func acceptEncoding(ev *core.Event) string {

@@ -22,6 +22,7 @@ Direct runtime dependencies, versions from `go.mod`:
 | `github.com/rs/zerolog` | v1.35.1 | Console plus system, access, error, and safe JSON logs under `logs/` |
 | `golang.org/x/net` | v0.61.0 | HTTP/2 stack (`http2.Server` / `Transport` / HPACK) |
 | `github.com/klauspost/compress` | v1.17.2 | gzip compression (drop-in stdlib replacement, faster) |
+| `github.com/andybalholm/brotli` | v1.2.7 | brotli compression (`zip: ["br"]`, `Content-Encoding: br`) |
 | `golang.org/x/time` | v0.16.0 | Connection rate limit |
 | `github.com/microcosm-cc/bluemonday` | v1.0.27 | `xss` HTML cleanup for JSON bodies |
 | `github.com/kardianos/service` | v1.3.0 | Install and remove the OS service |

@@ -24,6 +24,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `github.com/rs/zerolog` | v1.35.1 | 控制台与 `logs/` 下的系统、访问、错误、安全 JSON 日志 |
 | `golang.org/x/net` | v0.61.0 | HTTP/2 协议栈（`http2.Server` / `Transport` / HPACK） |
 | `github.com/klauspost/compress` | v1.17.2 | gzip 压缩（标准库 API 平替，速度更快） |
+| `github.com/andybalholm/brotli` | v1.2.7 | brotli 压缩（`zip: ["br"]`，`Content-Encoding: br`） |
 | `golang.org/x/time` | v0.16.0 | 连接限流 |
 | `github.com/microcosm-cc/bluemonday` | v1.0.27 | `xss` 规则清理 JSON 中的 HTML |
 | `github.com/kardianos/service` | v1.3.0 | 安装、卸载系统服务 |
