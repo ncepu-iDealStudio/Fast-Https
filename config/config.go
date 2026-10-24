@@ -54,7 +54,8 @@ type Cache struct {
 	Path    string
 	Valid   []string
 	Key     string
-	MaxSize int // 1023MB
+	Methods []string // 允许读写的请求方法，留空等价于 GET 与 HEAD
+	MaxSize int      // 1023MB
 }
 
 type PathAuth struct {
@@ -640,6 +641,8 @@ func processHttpServerPath(v *viper.Viper, pathPrefix string, locationKey int) P
 			Valid: v.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
 				pathPrefix, locationKey)),
 			Key: v.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
+				pathPrefix, locationKey)),
+			Methods: v.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.methods",
 				pathPrefix, locationKey)),
 			MaxSize: v.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
 				pathPrefix, locationKey)),

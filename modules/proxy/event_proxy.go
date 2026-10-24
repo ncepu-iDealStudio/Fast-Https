@@ -374,7 +374,7 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 
 	if proxy.ProxyNeedCache {
 		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid,
-			cfg.ProxyCache.Path, cfg.ProxyCache.MaxSize)
+			cfg.ProxyCache.Path, cfg.ProxyCache.Methods, cfg.ProxyCache.MaxSize)
 		proxy.proxyNeedCache(proxyCache, req_data, ev)
 	} else {
 		proxy.proxyNoCache(req_data, ev)

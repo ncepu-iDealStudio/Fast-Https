@@ -10,22 +10,43 @@ import (
 	"time"
 )
 
+// defaultCacheMethods 是未配置 proxy_cache.methods 时允许读写缓存的方法。
+// 只放行幂等方法：其余方法可能改变上游状态，缓存它们的响应会造成数据错乱。
+var defaultCacheMethods = []string{"GET", "HEAD"}
+
 // ProxyCache 保存某个 location 的 proxy_cache 配置。
 type ProxyCache struct {
 	key     string
 	valid   []string
 	path    string
+	methods []string
 	maxSize int
 }
 
 // NewProxyCache 构造一个 location 的缓存策略。
-func NewProxyCache(key string, valid []string, path string, maxSize int) *ProxyCache {
+// methods 为空时使用 defaultCacheMethods。
+func NewProxyCache(key string, valid []string, path string, methods []string, maxSize int) *ProxyCache {
 	return &ProxyCache{
 		key:     key,
 		valid:   valid,
 		path:    path,
+		methods: methods,
 		maxSize: maxSize,
 	}
+}
+
+// methodAllowed 判断该请求方法是否允许读写缓存。
+func (pc *ProxyCache) methodAllowed(method string) bool {
+	methods := pc.methods
+	if len(methods) == 0 {
+		methods = defaultCacheMethods
+	}
+	for _, allowed := range methods {
+		if strings.EqualFold(strings.TrimSpace(allowed), method) {
+			return true
+		}
+	}
+	return false
 }
 
 // CacheKey 返回该请求的缓存键；未配置 key 或 path 时返回空串。
@@ -64,6 +85,9 @@ func (pc *ProxyCache) ExpireFor(status int) int {
 // Serve 命中缓存时把条目还原进 ev.RR.Res，并返回状态码。
 // 未命中、客户端要求不走缓存、或者键为空都返回 false。
 func (pc *ProxyCache) Serve(ev *core.Event) (int, bool) {
+	if !pc.methodAllowed(ev.RR.Req.Method) {
+		return 0, false
+	}
 	if pc.clientDisablesCache(ev) {
 		return 0, false
 	}
@@ -81,6 +105,9 @@ func (pc *ProxyCache) Serve(ev *core.Event) (int, bool) {
 
 // Store 把当前响应写入缓存。status 为上游返回的状态码。
 func (pc *ProxyCache) Store(ev *core.Event, status int) {
+	if !pc.methodAllowed(ev.RR.Req.Method) {
+		return
+	}
 	key := pc.CacheKey(ev)
 	if key == "" || ev.RR.Res == nil {
 		return
@@ -103,8 +130,9 @@ func (pc *ProxyCache) clientDisablesCache(ev *core.Event) bool {
 	return strings.Contains(directive, "no-cache") || strings.Contains(directive, "no-store")
 }
 
-// hopByHopHeaders 是回放缓存响应时必须剔除的头。
-var hopByHopHeaders = map[string]struct{}{
+// droppedHeaders 是回放缓存响应时必须剔除的头。
+var droppedHeaders = map[string]struct{}{
+	// 逐跳头：只对当次连接有效，不能存也不能回放。
 	"Connection":          {},
 	"Keep-Alive":          {},
 	"Transfer-Encoding":   {},
@@ -113,7 +141,9 @@ var hopByHopHeaders = map[string]struct{}{
 	"Proxy-Authorization": {},
 	"Te":                  {},
 	"Trailer":             {},
-	// Date 与 Content-Length 在回放时按当前时间与缓存体长度重写。
+	// 逐用户头：回放给其他客户端会造成会话串号。
+	"Set-Cookie": {},
+	// 回放时按当前时间与缓存体长度重写。
 	"Date":           {},
 	"Content-Length": {},
 }
@@ -122,7 +152,7 @@ var hopByHopHeaders = map[string]struct{}{
 func cacheableHeaders(headers map[string]string) map[string]string {
 	out := make(map[string]string, len(headers))
 	for key, value := range headers {
-		if _, skip := hopByHopHeaders[key]; skip {
+		if _, skip := droppedHeaders[key]; skip {
 			continue
 		}
 		out[key] = value

@@ -1,9 +1,31 @@
 package proxy
 
 import (
+	"fast-https/core"
 	"fast-https/modules/cache"
+	"fast-https/runtime/request"
+	"fast-https/runtime/response"
 	"testing"
 )
+
+func TestStoreSkipsNonCacheableMethod(t *testing.T) {
+	dir := t.TempDir()
+	pc := NewProxyCache("$request_uri", []string{"any:1h"}, dir, nil, 0)
+	ev := &core.Event{RR: core.RRcircle{
+		Req: &request.Request{Method: "POST", Headers: map[string]string{}},
+		Res: &response.Response{
+			FirstLine: "HTTP/1.1 200 OK",
+			Headers:   map[string]string{},
+			Body:      []byte("created"),
+		},
+	}}
+
+	pc.Store(ev, 200)
+
+	if _, ok := cache.GCacheContainer.ReadCache(pc.CacheKey(ev)); ok {
+		t.Error("POST response must not be cached by default")
+	}
+}
 
 func TestExpireFor(t *testing.T) {
 	cases := []struct {
@@ -21,7 +43,7 @@ func TestExpireFor(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			pc := NewProxyCache("$host$request_uri", c.valid, "./cache", 0)
+			pc := NewProxyCache("$host$request_uri", c.valid, "./cache", nil, 0)
 			if got := pc.ExpireFor(c.status); got != c.want {
 				t.Errorf("ExpireFor(%d) = %d, want %d", c.status, got, c.want)
 			}
@@ -29,7 +51,34 @@ func TestExpireFor(t *testing.T) {
 	}
 }
 
-func TestCacheableHeadersDropsHopByHop(t *testing.T) {
+func TestMethodAllowed(t *testing.T) {
+	cases := []struct {
+		name    string
+		methods []string
+		method  string
+		want    bool
+	}{
+		{"default allows GET", nil, "GET", true},
+		{"default allows HEAD", nil, "HEAD", true},
+		{"default matches case-insensitively", nil, "get", true},
+		{"default rejects POST", nil, "POST", false},
+		{"default rejects PUT", nil, "PUT", false},
+		{"default rejects DELETE", nil, "DELETE", false},
+		{"configured allows POST", []string{"GET", "POST"}, "POST", true},
+		{"configured still rejects PUT", []string{"GET", "POST"}, "PUT", false},
+		{"configured tolerates spaces", []string{" get "}, "GET", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			pc := NewProxyCache("k", nil, "./cache", c.methods, 0)
+			if got := pc.methodAllowed(c.method); got != c.want {
+				t.Errorf("methodAllowed(%q) = %v, want %v", c.method, got, c.want)
+			}
+		})
+	}
+}
+
+func TestCacheableHeadersDropsHopByHopAndSetCookie(t *testing.T) {
 	headers := map[string]string{
 		"Content-Type":      "text/html",
 		"Connection":        "keep-alive",
@@ -37,6 +86,7 @@ func TestCacheableHeadersDropsHopByHop(t *testing.T) {
 		"Date":              "yesterday",
 		"Content-Length":    "3",
 		"ETag":              `"abc"`,
+		"Set-Cookie":        "session=abc123; HttpOnly",
 	}
 	got := cacheableHeaders(headers)
 
@@ -45,7 +95,7 @@ func TestCacheableHeadersDropsHopByHop(t *testing.T) {
 			t.Errorf("%s should be kept, got %q", key, got[key])
 		}
 	}
-	for _, key := range []string{"Connection", "Transfer-Encoding", "Date", "Content-Length"} {
+	for _, key := range []string{"Connection", "Transfer-Encoding", "Date", "Content-Length", "Set-Cookie"} {
 		if _, ok := got[key]; ok {
 			t.Errorf("%s should be dropped", key)
 		}
