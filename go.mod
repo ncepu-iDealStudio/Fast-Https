@@ -13,15 +13,14 @@ require (
 	github.com/chenhg5/collection v0.0.0-20200925143926-f403b87088f9
 	github.com/emirpasic/gods v1.18.1
 	github.com/fatih/color v1.17.0
-	github.com/fufuok/chanx v1.2.2
 	github.com/getlantern/systray v1.2.2
 	github.com/kardianos/service v1.2.2
 	github.com/microcosm-cc/bluemonday v1.0.26
-	github.com/sirupsen/logrus v1.9.3
+	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	golang.org/x/sys v0.21.0
+	golang.org/x/sys v0.29.0
 	golang.org/x/time v0.5.0
 )
 
@@ -40,7 +39,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
