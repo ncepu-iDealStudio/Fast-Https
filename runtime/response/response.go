@@ -3,6 +3,7 @@ package response
 
 import (
 	"fmt"
+	"net/textproto"
 	"sort"
 	"strings"
 )
@@ -24,8 +25,9 @@ var (
 	ResponseOk       = &ResponError{0, "Response OK"}
 	None             = &ResponError{1, "None"}
 	UnknowInvalid    = &ResponError{2, "Unknow invalid"}
-	FirstLineInvalid = &ResponError{3, "First line invalid"}
+	FirstLineInvalid = &ResponError{3, "Invalid first line"}
 	MethodInvalid    = &ResponError{4, "Method invalid"}
+	InvalidHeaders   = &ResponError{6, "Invalid headers"}
 )
 
 func (e *ResponError) Error() string {
@@ -90,34 +92,39 @@ func (r *Response) GenerateHeaderBytes() []byte {
 	return res
 }
 
+// HttpResParse 解析上游响应。非法头返回对应 *ResponError；已解析出的头保留，
+// 缺少终止空行时 Body 保持原值。头名统一 canonical 化供后续读取。
 func (r *Response) HttpResParse(request string) error {
 
 	if request == "" {
 		return None
 	}
 	requestLine := strings.Split(request, "\r\n")
-	if requestLine == nil {
-		return UnknowInvalid // invalid request
-	}
 	parts := strings.Split(requestLine[0], " ")
-	if parts == nil || len(parts) < 3 {
+	if len(parts) < 3 {
 		return FirstLineInvalid // invalid first line
 	}
 	r.FirstLine = parts[0] + " " + parts[1] + " " + parts[2]
 
-	lines := strings.Split(request, "\r\n")[1:]
-	for _, line := range lines {
+	for _, line := range requestLine[1:] {
 		if line == "" {
 			break
 		}
-		parts := strings.SplitN(line, ":", 2)
-		key := strings.TrimSpace(parts[0])
-		key = strings.ToUpper(key[:1]) + key[1:]
-		value := strings.TrimSpace(parts[1])
+		kv := strings.SplitN(line, ":", 2)
+		if len(kv) == 1 { // 无 ":" 的行不合法
+			return InvalidHeaders
+		}
+		key := strings.TrimSpace(kv[0])
+		if key == "" { // ": value" 这样的行不合法
+			return InvalidHeaders
+		}
+		key = textproto.CanonicalMIMEHeaderKey(key)
+		value := strings.TrimSpace(kv[1])
 		r.Headers[key] = value
 	}
-	i := strings.Index(string(request), "\r\n\r\n")
-	r.Body = []byte(request)[i+4:]
+	if i := strings.Index(request, "\r\n\r\n"); i != -1 {
+		r.Body = []byte(request[i+4:])
+	}
 	return ResponseOk // valid
 }
 
