@@ -121,14 +121,14 @@ func openLogSet(path string) ([]*os.File, error) {
 		opened = append(opened, file)
 	}
 
-	l := fileLogger(opened[0], KindSystem)
-	systemLog.Store(&l)
-	l = fileLogger(opened[1], KindAccess)
-	accessLog.Store(&l)
-	l = fileLogger(opened[2], KindError)
-	errorLog.Store(&l)
-	l = fileLogger(opened[3], KindSafe)
-	safeLog.Store(&l)
+	sys := fileLogger(opened[0], KindSystem)
+	systemLog.Store(&sys)
+	acc := fileLogger(opened[1], KindAccess)
+	accessLog.Store(&acc)
+	errL := fileLogger(opened[2], KindError)
+	errorLog.Store(&errL)
+	saf := fileLogger(opened[3], KindSafe)
+	safeLog.Store(&saf)
 	return opened, nil
 }
 
