@@ -254,16 +254,23 @@ README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) �
 - 回归：`config/reload_test.go`、`config/paths_test.go`、`tests/unit_test/runtime/listener/reload_common_test.go`、reload E2E（`FASTHTTPS_E2E_RELOAD=1`）。
 - 已同步 [iteration-plan.md](iteration-plan.md) 第 2 节和 R4。
 
-#### 4b：完整配置快照（按需，暂不排期）
+#### 4b：完整配置快照（快照化已完成，schema 拆包未做）
 
-只在出现以下需求之一时启动：listener 需要整体替换而不是原地修改 `Cfg`/`HostMap`；需要多份配置并存（如测试并行）；全局配置读取导致新的正确性问题。
+**状态：快照化已完成（2026-10-24）。** 触发条件是第三项：全局配置读取产生了实际的正确性问题——reload 协程与在途请求之间对 `GConfig`、`GContentTypeMap`、`Listener.Cfg/HostMap`、`GLogMap`、四路文件日志器的无同步读写。
 
-- 定义运行时配置快照，监听器和 handler 显式持有所需配置，逐个迁移对 `config.GConfig`、`GContentTypeMap` 的直接读取。
-- 拆分配置 schema、文件加载/校验、路径解析和默认值职责；按责任拆包，不为每个结构体创建小 package。
-- 保留安装包布局、`-tags=rpm` 路径、JSON 格式和现有 CLI 行为。
-- reload 构造完整的新快照并验证，再切换配置和 listener。
+已完成的部分：
 
-验收：listener 和 handler 的运行行为不再依赖进程级全局配置；reload 成功是整份配置切换，失败保留整份旧状态；Windows 与 Linux 分别验证工作目录和资源定位。
+- `config.GConfig`/`GContentTypeMap` 改为 `atomic.Pointer` 快照，读取端经 `config.Current()`/`config.MIME()` 访问，`Store` 导出供测试保存恢复。`reload_window_test.go` 去掉 `!race` 构建标签。
+- `Listener` 改为指针语义（`[]*Listener`），增加 `cur atomic.Pointer` 配置快照；请求路径经 `Hosts()`/`Cfgs()` 读取，reload 热更新经 `updateCfg` 整体替换。common 端口热更新收拢到 `updateCommonToNewLinster` 一处；顺带修复 listen 类型变化端口 reload 后新监听器从未启动的问题。
+- 访问日志字段表（`dynlog`）与四路文件日志器（`logging.Open`）同样 atomic 整体替换；`LogRegister` 不再回写配置快照。
+- 测试：`runtime/listener/hot_update_race_test.go`（写端反复热更新、读端并发路由）与 `config` 窗口测试均在 `-race` 下通过；reload E2E（`FASTHTTPS_E2E_RELOAD=1`）通过。
+
+未做的部分（原 4b 范围内，按需另行启动）：
+
+- 拆分配置 schema、文件加载/校验、路径解析和默认值职责；按责任拆包。
+- 监听器和 handler 显式持有所需配置（当前仍经 `config.Current()` 主动读取，属于"快照化的全局读取"而不是彻底的依赖注入）。
+
+保留安装包布局、`-tags=rpm` 路径、JSON 格式和现有 CLI 行为。reload 构造完整的新快照并验证，再整体切换；失败保留整份旧状态。
 
 ### 阶段 5：按证据收拢目录和可执行入口
 
@@ -320,7 +327,7 @@ README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) �
 | — | 阶段 3 第 3 步：过滤与安全注入 | 核心层不再依赖功能包 | — | 已完成（2026-10-16） |
 | — | 阶段 3 第 4 步：删除遗留注册表 | 只剩一套注册机制 | — | 已完成（2026-10-16） |
 | — | 阶段 2：测试位置约定 | 新测试有固定归属 | — | 已完成（2026-10-16） |
-| — | 阶段 4b：完整配置快照 | 去除全局配置依赖 | 较大 | 按需 |
+| — | 阶段 4b：完整配置快照 | 去除全局配置依赖 | 较大 | 快照化已完成（2026-10-24），schema 拆包按需 |
 | — | 阶段 5：目录与入口搬迁 | 统一发行布局 | 中 | 按需 |
 
 阶段 4a 与阶段 3 互不依赖，修的是正确性问题，因此排在阶段 3 第 2 步之前。

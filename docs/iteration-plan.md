@@ -28,6 +28,7 @@
 - `check` 只校验配置，不监听、不写 pid。`HEAD` 不写正文。`Transfer-Encoding: chunked` 按块读取。静态 gzip 只在客户端接受时压缩正文。`error_page.not_found` 和 `error_page.proxy` 可选，文件不可读时仍用默认响应
 - `SIGTERM`、`SIGQUIT` 停止接受并最多等待 5 秒。`stop` 仍发送 `Kill`
 - 重载时新配置和 MIME 表先在局部建好，再一次性替换 `GConfig`、`GContentTypeMap`，处理中的请求不会读到清空的配置或写入中的 MIME 表。限流计数表整体替换，按 location `ID` 定位；`ID` 不在新表中时这次请求不计数（2026-10-16，架构收敛阶段 4a）
+- 配置、MIME 表、监听器路由表、访问日志字段表、四路文件日志器全部改为 atomic 快照：reload 校验通过后整体替换，读取端要么看到完整的旧状态、要么看到完整的新状态，与 reload 协程之间没有数据竞争。读取端经 `config.Current()`/`config.MIME()`/`Listener.Hosts()`/`Listener.Cfgs()` 访问，直接读全局字段的做法已移除（2026-10-24，架构收敛阶段 4b 快照化部分；`-race` 下验证）
 
 ## 3. 分级
 
