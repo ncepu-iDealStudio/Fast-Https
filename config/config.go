@@ -4,7 +4,6 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"fast-https/infra/files"
 	"fast-https/infra/logging"
 	"fmt"
 	"os"
@@ -470,7 +469,7 @@ func asSlice(v interface{}) ([]interface{}, bool) {
 
 // content types of server
 func loadContentTypes() (map[string]string, error) {
-	confBytes, err := files.ReadFile(MIME_FILE_PATH)
+	confBytes, err := os.ReadFile(MIME_FILE_PATH)
 	if err != nil {
 		logging.ConsoleLog.Fatal().Msg("can't open mime.types file")
 		return nil, errors.New("can't open mime.types file")
