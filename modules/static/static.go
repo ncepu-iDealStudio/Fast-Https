@@ -79,7 +79,10 @@ func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool
 
 	if file == nil { // Not Found
 		for _, item := range try.Files { // Find files in default Index array
-			p := path + item
+			// Join 而不是裸拼接：realPath 经 Clean 后目录请求不再带
+			// 结尾的 "/"，靠请求路径的结尾斜杠拼索引文件会拼出
+			// "rootindex.html" 这样的路径
+			p := filepath.Join(path, item)
 			file, file_size = fileFdSize(p)
 			if file != nil {
 				found = true
