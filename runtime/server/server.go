@@ -3,6 +3,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fast-https/config"
 	"fast-https/core"
 	"fast-https/infra/logging"
@@ -12,6 +13,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"syscall"
@@ -180,6 +182,12 @@ func (s *Server) serveConn(lis *listener.Listener, conn net.Conn, ctx context.Co
 	s.mu.Unlock()
 	go func() {
 		defer s.connWg.Done()
+		// 单个连接内模块代码的 panic 只能带走这条连接，不能带走进程。
+		defer func() {
+			if r := recover(); r != nil {
+				logging.ConsoleLog.Error().Msgf("connection handler panic: %v\n%s", r, debug.Stack())
+			}
+		}()
 		if lis.LisType == 10 {
 			events.H2HandleEvent(lis, conn, ctx)
 		} else {
@@ -242,10 +250,13 @@ out:
 			conn, err := listener1.Lfd.Accept()
 			logging.ConsoleLog.Debug().Msgf("listener ptr %p, conn ptr %p", listener1, conn)
 			if err != nil {
-				if ctx.Err() == nil {
-					logging.ConsoleLog.Debug().Msgf("Error accepting connection: %v", err)
+				if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
+					break out
 				}
-				break out
+				// 瞬时错误（如 fd 用尽）退避后继续 accept，端口不能因一次错误停摆。
+				logging.ConsoleLog.Debug().Msgf("Error accepting connection: %v", err)
+				time.Sleep(10 * time.Millisecond)
+				continue
 			}
 
 			s.serveConn(listener1, conn, ctx)
