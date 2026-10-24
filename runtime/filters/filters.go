@@ -37,7 +37,7 @@ func GHttpParseFilter(rr *core.RRcircle) bool {
 }
 
 func GFilterHostPath(ev *core.Event) (*listener.ListenCfg, bool) {
-	hosts := ev.LisInfo.HostMap[ev.RR.Req.GetHost()]
+	hosts := ev.LisInfo.Hosts()[ev.RR.Req.GetHost()]
 	// fmt.Println(hosts)
 	var cfg listener.ListenCfg
 
@@ -53,7 +53,7 @@ func GFilterHostPath(ev *core.Event) (*listener.ListenCfg, bool) {
 		}
 	}
 
-	hosts2 := ev.LisInfo.HostMap[config.DEFAULT_PORT]
+	hosts2 := ev.LisInfo.Hosts()[config.DEFAULT_PORT]
 	for _, cfg = range hosts2 {
 		// we can compile this when load config
 		res := cfg.PathRe.FindStringIndex(ev.RR.Req.Path)

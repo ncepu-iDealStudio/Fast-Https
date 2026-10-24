@@ -10,6 +10,7 @@ import (
 	"net"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/chenhg5/collection"
@@ -54,8 +55,18 @@ type ListenCfg struct {
 	ErrorProxy    string
 }
 
+// listenerSnapshot 是请求路径读取的配置快照。
+// reload 热更新时整体替换快照指针，在途连接读到的永远是完整的
+// 新配置或完整的旧配置，而不是正在被改写的字段。
+type listenerSnapshot struct {
+	HostMap map[string][]ListenCfg
+	Cfg     []ListenCfg
+}
+
 // one listen port arg
 type Listener struct {
+	// HostMap/Cfg 是构造期工作字段，由启动与 reload 协程填写；
+	// 请求路径读取请使用 Hosts()/Cfgs()，它们走发布的快照。
 	HostMap map[string]([]ListenCfg)
 	Cfg     []ListenCfg
 	Lfd     net.Listener
@@ -66,9 +77,40 @@ type Listener struct {
 	Cancel context.CancelFunc
 
 	certs *certSet
+	cur   atomic.Pointer[listenerSnapshot]
 }
 
-var GLisinfos []Listener
+// publish 把构造好的 Cfg/HostMap 发布为请求路径可见的快照。
+func (l *Listener) publish() {
+	l.cur.Store(&listenerSnapshot{HostMap: l.HostMap, Cfg: l.Cfg})
+}
+
+// updateCfg 热更新监听器配置并发布给请求路径。
+// 只允许启动与 reload 协程调用；在途连接通过快照读到完整的新配置。
+func (l *Listener) updateCfg(cfg []ListenCfg, hostMap map[string][]ListenCfg) {
+	l.Cfg = cfg
+	l.HostMap = hostMap
+	l.publish()
+}
+
+// Hosts 返回请求路由用的 server_name -> locations 映射。
+// 手工构造、未经 publish 的 Listener（测试场景）回退读 HostMap 字段。
+func (l *Listener) Hosts() map[string][]ListenCfg {
+	if s := l.cur.Load(); s != nil {
+		return s.HostMap
+	}
+	return l.HostMap
+}
+
+// Cfgs 返回该端口全部 location 配置。回退规则同 Hosts。
+func (l *Listener) Cfgs() []ListenCfg {
+	if s := l.cur.Load(); s != nil {
+		return s.Cfg
+	}
+	return l.Cfg
+}
+
+var GLisinfos []*Listener
 
 func FindPorts() []string {
 	var Ports []string
@@ -96,19 +138,18 @@ func FindOldPorts() []string {
 
 // sort confgure form "listen"
 // fill port and listen type
-func SortByPort(lisInfos *[]Listener) {
+func SortByPort(lisInfos *[]*Listener) {
 	var Ports []string
-	lis_temp := Listener{}
 	for _, each := range config.Current().Servers {
 
 		arr := strings.Split(each.Listen, " ")
 		if !collection.Collect(Ports).Contains(arr[0]) {
 			Ports = append(Ports, arr[0])
 
-			lis_temp.Cfg = nil
-			lis_temp.Lfd = nil
-			lis_temp.HostMap = make(map[string][]ListenCfg)
-			// lis_temp.Limit = each.Limit
+			lis_temp := &Listener{
+				HostMap: make(map[string][]ListenCfg),
+				Port:    arr[0],
+			}
 			if strings.Contains(each.Listen, "ssl") {
 				lis_temp.LisType = 1 // ssl
 				if strings.Contains(each.Listen, "h2") {
@@ -119,26 +160,23 @@ func SortByPort(lisInfos *[]Listener) {
 			} else {
 				lis_temp.LisType = 0
 			}
-			lis_temp.Port = arr[0]
 			*lisInfos = append(*lisInfos, lis_temp)
 		}
 
 	}
 }
 
-func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
+func SortBySpecificPorts(ports []string, lisInfos *[]*Listener) {
 	for _, port := range ports {
 		for _, each := range config.Current().Servers { // new config
 			if port == strings.Split(each.Listen, " ")[0] {
-				lis_temp := Listener{}
-				lis_temp.Cfg = nil
-				lis_temp.Lfd = nil
-				lis_temp.HostMap = make(map[string][]ListenCfg)
+				lis_temp := &Listener{
+					HostMap: make(map[string][]ListenCfg),
+					Port:    strings.Split(each.Listen, " ")[0],
+				}
 				if strings.Contains(each.Listen, "ssl") {
 					lis_temp.LisType = 1 // ssl
 					if strings.Contains(each.Listen, "h2") {
-						// h2 not support in this branch
-						// logging.ConsoleLog.Fatal().Msg("h2 not support in this branch")
 						lis_temp.LisType = 10
 					}
 				} else if strings.Contains(each.Listen, "tcp") {
@@ -146,7 +184,6 @@ func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
 				} else {
 					lis_temp.LisType = 0
 				}
-				lis_temp.Port = strings.Split(each.Listen, " ")[0]
 				*lisInfos = append(*lisInfos, lis_temp)
 				break
 			}
@@ -156,57 +193,57 @@ func SortBySpecificPorts(ports []string, lisInfos *[]Listener) {
 }
 
 // sort configure from "path"
-func processListenData(lisInfos *[]Listener) {
+func processListenData(lisInfos *[]*Listener) {
 	Id := 0
 	for _, server := range config.Current().Servers {
+		listen := strings.Split(server.Listen, " ")[0]
 		for _, paths := range server.Path {
 
-			for index, eachlisten := range *lisInfos {
-				listen := strings.Split(server.Listen, " ")[0]
-				if eachlisten.Port == listen {
-					data := ListenCfg{}
-					data.ID = Id
-					data.Path = paths.PathName
-					data.PathRe = regexp.MustCompile(paths.PathName)
-					for _, item := range paths.Trys {
-						try := Try{
-							UriRe: regexp.MustCompile(item.Uri),
-							Files: item.Files,
-							Next:  item.Next,
-						}
-						data.Trys = append(data.Trys, try)
-					}
-					data.ServerName = server.ServerName + ":" + eachlisten.Port
-					data.Type = paths.PathType
-					data.ProxyAddr = paths.ProxyData
-					data.ProxySetHeader = paths.ProxySetHeader
-					data.AppFireWall = paths.AppFireWall
-					data.Limit = paths.Limit
-					data.Auth = paths.Auth
-					data.StaticRoot = paths.Root
-					data.StaticIndex = paths.Index
-					data.ErrorNotFound = paths.ErrorNotFound
-					data.ErrorProxy = paths.ErrorProxy
-					data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
-					data.Zip = paths.Zip
-					data.ReWrite = paths.Rewrite
-					data.ProxyCache = paths.ProxyCache
-					listener := &(*lisInfos)[index]
-					listener.Cfg = append(eachlisten.Cfg, data)
-					Id = Id + 1
+			for _, eachlisten := range *lisInfos {
+				if eachlisten.Port != listen {
+					continue
 				}
+				data := ListenCfg{}
+				data.ID = Id
+				data.Path = paths.PathName
+				data.PathRe = regexp.MustCompile(paths.PathName)
+				for _, item := range paths.Trys {
+					try := Try{
+						UriRe: regexp.MustCompile(item.Uri),
+						Files: item.Files,
+						Next:  item.Next,
+					}
+					data.Trys = append(data.Trys, try)
+				}
+				data.ServerName = server.ServerName + ":" + eachlisten.Port
+				data.Type = paths.PathType
+				data.ProxyAddr = paths.ProxyData
+				data.ProxySetHeader = paths.ProxySetHeader
+				data.AppFireWall = paths.AppFireWall
+				data.Limit = paths.Limit
+				data.Auth = paths.Auth
+				data.StaticRoot = paths.Root
+				data.StaticIndex = paths.Index
+				data.ErrorNotFound = paths.ErrorNotFound
+				data.ErrorProxy = paths.ErrorProxy
+				data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
+				data.Zip = paths.Zip
+				data.ReWrite = paths.Rewrite
+				data.ProxyCache = paths.ProxyCache
+				eachlisten.Cfg = append(eachlisten.Cfg, data)
+				Id = Id + 1
 			}
 		}
 	}
 }
 
-func processHostMap(lisInfos *[]Listener) {
+func processHostMap(lisInfos *[]*Listener) {
 	for _, eachPort := range *lisInfos {
 		processEachPort(eachPort)
 	}
 }
 
-func processEachPort(lisPort Listener) {
+func processEachPort(lisPort *Listener) {
 	var nameArray []string
 	for _, item := range lisPort.Cfg {
 		if !collection.Collect(nameArray).Contains(item.ServerName) {
@@ -225,27 +262,28 @@ func processEachPort(lisPort Listener) {
 }
 
 // listen some ports
-func ListenWithCfg() []Listener {
-	var CurrLisinfos []Listener
+func ListenWithCfg() []*Listener {
+	var CurrLisinfos []*Listener
 	SortByPort(&CurrLisinfos)
 	processListenData(&CurrLisinfos)
 	processHostMap(&CurrLisinfos)
 
-	for index, each := range CurrLisinfos {
+	for _, each := range CurrLisinfos {
 		if each.LisType == 1 || each.LisType == 10 {
 			ctx, cancel := context.WithCancel(context.Background())
-			CurrLisinfos[index].Ctx = ctx
-			CurrLisinfos[index].Cancel = cancel
-			CurrLisinfos[index].certs = newCertSet()
+			each.Ctx = ctx
+			each.Cancel = cancel
+			each.certs = newCertSet()
 
-			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, CurrLisinfos[index].certs, each.Cfg, each.LisType == 10, true)
+			each.Lfd = listenSsl("0.0.0.0:"+each.Port, each.certs, each.Cfg, each.LisType == 10, true)
 		} else {
 			ctx, cancel := context.WithCancel(context.Background())
-			CurrLisinfos[index].Ctx = ctx
-			CurrLisinfos[index].Cancel = cancel
+			each.Ctx = ctx
+			each.Cancel = cancel
 
-			CurrLisinfos[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
+			each.Lfd = listenTcp("0.0.0.0:"+each.Port, true)
 		}
+		each.publish()
 	}
 
 	GLisinfos = CurrLisinfos

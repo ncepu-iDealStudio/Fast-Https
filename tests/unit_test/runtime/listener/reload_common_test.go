@@ -19,7 +19,7 @@ func setupTestConfig(servers []config.Server) func() {
 }
 
 // setupTestGLisinfos sets up listener.GLisinfos and returns a cleanup function.
-func setupTestGLisinfos(lis []listener.Listener) func() {
+func setupTestGLisinfos(lis []*listener.Listener) func() {
 	orig := listener.GLisinfos
 	listener.GLisinfos = lis
 	return func() {
@@ -62,7 +62,7 @@ func TestReloadCommonPortPreservesCtxAndCancel(t *testing.T) {
 	defer cleanupCfg()
 
 	oldCtx, oldCancel := context.WithCancel(context.Background())
-	cleanupLis := setupTestGLisinfos([]listener.Listener{
+	cleanupLis := setupTestGLisinfos([]*listener.Listener{
 		{
 			Port:    "18080",
 			LisType: 0,
@@ -108,7 +108,7 @@ func TestReloadCommonPortUpdatesCfg(t *testing.T) {
 	defer cleanupCfg()
 
 	oldCtx, oldCancel := context.WithCancel(context.Background())
-	cleanupLis := setupTestGLisinfos([]listener.Listener{
+	cleanupLis := setupTestGLisinfos([]*listener.Listener{
 		{
 			Port:    "18080",
 			LisType: 0,
@@ -153,7 +153,7 @@ func TestReloadCommonPortUpdatesCfgAfterConfigChange(t *testing.T) {
 	defer cleanupCfg()
 
 	oldCtx, oldCancel := context.WithCancel(context.Background())
-	cleanupLis := setupTestGLisinfos([]listener.Listener{
+	cleanupLis := setupTestGLisinfos([]*listener.Listener{
 		{
 			Port:    "18080",
 			LisType: 0,

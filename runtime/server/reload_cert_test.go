@@ -21,7 +21,7 @@ func TestReloadMissingCertKeepsListener(t *testing.T) {
 	}
 	t.Cleanup(func() { reloadConfig = previous })
 
-	s := &Server{Listens: []listener.Listener{{Lfd: ln, Port: "18091"}}}
+	s := &Server{Listens: []*listener.Listener{{Lfd: ln, Port: "18091"}}}
 	s.Reload()
 
 	conn, err := net.DialTimeout("tcp", ln.Addr().String(), time.Second)

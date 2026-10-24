@@ -66,7 +66,7 @@ func keepCounts(t *testing.T) {
 func TestCountsInitReplacesSlice(t *testing.T) {
 	keepCounts(t)
 
-	listener.GLisinfos = []listener.Listener{{
+	listener.GLisinfos = []*listener.Listener{{
 		Cfg: []listener.ListenCfg{{}},
 	}}
 	countsInit()
@@ -83,7 +83,7 @@ func TestCountLimitForUsesLocationID(t *testing.T) {
 	keepCounts(t)
 
 	// IDs follow server order, so one port may hold IDs 0 and 2.
-	listener.GLisinfos = []listener.Listener{
+	listener.GLisinfos = []*listener.Listener{
 		{Cfg: []listener.ListenCfg{
 			{ID: 0, Limit: config.PathLimit{Rate: 10}},
 			{ID: 2, Limit: config.PathLimit{Rate: 30}},
@@ -107,7 +107,7 @@ func TestCountLimitForUsesLocationID(t *testing.T) {
 func TestCountLimitForOutOfRange(t *testing.T) {
 	keepCounts(t)
 
-	listener.GLisinfos = []listener.Listener{{
+	listener.GLisinfos = []*listener.Listener{{
 		Cfg: []listener.ListenCfg{{ID: 0}},
 	}}
 	countsInit()
@@ -121,8 +121,8 @@ func TestCountLimitForOutOfRange(t *testing.T) {
 func TestCountLimitForDuringRebuild(t *testing.T) {
 	keepCounts(t)
 
-	large := []listener.Listener{{Cfg: []listener.ListenCfg{{ID: 0}, {ID: 1}, {ID: 2}}}}
-	small := []listener.Listener{{Cfg: []listener.ListenCfg{{ID: 0}}}}
+	large := []*listener.Listener{{Cfg: []listener.ListenCfg{{ID: 0}, {ID: 1}, {ID: 2}}}}
+	small := []*listener.Listener{{Cfg: []listener.ListenCfg{{ID: 0}}}}
 	listener.GLisinfos = large
 	countsInit()
 

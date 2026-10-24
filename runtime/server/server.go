@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime/debug"
-	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -31,7 +30,7 @@ type Server struct {
 	Wg sync.WaitGroup
 	// Listens holds all listener instances
 	// 保存所有监听器实例
-	Listens []listener.Listener
+	Listens []*listener.Listener
 
 	connWg   sync.WaitGroup
 	mu       sync.Mutex
@@ -93,12 +92,12 @@ func ScanPorts() error {
 	for _, port := range ports {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {
-			listener.GLisinfos = []listener.Listener{}
+			listener.GLisinfos = []*listener.Listener{}
 			return err
 		}
 		conn.Close()
 	}
-	listener.GLisinfos = []listener.Listener{}
+	listener.GLisinfos = []*listener.Listener{}
 	return nil
 }
 
@@ -213,42 +212,32 @@ func (s *Server) setConnCfg(conn *net.Conn) {
 
 // serveListener handles listening and serving on a single port
 //
-// Parameters:
-//   - offset: The offset of the listener in the list
-//   - port_index: The port number being listened on
-//
 // Features:
 //   - Continuously accepts new connection requests
 //   - Handles different types of connections (HTTP/1.1 or HTTP/2)
 //   - Supports graceful shutdown
 //
-// 处理单个端口的监听和服务
-func (s *Server) serveListener(offset int, port_index int) {
-
-	// fmt.Printf("sizeof core.Event{}: %d\n", unsafe.Sizeof(core.Event{}))
-	// fmt.Printf("sizeof []byte: %d\n", unsafe.Sizeof([]byte{100, 200}))
-	// fmt.Printf("sizeof listener.ListenCfg{}: %d\n", unsafe.Sizeof(listener.ListenCfg{}))
-
-	listener1 := &s.Listens[offset]
-	ctx := listener1.Ctx
+// 处理单个端口的监听和服务。
+// reload 热更新通过 *Listener 上的配置快照到达这里，本函数不需要重启。
+func (s *Server) serveListener(lis *listener.Listener) {
+	ctx := lis.Ctx
 	go func() {
 		<-ctx.Done()
-		if listener1.Lfd != nil {
-			_ = listener1.Lfd.Close()
+		if lis.Lfd != nil {
+			_ = lis.Lfd.Close()
 		}
 	}()
 
 out:
-
 	for {
 		select {
 		case <-ctx.Done():
-			logging.ConsoleLog.Debug().Msgf("Server on port %d is shutting down...\n", offset)
+			logging.ConsoleLog.Debug().Msgf("Server on port %s is shutting down...\n", lis.Port)
 			return
 		default:
 
-			conn, err := listener1.Lfd.Accept()
-			logging.ConsoleLog.Debug().Msgf("listener ptr %p, conn ptr %p", listener1, conn)
+			conn, err := lis.Lfd.Accept()
+			logging.ConsoleLog.Debug().Msgf("listener ptr %p, conn ptr %p", lis, conn)
 			if err != nil {
 				if ctx.Err() != nil || errors.Is(err, net.ErrClosed) {
 					break out
@@ -259,12 +248,12 @@ out:
 				continue
 			}
 
-			s.serveConn(listener1, conn, ctx)
+			s.serveConn(lis, conn, ctx)
 
 		}
 	}
 
-	logging.ConsoleLog.Debug().Msgf("listening :%d shutdown ,it will not accept any connections", port_index)
+	logging.ConsoleLog.Debug().Msgf("listening :%s shutdown ,it will not accept any connections", lis.Port)
 }
 
 var reloadConfig = config.Reload
@@ -287,30 +276,10 @@ func (s *Server) Reload() {
 		removedSet[port] = struct{}{}
 	}
 
-	// 在替换 s.Listens 之前，更新旧 s.Listens 中 common 端口的 Cfg/HostMap
-	// 这样正在运行的 serveListener（持有旧 Listens 元素指针）能读到新配置
-	// 这对多次 reload 尤为重要：每次 reload 时旧 serveListener 持有的 Listener
-	// 都会被更新为最新配置
-	newCfgMap := make(map[string]*listener.Listener, len(lisAll))
-	for i := range lisAll {
-		newCfgMap[lisAll[i].Port] = &lisAll[i]
-	}
-	for i := range s.Listens {
-		old := &s.Listens[i]
-		if _, removed := removedSet[old.Port]; removed {
-			continue
-		}
-		if newest, ok := newCfgMap[old.Port]; ok {
-			if old.LisType == newest.LisType {
-				old.Cfg = newest.Cfg
-				old.HostMap = newest.HostMap
-				logging.ConsoleLog.Debug().Msgf("reload: hot-updated config for port %s", old.Port)
-			}
-		}
-	}
-
-	for i := range s.Listens {
-		old := &s.Listens[i]
+	// 关闭被移除/类型变化的旧监听器。
+	// common 端口的配置热更新已由 ReloadListenCfg 通过同一 *Listener
+	// 指针完成，在途连接经配置快照读到新配置，这里无需再做。
+	for _, old := range s.Listens {
 		if _, ok := removedSet[old.Port]; !ok {
 			continue
 		}
@@ -328,7 +297,7 @@ func (s *Server) Reload() {
 	s.Listens = lisAll
 
 	// 开启新增端口的监听协程开始处理事件
-	s.RunAdded(lisAdded, len(lisAll)-len(lisAdded))
+	s.RunAdded(lisAdded)
 
 	initModules()
 
@@ -339,19 +308,14 @@ func (s *Server) Reload() {
 //
 // Parameters:
 //   - lisAdded: List of newly added listeners
-//   - base: Base offset for the new listeners
 //
 // Features:
 //   - Starts a separate goroutine for each new listener
 //
 // 启动新增的监听器
-func (s *Server) RunAdded(lisAdded []listener.Listener, base int) {
-	for offset, value := range lisAdded {
-		n, err := strconv.Atoi(value.Port)
-		if err != nil {
-			logging.ConsoleLog.Fatal().Msg("cant convert listen port")
-		}
-		go s.serveListener(base+offset, n)
+func (s *Server) RunAdded(lisAdded []*listener.Listener) {
+	for _, lis := range lisAdded {
+		go s.serveListener(lis)
 	}
 }
 
@@ -366,20 +330,10 @@ func (s *Server) Run() {
 
 	listens := s.Listens
 
-	for offset, value := range listens {
-		n, err := strconv.Atoi(value.Port)
-		if err != nil {
-			logging.ConsoleLog.Fatal().Msg("cant convert listen port")
-		}
-		go s.serveListener(offset, n)
+	for _, lis := range listens {
+		go s.serveListener(lis)
 	}
 
-	// for !s.Shutdown.Shutdown {
-	// 	// <-sigchnl
-	// 	// fmt.Println("got sig")
-	// 	// s.wg.Wait()
-	// 	time.Sleep(time.Second * 1)
-	// }
 	s.Wg.Add(1)
 	s.Wg.Wait()
 }

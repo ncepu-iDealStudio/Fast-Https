@@ -17,7 +17,7 @@ func TestServeListenerExitsWhenContextCanceled(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{Listens: []listener.Listener{{
+	s := &Server{Listens: []*listener.Listener{{
 		Lfd:    ln,
 		Port:   "1",
 		Ctx:    ctx,
@@ -26,7 +26,7 @@ func TestServeListenerExitsWhenContextCanceled(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		s.serveListener(0, 1)
+		s.serveListener(s.Listens[0])
 		close(done)
 	}()
 
@@ -48,7 +48,7 @@ func TestDrainConnectionsWaitsForTrackedHandlers(t *testing.T) {
 	t.Cleanup(func() { _ = ln.Close() })
 
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &Server{Listens: []listener.Listener{{
+	s := &Server{Listens: []*listener.Listener{{
 		Lfd:    ln,
 		Port:   "1",
 		Ctx:    ctx,
@@ -64,7 +64,7 @@ func TestDrainConnectionsWaitsForTrackedHandlers(t *testing.T) {
 
 	acceptDone := make(chan struct{})
 	go func() {
-		s.serveListener(0, 1)
+		s.serveListener(s.Listens[0])
 		close(acceptDone)
 	}()
 	time.Sleep(50 * time.Millisecond)

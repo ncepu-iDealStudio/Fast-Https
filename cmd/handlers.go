@@ -53,7 +53,7 @@ func handleListen(ev *core.Event) bool {
 	// branch does not run for a "tcp" listen. ProxyEventTcp itself is covered
 	// by modules/proxy_tcp/event_proxy_tcp_test.go.
 	if ev.LisInfo.LisType == config.PROXY_TCP {
-		proxy_tcp.ProxyEventTcp(ev, ev.LisInfo.Cfg[0].ProxyAddr)
+		proxy_tcp.ProxyEventTcp(ev, ev.LisInfo.Cfgs()[0].ProxyAddr)
 		return true
 	}
 	if ev.Upgrade == "websocket" {
