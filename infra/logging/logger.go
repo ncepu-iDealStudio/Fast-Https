@@ -10,22 +10,39 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/rs/zerolog"
 )
 
 var (
 	// ConsoleLog 是进程控制台日志器，输出到标准输出。
+	// 只允许在启动阶段（监听开始之前）经 SetLevel 重新赋值；
+	// 服务运行期间只读。
 	ConsoleLog zerolog.Logger
-	// SystemLog 记录启动、重载与运行期提示。
-	SystemLog zerolog.Logger
-	// AccessLog 记录逐请求访问日志，是写入量最大的一路。
-	AccessLog zerolog.Logger
-	// ErrorLog 记录错误。
-	ErrorLog zerolog.Logger
-	// SafeLog 记录限流、黑名单等安全事件。
-	SafeLog zerolog.Logger
 )
+
+// 四路文件日志器。Open 在启动与 reload 时整体替换，
+// 请求协程经 System()/Access()/Error()/Safe() 读取，
+// 永远拿到完整的新旧某一个，不会读到半初始化状态。
+var (
+	systemLog atomic.Pointer[zerolog.Logger]
+	accessLog atomic.Pointer[zerolog.Logger]
+	errorLog  atomic.Pointer[zerolog.Logger]
+	safeLog   atomic.Pointer[zerolog.Logger]
+)
+
+// System 返回系统日志器（记录启动、重载与运行期提示）。
+func System() *zerolog.Logger { return systemLog.Load() }
+
+// Access 返回访问日志器（逐请求，写入量最大的一路）。
+func Access() *zerolog.Logger { return accessLog.Load() }
+
+// Error 返回错误日志器。
+func Error() *zerolog.Logger { return errorLog.Load() }
+
+// Safe 返回安全日志器（限流、黑名单等安全事件）。
+func Safe() *zerolog.Logger { return safeLog.Load() }
 
 var (
 	logMu    sync.Mutex
@@ -36,7 +53,11 @@ func init() {
 	zerolog.TimeFieldFormat = TimeFormat
 	ConsoleLog = consoleLogger(zerolog.InfoLevel)
 	// 文件日志在 Open 之前保持静默，避免零值 Logger 写入 nil writer。
-	SystemLog, AccessLog, ErrorLog, SafeLog = zerolog.Nop(), zerolog.Nop(), zerolog.Nop(), zerolog.Nop()
+	nop := zerolog.Nop()
+	systemLog.Store(&nop)
+	accessLog.Store(&nop)
+	errorLog.Store(&nop)
+	safeLog.Store(&nop)
 }
 
 // consoleLogger 构造控制台日志器。
@@ -50,6 +71,7 @@ func consoleLogger(level zerolog.Level) zerolog.Logger {
 }
 
 // SetLevel 设置控制台输出级别。文件日志固定记录 debug 及以上，不受影响。
+// 只允许在启动阶段调用，服务运行期间并发调用不受保护。
 func SetLevel(level zerolog.Level) {
 	ConsoleLog = consoleLogger(level)
 }
@@ -99,10 +121,14 @@ func openLogSet(path string) ([]*os.File, error) {
 		opened = append(opened, file)
 	}
 
-	SystemLog = fileLogger(opened[0], KindSystem)
-	AccessLog = fileLogger(opened[1], KindAccess)
-	ErrorLog = fileLogger(opened[2], KindError)
-	SafeLog = fileLogger(opened[3], KindSafe)
+	l := fileLogger(opened[0], KindSystem)
+	systemLog.Store(&l)
+	l = fileLogger(opened[1], KindAccess)
+	accessLog.Store(&l)
+	l = fileLogger(opened[2], KindError)
+	errorLog.Store(&l)
+	l = fileLogger(opened[3], KindSafe)
+	safeLog.Store(&l)
 	return opened, nil
 }
 

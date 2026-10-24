@@ -18,7 +18,7 @@ func TestAllChannelsEmitJSON(t *testing.T) {
 
 	logging.PrintInfo("system-line")
 	logging.PrintErr("error-line")
-	logging.SafeLog.Warn().Str(logging.FieldReason, "rate_limit").Msg("safe-line")
+	logging.Safe().Warn().Str(logging.FieldReason, "rate_limit").Msg("safe-line")
 
 	cases := []struct {
 		file    string

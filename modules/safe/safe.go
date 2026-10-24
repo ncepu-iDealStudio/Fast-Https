@@ -32,7 +32,7 @@ func RemoteIP(ev *core.Event) string {
 
 // logReject 向安全日志写一条拒绝事件，字段与访问日志保持一致，便于统一查询。
 func logReject(ev *core.Event, reason string) {
-	logging.SafeLog.Warn().
+	logging.Safe().Warn().
 		Str(logging.FieldRemoteAddr, RemoteIP(ev)).
 		Str(logging.FieldReason, reason).
 		Msg("connection rejected")
