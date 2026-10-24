@@ -60,6 +60,19 @@ func UseFile(res *Response, path string) {
 	res.SetBody(data)
 }
 
+func DefaultBadRequest() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(400, "BADREQUEST")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", time.Now().String())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("400 Bad Request", "The request could not be understood by the server due to malformed syntax."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
 func DefaultNotFound() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(404, "NOTFOUND")

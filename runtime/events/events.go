@@ -126,11 +126,24 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		return 0
 	}
 
-	parse := rr.Req.ParseHeader(byte_row)
-	if parse != request.RequestOk {
-		if parse == request.RequestNeedReadMore { // parse successed !
-			logging.ConsoleLog.Debug().Msg("Request Need Read More, header size too small")
+	// 头可能分多次到达：读完整或判非法为止，超过头长度上限按 400 拒绝
+	for {
+		parse := rr.Req.ParseHeader(byte_row)
+		if parse == request.RequestOk {
+			break
 		}
+		if parse != request.RequestNeedReadMore || len(byte_row) > maxHeaderSize() {
+			// 畸形请求拒绝处理，不能带着空/半截头走进后续管线
+			ev.RR.Res = response.DefaultBadRequest()
+			ev.WriteResponseClose(nil)
+			return 0
+		}
+		ev.Conn.SetReadDeadline(time.Now().Add(time.Second * 30))
+		n, err := ev.Conn.Read(rr.ReqBuf)
+		if err != nil || n == 0 {
+			return 0
+		}
+		byte_row = append(byte_row, rr.ReqBuf[:n]...)
 	}
 
 	if !fif.Fif.HttpParseFilter(rr) {
@@ -191,6 +204,13 @@ func maxBodySize() int {
 		return config.GConfig.Limit.MaxBodySize
 	}
 	return config.DEFAULT_MAX_BODY_SIZE
+}
+
+func maxHeaderSize() int {
+	if config.GConfig.Limit.MaxHeaderSize > 0 {
+		return config.GConfig.Limit.MaxHeaderSize
+	}
+	return config.DEFAULT_MAX_HEADER_SIZE
 }
 
 func EventWrite(ev *core.Event, _data []byte) error {

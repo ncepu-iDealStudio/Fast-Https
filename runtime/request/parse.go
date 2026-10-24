@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fast-https/runtime/listener"
 	"fmt"
+	"net/textproto"
+	"slices"
 	"strconv"
 	"strings"
-
-	"github.com/chenhg5/collection"
 )
 
 // const (
@@ -156,6 +156,10 @@ func (r *Request) Flush() {
 	for k := range r.Headers {
 		delete(r.Headers, k)
 	}
+	// keep-alive 复用请求对象时，上一个请求的 query 不能残留到下一个请求
+	for k := range r.Query {
+		delete(r.Query, k)
+	}
 }
 
 // get request header
@@ -225,6 +229,8 @@ func (r *Request) ByteRow() []byte {
 }
 
 // parse row tcp str to a req object
+// 头未接收完整时返回 RequestNeedReadMore，调用方应继续读 socket 后重新解析；
+// 头非法时返回对应 *RequestError，调用方应拒绝该请求。
 func (r *Request) ParseHeader(request_byte []byte) error {
 	request := string(request_byte)
 	if request == "" {
@@ -238,7 +244,7 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 	if len(parts) != 3 {
 		return FirstLineInvalid // invalid first line
 	}
-	if !collection.Collect(http_method).Contains(parts[0]) {
+	if !slices.Contains(http_method, parts[0]) {
 		return MethodInvalid // invalid method
 	}
 	r.Method = parts[0]
@@ -248,7 +254,7 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 	}
 	r.Path = parts[1]
 
-	if !collection.Collect(http_protocol).Contains(parts[2]) {
+	if !slices.Contains(http_protocol, parts[2]) {
 		return ProtocolInvalid // invalid protocol
 	}
 	r.Protocol = parts[2]
@@ -259,17 +265,31 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 	}
 
 	for i := 0; i < len(lines); i++ {
-		if lines[i] == "" && len(lines) > i+1 { // there is "\r\n\r\n", \r\n"
-			return RequestOk // valid
+		if lines[i] == "" { // there is "\r\n\r\n", \r\n"
+			if i+1 < len(lines) {
+				return RequestOk // valid
+			}
+			return RequestNeedReadMore // 缓冲以空行结尾，头可能还没发完
 		}
 		parts := strings.SplitN(lines[i], ":", 2)
 		if len(parts) == 1 { // No ":"
+			if i+1 == len(lines) {
+				return RequestNeedReadMore // 最后一行可能是被截断的半个头
+			}
 			return InvalidHeaders // invalid headers
 		}
 		key := strings.TrimSpace(parts[0])
-		// key = strings.ToTitle(key)
-		key = strings.ToUpper(key[:1]) + key[1:]
+		if key == "" { // ": value" 这样的行不合法
+			return InvalidHeaders
+		}
+		// HTTP 头名大小写不敏感，统一成 canonical 形式供后续读取
+		key = textproto.CanonicalMIMEHeaderKey(key)
 		value := strings.TrimSpace(parts[1])
+		if key == "Content-Length" {
+			if n, err := strconv.Atoi(value); err != nil || n < 0 {
+				return InvalidHeaders
+			}
+		}
 		r.Headers[key] = value
 	}
 
@@ -278,27 +298,11 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 
 // get request's body
 func (r *Request) ParseBody(tmpByte []byte) error {
-
-	flag := false
-	total_len := len(tmpByte)
-	// last byte position before \r\n\r\n
-	i := strings.Index(string(tmpByte), "\r\n\r\n")
-	if i != -1 {
-		flag = true
-	}
-	if !flag {
+	i := bytes.Index(tmpByte, []byte("\r\n\r\n"))
+	if i == -1 {
 		return errors.New("parse body error")
 	}
-
-	remain_len := total_len - (i + 4)
-	if remain_len == 0 {
-		res := tmpByte[i+4:]
-		r.Body.Write(res)
-	} else {
-		res := tmpByte[i+4:][:remain_len]
-		r.Body.Write(res)
-	}
-
+	r.Body.Write(tmpByte[i+4:])
 	return nil
 }
 
@@ -318,7 +322,8 @@ func (r *Request) RequestBodyValid() bool {
 	if contentLength != "" {
 		n, err := strconv.Atoi(contentLength)
 		if err != nil {
-			panic(err)
+			// ParseHeader 已拒绝非法 Content-Length，这里兜底不 panic
+			return false
 		}
 		if r.Body.Len() != n { // content length not equal to body length
 			return false

@@ -168,11 +168,12 @@ var errorTests = []requestTest{
 		Err: None.Error(),
 	},
 	{
+		// 头已到但终止空行未到，属于"需要继续读"而不是非法
 		Row: "GET / HTTP/1.1\r\n" +
 			"Host: example.com\r\n" +
 			"Connection: close\r\n",
 		Req: request.Request{},
-		Err: InvalidHeaders.Error(),
+		Err: RequestNeedReadMore.Error(),
 	},
 	{
 		Row: "GET / HTTP/1.1\r\n",
@@ -251,5 +252,69 @@ func TestIsKeepalive(t *testing.T) {
 				t.Errorf("IsKeepalive() = %t, want %t", got, test.want)
 			}
 		})
+	}
+}
+
+// 头名大小写不敏感：小写头必须能按 canonical 键读到
+func TestParseHeaderCanonicalizesKeys(t *testing.T) {
+	req := request.RequestInit(false)
+	err := req.ParseHeader([]byte("POST / HTTP/1.1\r\n" +
+		"host: example.com\r\n" +
+		"content-length: 5\r\n" +
+		"transfer-encoding: identity\r\n" +
+		"\r\nhello"))
+	if err != request.RequestOk {
+		t.Fatalf("ParseHeader() got %s, want RequestOk", err.Error())
+	}
+	if req.GetHost() != "example.com" {
+		t.Errorf("GetHost() = %q, want %q", req.GetHost(), "example.com")
+	}
+	if req.GetContentLength() != "5" {
+		t.Errorf("GetContentLength() = %q, want %q", req.GetContentLength(), "5")
+	}
+	if req.GetTransferEncoding() != "identity" {
+		t.Errorf("GetTransferEncoding() = %q, want %q", req.GetTransferEncoding(), "identity")
+	}
+}
+
+// 非法 Content-Length 必须被拒绝，而不是在读取 body 时 panic
+func TestParseHeaderRejectsInvalidContentLength(t *testing.T) {
+	for _, row := range []string{
+		"POST / HTTP/1.1\r\nHost: a\r\nContent-Length: abc\r\n\r\n",
+		"POST / HTTP/1.1\r\nHost: a\r\nContent-Length: -5\r\n\r\n",
+	} {
+		req := request.RequestInit(false)
+		if err := req.ParseHeader([]byte(row)); err != request.InvalidHeaders {
+			t.Errorf("ParseHeader(%q) got %s, want InvalidHeaders", row, err.Error())
+		}
+	}
+}
+
+// 无名头的行（": value"）不再触发 key[:1] 越界 panic
+func TestParseHeaderRejectsEmptyHeaderKey(t *testing.T) {
+	req := request.RequestInit(false)
+	err := req.ParseHeader([]byte("GET / HTTP/1.1\r\n: value\r\n\r\n"))
+	if err != request.InvalidHeaders {
+		t.Errorf("ParseHeader() got %s, want InvalidHeaders", err.Error())
+	}
+}
+
+// 最后一行是半个头时需要继续读，不能当成非法
+func TestParseHeaderPartialLastLineNeedsReadMore(t *testing.T) {
+	req := request.RequestInit(false)
+	err := req.ParseHeader([]byte("GET / HTTP/1.1\r\nHost: a\r\nConn"))
+	if err != request.RequestNeedReadMore {
+		t.Errorf("ParseHeader() got %s, want RequestNeedReadMore", err.Error())
+	}
+}
+
+// keep-alive 复用请求对象时，Flush 必须清掉上一个请求的 query
+func TestFlushClearsQuery(t *testing.T) {
+	req := request.RequestInit(false)
+	req.Query["x"] = "1"
+	req.Query["y"] = "2"
+	req.Flush()
+	if len(req.Query) != 0 {
+		t.Errorf("Flush() left query %v, want empty", req.Query)
 	}
 }
