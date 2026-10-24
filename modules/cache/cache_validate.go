@@ -1,11 +1,4 @@
-/**
-* @Author: yizhigopher
-* @Description: 对红黑树每个结点进行判断，删去过期结点
-* @File: cache_validate.go
-* @Version: 1.0.0
-* @Date: 2023/10/19 21:38:41
- */
-
+// 本文件遍历缓存索引，清理已过期的条目。
 package cache
 
 import (

@@ -1,3 +1,4 @@
+// Package static 提供本地文件、目录索引与 gzip 压缩的静态资源服务。
 package static
 
 import (

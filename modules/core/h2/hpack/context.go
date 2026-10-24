@@ -1,3 +1,4 @@
+// Package hpack 实现 HTTP/2 的 HPACK 头部压缩。
 package hpack
 
 import (

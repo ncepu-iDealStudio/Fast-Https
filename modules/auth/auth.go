@@ -1,3 +1,4 @@
+// Package auth 校验按 location 配置的 HTTP Basic 认证凭据。
 package auth
 
 import (

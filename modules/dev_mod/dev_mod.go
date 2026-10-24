@@ -1,3 +1,4 @@
+// Package devmod 提供 dev 命令使用的开发模式处理器。
 package devmod
 
 import (

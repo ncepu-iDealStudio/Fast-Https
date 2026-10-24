@@ -1,3 +1,4 @@
+// Package output 负责输出版本横幅与系统信息。
 package output
 
 import "fmt"

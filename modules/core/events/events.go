@@ -1,3 +1,4 @@
+// Package events 将接受的连接分发给已注册的 HTTP/1.1 与 HTTP/2 处理器。
 package events
 
 import (

@@ -1,3 +1,4 @@
+// Package rewrite 在提供服务前按规则改写 URL。
 package rewrite
 
 import (

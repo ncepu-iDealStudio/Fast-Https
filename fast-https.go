@@ -1,3 +1,4 @@
+// Command fast-https 启动 HTTP/HTTPS Web 服务器与反向代理。
 package main
 
 import (

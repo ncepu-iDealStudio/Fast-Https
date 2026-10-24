@@ -1,3 +1,4 @@
+// Package color 提供终端输出使用的 ANSI 颜色辅助函数。
 package color
 
 import (

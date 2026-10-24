@@ -1,3 +1,4 @@
+// Package init 在启动阶段串联配置、TLS 证书与各功能模块。
 package init
 
 import (

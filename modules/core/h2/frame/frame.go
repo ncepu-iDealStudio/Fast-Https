@@ -1,3 +1,4 @@
+// Package frame 负责 HTTP/2 帧的编解码。
 package frame
 
 import (

@@ -1,3 +1,4 @@
+// Package message 收集日志记录，并按配置的格式器写入系统、访问、错误与安全日志。
 package message
 
 import (

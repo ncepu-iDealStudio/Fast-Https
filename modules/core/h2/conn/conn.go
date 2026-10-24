@@ -1,3 +1,4 @@
+// Package conn 实现 HTTP/2 服务端连接：读取帧、分发流与写回响应。
 package conn
 
 import (

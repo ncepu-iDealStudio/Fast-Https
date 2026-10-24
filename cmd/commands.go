@@ -1,3 +1,4 @@
+// Package cmd 实现 fast-https 命令行接口：服务控制、配置检查与服务器启动。
 package cmd
 
 import (

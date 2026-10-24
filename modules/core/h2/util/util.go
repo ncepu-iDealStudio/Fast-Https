@@ -1,3 +1,4 @@
+// Package util 提供 HTTP/2 实现共用的小工具函数。
 package util
 
 import (

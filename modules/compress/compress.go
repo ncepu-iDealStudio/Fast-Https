@@ -1,3 +1,4 @@
+// Package compress 提供静态响应压缩使用的 gzip 辅助函数。
 package compress
 
 import (

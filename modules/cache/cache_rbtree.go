@@ -1,11 +1,4 @@
-/**
-* @Author: yizhigopher
-* @Description: 红黑树实现
-* @File: cache_rbtree.go
-* @Version: 1.0.0
-* @Date: 2023/10/19 21:37:48
- */
-
+// 本文件实现按过期时间排序缓存条目的红黑树索引。
 package cache
 
 import (

@@ -1,3 +1,4 @@
+// Package logger 是 fast-https 全局使用的分级日志器。
 package logger
 
 import (
@@ -24,10 +25,6 @@ const (
 	DEBUG
 	TRACE
 )
-
-func Help() string {
-	return "log level	(0 FATAL, 1 ERROR, 2 WARN, 3 NOTICE, 4 INFO, 5 DEBUG, 6 TRACE)"
-}
 
 func (level LogLevel) String() string {
 	names := []string{

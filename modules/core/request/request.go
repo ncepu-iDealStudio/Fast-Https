@@ -1,3 +1,4 @@
+// Package request 把 HTTP/1.1 请求（请求行、头部、正文）解析为 Request。
 package request
 
 type PathQuery map[string]string

@@ -1,3 +1,4 @@
+// Package core 定义所有功能模块共享的请求事件、处理器注册表与响应写出契约。
 package core
 
 import (

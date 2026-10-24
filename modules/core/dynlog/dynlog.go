@@ -1,3 +1,4 @@
+// Package dynlog 按配置的字段格式生成访问日志行。
 package dynlog
 
 import (

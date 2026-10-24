@@ -1,3 +1,4 @@
+// Package filters 把配置中的 listen 与 location 规则解析为运行时过滤器。
 package filters
 
 import (

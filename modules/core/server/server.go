@@ -1,3 +1,4 @@
+// Package server 运行监听器、分发连接，并处理优雅停机与重载信号。
 package server
 
 import (

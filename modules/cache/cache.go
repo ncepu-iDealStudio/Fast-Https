@@ -1,11 +1,4 @@
-/**
-* @Author: Ajax, yizhigopher, 彭博
-* @Description: cache server and manage
-* @File: cache_validate.go
-* @Version: 1.0.0
-* @Date: 2023/10/19 21:38:41
- */
-
+// Package cache 实现反向代理使用的磁盘响应缓存：以请求 MD5 为键，校验时清理过期条目。
 package cache
 
 import (

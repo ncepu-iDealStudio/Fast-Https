@@ -1,3 +1,4 @@
+// Package response 负责构建并序列化 HTTP 响应。
 package response
 
 import (

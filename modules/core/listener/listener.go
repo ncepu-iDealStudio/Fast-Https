@@ -1,3 +1,4 @@
+// Package listener 管理 TCP/TLS 监听、证书加载与监听重载。
 package listener
 
 import (

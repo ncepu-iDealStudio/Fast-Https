@@ -9,6 +9,7 @@ type message struct {
 	Type    string
 }
 
+// send 在持有读锁的前提下把消息投递到输出通道；通道未初始化时直接丢弃。
 func send(msg message) {
 	if !rwMutex.TryRLock() {
 		return
@@ -20,6 +21,7 @@ func send(msg message) {
 	outputChan.In <- msg
 }
 
+// PrintInfo 输出普通信息日志。
 func PrintInfo(a ...interface{}) {
 	send(message{
 		Context: fmt.Sprint(a...),
@@ -27,6 +29,7 @@ func PrintInfo(a ...interface{}) {
 	})
 }
 
+// PrintWarn 输出告警日志。
 func PrintWarn(a ...interface{}) {
 	send(message{
 		Context: fmt.Sprint(a...),
@@ -34,6 +37,7 @@ func PrintWarn(a ...interface{}) {
 	})
 }
 
+// PrintErr 输出错误日志。
 func PrintErr(a ...interface{}) {
 	send(message{
 		Context: fmt.Sprint(a...),
@@ -41,20 +45,7 @@ func PrintErr(a ...interface{}) {
 	})
 }
 
-func Printf(format string, a ...interface{}) {
-	send(message{
-		Context: fmt.Sprintf(format, a...),
-		Type:    "msg",
-	})
-}
-
-func Exit() {
-	send(message{
-		Context: "",
-		Type:    "exit",
-	})
-}
-
+// PrintRecover 输出 panic 恢复时捕获到的信息。
 func PrintRecover(a any) {
 	send(message{
 		Context: a,
@@ -62,11 +53,7 @@ func PrintRecover(a any) {
 	})
 }
 
-// PrintAccess
-//
-//	@Description: print access log
-//	@param host: access host
-//	@param a: any other log message
+// PrintAccess 输出访问日志：host 为访问地址，a 为其余日志内容。
 func PrintAccess(host string, a ...interface{}) {
 	context := map[string]any{
 		"host":    host,
@@ -75,12 +62,5 @@ func PrintAccess(host string, a ...interface{}) {
 	send(message{
 		Context: context,
 		Type:    "access",
-	})
-}
-
-func PrintSafe(a ...interface{}) {
-	send(message{
-		Context: fmt.Sprint(a...),
-		Type:    "safe",
 	})
 }

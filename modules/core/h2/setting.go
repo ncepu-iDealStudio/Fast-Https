@@ -1,3 +1,4 @@
+// Package h2 实现 HTTP/2 服务端的分帧、流与流量控制。
 package h2
 
 import (

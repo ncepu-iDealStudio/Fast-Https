@@ -1,3 +1,4 @@
+// Package websocket 升级 HTTP 连接并把 WebSocket 帧转发到上游。
 package websocket
 
 import (

@@ -1,3 +1,4 @@
+// Package proxy 把 HTTP/HTTPS 请求转发到配置的上游服务器。
 package proxy
 
 import (

@@ -1,3 +1,4 @@
+// Package config 负责加载、校验并热重载 JSON 配置（含 conf.d 包含目录）。
 package config
 
 import (

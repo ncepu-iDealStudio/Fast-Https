@@ -1,3 +1,4 @@
+// Package appfirewall 对请求执行可选的 SQL 注入与 XSS 检测。
 package appfirewall
 
 import (

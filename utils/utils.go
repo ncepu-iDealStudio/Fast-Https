@@ -1,3 +1,4 @@
+// Package utils 提供通用辅助能力：进程级 WaitGroup 与时长解析。
 package utils
 
 import (
@@ -13,9 +14,7 @@ func GetWaitGroup() *sync.WaitGroup {
 	return &waitGroup
 }
 
-// ParseTime
-// @Author yizhigopher
-// @Description 将1d20h30m10s字符串转化为具体的秒数
+// ParseTime 将 "1d20h30m10s" 形式的时长字符串转换为秒数。
 func ParseTime(timeStr string) int {
 	expect := []time.Duration{24 * time.Hour, time.Hour, time.Minute, time.Second}
 	re := regexp.MustCompile(`(?:([0-9]+)d)?(?:([0-9]+)h)?(?:([0-9]+)m)?(?:([0-9]+)s)?`)

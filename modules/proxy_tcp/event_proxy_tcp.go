@@ -1,3 +1,4 @@
+// Package proxy_tcp 把原始 TCP 连接转发到配置的上游。
 package proxy_tcp
 
 import (
