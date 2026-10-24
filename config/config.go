@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
-
-	"github.com/spf13/viper"
 )
 
 const (
@@ -39,48 +37,51 @@ const (
 	DEVMOD = 10
 )
 
+// ---------- 配置类型 ----------
+// json 标签即配置文件键名；历史拼写（如 http.blaklist）原样保留以兼容存量配置。
+
 type ErrorPath struct {
-	Path404 string
-	Path500 string
+	Path404 string `json:"path404"`
+	Path500 string `json:"path500"`
 }
 
 type Header struct {
-	HeaderKey   string
-	HeaderValue string
+	HeaderKey   string `json:"HeaderKey"`
+	HeaderValue string `json:"HeaderValue"`
 }
 
 type Cache struct {
-	Path    string
-	Valid   []string
-	Key     string
-	Methods []string // 允许读写的请求方法，留空等价于 GET 与 HEAD
-	MaxSize int      // 1023MB
+	Path    string   `json:"path"`
+	Valid   []string `json:"valid"`
+	Key     string   `json:"key"`
+	Methods []string `json:"methods"` // 允许读写的请求方法，留空等价于 GET 与 HEAD
+	MaxSize int      `json:"max_size"`
 }
 
 type PathAuth struct {
-	AuthType string
-	User     string
-	Pswd     string
+	AuthType string `json:"type"`
+	User     string `json:"user"`
+	Pswd     string `json:"pswd"`
 }
 
 type PathLimit struct {
-	Size    int
-	Rate    int
-	Burst   int
-	Nodelay bool
+	Size    int  `json:"mem"`
+	Rate    int  `json:"rate"`
+	Burst   int  `json:"burst"`
+	Nodelay bool `json:"nodelay"`
 }
 
 type ServerLimit struct {
-	MaxBodySize   int
-	MaxHeaderSize int
-	Rate          int
-	Burst         int
+	MaxBodySize   int `json:"max_body_size"`
+	MaxHeaderSize int `json:"max_header_size"`
+	Rate          int `json:"limit"`
+	Burst         int `json:"burst"`
 }
 
 type Try struct {
-	Uri   string
-	Files []string
-	Next  string
+	Uri   string   `json:"uri"`
+	Files []string `json:"file"`
+	Next  string   `json:"next"`
 }
 
 type Path struct {
@@ -144,6 +145,84 @@ type Fast_Https struct {
 	TcpNodelay                string
 }
 
+// ---------- 配置文件 JSON schema ----------
+// 配置文件是纯 JSON，直接用标准库解析成 schema，再转换为运行时配置。
+// 单独的 schema 结构体让文件结构与运行时结构各自演进，互不牵连。
+
+// flexString 兼容 "listen": 8080（数字）与 "listen": "8080"（字符串）两种写法。
+type flexString string
+
+func (s *flexString) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && b[0] == '"' {
+		var v string
+		if err := json.Unmarshal(b, &v); err != nil {
+			return err
+		}
+		*s = flexString(v)
+		return nil
+	}
+	var f float64
+	if err := json.Unmarshal(b, &f); err != nil {
+		return err
+	}
+	*s = flexString(strconv.FormatFloat(f, 'f', -1, 64))
+	return nil
+}
+
+type jsonPath struct {
+	URL            string        `json:"url"`
+	Type           string        `json:"type"`
+	Root           string        `json:"root"`
+	Index          []string      `json:"index"`
+	Rewrite        string        `json:"rewrite"`
+	ProxyPass      string        `json:"proxy_pass"`
+	ProxySetHeader []Header      `json:"proxy_set_header"`
+	AppFireWall    []string      `json:"appfirewall"`
+	ProxyCache     Cache         `json:"proxy_cache"`
+	Limit          PathLimit     `json:"limit"`
+	Auth           PathAuth      `json:"auth"`
+	ErrorPage      jsonErrorPage `json:"error_page"`
+	Zip            []string      `json:"zip"`
+	Try            []Try         `json:"try"`
+}
+
+type jsonErrorPage struct {
+	NotFound string `json:"not_found"`
+	Proxy    string `json:"proxy"`
+}
+
+type jsonServer struct {
+	Listen            flexString `json:"listen"`
+	ServerName        string     `json:"server_name"`
+	SSLCertificate    string     `json:"ssl_certificate"`
+	SSLCertificateKey string     `json:"ssl_certificate_key"`
+	Locations         []jsonPath `json:"location"`
+}
+
+type jsonEngine struct {
+	IsMaster     bool   `json:"is_master"`
+	ID           int    `json:"id"`
+	RegisterPort int    `json:"register_port"`
+	SlaveIP      string `json:"slave_ip"`
+	SlavePort    int    `json:"slave_port"`
+}
+
+type jsonHTTP struct {
+	Include     []string     `json:"include"`
+	DefaultType string       `json:"default_type"`
+	Limit       ServerLimit  `json:"servers_limit"`
+	BlackList   []string     `json:"blaklist"` // 历史拼写，配置兼容
+	LogFormat   []string     `json:"log_format"`
+	Servers     []jsonServer `json:"server"`
+}
+
+type jsonConfig struct {
+	Pid     string     `json:"pid"`
+	LogRoot string     `json:"log_root"`
+	Engine  jsonEngine `json:"engine"`
+	HTTP    jsonHTTP   `json:"http"`
+}
+
 // 运行时配置快照。reload 校验通过后整体替换快照，读取端要么看到完整的
 // 旧配置、要么看到完整的新配置，失败时旧快照保持不动。
 // （架构收敛计划阶段 4b：消除对进程级全局配置的无同步读写。）
@@ -177,23 +256,6 @@ func Store(cfg *Fast_Https, mime map[string]string) {
 	if mime != nil {
 		currentMIME.Store(&mime)
 	}
-}
-
-var rootViper = viper.New()
-
-func getHeaders(v *viper.Viper, path string) []Header {
-	headerKeys := v.GetStringSlice(path)
-	var headers []Header
-	for headerKey := range headerKeys {
-		header := Header{
-			HeaderKey: v.GetString(fmt.Sprintf("%s.%d.HeaderKey",
-				path, headerKey)),
-			HeaderValue: v.GetString(fmt.Sprintf("%s.%d.HeaderValue",
-				path, headerKey)),
-		}
-		headers = append(headers, header)
-	}
-	return headers
 }
 
 // Init the whole config module
@@ -516,56 +578,46 @@ func loadContentTypes() (map[string]string, error) {
 
 func processRoot(configPath string) (Fast_Https, error) {
 	var cfg Fast_Https
-	rootViper.SetConfigFile(configPath)
-
-	err := rootViper.ReadInConfig()
+	content, err := os.ReadFile(configPath)
 	if err != nil {
-		return cfg, fmt.Errorf("error reading config file: %s", err)
+		return cfg, fmt.Errorf("error reading config file: %w", err)
 	}
 
-	var parsed Fast_Https
-	err = rootViper.Unmarshal(&parsed)
-	if err != nil {
+	var jc jsonConfig
+	if err := json.Unmarshal(content, &jc); err != nil {
 		return cfg, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
-	cfg.Pid = rootViper.GetString("pid")
-	cfg.LogRoot = rootViper.GetString("log_root")
-	processEngine(&cfg)
-	if err := processHttp(&cfg); err != nil {
+	cfg.Pid = jc.Pid
+	cfg.LogRoot = jc.LogRoot
+	cfg.ServerEngine = Engine{
+		IsMaster:     jc.Engine.IsMaster,
+		Id:           jc.Engine.ID,
+		RegisterPort: jc.Engine.RegisterPort,
+		SlaveIp:      jc.Engine.SlaveIP,
+		SlavePort:    jc.Engine.SlavePort,
+	}
+	if err := processHttp(&cfg, jc.HTTP); err != nil {
 		return cfg, err
 	}
 	SetDefault(&cfg)
 	return cfg, nil
 }
 
-func processEngine(cfg *Fast_Https) {
-	cfg.ServerEngine = Engine{
-		IsMaster:     rootViper.GetBool("engine.is_master"),
-		Id:           rootViper.GetInt("engine.id"),
-		RegisterPort: rootViper.GetInt("engine.register_port"),
-		SlaveIp:      rootViper.GetString("engine.slave_ip"),
-		SlavePort:    rootViper.GetInt("engine.slave_port"),
+func processHttp(cfg *Fast_Https, http jsonHTTP) error {
+	cfg.Include = http.Include
+	cfg.DefaultType = http.DefaultType
+	cfg.Limit = http.Limit
+	cfg.BlackList = http.BlackList
+	cfg.LogFormat = http.LogFormat
+	for _, js := range http.Servers {
+		cfg.Servers = append(cfg.Servers, convertServer(js))
 	}
-}
-
-func processHttp(cfg *Fast_Https) error {
-	cfg.Include = rootViper.GetStringSlice("http.include")
-	cfg.DefaultType = rootViper.GetString("http.default_type")
-	cfg.Limit = ServerLimit{
-		MaxHeaderSize: rootViper.GetInt("http.servers_limit.max_header_size"),
-		MaxBodySize:   rootViper.GetInt("http.servers_limit.max_body_size"),
-		Rate:          rootViper.GetInt("http.servers_limit.limit"),
-		Burst:         rootViper.GetInt("http.servers_limit.burst"),
-	}
-
-	cfg.BlackList = rootViper.GetStringSlice("http.blaklist")
-	cfg.LogFormat = rootViper.GetStringSlice("http.log_format")
-	cfg.Servers = processHttpServer("http.server")
 	return processIncludeCfg(cfg)
 }
 
-// processIncludeCfg 展开	include 指向的站点配置。任何 include 文件读不了、
+// processIncludeCfg 展开 include 指向的站点配置。include 文件是一个
+// server 块，与 http.server 数组元素同构。任何 include 文件读不了、
 // 解不开都返回错误：reload 路径上不能因为 Fatal 把整个进程带走。
 func processIncludeCfg(cfg *Fast_Https) error {
 	for _, item := range cfg.Include {
@@ -580,33 +632,16 @@ func processIncludeCfg(cfg *Fast_Https) error {
 			}
 
 			logging.ConsoleLog.Info().Msgf("Include config dir: %s", path)
-			incViper := viper.New()
-			incViper.SetConfigFile(path)
-			if err := incViper.ReadInConfig(); err != nil {
+			content, err := os.ReadFile(path)
+			if err != nil {
 				return fmt.Errorf("error reading include config file %s: %w", path, err)
 			}
-			var config Fast_Https
-			if err := incViper.Unmarshal(&config); err != nil {
+			var js jsonServer
+			if err := json.Unmarshal(content, &js); err != nil {
 				return fmt.Errorf("error unmarshaling include config %s: %w", path, err)
 			}
 
-			server := Server{
-				Listen:            incViper.GetString("listen"),
-				ServerName:        incViper.GetString("server_name"),
-				SSLCertificate:    incViper.GetString("ssl_certificate"),
-				SSLCertificateKey: incViper.GetString("ssl_certificate_key"),
-			}
-
-			locationKeys := incViper.GetStringSlice("location")
-
-			var paths []Path
-			for locationKey := range locationKeys {
-				path := processHttpServerPath(incViper, "location", locationKey)
-				paths = append(paths, path)
-			}
-			server.Path = paths
-
-			cfg.Servers = append(cfg.Servers, server)
+			cfg.Servers = append(cfg.Servers, convertServer(js))
 			return nil
 		})
 		if err != nil {
@@ -617,159 +652,80 @@ func processIncludeCfg(cfg *Fast_Https) error {
 	return nil
 }
 
-func processHttpServer(pathPrefix string) []Server {
-	var servers []Server
-
-	serverKeys := rootViper.GetStringSlice(pathPrefix)
-	for serverKey := range serverKeys {
-
-		server := Server{
-			Listen: rootViper.GetString(fmt.Sprintf("%s.%d.listen",
-				pathPrefix, serverKey)),
-			ServerName: rootViper.GetString(fmt.Sprintf("%s.%d.server_name",
-				pathPrefix, serverKey)),
-			SSLCertificate: rootViper.GetString(fmt.Sprintf("%s.%d.ssl_certificate",
-				pathPrefix, serverKey)),
-			SSLCertificateKey: rootViper.GetString(fmt.Sprintf("%s.%d.ssl_certificate_key",
-				pathPrefix, serverKey)),
-		}
-
-		locationPrefix := fmt.Sprintf("%s.%d.location", pathPrefix, serverKey)
-		locationKeys := rootViper.GetStringSlice(locationPrefix)
-
-		var paths []Path
-		for locationKey := range locationKeys {
-			path := processHttpServerPath(rootViper, locationPrefix, locationKey)
-			paths = append(paths, path)
-		}
-		server.Path = paths
-		servers = append(servers, server)
+func convertServer(js jsonServer) Server {
+	server := Server{
+		Listen:            string(js.Listen),
+		ServerName:        js.ServerName,
+		SSLCertificate:    js.SSLCertificate,
+		SSLCertificateKey: js.SSLCertificateKey,
 	}
-	return servers
+	for _, jl := range js.Locations {
+		server.Path = append(server.Path, convertPath(jl))
+	}
+	return server
 }
 
-func processHttpServerPath(v *viper.Viper, pathPrefix string, locationKey int) Path {
+func convertPath(jl jsonPath) Path {
 	return Path{
-		PathName: v.GetString(fmt.Sprintf("%s.%d.url", pathPrefix, locationKey)),
-		//PathType:       v.GetUint16(fmt.Sprintf("%s.%d.path_type",
-		// pathPrefix, locationKey)),
-		//Zip:            v.GetUint16(fmt.Sprintf("%s.%d.zip",
-		// pathPrefix, locationKey)),
-		Root: v.GetString(fmt.Sprintf("%s.%d.root",
-			pathPrefix, locationKey)),
-		Index: v.GetStringSlice(fmt.Sprintf("%s.%d.index",
-			pathPrefix, locationKey)),
-		Rewrite: v.GetString(fmt.Sprintf("%s.%d.rewrite",
-			pathPrefix, locationKey)),
-		ProxyData: trimProxyPass(v.GetString(fmt.Sprintf("%s.%d.proxy_pass",
-			pathPrefix, locationKey))),
-		ProxySetHeader: getHeaders(v, fmt.Sprintf("%s.%d.proxy_set_header",
-			pathPrefix, locationKey)),
-		AppFireWall: v.GetStringSlice(fmt.Sprintf("%s.%d.appfirewall",
-			pathPrefix, locationKey)),
-		ProxyCache: Cache{
-			Path: v.GetString(fmt.Sprintf("%s.%d.proxy_cache.path",
-				pathPrefix, locationKey)),
-			Valid: v.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.valid",
-				pathPrefix, locationKey)),
-			Key: v.GetString(fmt.Sprintf("%s.%d.proxy_cache.key",
-				pathPrefix, locationKey)),
-			Methods: v.GetStringSlice(fmt.Sprintf("%s.%d.proxy_cache.methods",
-				pathPrefix, locationKey)),
-			MaxSize: v.GetInt(fmt.Sprintf("%s.%d.proxy_cache.max_size",
-				pathPrefix, locationKey)),
-		},
-		Limit: PathLimit{
-			Size: v.GetInt(fmt.Sprintf("%s.%d.limit.mem",
-				pathPrefix, locationKey)),
-			Rate: v.GetInt(fmt.Sprintf("%s.%d.limit.rate",
-				pathPrefix, locationKey)),
-			Burst: v.GetInt(fmt.Sprintf("%s.%d.limit.burst",
-				pathPrefix, locationKey)),
-			Nodelay: v.GetBool(fmt.Sprintf("%s.%d.limit.nodelay",
-				pathPrefix, locationKey)),
-		},
-		Auth: PathAuth{
-			AuthType: v.GetString(fmt.Sprintf("%s.%d.auth.type",
-				pathPrefix, locationKey)),
-			User: v.GetString(fmt.Sprintf("%s.%d.auth.user",
-				pathPrefix, locationKey)),
-			Pswd: v.GetString(fmt.Sprintf("%s.%d.auth.pswd",
-				pathPrefix, locationKey)),
-		},
-		ErrorNotFound: v.GetString(fmt.Sprintf("%s.%d.error_page.not_found",
-			pathPrefix, locationKey)),
-		ErrorProxy: v.GetString(fmt.Sprintf("%s.%d.error_page.proxy",
-			pathPrefix, locationKey)),
-		Zip: processHttpServerZip(v, pathPrefix, locationKey),
-		PathType: processHttpServerPathType(v, pathPrefix, locationKey,
-			v.GetString(fmt.Sprintf("%s.%d.proxy_pass", pathPrefix, locationKey))),
-		Trys: processTry(v, pathPrefix, locationKey),
+		PathName:       jl.URL,
+		PathType:       parsePathType(jl.Type, jl.ProxyPass),
+		Root:           jl.Root,
+		Index:          jl.Index,
+		Rewrite:        jl.Rewrite,
+		Trys:           jl.Try,
+		ProxyData:      trimProxyPass(jl.ProxyPass),
+		ProxySetHeader: jl.ProxySetHeader,
+		AppFireWall:    jl.AppFireWall,
+		ProxyCache:     jl.ProxyCache,
+		Limit:          jl.Limit,
+		Auth:           jl.Auth,
+		ErrorNotFound:  jl.ErrorPage.NotFound,
+		ErrorProxy:     jl.ErrorPage.Proxy,
+		Zip:            parseZip(jl.Zip),
 	}
 }
 
-func processHttpServerZip(v *viper.Viper, pathPrefix string, locationKey int) uint16 {
+func parseZip(zip []string) uint16 {
 	var zipType uint16 = ZIP_NONE
-	TempZip := v.GetStringSlice(fmt.Sprintf("%s.%d.zip", pathPrefix, locationKey))
-	if len(TempZip) > 0 {
-		if len(TempZip) == 1 {
-			if TempZip[0] == "br" {
-				zipType = ZIP_BR
-			}
-			if TempZip[0] == "gzip" {
-				zipType = ZIP_GZIP
-			}
-		} else if len(TempZip) == 2 {
-			if TempZip[0] == "gzip" && TempZip[1] == "br" {
-				zipType = ZIP_GZIP_BR
-			}
-			if TempZip[1] == "gzip" && TempZip[0] == "br" {
-				zipType = ZIP_GZIP_BR
-			}
+	if len(zip) == 1 {
+		if zip[0] == "br" {
+			zipType = ZIP_BR
 		}
-
+		if zip[0] == "gzip" {
+			zipType = ZIP_GZIP
+		}
+	} else if len(zip) == 2 {
+		if zip[0] == "gzip" && zip[1] == "br" {
+			zipType = ZIP_GZIP_BR
+		}
+		if zip[1] == "gzip" && zip[0] == "br" {
+			zipType = ZIP_GZIP_BR
+		}
 	}
 	return zipType
 }
 
-func processHttpServerPathType(v *viper.Viper, pathPrefix string, locationKey int, proxyData string) uint16 {
-	var pathType uint16 = LOCAL
-	TempPathType := v.GetString(fmt.Sprintf("%s.%d.type", pathPrefix, locationKey))
-	if TempPathType == "local" {
-		pathType = LOCAL
-	}
-	if TempPathType == "rewrite" {
-		pathType = REWRITE
-	}
-	if TempPathType == "devmod" {
-		pathType = DEVMOD
-	}
-	if TempPathType == "proxy" {
-		colonIndex := strings.Index(proxyData, ":")
-		substring := proxyData[:colonIndex]
-		if substring == "http" {
-			pathType = PROXY_HTTP
-		}
-		if substring == "https" {
-			pathType = PROXY_HTTPS
+func parsePathType(typeStr, proxyPass string) uint16 {
+	switch typeStr {
+	case "local":
+		return LOCAL
+	case "rewrite":
+		return REWRITE
+	case "devmod":
+		return DEVMOD
+	case "proxy":
+		// proxy_pass 缺少 "scheme:" 前缀时按 local 兜底，
+		// 不再像旧实现那样对负数下标切片 panic
+		if scheme, _, ok := strings.Cut(proxyPass, ":"); ok {
+			if scheme == "http" {
+				return PROXY_HTTP
+			}
+			if scheme == "https" {
+				return PROXY_HTTPS
+			}
 		}
 	}
-	return pathType
-}
-
-func processTry(v *viper.Viper, pathPrefix string, locationKey int) []Try {
-	var trys []Try
-	tryKeys := v.GetStringSlice(fmt.Sprintf("%s.%d.try", pathPrefix, locationKey))
-
-	for tryKey := range tryKeys {
-		try := Try{
-			Uri:   v.GetString(fmt.Sprintf("%s.%d.try.%d.uri", pathPrefix, locationKey, tryKey)),
-			Files: v.GetStringSlice(fmt.Sprintf("%s.%d.try.%d.file", pathPrefix, locationKey, tryKey)),
-			Next:  v.GetString(fmt.Sprintf("%s.%d.try.%d.next", pathPrefix, locationKey, tryKey)),
-		}
-		trys = append(trys, try)
-	}
-	return trys
+	return LOCAL
 }
 
 func trimProxyPass(proxyData string) string {

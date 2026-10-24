@@ -18,18 +18,18 @@ Direct runtime dependencies, versions from `go.mod`:
 
 | Dependency | Version | Role |
 | --- | --- | --- |
-| `github.com/spf13/cobra` | v1.8.1 | CLI: `start`, `dev`, `stop`, `reload`, `install`, `uninstall`, `status` |
-| `github.com/spf13/viper` | v1.19.0 | Loads `config/fast-https.json` and `http.include` |
-| `github.com/kardianos/service` | v1.2.2 | Install and remove the OS service |
+| `github.com/spf13/cobra` | v1.10.2 | CLI: `start`, `dev`, `stop`, `reload`, `install`, `uninstall`, `status` |
 | `github.com/rs/zerolog` | v1.35.1 | Console plus system, access, error, and safe JSON logs under `logs/` |
-| `golang.org/x/time` | v0.5.0 | Connection rate limit |
-| `github.com/microcosm-cc/bluemonday` | v1.0.26 | `xss` HTML cleanup for JSON bodies |
-| `golang.org/x/net` | v0.59.0 | HTTP/2 stack (`http2.Server` / `Transport` / HPACK) |
-| `github.com/getlantern/systray` | v1.2.2 | Windows tray program in `monitor/` |
-| `golang.org/x/sys` | v0.48.0 | Windows console Ctrl+Break / Ctrl+C |
-| `github.com/fatih/color` | v1.17.0 | Colored console output |
+| `golang.org/x/net` | v0.61.0 | HTTP/2 stack (`http2.Server` / `Transport` / HPACK) |
+| `github.com/klauspost/compress` | v1.17.2 | gzip compression (drop-in stdlib replacement, faster) |
+| `golang.org/x/time` | v0.16.0 | Connection rate limit |
+| `github.com/microcosm-cc/bluemonday` | v1.0.27 | `xss` HTML cleanup for JSON bodies |
+| `github.com/kardianos/service` | v1.3.0 | Install and remove the OS service |
+| `fyne.io/systray` | v1.12.2 | Windows tray program in `monitor/` (maintained fork of getlantern/systray) |
+| `golang.org/x/sys` | v0.49.0 | Windows console Ctrl+Break / Ctrl+C |
+| `github.com/fatih/color` | v1.19.0 | Colored console output |
 
-Everything else comes from the standard library: TCP listening, `crypto/tls`, gzip compression, a plain map for the cache index, `slices` for listener port de-duplication, and the in-house HTTP/1.1 parser. `github.com/stretchr/testify` v1.9.0 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.3.2-next`.
+Everything else comes from the standard library: TCP listening, `crypto/tls`, config parsing (`encoding/json` — the config file is plain JSON), a plain map for the cache index, `slices` for listener port de-duplication, and the in-house HTTP/1.1 parser. `github.com/stretchr/testify` v1.12.1 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.3.2-next`.
 
 ## Software Architecture
 
