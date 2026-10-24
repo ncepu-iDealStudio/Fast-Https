@@ -4,8 +4,8 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"fast-https/utils/files"
-	"fast-https/utils/logger"
+	"fast-https/infra/files"
+	"fast-https/infra/logging"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -128,7 +128,6 @@ type Fast_Https struct {
 	ServerEngine              Engine
 	Limit                     ServerLimit
 	BlackList                 []string
-	LogSplit                  string
 	LogFormat                 []string
 	Include                   []string
 	DefaultType               string
@@ -472,14 +471,14 @@ func asSlice(v interface{}) ([]interface{}, bool) {
 func loadContentTypes() (map[string]string, error) {
 	confBytes, err := files.ReadFile(MIME_FILE_PATH)
 	if err != nil {
-		logger.Fatal("can't open mime.types file")
+		logging.ConsoleLog.Fatal().Msg("can't open mime.types file")
 		return nil, errors.New("can't open mime.types file")
 	}
 
 	mime := make(map[string]string)
 	err = json.Unmarshal(confBytes, &mime)
 	if err != nil {
-		logger.Fatal("can't unmarshal mime.json file")
+		logging.ConsoleLog.Fatal().Msg("can't unmarshal mime.json file")
 		return nil, errors.New("can't unmarshal mime.json file")
 	}
 
@@ -531,7 +530,6 @@ func processHttp(cfg *Fast_Https) {
 
 	cfg.BlackList = rootViper.GetStringSlice("http.blaklist")
 	cfg.LogFormat = rootViper.GetStringSlice("http.log_format")
-	cfg.LogSplit = rootViper.GetString("http.log_split")
 	cfg.Servers = processHttpServer("http.server")
 	processIncludeCfg(cfg)
 }
@@ -548,17 +546,17 @@ func processIncludeCfg(cfg *Fast_Https) {
 				return nil
 			}
 
-			logger.Info("Include config dir: %s", path)
+			logging.ConsoleLog.Info().Msgf("Include config dir: %s", path)
 			incViper := viper.New()
 			incViper.SetConfigFile(path)
 			err = incViper.ReadInConfig()
 			if err != nil {
-				logger.Fatal("Error reading config file: %s", err)
+				logging.ConsoleLog.Fatal().Msgf("Error reading config file: %s", err)
 			}
 			var config Fast_Https
 			err = incViper.Unmarshal(&config)
 			if err != nil {
-				logger.Fatal("Error unmarshaling config: %s", err)
+				logging.ConsoleLog.Fatal().Msgf("Error unmarshaling config: %s", err)
 			}
 
 			server := Server{
@@ -581,7 +579,7 @@ func processIncludeCfg(cfg *Fast_Https) {
 			return nil
 		})
 		if err != nil {
-			logger.Fatal("processIncludeCfg can not walk")
+			logging.ConsoleLog.Fatal().Msg("processIncludeCfg can not walk")
 		}
 	}
 }

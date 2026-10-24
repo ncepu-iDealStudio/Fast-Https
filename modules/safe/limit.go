@@ -2,9 +2,9 @@ package safe
 
 import (
 	"fast-https/config"
-	"fast-https/modules/core"
-	"fast-https/modules/core/dynlog"
-	"fast-https/modules/core/response"
+	"fast-https/core"
+	"fast-https/runtime/dynlog"
+	"fast-https/runtime/response"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -38,9 +38,9 @@ func Bucket(ev *core.Event) bool {
 		return true
 	} else {
 		// write <403> and close
+		logReject(ev, ReasonRateLimit)
 		log := dynlog.DynLogger{}
-		dynlog.Log(&log, ev, "")
-		//message.PrintSafe(ev.Conn.RemoteAddr().String(), " INFORMAL Event(Bucket)"+ev.Log, "\"")
+		dynlog.Log(&log, ev)
 
 		buffer := make([]byte, 1024)
 		ev.Conn.Read(buffer)

@@ -3,6 +3,7 @@ package test
 import (
 	"fast-https/cmd"
 	"fast-https/config"
+	"fast-https/infra/logging"
 	initialiaztion "fast-https/init"
 	"os"
 	"path/filepath"
@@ -39,8 +40,8 @@ func TestServerInit(t *testing.T) {
 	config.Init()
 	t.Log("step2: read config")
 
-	// 3. init system message with the resolved log directory
-	initialiaztion.MessageInit(config.GConfig.LogRoot)
+	// 3. open the four log files under the resolved log directory
+	_ = logging.Open(config.GConfig.LogRoot)
 	t.Log("step3: system message initialization")
 
 	// 5. self-signed certification initialization

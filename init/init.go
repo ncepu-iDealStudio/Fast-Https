@@ -3,44 +3,38 @@ package init
 
 import (
 	"fast-https/config"
+	"fast-https/infra/logging"
 	"fast-https/modules/cache"
-	"fast-https/utils"
-	"fast-https/utils/logger"
-	"fast-https/utils/message"
-	"fmt"
-	"os"
-	"sync"
 	"time"
 )
 
-// InitSystem setup necessary modules of the whole system
-func InitSystem() *sync.WaitGroup {
+// InitSystem 按固定顺序完成进程初始化：配置、日志、证书、缓存。
+func InitSystem() {
 
 	// config initialization
-	// can't use message
+	// 日志尚未就绪时也只能走控制台。
 	err := config.Init()
 	if err != nil {
-		logger.Error("%s", err)
+		logging.ConsoleLog.Error().Err(err).Msg("config initialization failed")
 	}
-	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]config initialization finished")
+	logging.ConsoleLog.Info().Msg("config initialization finished")
 
-	// message initialization
-	waitGroup := MessageInit(config.GConfig.LogRoot)
-	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]message initialization finished")
+	// logging initialization
+	_ = logging.Open(config.GConfig.LogRoot)
+	logging.ConsoleLog.Info().Msg("message initialization finished")
 
 	// cert  initialization
 	CertInit()
-	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]certification initialization finished")
+	logging.ConsoleLog.Info().Msg("certification initialization finished")
 
 	// load cache from desk
 	cache.GCacheContainer.LoadCache()
-	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]cache loadcache load disk cache finished")
+	logging.ConsoleLog.Info().Msg("cache loadcache load disk cache finished")
 	CacheManagerInit()
-	fmt.Fprintln(os.Stdout, time.Now().Format(config.SERVER_TIME_FORMAT), " [SYSTEM INFO]cache manager initialization finished")
-
-	return waitGroup
+	logging.ConsoleLog.Info().Msg("cache manager initialization finished")
 }
 
+// CacheManagerInit 启动缓存过期清理协程。
 func CacheManagerInit() {
 	go func() {
 		for {
@@ -48,11 +42,4 @@ func CacheManagerInit() {
 			time.Sleep(time.Second)
 		}
 	}()
-}
-
-func MessageInit(logRootPath string) *sync.WaitGroup {
-	waitGroup := utils.GetWaitGroup()
-	waitGroup.Add(1)
-	go message.InitMsg(logRootPath)
-	return waitGroup
 }

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fast-https/config"
 	initialization "fast-https/init"
-	"fast-https/modules/core/server"
+	"fast-https/runtime/server"
 	"fast-https/output"
-	"fast-https/utils/logger"
+	"fast-https/infra/logging"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/kardianos/service"
+	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
 
@@ -84,12 +85,12 @@ var (
 type program struct{}
 
 func (p *program) Start(s service.Service) error {
-	logger.Info("fast https (p *program) Start ...")
+	logging.ConsoleLog.Info().Msg("fast https (p *program) Start ...")
 	return nil
 }
 
 func (p *program) Stop(s service.Service) error {
-	logger.Info("fast https (p *program) Stop ...")
+	logging.ConsoleLog.Info().Msg("fast https (p *program) Stop ...")
 	return nil
 }
 
@@ -124,7 +125,7 @@ func RootCmd() *cobra.Command {
 
 func usage() {
 	usageStr := `Unkown command, please check command.`
-	logger.Info("%s\n", usageStr)
+	logging.ConsoleLog.Info().Msgf("%s\n", usageStr)
 }
 
 // runCommand 执行具体的命令处理函数
@@ -157,7 +158,7 @@ func ServiceInstallHandler() error {
 
 	directory, err := os.Getwd() //get the current directory using the built-in function
 	if err != nil {
-		logger.Warn("%v", err) //print the error if obtained
+		logging.ConsoleLog.Warn().Msgf("%v", err) //print the error if obtained
 		return err
 	}
 
@@ -165,16 +166,16 @@ func ServiceInstallHandler() error {
 
 	s, err := service.New(prg, srvConfig)
 	if err != nil {
-		logger.Warn("%v", err)
+		logging.ConsoleLog.Warn().Msgf("%v", err)
 		return err
 	}
 
 	err = s.Install()
 	if err != nil {
-		logger.Warn("service install failed: %s", err.Error())
+		logging.ConsoleLog.Warn().Msgf("service install failed: %s", err.Error())
 		return err
 	} else {
-		logger.Info("fast-https service installed at %s", directory)
+		logging.ConsoleLog.Info().Msgf("fast-https service installed at %s", directory)
 	}
 
 	return nil
@@ -185,16 +186,16 @@ func ServiceUnInstallHandler() error {
 
 	s, err := service.New(prg, srvConfig)
 	if err != nil {
-		logger.Warn("%v", err)
+		logging.ConsoleLog.Warn().Msgf("%v", err)
 		return err
 	}
 
 	err = s.Uninstall()
 	if err != nil {
-		logger.Warn("service uninstall failed: %s", err.Error())
+		logging.ConsoleLog.Warn().Msgf("service uninstall failed: %s", err.Error())
 		return err
 	} else {
-		logger.Info("fast-https uninstalled")
+		logging.ConsoleLog.Info().Msg("fast-https uninstalled")
 	}
 
 	return nil
@@ -204,10 +205,10 @@ func ServiceUnInstallHandler() error {
 func DevStartHandler() error {
 
 	go func() {
-		logger.Info("%v", http.ListenAndServe("0.0.0.0:10000", nil))
+		logging.ConsoleLog.Info().Msgf("%v", http.ListenAndServe("0.0.0.0:10000", nil))
 	}()
 
-	logger.Level(6)
+	logging.SetLevel(zerolog.TraceLevel)
 
 	// pre-check before server start
 	PreCheckHandler()
@@ -225,6 +226,7 @@ func DevStartHandler() error {
 	RegisterHandlers()
 	RegisterServices()
 	server := server.ServerInit()
+	output.PrintPortsListenerStart()
 	server.Run()
 
 	return nil
@@ -255,6 +257,7 @@ func StartHandler() error {
 	RegisterHandlers()
 	RegisterServices()
 	server := server.ServerInit()
+	output.PrintPortsListenerStart()
 	server.Run()
 
 	// server will clog here
@@ -273,7 +276,7 @@ func StopHandler() error {
 
 	pid, err := readPid(config.PID_FILE)
 	if err != nil {
-		logger.Fatal("read pid failed")
+		logging.ConsoleLog.Fatal().Msg("read pid failed")
 	}
 
 	// var cmd *exec.Cmd
@@ -284,13 +287,13 @@ func StopHandler() error {
 	// }
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		logger.Fatal("fast-https find process failed: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("fast-https find process failed: %v", err)
 	}
 
 	err = process.Signal(os.Kill)
 
 	if err != nil {
-		logger.Fatal("fast-https stop failed: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("fast-https stop failed: %v", err)
 	}
 
 	os.Remove(config.PID_FILE)
@@ -306,18 +309,18 @@ func ReloadHandler() error {
 
 	pid, err := readPid(config.PID_FILE)
 	if err != nil {
-		logger.Fatal("read pid failed")
+		logging.ConsoleLog.Fatal().Msg("read pid failed")
 	}
 
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		logger.Fatal("fast-https find process failed: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("fast-https find process failed: %v", err)
 	}
 
 	err = signalReloadProcess(process, pid)
 
 	if err != nil {
-		logger.Fatal("fast-https stop failed: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("fast-https stop failed: %v", err)
 	}
 	return nil
 }
@@ -383,20 +386,20 @@ func PreCheckHandler() {
 	// Load config and create missing self-signed certs before the file check.
 	// config/cert/*.pem is not in the repository; CertInit writes them on first start.
 	if err := config.Init(); err != nil {
-		logger.Fatal("Start server failed. An error occurred for the following reason: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("Start server failed. An error occurred for the following reason: %v", err)
 	}
 	initialization.CertInit()
 
 	// check config
 	err := config.CheckConfig()
 	if err != nil {
-		logger.Fatal("Start server failed. An error occurred for the following reason: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("Start server failed. An error occurred for the following reason: %v", err)
 	}
 
 	// check ports
 	err = server.ScanPorts()
 	if err != nil {
-		logger.Fatal("Port has been used, An error occurred for the following reason: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("Port has been used, An error occurred for the following reason: %v", err)
 	}
 
 	// 检查 PID 文件
@@ -404,11 +407,11 @@ func PreCheckHandler() {
 	if err != nil {
 		if err.Error() == "error reading file" {
 			// PID 文件不存在，说明没有运行的实例，可以继续
-			logger.Debug("No existing process found")
+			logging.ConsoleLog.Debug().Msg("No existing process found")
 			return
 		}
 		// 其他错误
-		logger.Fatal("Error checking process: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("Error checking process: %v", err)
 		return
 	}
 
@@ -416,7 +419,7 @@ func PreCheckHandler() {
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		// 进程不存在，可以继续
-		logger.Debug("Process %d not found, starting new instance", pid)
+		logging.ConsoleLog.Debug().Msgf("Process %d not found, starting new instance", pid)
 		return
 	}
 
@@ -424,7 +427,7 @@ func PreCheckHandler() {
 	err = process.Signal(syscall.Signal(0))
 	if err == nil {
 		// 进程正在运行
-		logger.Fatal("fast-https is already running")
+		logging.ConsoleLog.Fatal().Msg("fast-https is already running")
 	}
 	// 进程不存在，可以继续
 }

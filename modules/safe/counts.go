@@ -1,10 +1,10 @@
 package safe
 
 import (
-	"fast-https/modules/core"
-	"fast-https/modules/core/dynlog"
-	"fast-https/modules/core/listener"
-	"fast-https/modules/core/response"
+	"fast-https/core"
+	"fast-https/runtime/dynlog"
+	"fast-https/runtime/listener"
+	"fast-https/runtime/response"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -144,10 +144,8 @@ func (cl *CountLimit) Insert(ipstr string) bool {
 
 func CountHandler(rr core.RRcircle) {
 	log := dynlog.DynLogger{}
-	dynlog.Log(&log, rr.Ev, "")
-	// message.PrintSafe(rr.Ev.Conn.RemoteAddr().String(),
-	// 	" INFORMAL Event(too many)"+rr.Ev.Log,
-	// 	"\""+rr.Ev.RR.Req_.Headers["User-Agent"]+"\"")
+	dynlog.Log(&log, rr.Ev)
+	logReject(rr.Ev, ReasonLocationLimit)
 	rr.Ev.RR.Res = response.DefaultTooMany()
 	rr.Ev.WriteResponseClose(nil)
 }

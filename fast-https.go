@@ -3,18 +3,12 @@ package main
 
 import (
 	"fast-https/cmd"
-	"fast-https/utils/logger"
 	"os"
 )
 
-func init() {
-	logger.Level(4)
-}
-
-// main 是程序的入口函数
+// main 是程序的入口函数。
 //
-// 该函数首先通过调用 cmd.RootCmd() 获取根命令对象
-// 然后调用该对象的 Execute 方法执行命令
+// 控制台日志级别由 cmd 在子命令中按运行模式调整（dev 全量、其它为 info）。
 func main() {
 	command := cmd.RootCmd()
 

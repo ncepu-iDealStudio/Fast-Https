@@ -1,5 +1,7 @@
 package config
 
+import "fast-https/infra/logging"
+
 const (
 	/* version */
 	CURRENT_VERSION string = "V1.3.2"
@@ -17,15 +19,14 @@ const (
 	DEFAULT_MAX_HEADER_SIZE        = 4096
 	DEFAULT_MAX_BODY_SIZE          = 512 * 1024 // 32K
 
-	DEFAULT_LOG_ROOT       string = FAST_HTTPS_BASE_DIR + "logs"
+	DEFAULT_LOG_ROOT       string = FAST_HTTPS_BASE_DIR + logging.DefaultLogRoot
 	MONIITOR_LOG_FILE_PATH string = "monitor.log"
 
 	/* log message*/
-	SERVER_TIME_FORMAT string = "2006-01-02 15:04:05"
-	SYSTEM_LOG_NAME    string = "system.log"
-	ACCESS_LOG_NAME    string = "access.log"
-	ERROR_LOG_NAME     string = "error.log"
-	SAFE_LOG_NAME      string = "safe.log"
+	SYSTEM_LOG_NAME string = logging.SystemLogName
+	ACCESS_LOG_NAME string = logging.AccessLogName
+	ERROR_LOG_NAME  string = logging.ErrorLogName
+	SAFE_LOG_NAME   string = logging.SafeLogName
 )
 
 const (
