@@ -10,7 +10,6 @@ require (
 	github.com/Jxck/hpack v0.0.0-20150713130059-4fb806e55ed9
 	github.com/Jxck/logger v0.0.0-20141016174915-6123e712dcb9
 	github.com/Jxck/swrap v0.0.0-20140128093118-70cf15cd69ab
-	github.com/andybalholm/brotli v1.1.0
 	github.com/chenhg5/collection v0.0.0-20200925143926-f403b87088f9
 	github.com/emirpasic/gods v1.18.1
 	github.com/fatih/color v1.17.0
@@ -18,7 +17,6 @@ require (
 	github.com/getlantern/systray v1.2.2
 	github.com/kardianos/service v1.2.2
 	github.com/microcosm-cc/bluemonday v1.0.26
-	github.com/panjf2000/ants/v2 v2.9.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0

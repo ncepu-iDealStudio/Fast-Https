@@ -49,10 +49,6 @@ func LogRegister() {
 	}
 }
 
-func NewLogger() *DynLogger {
-	return &DynLogger{}
-}
-
 func Log(l *DynLogger, ev *core.Event, s string) {
 	for _, log := range GLogMap {
 		log(l, s, ev)

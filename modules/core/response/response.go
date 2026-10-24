@@ -137,14 +137,3 @@ func sortedHeaderKeys(headers map[string]string) []string {
 	sort.Strings(keys)
 	return keys
 }
-
-func Test() {
-	response := ResponseInit()
-
-	response.SetFirstLine(200, "OK")
-	response.SetHeader("Content-Type", "text/html")
-	response.SetBody([]byte("<h1>Hello, World!</h1>"))
-
-	Response := response.GenerateResponse()
-	fmt.Println(Response)
-}

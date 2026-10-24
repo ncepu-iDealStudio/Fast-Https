@@ -21,10 +21,6 @@ func Blocks(name string) bool {
 	return name == "xss"
 }
 
-func getReqInfo() {
-
-}
-
 // HandleAppFireWall runs configured rules.
 // It returns false when a blocking rule rejects the request.
 // Rules that do not intercept are skipped.

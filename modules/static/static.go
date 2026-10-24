@@ -1,7 +1,6 @@
 package static
 
 import (
-	"bytes"
 	"fast-https/config"
 	"fast-https/modules/appfirewall"
 	"fast-https/modules/compress"
@@ -14,7 +13,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -316,13 +314,4 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 
 	dynlog.Log(&log, ev, "")
 	dynlog.LogClear(&log)
-}
-
-func GetGID() uint64 {
-	b := make([]byte, 64)
-	b = b[:runtime.Stack(b, false)]
-	b = bytes.TrimPrefix(b, []byte("goroutine "))
-	b = b[:bytes.IndexByte(b, ' ')]
-	n, _ := strconv.ParseUint(string(b), 10, 64)
-	return n
 }

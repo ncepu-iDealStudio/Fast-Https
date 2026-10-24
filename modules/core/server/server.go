@@ -9,7 +9,6 @@ import (
 	"fast-https/modules/core/listener"
 	"strconv"
 
-	// routinepool "fast-https/modules/core/routine_pool"
 	"fast-https/output"
 	"fast-https/utils/logger"
 	"fast-https/utils/message"
@@ -49,9 +48,6 @@ func initModules() {
 	// Listeners already exist. Reload calls this again.
 	core.RunAfterListen()
 	dynlog.LogRegister()
-	// if config.GConfig.ServerEngine.Id != 0 {
-	//engine.EngineInit()
-	// }
 }
 
 // ServerInit initializes and returns a new server instance

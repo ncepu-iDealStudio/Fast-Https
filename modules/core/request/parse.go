@@ -276,14 +276,6 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 	return RequestNeedReadMore // valid
 }
 
-func (r *Request) RequestHeaderValid() bool {
-	return true
-}
-
-func (r *Request) TryFixHeader(other []byte) error {
-	return nil
-}
-
 // get request's body
 func (r *Request) ParseBody(tmpByte []byte) error {
 

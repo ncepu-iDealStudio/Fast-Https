@@ -4,7 +4,6 @@ import (
 	"fast-https/modules/core/listener"
 	"fast-https/modules/core/request"
 	"fast-https/modules/core/response"
-	"fast-https/modules/core/timer"
 	"fast-https/utils/message"
 	"io"
 	"net"
@@ -62,7 +61,6 @@ type Event struct {
 	Conn    net.Conn
 	Stream  interface{}
 	LisInfo *listener.Listener
-	Timer   *timer.Timer
 	// Log     Logger
 	Type    uint16
 	Upgrade string
@@ -93,7 +91,6 @@ func NewEvent(l *listener.Listener, conn net.Conn) *Event {
 	each_event := Event{
 		Conn:    conn,
 		LisInfo: l,
-		Timer:   nil,
 		Reuse:   false,
 		// Log:     *NewLogger(),
 
@@ -186,25 +183,4 @@ func (ev *Event) WriteResponseClose(data []byte) {
 	if !ev.RR.Req.H2 { // TODO: impove this
 		ev.Close()
 	}
-}
-
-func EventWriteEarly(ev *Event, _data []byte) error {
-	//fmt.Printf("%p", ev)
-	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
-	data := ev.RR.Res.GenerateResponse()
-	// data := []byte("HTTP/1.1 200 OK\r\n\r\nhello world")
-	for len(data) > 0 {
-		n, err := ev.Conn.Write(data)
-		if err != nil {
-			if ev.CheckIfTimeOut(err) {
-				message.PrintWarn("Warn  --core " + ev.Conn.RemoteAddr().String() + " write timeout")
-				return err
-			} else { // other error can not handle temporarily
-				message.PrintWarn("Error --core "+ev.Conn.RemoteAddr().String()+" writing to client ", err.Error())
-				return err
-			}
-		}
-		data = data[n:]
-	}
-	return nil
 }

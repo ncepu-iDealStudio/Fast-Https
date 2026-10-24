@@ -12,7 +12,6 @@ import (
 	"os"
 	"runtime"
 	"syscall"
-	"time"
 
 	"github.com/kardianos/service"
 	"github.com/spf13/cobra"
@@ -96,8 +95,8 @@ func (p *program) Stop(s service.Service) error {
 // RootCmd 返回根命令对象，处理命令行参数和标志
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "fast-https",
-		Short:        "Fast-https is a high performance web server and proxy server",
+		Use:   "fast-https",
+		Short: "Fast-https is a high performance web server and proxy server",
 		Long: "Fast-https is a high performance web server and proxy server.\n\n" +
 			"Run it without any command to start the server.",
 		SilenceUsage: true, //用于在发生错误时静音使用情况。
@@ -494,15 +493,4 @@ func readPid(filepath string) (int, error) {
 	}
 
 	return pid, nil
-}
-
-// 这个功能后面的版本再去做
-// watchConfigChanges 监控配置文件变化
-// 定期检查配置文件是否发生变化，如有变化则自动重载
-func watchConfigChanges() {
-	logger.Info("Config file watch started")
-	for {
-		// TODO: 实现配置文件监控逻辑
-		time.Sleep(time.Second * 5)
-	}
 }

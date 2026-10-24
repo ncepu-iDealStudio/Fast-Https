@@ -62,7 +62,6 @@ func CallBack(stream *h2.Stream, ev_conn *core.Event, fif *filters.Filter) {
 	stream_ev := core.Event{
 		Conn:    ev_conn.Conn,
 		LisInfo: ev_conn.LisInfo,
-		Timer:   nil,
 		Reuse:   false,
 		// Log:        *core.NewLogger(),
 		IsClose:    false, // not close
