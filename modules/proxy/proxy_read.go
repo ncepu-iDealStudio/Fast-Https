@@ -2,9 +2,9 @@ package proxy
 
 import (
 	"fast-https/config"
+	"fast-https/runtime/request"
 	"fast-https/runtime/response"
 	"fast-https/infra/logging"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -73,82 +73,34 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 	}
 }
 
-func Parse(data string) ([]byte, int64) {
-	startIndex := 0
-	var after []byte
-	var total_len int64
-	for {
-		// 查找长度字段的结束位置
-		endLengthIndex := strings.Index(data[startIndex:], "\r\n")
-		if endLengthIndex == -1 {
-			break // 没有找到长度字段，退出循环
-		}
-		endLengthIndex += startIndex // 更新结束位置
-
-		// 获取长度字段
-		lengthStr := data[startIndex:endLengthIndex]
-		length, err := strconv.ParseInt(lengthStr, 16, 64)
+// parseChunked 解码上游的 chunked 响应体，并按解码后的实际长度改写响应头。
+// 此前实现只把带 chunk 帧的原始 body 原样透传，客户端会收到 chunk 元数据
+// 以及与实际内容矛盾的 Content-Length。
+func (rka *ReadKeepAlive) parseChunked() error {
+	body, err := request.ReadChunked(rka.body, func() ([]byte, error) {
+		buf := make([]byte, CHUNCKED_BODY_SIZE)
+		n, err := rka.Read(buf)
 		if err != nil {
-			// fmt.Println("解析长度失败:", err, "length string:", lengthStr)
-			return after, total_len
-		} else {
-			// fmt.Println(length)
-			total_len = total_len + length
+			return nil, err
 		}
-
-		if length == 0 {
-			break
-		}
-
-		// 计算数据区的结束位置
-		startDataIndex := endLengthIndex + 2
-		endDataIndex := startDataIndex + int(length)
-
-		// 获取数据部分
-		dataPart := data[startDataIndex:endDataIndex]
-
-		// 打印数据内容
-		// fmt.Println("数据内容:", dataPart)
-		after = append(after, []byte(dataPart)...)
-
-		// 更新起始位置，准备处理下一个数据区
-		startIndex = endDataIndex + 2
+		return buf[:n], nil
+	}, maxChunkedBody())
+	if err != nil {
+		return err
 	}
-
-	return nil, 0
+	rka.res.DelHeader("Transfer-Encoding")
+	rka.res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	rka.res.Body = body
+	rka.body = body
+	rka.finalStr = rka.res.GenerateResponse()
+	return nil
 }
 
-func (rka *ReadKeepAlive) parseChunked() {
-	var p int
-	// var after_body []byte
-	// var total_length int64
-	for {
-		if p = strings.Index(string(rka.body), "0\r\n\r\n"); p != -1 { // last block
-
-			// data := []byte("2\r\n11\r\n20\r\n22222222222222222222222222222222\r\n5\r\n33333\r\n0\r\n\r\n")
-			_, _ = Parse(string(rka.body))
-			// after_body, total_length = Parse(string(ro.body))
-			// fmt.Println(total_length)
-
-			// ro.res.DelHeader("Transfer-Encoding")
-			// ro.res.Headers["Content-Length"] = strconv.Itoa(int(total_length))
-			rka.res.Body = rka.body // after_body
-			rka.finalStr = rka.res.GenerateResponse()
-			return
-		} else {
-			// if p = strings.Index(string(ro.body), "\r\n"); p == -1 { // body like this  "2b8" or "2b81\r"
-			// }
-			lastBuf := make([]byte, CHUNCKED_BODY_SIZE)
-			n, err := rka.Read(lastBuf)
-			if err != nil {
-				fmt.Println("parseChuncked failed", err.Error())
-				return
-			} else {
-				rka.body = append(rka.body, lastBuf[:n]...)
-			}
-
-		}
+func maxChunkedBody() int {
+	if config.GConfig.Limit.MaxBodySize > 0 {
+		return config.GConfig.Limit.MaxBodySize
 	}
+	return config.DEFAULT_MAX_BODY_SIZE
 }
 
 func (rka *ReadKeepAlive) Read(data []byte) (int, error) {
@@ -218,7 +170,10 @@ readAgain:
 		// fmt.Println("invalid header")
 		goto readAgain
 	} else if size == -3 {
-		rka.parseChunked()
+		if err := rka.parseChunked(); err != nil {
+			logging.ConsoleLog.Debug().Msgf("proxy: decode chunked body: %v", err)
+			return err
+		}
 		return nil
 	} else if size == -4 {
 		return nil
