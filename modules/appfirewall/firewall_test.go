@@ -1,8 +1,8 @@
 package appfirewall
 
 import (
-	"fast-https/modules/core/listener"
-	"fast-https/modules/core/request"
+	"fast-https/runtime/listener"
+	"fast-https/runtime/request"
 	"strconv"
 	"strings"
 	"testing"

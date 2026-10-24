@@ -7,16 +7,15 @@ import (
 	"fast-https/config"
 	"fast-https/modules/appfirewall"
 	"fast-https/modules/cache"
-	"fast-https/modules/core"
+	"fast-https/core"
 	"fmt"
 	"strconv"
 	"time"
 
-	"fast-https/modules/core/dynlog"
-	"fast-https/modules/core/listener"
-	"fast-https/modules/core/response"
-	"fast-https/utils/logger"
-	"fast-https/utils/message"
+	"fast-https/runtime/dynlog"
+	"fast-https/runtime/listener"
+	"fast-https/runtime/response"
+	"fast-https/infra/logging"
 	"net"
 	"strings"
 
@@ -38,8 +37,8 @@ type Proxy struct {
 
 // Register installs the reverse-proxy handlers for HTTP and HTTPS upstreams.
 func Register() {
-	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFilterHandler, ProxyEvent, nil)
-	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFilterHandler, ProxyEvent, nil)
+	core.RegisterHandler(config.PROXY_HTTP, ProxyFilterHandler, ProxyEvent, nil)
+	core.RegisterHandler(config.PROXY_HTTPS, ProxyFilterHandler, ProxyEvent, nil)
 }
 
 func Newproxy(addr string, proxyType int, proxyNeedCache bool) *Proxy {
@@ -88,7 +87,7 @@ func (p *Proxy) ProxyInit(ev *core.Event) error {
 	p.ProxyNeedClose = false // keep-alive default
 
 	if err != nil {
-		logger.Debug("proxy event: can't connect to upstream server %s", err.Error())
+		logging.ConsoleLog.Debug().Msgf("proxy event: can't connect to upstream server %s", err.Error())
 		return ProxyErrorDialUpstream // no server
 	}
 	now := time.Now()
@@ -122,7 +121,7 @@ func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Prox
 		var flag bool
 		proxy, flag = (rr.CircleData).(*Proxy)
 		if !flag {
-			logger.Fatal("proxy can not convert circle data to *Proxy")
+			logging.ConsoleLog.Fatal().Msg("proxy can not convert circle data to *Proxy")
 		}
 	}
 
@@ -137,7 +136,7 @@ func (p *Proxy) proxyHandleAddr() {
 		} else if p.ProxyType == config.PROXY_HTTPS {
 			p.ProxyAddr = p.ProxyAddr + ":443"
 		} else {
-			message.PrintErr("--proxy cant not set addr")
+			logging.PrintErr("--proxy cant not set addr")
 		}
 	}
 }
@@ -151,7 +150,7 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 
 	firstLineDec := strings.Split(temp_res.FirstLine, " ")
 	if len(firstLineDec) < 2 {
-		logger.Error("%s", string(tmpByte))
+		logging.ConsoleLog.Error().Msgf("%s", string(tmpByte))
 		rr.Res = response.DefaultServerHeaderError()
 		return "509"
 	} else {
@@ -181,12 +180,12 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err error) {
 	if !ev.RR.Req.IsKeepalive() {
 		if ev.Upgrade == "websocket" {
-			logger.Debug("-----This is Read websocket")
+			logging.ConsoleLog.Debug().Msg("-----This is Read websocket")
 			web := make([]byte, 1024)
 			var n int
 			n, err = p.Read(web)
 			if err != nil {
-				logger.Debug("proxy event: can't read websocket %v", err.Error())
+				logging.ConsoleLog.Debug().Msgf("proxy event: can't read websocket %v", err.Error())
 				err = errors.New("proxy read websocket")
 				return
 			}
@@ -195,11 +194,11 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 			rcc := ReadConnectionClose{
 				p: p,
 			}
-			logger.Debug("-----This is ReadConnectionClose")
+			logging.ConsoleLog.Debug().Msg("-----This is ReadConnectionClose")
 			resData, err = rcc.proxyReadAll()
 			if err != nil {
 				if err != ProxyErrorReadFromUpstreamTimeout {
-					logger.Debug("can't read connection close %v", err.Error())
+					logging.ConsoleLog.Debug().Msgf("can't read connection close %v", err.Error())
 				}
 				return
 			}
@@ -210,11 +209,11 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 			TryNum: 0,
 			p:      p,
 		}
-		logger.Debug("-----This is ReadKeepAlive")
+		logging.ConsoleLog.Debug().Msg("-----This is ReadKeepAlive")
 		err = rka.proxyKeepAlive()
 		if err != nil {
 			if err != ProxyErrorReadFromUpstreamTimeout {
-				logger.Debug("can't read keep alive %v", err.Error())
+				logging.ConsoleLog.Debug().Msgf("can't read keep alive %v", err.Error())
 			}
 			return
 		}
@@ -237,19 +236,19 @@ func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 	if err != nil {
 		neterr, ok := err.(net.Error)
 		if ok && neterr.Timeout() {
-			logger.Debug("send to upstream server time out")
+			logging.ConsoleLog.Debug().Msg("send to upstream server time out")
 			err = ProxyErrorSendToUpstreamTimeout
 		} else if ok {
-			logger.Debug("%s%s", color.RedString("unhandled send to upstream server: "), err.Error())
+			logging.ConsoleLog.Debug().Msgf("%s%s", color.RedString("unhandled send to upstream server: "), err.Error())
 		} else {
-			logger.Fatal("convent net error")
+			logging.ConsoleLog.Fatal().Msg("convent net error")
 		}
 
 		p.Close()  // close proxy connection
 		return err // can't write
 	}
 	if len(req_data) != n {
-		logger.Debug("send to upstream server part")
+		logging.ConsoleLog.Debug().Msg("send to upstream server part")
 	}
 
 	return nil
@@ -258,10 +257,10 @@ func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 // fast-https will send data to real server and get response from target
 func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
 
-	//logger.Debug("\n\n" + string(req_data) + "\n\n")
+	//logging.ConsoleLog.Debug().Msgf("\n\n" + string(req_data) + "\n\n")
 	if err := p.sendToUpstreamServer(req_data); err != nil {
 		if err != ProxyErrorSendToUpstreamTimeout {
-			logger.Debug("unhandled send to upstream server errror")
+			logging.ConsoleLog.Debug().Msg("unhandled send to upstream server errror")
 		}
 		return err
 	}
@@ -269,9 +268,9 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
 	resData, err := p.readFromUpstreamServer(ev)
 	if err != nil {
 		if err != ProxyErrorReadFromUpstreamTimeout {
-			logger.Debug("unhandled read form upstream server error")
+			logging.ConsoleLog.Debug().Msg("unhandled read form upstream server error")
 		}
-		// logger.Debug("	send\n%s\nto server%s", string(ev.DEBUG_BUFFER), ev.Conn.RemoteAddr().String())
+		// logging.ConsoleLog.Debug().Msgf("	send\n%s\nto server%s", string(ev.DEBUG_BUFFER), ev.Conn.RemoteAddr().String())
 		return err
 	}
 
@@ -282,11 +281,11 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
 	head_code := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
 	b_len := len(ev.RR.Res.Body)
 
+	status, _ := strconv.Atoi(head_code)
 	log := dynlog.DynLogger{}
-	dynlog.LogOther(&log, "status", head_code)
-	dynlog.LogOther(&log, "size", strconv.Itoa(b_len))
-	dynlog.Log(&log, ev, "")
-	dynlog.LogClear(&log)
+	log.Status(status)
+	log.Size(b_len)
+	dynlog.Log(&log, ev)
 
 	return nil // no error
 }
@@ -318,8 +317,7 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 	} else {
 		log := dynlog.DynLogger{}
-		dynlog.Log(&log, ev, "")
-		dynlog.LogClear(&log)
+		dynlog.Log(&log, ev)
 	}
 
 	// proxy server return valid data

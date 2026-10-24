@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"fast-https/config"
+	"fast-https/core"
+	"fast-https/infra/logging"
 	"fast-https/modules/auth"
-	"fast-https/modules/core"
-	"fast-https/modules/core/listener"
 	"fast-https/modules/dev_mod"
 	"fast-https/modules/proxy"
 	"fast-https/modules/proxy_tcp"
@@ -12,6 +12,7 @@ import (
 	"fast-https/modules/safe"
 	"fast-https/modules/static"
 	"fast-https/modules/websocket"
+	"fast-https/runtime/listener"
 	"strings"
 )
 
@@ -35,6 +36,7 @@ func RegisterServices() {
 		RejectLocation: rejectLocation,
 		RejectAuth:     rejectAuth,
 		AfterListen:    safe.Init,
+		AfterStop:      logging.CloseLogFiles,
 	})
 }
 

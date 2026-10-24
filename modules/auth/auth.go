@@ -3,10 +3,10 @@ package auth
 
 import (
 	"encoding/base64"
-	"fast-https/modules/core"
-	"fast-https/modules/core/listener"
-	"fast-https/modules/core/response"
-	"fast-https/utils/message"
+	"fast-https/core"
+	"fast-https/runtime/listener"
+	"fast-https/runtime/response"
+	"fast-https/infra/logging"
 	"strings"
 )
 
@@ -23,7 +23,7 @@ func AuthHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 		decodedBytes, err := base64.StdEncoding.DecodeString(result[1])
 
 		if err != nil {
-			message.PrintWarn(err.Error())
+			logging.PrintWarn(err.Error())
 		}
 		decodedStr := string(decodedBytes)
 

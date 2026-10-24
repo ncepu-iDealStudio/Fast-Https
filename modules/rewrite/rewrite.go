@@ -3,13 +3,13 @@ package rewrite
 
 import (
 	"fast-https/config"
-	"fast-https/modules/core"
-	"fast-https/modules/core/listener"
+	"fast-https/core"
+	"fast-https/runtime/listener"
 )
 
 // Register installs the redirect handler for location type rewrite.
 func Register() {
-	core.RRHandlerRegister(config.REWRITE, ReWriteFilter, ReWriteEvent, nil)
+	core.RegisterHandler(config.REWRITE, ReWriteFilter, ReWriteEvent, nil)
 }
 
 func rewriteInfo(ev *core.Event, path string) {

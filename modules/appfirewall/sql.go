@@ -1,12 +1,12 @@
 package appfirewall
 
 import (
-	"fast-https/modules/core/request"
-	"fast-https/utils/logger"
+	"fast-https/runtime/request"
+	"fast-https/infra/logging"
 )
 
 func HandleSql(req *request.Request) bool {
-	logger.Debug("This is appfirewall, handle sql")
+	logging.ConsoleLog.Debug().Msg("This is appfirewall, handle sql")
 
 	return true
 }

@@ -2,8 +2,8 @@
 package proxy_tcp
 
 import (
-	"fast-https/modules/core"
-	"fast-https/utils/message"
+	"fast-https/core"
+	"fast-https/infra/logging"
 	"fmt"
 	"io"
 	"net"
@@ -15,7 +15,7 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 
 	conn2, err := net.Dial("tcp", proxyaddr)
 	if err != nil {
-		message.PrintErr("Can't connect to "+proxyaddr, err.Error())
+		logging.PrintErr("Can't connect to "+proxyaddr, err.Error())
 	}
 
 	go func() {
@@ -31,7 +31,7 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 					// fmt.Println("time out once 1")
 					continue
 				} else {
-					message.PrintWarn("[1]tcp_proxy: Proxy read error ", err.Error())
+					logging.PrintWarn("[1]tcp_proxy: Proxy read error ", err.Error())
 					conn2.Close()
 					return
 				}
@@ -47,7 +47,7 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 					return
 				} else {
 					conn2.Close()
-					message.PrintWarn("tcp_proxy: Proxy Write error ", err.Error())
+					logging.PrintWarn("tcp_proxy: Proxy Write error ", err.Error())
 					break
 				}
 			}
@@ -67,7 +67,7 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 				// fmt.Println("time out once 2")
 				continue
 			} else {
-				message.PrintWarn("tcp_proxy: Proxy read error ", err.Error())
+				logging.PrintWarn("tcp_proxy: Proxy read error ", err.Error())
 				conn2.Close()
 				return
 			}
@@ -84,7 +84,7 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 				conn2.Close()
 				return
 			} else {
-				message.PrintWarn("tcp_proxy: Proxy Write error ", err.Error())
+				logging.PrintWarn("tcp_proxy: Proxy Write error ", err.Error())
 				conn2.Close()
 				break
 			}

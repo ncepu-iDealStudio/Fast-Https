@@ -2,9 +2,9 @@
 package websocket
 
 import (
-	"fast-https/modules/core"
+	"fast-https/core"
 	"fast-https/modules/proxy"
-	"fast-https/utils/message"
+	"fast-https/infra/logging"
 	"fmt"
 	"io"
 	"net"
@@ -18,7 +18,7 @@ func WebSocketHandler(ev *core.Event) {
 
 	proxy, flag := (ev.RR.CircleData).(*proxy.Proxy)
 	if !flag {
-		message.PrintErr("--proxy can not convert circle data to *Proxy")
+		logging.PrintErr("--proxy can not convert circle data to *Proxy")
 	}
 
 	go func() {
@@ -34,7 +34,7 @@ func WebSocketHandler(ev *core.Event) {
 					// fmt.Println("time out once 1")
 					continue
 				} else {
-					message.PrintWarn("[1]websocket: Proxy read error ", err.Error())
+					logging.PrintWarn("[1]websocket: Proxy read error ", err.Error())
 					proxy.ProxyConn.Close()
 					return
 				}
@@ -50,7 +50,7 @@ func WebSocketHandler(ev *core.Event) {
 					return
 				} else {
 					proxy.ProxyConn.Close()
-					message.PrintWarn("websocket: Proxy Write error ", err.Error())
+					logging.PrintWarn("websocket: Proxy Write error ", err.Error())
 					break
 				}
 			}
@@ -70,7 +70,7 @@ func WebSocketHandler(ev *core.Event) {
 				// fmt.Println("time out once 2")
 				continue
 			} else {
-				message.PrintWarn("websocket: Proxy read error ", err.Error())
+				logging.PrintWarn("websocket: Proxy read error ", err.Error())
 				proxy.ProxyConn.Close()
 				return
 			}
@@ -87,7 +87,7 @@ func WebSocketHandler(ev *core.Event) {
 				proxy.ProxyConn.Close()
 				return
 			} else {
-				message.PrintWarn("websocket: Proxy Write error ", err.Error())
+				logging.PrintWarn("websocket: Proxy Write error ", err.Error())
 				proxy.ProxyConn.Close()
 				break
 			}

@@ -1,7 +1,7 @@
 package static
 
 import (
-	"fast-https/modules/core"
+	"fast-https/core"
 )
 
 // for static requests which not end with "/"

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"fast-https/modules/core/listener"
+	"fast-https/runtime/listener"
 )
 
 func TestDialFailureKeepsDefaultWithoutPage(t *testing.T) {

@@ -1,7 +1,7 @@
 package proxy_tcp
 
 import (
-	"fast-https/modules/core"
+	"fast-https/core"
 	"io"
 	"net"
 	"testing"

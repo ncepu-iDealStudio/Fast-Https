@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"fast-https/config"
-	"fast-https/modules/core"
-	"fast-https/modules/core/dynlog"
-	"fast-https/modules/core/listener"
-	"fast-https/modules/core/request"
-	"fast-https/modules/core/response"
+	"fast-https/core"
+	"fast-https/runtime/dynlog"
+	"fast-https/runtime/listener"
+	"fast-https/runtime/request"
+	"fast-https/runtime/response"
 )
 
 func readPipe(t *testing.T, client net.Conn, server net.Conn, write func()) string {

@@ -3,13 +3,13 @@ package devmod
 
 import (
 	"fast-https/config"
-	"fast-https/modules/core"
-	"fast-https/modules/core/listener"
+	"fast-https/core"
+	"fast-https/runtime/listener"
 )
 
 // Register installs the development handler for location type devmod.
 func Register() {
-	core.RRHandlerRegister(config.DEVMOD, DevFilter, DevEvent, nil)
+	core.RegisterHandler(config.DEVMOD, DevFilter, DevEvent, nil)
 }
 
 func rewriteInfo(ev *core.Event, path string) {

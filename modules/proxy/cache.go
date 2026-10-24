@@ -2,8 +2,8 @@ package proxy
 
 import (
 	"fast-https/modules/cache"
-	"fast-https/modules/core"
-	"fast-https/utils"
+	"fast-https/core"
+	"fast-https/infra/timeutil"
 	"strings"
 )
 
@@ -38,7 +38,7 @@ func (pc *ProxyCache) ProcessCacheConfig(ev *core.Event,
 	for _, c := range valid {
 		split := strings.Split(c, ":")
 		if split[0] != resCode || split[0] == "any" {
-			expire = utils.ParseTime(split[1])
+			expire = timeutil.ParseTime(split[1])
 			// fmt.Println("generate cache expire time=", expire)
 			return
 		}

@@ -3,7 +3,7 @@ package cmd_test
 import (
 	"fast-https/cmd"
 	"fast-https/config"
-	"fast-https/modules/core"
+	"fast-https/core"
 	"strings"
 	"testing"
 )
@@ -20,7 +20,7 @@ func TestRegisterHandlersCoversConfiguredTypes(t *testing.T) {
 		{config.DEVMOD, "devmod"},
 	}
 	for _, item := range types {
-		core.RRHandlerRegister(int(item.code), nil, nil, nil)
+		core.RegisterHandler(int(item.code), nil, nil, nil)
 	}
 	t.Cleanup(cmd.RegisterHandlers)
 

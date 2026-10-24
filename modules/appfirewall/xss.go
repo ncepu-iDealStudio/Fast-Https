@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fast-https/modules/core/request"
-	"fast-https/utils/logger"
+	"fast-https/runtime/request"
+	"fast-https/infra/logging"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -46,7 +46,7 @@ func (mw *XssMw) GetBlueMondayPolicy() *bluemonday.Policy {
 }
 
 func HandleXss(req *request.Request) bool {
-	logger.Debug("appfirewall handle xss")
+	logging.ConsoleLog.Debug().Msg("appfirewall handle xss")
 	before := req.Body.String()
 	xss := XssMw{}
 	_ = xss.XssRemove(req)

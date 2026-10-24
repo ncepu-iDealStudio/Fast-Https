@@ -1,7 +1,7 @@
 package websocket
 
 import (
-	"fast-https/modules/core"
+	"fast-https/core"
 	"fast-https/modules/proxy"
 	"io"
 	"net"

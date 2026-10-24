@@ -2,8 +2,8 @@ package proxy
 
 import (
 	"fast-https/config"
-	"fast-https/modules/core/response"
-	"fast-https/utils/message"
+	"fast-https/runtime/response"
+	"fast-https/infra/logging"
 	"fmt"
 	"io"
 	"net"
@@ -159,7 +159,7 @@ func (rka *ReadKeepAlive) Read(data []byte) (int, error) {
 	} else if rka.p.ProxyType == config.PROXY_HTTPS {
 		return rka.p.ProxyTlsConn.Read(data)
 	} else {
-		message.PrintErr("--proxy read error")
+		logging.PrintErr("--proxy read error")
 		return 0, nil
 	}
 }

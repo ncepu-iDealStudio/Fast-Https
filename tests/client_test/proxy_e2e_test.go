@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fast-https/cmd"
 	initialization "fast-https/init"
-	"fast-https/modules/core/server"
+	"fast-https/runtime/server"
 	"fmt"
 	"io"
 	"net"

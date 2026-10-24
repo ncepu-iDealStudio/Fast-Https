@@ -5,12 +5,12 @@ import (
 	"fast-https/config"
 	"fast-https/modules/appfirewall"
 	"fast-https/modules/compress"
-	"fast-https/modules/core"
-	"fast-https/modules/core/dynlog"
-	"fast-https/modules/core/listener"
-	"fast-https/modules/core/request"
-	"fast-https/modules/core/response"
-	"fast-https/utils/message"
+	"fast-https/core"
+	"fast-https/runtime/dynlog"
+	"fast-https/runtime/listener"
+	"fast-https/runtime/request"
+	"fast-https/runtime/response"
+	"fast-https/infra/logging"
 	"io"
 	"io/fs"
 	"os"
@@ -21,7 +21,7 @@ import (
 
 // Register installs the static file handler for location type local.
 func Register() {
-	core.RRHandlerRegister(config.LOCAL, HandelSlash, StaticEvent, nil)
+	core.RegisterHandler(config.LOCAL, HandelSlash, StaticEvent, nil)
 }
 
 // don't forget closing file.
@@ -29,7 +29,7 @@ func fileFdSize(pathName string) (file *os.File, size int64) {
 	var err error
 	file, err = os.Open(pathName)
 	if err != nil {
-		message.PrintWarn("no such file")
+		logging.PrintWarn("no such file")
 		return nil, -1
 	}
 
@@ -130,8 +130,8 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	}
 
 	if !found {
-		dynlog.LogOther(log, "status", "404")
-		dynlog.LogOther(log, "size", "50")
+		log.Status(404)
+		log.Size(50)
 		return -1
 	}
 
@@ -206,9 +206,8 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	/* =========== h2 逻辑结束 ==================== */
 
 	// log
-	dynlog.LogOther(log, "status", "200")
-	dynlog.LogOther(log, "size", strconv.Itoa(int(payloadLen)))
-	dynlog.LogClear(log)
+	log.Status(200)
+	log.Size(int(payloadLen))
 
 	return 1 // find source
 }
@@ -313,6 +312,5 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		}
 	}
 
-	dynlog.Log(&log, ev, "")
-	dynlog.LogClear(&log)
+	dynlog.Log(&log, ev)
 }
