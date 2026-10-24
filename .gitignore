@@ -17,3 +17,5 @@ conifg/conf.d/*.json
 httpdoc/root/root.crt
 httpdoc/root/root.key
 httpdoc/theme/*
+.idea/*
+.vscode/*
