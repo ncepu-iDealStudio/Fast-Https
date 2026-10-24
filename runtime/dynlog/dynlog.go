@@ -5,6 +5,7 @@ import (
 	"fast-https/config"
 	"fast-https/core"
 	"fast-https/infra/logging"
+	"sync/atomic"
 
 	"github.com/rs/zerolog"
 )
@@ -29,8 +30,12 @@ func (l *DynLogger) Size(n int) {
 
 type fieldFunc func(*zerolog.Event, *DynLogger, *core.Event)
 
-// GLogMap 是按配置顺序排好的字段写入函数。
-var GLogMap []fieldFunc
+// defaultLogFormat 是 http.log_format 未配置时的默认字段序。
+var defaultLogFormat = []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}
+
+// logFields 是请求路径读取的字段函数表，atomic 整体替换：
+// reload 重建时请求协程要么读到完整的旧表、要么读到完整的新表。
+var logFields atomic.Pointer[[]fieldFunc]
 
 // fieldFuncs 是配置名到字段写入函数的映射，替代逐项 switch。
 var fieldFuncs = map[string]fieldFunc{
@@ -46,17 +51,19 @@ var fieldFuncs = map[string]fieldFunc{
 }
 
 // LogRegister 按 http.log_format 重建字段函数表。
-// 重复调用（例如 reload）先清空，避免字段被重复追加。
+// 重复调用（例如 reload）整体替换，不会重复追加字段。
 func LogRegister() {
-	if config.Current().LogFormat == nil {
-		config.Current().LogFormat = []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}
+	format := config.Current().LogFormat
+	if format == nil {
+		format = defaultLogFormat
 	}
-	GLogMap = GLogMap[:0]
-	for _, name := range config.Current().LogFormat {
+	fields := make([]fieldFunc, 0, len(format))
+	for _, name := range format {
 		if fn, ok := fieldFuncs[name]; ok {
-			GLogMap = append(GLogMap, fn)
+			fields = append(fields, fn)
 		}
 	}
+	logFields.Store(&fields)
 }
 
 // Log 写出这条访问日志。
@@ -64,7 +71,7 @@ func LogRegister() {
 // 直接往 zerolog 事件上加字段，不为每条请求分配中间结构。
 func Log(l *DynLogger, ev *core.Event) {
 	event := logging.AccessEvent()
-	for _, fn := range GLogMap {
+	for _, fn := range *logFields.Load() {
 		fn(event, l, ev)
 	}
 	event.Send()
