@@ -9,8 +9,6 @@ import (
 	"net"
 	"strconv"
 	"strings"
-
-	"github.com/Jxck/logger"
 )
 
 const (
@@ -177,7 +175,7 @@ func (rka *ReadKeepAlive) ReadBytes(size int) {
 		tempLen, err := rka.Read(tmpBuf)
 		if err != nil {
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				logger.Debug("read bytes time out")
+				logging.ConsoleLog.Debug().Msg("read bytes time out")
 				break
 			}
 		}
@@ -199,10 +197,12 @@ readAgain:
 		if ok && neterr.Timeout() {
 			return ProxyErrorReadFromUpstreamTimeout
 		} else if ok {
-			logger.Debug("unhandled error")
+			logging.ConsoleLog.Debug().Msgf("proxy: unhandled net error: %v", err)
 			return err // can't read
 		} else {
-			logger.Fatal("can't convent net error")
+			// 原来这里调 logger.Fatal，会直接 os.Exit(1) 把整个进程带走。
+			logging.ConsoleLog.Error().Msgf("proxy: can't convert net error: %v", err)
+			return err
 		}
 	}
 	rka.finalStr = append(rka.finalStr, tmpByte[:len_once]...)
