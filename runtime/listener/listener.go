@@ -238,7 +238,7 @@ func ListenWithCfg() []Listener {
 			CurrLisinfos[index].Cancel = cancel
 			CurrLisinfos[index].certs = newCertSet()
 
-			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, CurrLisinfos[index].certs, each.Cfg, true)
+			CurrLisinfos[index].Lfd = listenSsl("0.0.0.0:"+each.Port, CurrLisinfos[index].certs, each.Cfg, each.LisType == 10, true)
 		} else {
 			ctx, cancel := context.WithCancel(context.Background())
 			CurrLisinfos[index].Ctx = ctx
@@ -342,7 +342,10 @@ func listenTcp(laddr string, reuse bool) net.Listener {
 }
 
 // ssl listen
-func listenSsl(laddr string, certs *certSet, lisdata []ListenCfg, reuse bool) net.Listener {
+//
+// h2 为真时才会在 ALPN 中通告 "h2"：不含 h2 的 ssl 端口必须保持纯 HTTP/1.1，
+// 否则客户端可能协商到 h2，却被 HTTP/1.1 解析器处理。
+func listenSsl(laddr string, certs *certSet, lisdata []ListenCfg, h2 bool, reuse bool) net.Listener {
 	if certs == nil {
 		certs = newCertSet()
 	}
@@ -353,10 +356,12 @@ func listenSsl(laddr string, certs *certSet, lisdata []ListenCfg, reuse bool) ne
 	}
 
 	tlsConfig := &tls.Config{
-		NextProtos:     []string{"h2"},
 		GetCertificate: certs.get,
 		Time:           time.Now,
 		Rand:           rand.Reader,
+	}
+	if h2 {
+		tlsConfig.NextProtos = []string{"h2", "http/1.1"}
 	}
 
 	tcpListener := listenTcp(laddr, reuse)

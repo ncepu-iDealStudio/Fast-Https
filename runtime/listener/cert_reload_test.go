@@ -26,7 +26,7 @@ func TestReplaceCertificateWithoutRebind(t *testing.T) {
 		ServerName: "a.example",
 		SSL:        SSLkv{SslKey: aCrt, SslValue: aKey},
 	}}
-	ln := listenSsl("127.0.0.1:0", store, cfgA, false)
+	ln := listenSsl("127.0.0.1:0", store, cfgA, false, false)
 	t.Cleanup(func() { _ = ln.Close() })
 	go acceptUntilClose(ln)
 

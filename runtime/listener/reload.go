@@ -15,7 +15,7 @@ func getReloadAddedListeninfo(ports []string, currli *[]Listener) []Listener {
 	for index, each := range CurrLisinfosAdded {
 		if each.LisType == 1 || each.LisType == 10 {
 			CurrLisinfosAdded[index].certs = newCertSet()
-			CurrLisinfosAdded[index].Lfd = listenSsl("0.0.0.0:"+each.Port, CurrLisinfosAdded[index].certs, each.Cfg, true)
+			CurrLisinfosAdded[index].Lfd = listenSsl("0.0.0.0:"+each.Port, CurrLisinfosAdded[index].certs, each.Cfg, each.LisType == 10, true)
 		} else {
 			CurrLisinfosAdded[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
 		}
@@ -67,7 +67,7 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]Listener) (remove
 					if each.LisType == 1 || each.LisType == 10 {
 						old.Lfd.Close()
 						CurrLisinfoCommon[index].certs = newCertSet()
-						CurrLisinfoCommon[index].Lfd = listenSsl("0.0.0.0:"+each.Port, CurrLisinfoCommon[index].certs, each.Cfg, true)
+						CurrLisinfoCommon[index].Lfd = listenSsl("0.0.0.0:"+each.Port, CurrLisinfoCommon[index].certs, each.Cfg, each.LisType == 10, true)
 					} else {
 						old.Lfd.Close()
 						CurrLisinfoCommon[index].Lfd = listenTcp("0.0.0.0:"+each.Port, true)
