@@ -5,6 +5,7 @@ docs/
   README.md          ← 本文件
   feature/           产品功能（23 篇，按编号排列，含计划占位）
   develop/           开发文档（环境/测试/规范/配置/调试/发布 + plans 过程规划）
+  test/              测试专项（覆盖率评估/边界用例集/压测计划）
   architecture-map.md    当前 package 盘点与依赖方向
   about.md               启动与运行逻辑（含流程图）
   nginx-core-gap.md      与 Nginx 核心功能对比
@@ -17,6 +18,7 @@ docs/
 | --- | --- |
 | 了解某个功能怎么用、怎么实现 | [feature/README.md](feature/README.md) |
 | 搭环境、跑测试、发版 | [develop/README.md](develop/README.md) |
+| 看覆盖率、补边界用例、跑压测 | [test/README.md](test/README.md) |
 | 新增配置项 | [develop/3-config-development.md](develop/3-config-development.md) |
 | 排查线上问题 | [develop/4-debugging.md](develop/4-debugging.md) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
