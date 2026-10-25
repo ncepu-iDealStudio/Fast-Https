@@ -6,7 +6,6 @@ import (
 	"fast-https/runtime/listener"
 	"fmt"
 	"net/textproto"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -236,69 +235,161 @@ func (r *Request) ByteRow() []byte {
 // parse row tcp str to a req object
 // 头未接收完整时返回 RequestNeedReadMore，调用方应继续读 socket 后重新解析；
 // 头非法时返回对应 *RequestError，调用方应拒绝该请求。
+var crlf = []byte("\r\n")
+
+// methodSet/protocolSet：map 的 string(b) 查找不产生分配，
+// 命中即复用常量串——同时完成方法/协议的合法性校验。
+var (
+	methodSet   = make(map[string]string, len(http_method))
+	protocolSet = make(map[string]string, len(http_protocol))
+)
+
+// commonCanonKeys 预置常见头名的 canonical 形式：
+// 命中即零分配复用常量串，未命中回落到 textproto（每键一次分配）。
+var commonCanonKeys = func() map[string]string {
+	names := []string{
+		"Accept", "Accept-Encoding", "Accept-Language", "Authorization",
+		"Cache-Control", "Connection", "Content-Encoding", "Content-Length",
+		"Content-Type", "Cookie", "Date", "Etag", "Expect", "Host",
+		"If-Modified-Since", "If-None-Match", "Last-Modified", "Location",
+		"Origin", "Range", "Referer", "Server", "Set-Cookie", "Te",
+		"Transfer-Encoding", "Upgrade", "User-Agent", "Vary",
+		"Www-Authenticate", "X-Forwarded-For", "X-Forwarded-Host",
+		"X-Forwarded-Proto", "X-Real-Ip", "X-Request-Id",
+	}
+	m := make(map[string]string, len(names))
+	for _, n := range names {
+		m[n] = n
+	}
+	return m
+}()
+
+func init() {
+	for _, m := range http_method {
+		methodSet[m] = m
+	}
+	for _, p := range http_protocol {
+		protocolSet[p] = p
+	}
+}
+
+// canonHeaderKey 返回头名的 canonical 形式。
+func canonHeaderKey(b []byte) string {
+	if s, ok := commonCanonKeys[string(b)]; ok {
+		return s
+	}
+	return textproto.CanonicalMIMEHeaderKey(string(b))
+}
+
+// errNoColon 表示头行没有冒号，由调用方根据它是否为最后一段决定
+// 返回 InvalidHeaders 还是 NeedReadMore。
+var errNoColon = errors.New("header line without colon")
+
+func (r *Request) parseHeaderLine(line []byte) error {
+	colon := bytes.IndexByte(line, ':')
+	if colon < 0 {
+		return errNoColon
+	}
+	key := bytes.TrimSpace(line[:colon])
+	if len(key) == 0 { // ": value" 这样的行不合法
+		return InvalidHeaders
+	}
+	// HTTP 头名大小写不敏感，统一成 canonical 形式供后续读取
+	ks := canonHeaderKey(key)
+	value := bytes.TrimSpace(line[colon+1:])
+	if ks == "Content-Length" {
+		if n, err := strconv.Atoi(string(value)); err != nil || n < 0 {
+			return InvalidHeaders
+		}
+	}
+	r.Headers[ks] = string(value)
+	return nil
+}
+
+// parse row tcp str to a req object
+// 头未接收完整时返回 RequestNeedReadMore，调用方应继续读 socket 后重新解析；
+// 头非法时返回对应 *RequestError，调用方应拒绝该请求。
+//
+// 全程在原始字节切片上切行，只为最终存入 map 的键值分配字符串，
+// 不再整包 string() 拷贝、不再为每行分配中间字符串。
 func (r *Request) ParseHeader(request_byte []byte) error {
-	request := string(request_byte)
-	if request == "" {
+	if len(request_byte) == 0 {
 		return None
 	}
-	requestLine := strings.Split(request, "\r\n")
-	if len(requestLine) < 2 {
-		return UnknowInvalid // invalid request
+
+	// 请求行
+	lineEnd := bytes.Index(request_byte, crlf)
+	if lineEnd < 0 {
+		return UnknowInvalid // 连一个 \r\n 都没有
 	}
-	parts := strings.Split(requestLine[0], " ")
-	if len(parts) != 3 {
+	first := request_byte[:lineEnd]
+	rest := request_byte[lineEnd+2:]
+
+	sp1 := bytes.IndexByte(first, ' ')
+	if sp1 < 0 {
 		return FirstLineInvalid // invalid first line
 	}
-	if !slices.Contains(http_method, parts[0]) {
+	sp2 := bytes.IndexByte(first[sp1+1:], ' ')
+	if sp2 < 0 {
+		return FirstLineInvalid
+	}
+	sp2 += sp1 + 1
+	path := first[sp1+1 : sp2]
+	protocol := first[sp2+1:]
+	if bytes.IndexByte(protocol, ' ') >= 0 {
+		// 首行字段数超过 3
+		return FirstLineInvalid
+	}
+
+	if m, ok := methodSet[string(first[:sp1])]; ok {
+		r.Method = m
+	} else {
 		return MethodInvalid // invalid method
 	}
-	r.Method = parts[0]
 
-	if parts[1] == "" {
+	if len(path) == 0 {
 		return PathInvalid
 	}
-	r.Path = parts[1]
+	r.Path = string(path)
 
-	if !slices.Contains(http_protocol, parts[2]) {
+	if p, ok := protocolSet[string(protocol)]; ok {
+		r.Protocol = p
+	} else {
 		return ProtocolInvalid // invalid protocol
 	}
-	r.Protocol = parts[2]
 
-	lines := requestLine[1:]
-	if len(lines) == 1 {
+	if len(rest) == 0 {
+		// 整个缓冲只有请求行（带或不带结尾 CRLF）
 		return RequestNeedReadMore
 	}
 
-	for i := 0; i < len(lines); i++ {
-		if lines[i] == "" { // there is "\r\n\r\n", \r\n"
-			if i+1 < len(lines) {
-				return RequestOk // valid
+	// 逐行解析头部，行是原缓冲的切片视图
+	pos := 0
+	for {
+		nl := bytes.Index(rest[pos:], crlf)
+		if nl < 0 {
+			// 最后一段（无 CRLF 结尾）：可能是被截断的半个头
+			if err := r.parseHeaderLine(rest[pos:]); err != nil {
+				if err == errNoColon {
+					return RequestNeedReadMore
+				}
+				return err
 			}
-			return RequestNeedReadMore // 缓冲以空行结尾，头可能还没发完
+			return RequestNeedReadMore
 		}
-		parts := strings.SplitN(lines[i], ":", 2)
-		if len(parts) == 1 { // No ":"
-			if i+1 == len(lines) {
-				return RequestNeedReadMore // 最后一行可能是被截断的半个头
-			}
-			return InvalidHeaders // invalid headers
+		line := rest[pos : pos+nl]
+		pos += nl + 2
+		if len(line) == 0 {
+			// 终止空行：后面是 body
+			return RequestOk
 		}
-		key := strings.TrimSpace(parts[0])
-		if key == "" { // ": value" 这样的行不合法
-			return InvalidHeaders
-		}
-		// HTTP 头名大小写不敏感，统一成 canonical 形式供后续读取
-		key = textproto.CanonicalMIMEHeaderKey(key)
-		value := strings.TrimSpace(parts[1])
-		if key == "Content-Length" {
-			if n, err := strconv.Atoi(value); err != nil || n < 0 {
+		if err := r.parseHeaderLine(line); err != nil {
+			if err == errNoColon {
 				return InvalidHeaders
 			}
+			return err
 		}
-		r.Headers[key] = value
 	}
-
-	return RequestNeedReadMore // valid
 }
 
 // get request's body

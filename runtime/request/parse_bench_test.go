@@ -67,10 +67,29 @@ func BenchmarkSelfParseGETFresh(b *testing.B) {
 	}
 }
 
+// cycleReader 无限循环重放同一段请求字节：内存固定，
+// 避免 bytes.Repeat(…, b.N) 随迭代数膨胀带来的 GC 噪声。
+type cycleReader struct {
+	buf []byte
+	pos int
+}
+
+func (c *cycleReader) Read(p []byte) (int, error) {
+	if c.pos >= len(c.buf) {
+		c.pos = 0
+	}
+	n := copy(p, c.buf[c.pos:])
+	c.pos += n
+	return n, nil
+}
+
+func newCycleStream(sample []byte, n int) *bufio.Reader {
+	return bufio.NewReaderSize(&cycleReader{buf: bytes.Repeat(sample, n)}, 4096)
+}
+
 // net/http 官方解析器：复用 bufio（与真实 server 一致）
 func BenchmarkNetHTTPParseGET(b *testing.B) {
-	stream := bytes.NewReader(bytes.Repeat(benchGET, b.N))
-	r := bufio.NewReaderSize(stream, 4096)
+	r := newCycleStream(benchGET, 1000)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -101,8 +120,7 @@ func BenchmarkSelfParsePOST(b *testing.B) {
 
 // net/http 官方解析器：带 body 的 POST
 func BenchmarkNetHTTPParsePOST(b *testing.B) {
-	stream := bytes.NewReader(bytes.Repeat(benchPOST, b.N))
-	r := bufio.NewReaderSize(stream, 4096)
+	r := newCycleStream(benchPOST, 1000)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
