@@ -69,7 +69,7 @@
 | R6 | `status` 命令给出进程状态 | P3 | 易 | 6 | 已落地 |
 | R7 | 配置文件变更后自动重载 | P3 | 中 | 7 | 暂缓：继续手工重载 |
 | R8 | 代理上游故障转移 | P3 | 中 | 8 | 未做 |
-| R9 | GuardianWAF 接入应用防火墙 | P1 | 中 | 9 | 方案已出：[guardianwaf-adoption.md](guardianwaf-adoption.md)，分四阶段落地 |
+| R9 | GuardianWAF 接入应用防火墙 | P1 | 中 | 9 | 已落地（2026-10-25，v1.0.0；灰度见 guardianwaf-adoption.md） |
 
 ## 5. 工作项
 
