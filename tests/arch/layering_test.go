@@ -71,7 +71,7 @@ var layers = []layer{
 	{
 		name: "composition",
 		match: func(pkg string) bool {
-			return pkg == "cmd" || pkg == "init" || pkg == "output" || pkg == "monitor" || pkg == "."
+			return pkg == "cmd" || pkg == "init"  || pkg == "monitor" || pkg == "."
 		},
 		// 组合根允许装配所有层，不做限制。
 		allow: nil,

@@ -100,8 +100,8 @@ fast-https/
 │   └── dev_mod/                  # location type = devmod
 ├── infra/                        # 基础设施：不依赖 config
 │   ├── logging/                  # 唯一日志出口：控制台 + 四路 JSON 文件
-│   └── color/  timeutil/
-├── output/                       # 启动 Logo 与初始化提示
+│   ├── color/  timeutil/
+│   └── banner/                   # 彩色启动横幅与初始化阶段提示
 ├── monitor/                      # Windows 托盘程序（独立 main）
 ├── httpdoc/root/                 # 默认静态站点与自签名根证书存放目录
 ├── docs/                         # 文档：feature/（功能）+ develop/（开发）+ plans（规划）

@@ -4,10 +4,10 @@ package cmd
 import (
 	"encoding/json"
 	"fast-https/config"
+	"fast-https/infra/banner"
+	"fast-https/infra/logging"
 	initialization "fast-https/init"
 	"fast-https/runtime/server"
-	"fast-https/output"
-	"fast-https/infra/logging"
 	"fmt"
 	"net/http"
 	"os"
@@ -214,19 +214,19 @@ func DevStartHandler() error {
 	PreCheckHandler()
 
 	// output logo, make initialization and start server
-	output.PrintLogo()
+	banner.PrintLogo(config.CURRENT_VERSION)
 	// dev stays in the foreground on every platform, so the pid file is this process.
 	// reload reads that file and sends SIGINT.
 	WritePid(config.PID_FILE)
 
-	output.PrintInitialStart()
+	banner.PrintInitialStart()
 	initialization.InitSystem()
-	output.PrintInitialEnd()
+	banner.PrintInitialEnd()
 
 	RegisterHandlers()
 	RegisterServices()
 	server := server.ServerInit()
-	output.PrintPortsListenerStart()
+	banner.PrintPortsListenerStart()
 	server.Run()
 
 	return nil
@@ -240,11 +240,11 @@ func StartHandler() error {
 	PreCheckHandler()
 
 	// output logo, make initialization and start server
-	output.PrintLogo()
+	banner.PrintLogo(config.CURRENT_VERSION)
 
-	output.PrintInitialStart()
+	banner.PrintInitialStart()
 	initialization.InitSystem()
-	output.PrintInitialEnd()
+	banner.PrintInitialEnd()
 
 	// Outside a container, Linux/amd64 still forks. nochdir=1 keeps the working
 	// directory, and LoadFile has already turned site, certificate and log paths
@@ -257,7 +257,7 @@ func StartHandler() error {
 	RegisterHandlers()
 	RegisterServices()
 	server := server.ServerInit()
-	output.PrintPortsListenerStart()
+	banner.PrintPortsListenerStart()
 	server.Run()
 
 	// server will clog here

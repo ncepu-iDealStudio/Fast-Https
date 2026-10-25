@@ -17,7 +17,7 @@ runtime/    数据面：server（调度）、listener（监听/证书）、event
 modules/    功能面：static、proxy、proxy_tcp、websocket、rewrite、cache、compress、
             safe、auth、appfirewall、dev_mod
 config/     配置：JSON schema 解析、快照（atomic）、校验
-infra/      基础设施：logging（zerolog 五路）、color、timeutil
+infra/      基础设施：logging（zerolog 五路）、color、timeutil、banner（彩色横幅）
 init/       启动编排：配置→日志→证书→缓存
 ```
 

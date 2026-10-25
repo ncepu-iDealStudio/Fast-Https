@@ -17,7 +17,7 @@
 | 契约 | `core` | `infra/*`、`config`、`runtime/{listener,request,response}` | 只放 `Event`、处理器注册表与生命周期钩子；后三个是 `Event` 内嵌的数据模型，属登记例外 |
 | 数据面运行时 | `runtime/*` | `infra/*`、`config`、`core`、`runtime/*` | 不允许依赖 `modules` |
 | 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters}` |
-| 组合根 | `cmd`、`init`、`output`、`monitor`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
+| 组合根 | `cmd`、`init`、`monitor`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
 
 ## 2. Package 与生产职责
 
@@ -27,7 +27,7 @@
 | `cmd` | Cobra 命令、start/dev/stop/reload/check/status、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点 | 是 |
 | `config` | 配置模型、JSON/include 读取、验证、路径和全局运行配置 | 是 |
 | `init` | 配置、日志、证书、缓存初始化 | 是 |
-| `output` | logo、启动提示和 listener 启动提示 | 由组合根调用 |
+| `infra/banner` | 彩色横幅、版本号与初始化阶段提示（版本由组合根注入） | 由组合根调用 |
 | `infra/logging` | 进程唯一日志出口：控制台一路 + 文件四路，全部 JSON | 是 |
 | `infra/color`、`timeutil` | 终端着色（唯一入口，后端为 `fatih/color`）、nginx 风格时长解析 | 是 |
 | `core` | `Event`、处理器注册表、默认命令变量、`Services` 生命周期钩子 | 是 |
