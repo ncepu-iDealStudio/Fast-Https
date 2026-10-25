@@ -2,7 +2,7 @@
 
 ## 介绍
 
-Fast-Https 是一款用 Go 开发的多任务、高并发 Web 服务器。当前实现覆盖 HTTP/1.1、HTTP/2、HTTPS、静态站点、HTTP/HTTPS 反向代理、TCP 代理和 WebSocket 升级。测试环境下，服务启动时可以为带 `ssl` 的站点自动生成自签名证书。
+Fast-Https 是一款用 Go 开发的多任务、高并发 Web 服务器。当前实现覆盖 HTTP/1.1、HTTP/2、HTTPS、静态站点（条件请求 304、Range 分段、gzip/brotli 内容协商压缩）、HTTP/HTTPS 反向代理（上游连接池、响应缓存）、TCP 代理、WebSocket 升级、IP 黑名单与多级限流、应用防火墙（GuardianWAF 引擎）与不停机的配置热重载。测试环境下，服务启动时可以为带 `ssl` 的站点自动生成自签名证书。
 
 目前提供 Windows 与 Linux 安装包，其它平台陆续补充。
 
@@ -14,19 +14,19 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 模块声明的 Go 版本是 **1.27.0**，工具链固定为 **go1.27.1**，见 `go.mod`。这是 2026 年 10 月仍在官方支持期内的当前主流版本，同时受支持的还有 1.26。根目录 `Dockerfile` 使用 `golang:1.27-alpine` 编译；`spec` 里的 RPM 构建脚本下载 Go 1.27.1。
 
 
-服务自己解析 HTTP/1.1。HTTP/2 的协议栈（分帧、HPACK、流状态机、流量控制）委托给 `golang.org/x/net/http2`，项目只保留连接接入与 `core.Event` 适配层。标准库提供 TCP、`crypto/tls` 和 `gzip`。开发模式在 `0.0.0.0:10000` 使用 `net/http` 的默认多路复用器提供 pprof。
+服务自己解析 HTTP/1.1。HTTP/2 的协议栈（分帧、HPACK、流状态机、流量控制）委托给 `golang.org/x/net/http2`，项目只保留连接接入与 `core.Event` 适配层。标准库提供 TCP、`crypto/tls` 与配置解析（配置文件是纯 JSON）。开发模式在 `0.0.0.0:10000` 使用 `net/http` 的默认多路复用器提供 pprof。
 
 运行时直接依赖如下，版本以 `go.mod` 为准：
 
 | 依赖 | 版本 | 用途 |
 | --- | --- | --- |
+| `github.com/guardianwaf/guardianwaf` | v1.0.0 | 应用防火墙引擎（分词评分，sqli/xss/lfi/cmdi/xxe/ssrf） |
 | `github.com/spf13/cobra` | v1.10.2 | 命令行：`start`、`dev`、`stop`、`reload`、`install`、`uninstall`、`status` |
 | `github.com/rs/zerolog` | v1.35.1 | 控制台与 `logs/` 下的系统、访问、错误、安全 JSON 日志 |
 | `golang.org/x/net` | v0.61.0 | HTTP/2 协议栈（`http2.Server` / `Transport` / HPACK） |
 | `github.com/klauspost/compress` | v1.17.2 | gzip 压缩（标准库 API 平替，速度更快） |
 | `github.com/andybalholm/brotli` | v1.2.7 | brotli 压缩（`zip: ["br"]`，`Content-Encoding: br`） |
 | `golang.org/x/time` | v0.16.0 | 连接限流 |
-| `github.com/microcosm-cc/bluemonday` | v1.0.27 | `xss` 规则清理 JSON 中的 HTML |
 | `github.com/kardianos/service` | v1.3.0 | 安装、卸载系统服务 |
 | `fyne.io/systray` | v1.12.2 | Windows 托盘程序 `monitor/`（getlantern/systray 的活跃分支） |
 | `golang.org/x/sys` | v0.49.0 | Windows 控制台 Ctrl+Break / Ctrl+C |
@@ -38,7 +38,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 
 服务自己完成监听、请求解析和响应写出。入口在 `fast-https.go`，命令由 `cmd` 分发，配置由 `config` 加载，初始化在 `init`，连接与协议处理在 `core`。每个监听端口由独立协程 `Accept`，再按连接类型进入 HTTP/1.1 事件循环或 HTTP/2 处理。
 
-`location.type` 决定请求交给哪个处理函数。`start` 和 `dev` 在监听前调用 `cmd.RegisterHandlers` 登记静态文件、反向代理、重写和开发模块，并调用 `cmd.RegisterServices` 装入黑名单、限流、认证、TCP 转发和 WebSocket。
+`location.type` 决定请求交给哪个处理函数。`start` 和 `dev` 在监听前调用 `cmd.RegisterHandlers` 登记静态文件、反向代理、重写和开发模块，并调用 `cmd.RegisterServices` 装入黑名单、限流、认证、TCP 转发、WebSocket 和应用防火墙（经 `core.Services` 钩子注入，`runtime`/`core` 不依赖功能包）。
 
 | `location.type` / `listen` | 处理位置 | 行为 |
 | --- | --- | --- |
@@ -51,9 +51,9 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `listen` 含 `ssl` | `runtime/listener` | TLS |
 | `listen` 含 `h2` | `runtime/events` | 交给 `golang.org/x/net/http2` 处理 |
 
-同一条请求还会经过连接过滤（黑名单、限流）、可选的 Basic 认证（`modules/auth`）和访问计数（`modules/safe`）。静态与代理路径会执行应用防火墙：`xss` 在 JSON 对象或数组里的 `<script` 被去掉后返回 403；`sql` 已注册，不会拦截请求。
+同一条请求依次经过：连接过滤（per-IP 令牌桶限流、IP 黑名单，`modules/safe`）→ location 访问计数限流 → 可选的 Basic 认证（`modules/auth`）→ 应用防火墙（`modules/appfirewall`，GuardianWAF 分词评分引擎，配置了 `appfirewall` 或 `waf` 的 location 生效，命中回 403；`waf.mode: monitor` 只记录不阻断；未配置时引擎不构建、零开销）。防火墙检查在 `events.EventHandler` 统一执行，每请求恰好一次，所有 location 类型默认受保护。
 
-`HEAD` 保留 `Content-Length` 和 `Content-Type`，不写正文。带 `Content-Length` 的请求体按长度读取。`Transfer-Encoding: chunked` 按块读完；块格式错误或超过 `http.servers_limit.max_body_size` 时关闭连接。location 的 `zip` 含 `gzip` 且请求接受 gzip 时，静态正文会压缩，并写上匹配的 `Content-Length`。未打开或客户端不接受时不写 `Content-Encoding`。location 可以选配 `error_page.not_found` 和 `error_page.proxy`：文件可读时分别替换 404 和上游拨号失败的正文，文件不存在时仍用默认响应。
+`HEAD` 保留 `Content-Length` 和 `Content-Type`，不写正文。带 `Content-Length` 的请求体按长度读取。`Transfer-Encoding: chunked` 按块读完；块格式错误或超过 `http.servers_limit.max_body_size` 时关闭连接。静态响应带 `Last-Modified`：`If-Modified-Since` 不早于文件修改时间回 304；支持单段 `Range`（206 + `Content-Range`，畸形/越界回 416），文件正文经 `io.Copy` 在 Linux 上走 sendfile 零拷贝。location 的 `zip` 配置决定压缩协商：`["gzip"]` 只出 gzip，`["br"]` 只出 brotli，`["gzip","br"]` 客户端认 br 时优先 br 否则回退 gzip，配置了压缩的响应带 `Vary: Accept-Encoding`。location 可以选配 `error_page.not_found` 和 `error_page.proxy`：文件可读时分别替换 404 和上游拨号失败的正文，文件不存在时仍用默认响应。
 
 `listen` 含 `h2` 时，TLS 握手与 ALPN 协商由 `net/http` 完成，`h2` 协商成功后进入 `http2.Server`；重载或停止时通过 `http.Server.Shutdown` 发送 GOAWAY 并等待在途 stream，最长 `5s`。响应头使用 HPACK 静态表和动态表压缩，帧大小受对端 `SETTINGS_MAX_FRAME_SIZE` 约束，逐跳首部（`Connection` 等）不会写到 HTTP/2 响应里。
 
@@ -84,7 +84,7 @@ fast-https/
 ├── core/                         # 契约层：Event、处理器注册表、生命周期钩子
 │   ├── event.go                  # Event / RRcircle / RRcircleHandler
 │   ├── registry.go               # map 注册表：RegisterHandler / Handler
-│   ├── services.go               # 连接、监听、鉴权与停机钩子
+│   ├── services.go               # 连接、监听、鉴权、WAF 与停机钩子
 │   ├── handlers.go               # handler 缺失检查与类型名
 │   └── commands.go               # 默认命令解析
 ├── runtime/                      # 数据面运行时（不依赖 modules）
@@ -100,10 +100,11 @@ fast-https/
 │   └── dev_mod/                  # location type = devmod
 ├── infra/                        # 基础设施：不依赖 config
 │   ├── logging/                  # 唯一日志出口：控制台 + 四路 JSON 文件
-│   └── files/  color/  timeutil/
+│   └── color/  timeutil/
 ├── output/                       # 启动 Logo 与初始化提示
 ├── monitor/                      # Windows 托盘程序（独立 main）
 ├── httpdoc/root/                 # 默认静态站点与自签名根证书存放目录
+├── docs/                         # 文档：feature/（功能）+ develop/（开发）+ plans（规划）
 ├── tests/                        # 自动测试；scripts/ 与 single/ 是手工脚本和示例，不进入 go test
 ├── docker/                       # CentOS 7、Ubuntu 镜像
 ├── Dockerfile                    # 多阶段构建，暴露 8080 与 443
@@ -120,7 +121,7 @@ fast-https/
 2. `start` / `dev` 先做预检：校验 `config/fast-https.json` 及其 `include`、扫描端口、确认没有已在运行的实例。
 3. 打印 Logo 后调用 `init.InitSystem()`：加载配置与 `mime.json`、打开四路 JSON 日志文件、生成或加载证书、从磁盘恢复缓存并启动过期清理。
 4. `start` 在容器外的 Linux amd64 上会 fork，并保持当前工作目录，再把子进程 pid 写入 `fast-https.pid`。Windows，以及设置了 `FASTHTTPS_FOREGROUND=1` 或检测到容器标记文件时，进程保持前台并写同一 pid 文件。`dev` 不进入守护进程，控制台日志级别提到 `trace`，并在 `0.0.0.0:10000` 打开 pprof。
-5. `server.ServerInit()` 注册信号处理，按配置创建监听器，再初始化安全模块并注册动态日志。
+5. `server.ServerInit()` 注册信号处理，按配置创建监听器，再初始化安全模块、构建应用防火墙引擎（reload 时幂等重建）并注册动态日志。
 6. 每个端口一个协程接受连接。`listen` 含 `h2` 时走 HTTP/2，其余走 HTTP/1.1 事件循环。
 
 信号处理：
@@ -222,6 +223,12 @@ go run fast-https.go uninstall
 ## 使用说明
 
 见文档：<https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#> 《Fast-Https产品说明》
+
+仓库内文档（[docs/README.md](docs/README.md) 为总索引）：
+
+- [docs/feature/](docs/feature/README.md)：按功能分篇的 23 篇说明（已实现 0-19、计划占位 20-22），每篇含配置示例与实现方案
+- [docs/develop/](docs/develop/README.md)：开发文档（环境构建、测试体系、代码规范、配置项开发、调试、发布）与历史规划（`develop/plans/`）
+- [docs/architecture-map.md](docs/architecture-map.md)：当前 package 盘点与依赖方向
 
 测试布局与运行方式见 [tests/readme.md](tests/readme.md)。
 

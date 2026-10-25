@@ -2,7 +2,7 @@
 
 ## Introduction
 
-Fast-Https is a multi-task, high-concurrency web server written in Go. The current tree implements HTTP/1.1, HTTP/2, HTTPS, static files, HTTP and HTTPS reverse proxy, TCP proxy, and WebSocket upgrade. On startup it can create a self-signed certificate for any server whose `listen` value contains `ssl`, which is meant for test access.
+Fast-Https is a multi-task, high-concurrency web server written in Go. The current tree implements HTTP/1.1, HTTP/2, HTTPS, static files (conditional 304, Range, gzip/brotli negotiation), HTTP and HTTPS reverse proxy (upstream connection pool, response cache), TCP proxy, WebSocket upgrade, IP blacklist with tiered rate limiting, an application firewall (GuardianWAF engine), and zero-downtime config reload. On startup it can create a self-signed certificate for any server whose `listen` value contains `ssl`, which is meant for test access.
 
 Installation packages are published for Windows and Linux. Packages for other platforms are added over time.
 
@@ -12,19 +12,19 @@ The project is part of the openEuler community (<https://gitee.com/src-openeuler
 
 The product version is `V1.3.2` (`CURRENT_VERSION` in `config/consts.go`). The module declares **Go 1.27.0** and toolchain **go1.27.1** in `go.mod`. That is the current supported release as of October 2026; Go 1.26 is the other supported line. The root `Dockerfile` builds with `golang:1.27-alpine`. The RPM `spec` downloads Go 1.27.1.
 
-The server parses HTTP/1.1 itself; the HTTP/2 stack (framing, HPACK, flow control) is delegated to `golang.org/x/net/http2`, with only the connection intake and `core.Event` adapter kept in-tree. The standard library supplies TCP, `crypto/tls`, and gzip. Development mode serves pprof from the default `net/http` mux on `0.0.0.0:10000`.
+The server parses HTTP/1.1 itself; the HTTP/2 stack (framing, HPACK, flow control) is delegated to `golang.org/x/net/http2`, with only the connection intake and `core.Event` adapter kept in-tree. The standard library supplies TCP, `crypto/tls`, and config parsing (the config file is plain JSON). Development mode serves pprof from the default `net/http` mux on `0.0.0.0:10000`.
 
 Direct runtime dependencies, versions from `go.mod`:
 
 | Dependency | Version | Role |
 | --- | --- | --- |
+| `github.com/guardianwaf/guardianwaf` | v1.0.0 | Application firewall engine (tokenizer scoring: sqli/xss/lfi/cmdi/xxe/ssrf) |
 | `github.com/spf13/cobra` | v1.10.2 | CLI: `start`, `dev`, `stop`, `reload`, `install`, `uninstall`, `status` |
 | `github.com/rs/zerolog` | v1.35.1 | Console plus system, access, error, and safe JSON logs under `logs/` |
 | `golang.org/x/net` | v0.61.0 | HTTP/2 stack (`http2.Server` / `Transport` / HPACK) |
 | `github.com/klauspost/compress` | v1.17.2 | gzip compression (drop-in stdlib replacement, faster) |
 | `github.com/andybalholm/brotli` | v1.2.7 | brotli compression (`zip: ["br"]`, `Content-Encoding: br`) |
 | `golang.org/x/time` | v0.16.0 | Connection rate limit |
-| `github.com/microcosm-cc/bluemonday` | v1.0.27 | `xss` HTML cleanup for JSON bodies |
 | `github.com/kardianos/service` | v1.3.0 | Install and remove the OS service |
 | `fyne.io/systray` | v1.12.2 | Windows tray program in `monitor/` (maintained fork of getlantern/systray) |
 | `golang.org/x/sys` | v0.49.0 | Windows console Ctrl+Break / Ctrl+C |
@@ -49,9 +49,9 @@ The server accepts connections, parses requests, and writes responses itself. `f
 | `listen` contains `ssl` | `runtime/listener` | TLS |
 | `listen` contains `h2` | `runtime/events` | Delegated to `golang.org/x/net/http2` |
 
-A request also passes connection filters (blacklist and rate limit in `modules/safe`), optional Basic auth (`modules/auth`), and access counting. Static and proxy paths run the application firewall: `xss` returns 403 after a `<script` tag is removed from a JSON object or array; `sql` is registered and does not intercept.
+A request passes connection filters (per-IP token-bucket rate limit and IP blacklist in `modules/safe`), per-location access counting, optional Basic auth (`modules/auth`), and then the application firewall (`modules/appfirewall`, GuardianWAF scoring engine — active for locations with `appfirewall` or a `waf` block; hits return 403; `waf.mode: monitor` only logs; without configuration the engine is never built and the check is free). The firewall check runs once per request from the shared event handler, so every location type is covered.
 
-`HEAD` keeps `Content-Length` and `Content-Type` and does not write a body. A body with `Content-Length` is read to that length. `Transfer-Encoding: chunked` is read chunk by chunk; a bad chunk or a body over `http.servers_limit.max_body_size` closes the connection. When a location `zip` includes `gzip` and the request accepts gzip, the static body is compressed and `Content-Length` matches the compressed bytes. Otherwise the response has no `Content-Encoding`. Optional `error_page.not_found` and `error_page.proxy` replace the 404 body and the upstream dial-failure body when those files can be read. A missing file keeps the default response.
+`HEAD` keeps `Content-Length` and `Content-Type` and does not write a body. A body with `Content-Length` is read to that length. `Transfer-Encoding: chunked` is read chunk by chunk; a bad chunk or a body over `http.servers_limit.max_body_size` closes the connection. Static responses carry `Last-Modified`: a `If-Modified-Since` not older than the file mtime gets a 304; a single-segment `Range` gets 206 + `Content-Range` (malformed or out-of-range gets 416), and the body is written via `io.Copy` (sendfile zero-copy on Linux). The location `zip` setting drives compression negotiation: `["gzip"]` serves gzip only, `["br"]` serves brotli only, `["gzip","br"]` prefers brotli when the client accepts it and falls back to gzip; compressed responses carry `Vary: Accept-Encoding`. Optional `error_page.not_found` and `error_page.proxy` replace the 404 body and the upstream dial-failure body when those files can be read. A missing file keeps the default response.
 
 When `listen` contains `h2`, an unknown frame type is discarded and the next frame is read. An illegal HPACK index closes that stream. If the peer flow-control window cannot hold a DATA payload, the write loop stops and the connection closes.
 
@@ -199,6 +199,12 @@ The repository default also serves `443 ssl` for `localhost`, using `config/cert
 ## Usage
 
 Product manual: <https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#>
+
+In-repo docs ([docs/README.md](docs/README.md) is the index):
+
+- [docs/feature/](docs/feature/README.md): 23 per-feature pages (0-19 implemented, 20-22 planned), each with config examples and implementation notes
+- [docs/develop/](docs/develop/README.md): developer guides (environment, testing, standards, config development, debugging, release) plus historical plans under `develop/plans/`
+- [docs/architecture-map.md](docs/architecture-map.md): current package inventory and dependency directions
 
 Test layout: [tests/readme.md](tests/readme.md).
 
