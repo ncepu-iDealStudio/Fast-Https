@@ -30,6 +30,11 @@ type Proxy struct {
 	Read           func([]byte) (int, error)
 	Close          func() error
 	ev             *core.Event
+	// reused 标记连接来自空闲池：上游可能早已悄悄关闭，首次发送
+	// 失败时换新连接重试一次
+	reused bool
+	// closed 在 Close 后置位，防止已关闭连接被归还进池
+	closed bool
 }
 
 // Register installs the reverse-proxy handlers for HTTP and HTTPS upstreams.
@@ -60,82 +65,130 @@ func (m *ProxyError) Error() string {
 	return m.msg
 }
 
-// connect to the server
-// init read write close handler
-func (p *Proxy) ProxyInit(ev *core.Event) error {
-	var err error
+// dialUpstream 建立到上游的新连接并完成读写闭包装配。
+// addr 必须已带端口（normalizeUpstreamAddr 负责补默认端口）。
+func dialUpstream(addr string, proxyType int) (*Proxy, error) {
+	p := &Proxy{ProxyAddr: addr, ProxyType: proxyType}
 
-	p.ProxyConn, err = net.Dial("tcp", p.ProxyAddr)
-
+	conn, err := net.Dial("tcp", p.ProxyAddr)
 	p.Read = p.read
 	p.Write = p.write
 	p.Close = p.close
-	p.ev = ev
+	p.ProxyNeedClose = false
+
+	if err != nil {
+		logging.ConsoleLog.Debug().Msgf("proxy event: can't connect to upstream server %s", err.Error())
+		return nil, ProxyErrorDialUpstream // no server
+	}
+	p.ProxyConn = conn
 
 	if p.ProxyType == config.PROXY_HTTPS {
-		config := tls.Config{InsecureSkipVerify: true}
-		tlsConn := tls.Client(p.ProxyConn, &config)
+		tlsConn := tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
 		p.ProxyTlsConn = tlsConn
 
 		p.Read = p.readSSL
 		p.Write = p.writeSSL
 		p.Close = p.closeSSL
 	}
-	p.ProxyNeedClose = false // keep-alive default
 
-	if err != nil {
-		logging.ConsoleLog.Debug().Msgf("proxy event: can't connect to upstream server %s", err.Error())
-		return ProxyErrorDialUpstream // no server
+	p.ProxyConn.SetDeadline(time.Now().Add(time.Second * 20)) // proxy server time out
+	return p, nil
+}
+
+// normalizeUpstreamAddr 给不带端口的上游地址补默认端口，同时作为
+// 连接池的分组键。
+func normalizeUpstreamAddr(addr string, proxyType int) string {
+	if strings.Contains(addr, ":") {
+		return addr
 	}
-	now := time.Now()
-	p.ProxyConn.SetDeadline(now.Add(time.Second * 20)) // proxy server time out
+	if proxyType == int(config.PROXY_HTTPS) {
+		return addr + ":443"
+	}
+	if proxyType == int(config.PROXY_HTTP) {
+		return addr + ":80"
+	}
+	logging.PrintErr("--proxy cant not set addr")
+	return addr
+}
 
+// connect to the server
+// init read write close handler
+func (p *Proxy) ProxyInit(ev *core.Event) error {
+	fresh, err := dialUpstream(normalizeUpstreamAddr(p.ProxyAddr, p.ProxyType), p.ProxyType)
+	if err != nil {
+		return err
+	}
+	p.ProxyAddr = fresh.ProxyAddr
+	p.ProxyConn = fresh.ProxyConn
+	p.ProxyTlsConn = fresh.ProxyTlsConn
+	p.Read, p.Write, p.Close = fresh.Read, fresh.Write, fresh.Close
+	p.ProxyNeedClose = false
+	p.ev = ev
 	return nil
 }
 
-// get a inited proxy
+// getProxy 借一条到上游的连接。
+//
+// websocket 升级后连接被当作双向管道整条占用，必须在一个会话里
+// 保持同一上游连接，因此由 CircleData 持有而不进池；普通 HTTP
+// 请求每请求从池里借、响应后归还，跨客户端连接复用。
 func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Proxy, error) {
-	var proxy *Proxy
-
-	// init proxy tcp connection
-	if !rr.ProxyConnInit {
-		rr.ProxyConnInit = true
-
-		configCache := true
-		if cfg.ProxyCache.Key == "" {
-			configCache = false
+	if ev.Upgrade == "websocket" {
+		if rr.ProxyConnInit {
+			proxy, ok := rr.CircleData.(*Proxy)
+			if !ok || proxy == nil {
+				logging.ConsoleLog.Error().Msg("proxy can not convert circle data to *Proxy")
+				return nil, ProxyErrorDialUpstream
+			}
+			return proxy, nil
 		}
 
-		proxy = Newproxy(cfg.ProxyAddr, int(cfg.Type), configCache)
-		proxy.proxyHandleAddr()
-		err := proxy.ProxyInit(ev)
-		if err != nil { // only one type error: `ProxyErrorDialUpstream`
+		proxy := Newproxy(cfg.ProxyAddr, int(cfg.Type), cfg.ProxyCache.Key != "")
+		if err := proxy.ProxyInit(ev); err != nil { // only one type error: `ProxyErrorDialUpstream`
 			return nil, err
 		}
-
+		rr.ProxyConnInit = true
 		rr.CircleData = proxy
-	} else {
-		var flag bool
-		proxy, flag = (rr.CircleData).(*Proxy)
-		if !flag {
-			logging.ConsoleLog.Fatal().Msg("proxy can not convert circle data to *Proxy")
-		}
+		return proxy, nil
 	}
 
-	return proxy, nil
+	addr := normalizeUpstreamAddr(cfg.ProxyAddr, int(cfg.Type))
+	p, err := upstreamPool().get(addr, func() (*Proxy, error) {
+		fresh, derr := dialUpstream(addr, int(cfg.Type))
+		if derr != nil {
+			return nil, derr
+		}
+		fresh.ev = ev
+		fresh.ProxyNeedCache = cfg.ProxyCache.Key != ""
+		return fresh, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if p.reused {
+		// 新的请求周期，刷新整体 20s 截止时间
+		p.ProxyConn.SetDeadline(time.Now().Add(time.Second * 20))
+		p.ev = ev
+	}
+	return p, nil
 }
 
-// TODO: when add upstream, this function need to do more
-func (p *Proxy) proxyHandleAddr() {
-	if !strings.Contains(p.ProxyAddr, ":") {
-		if p.ProxyType == config.PROXY_HTTP {
-			p.ProxyAddr = p.ProxyAddr + ":80"
-		} else if p.ProxyType == config.PROXY_HTTPS {
-			p.ProxyAddr = p.ProxyAddr + ":443"
-		} else {
-			logging.PrintErr("--proxy cant not set addr")
-		}
+// releaseProxy 在一个请求周期结束后回收上游连接：
+// websocket 会话由 CircleData 持有不进池；上游要求关闭或已出错
+// 关闭的连接直接丢弃；健康连接清除整体 deadline 后归还。
+func releaseProxy(p *Proxy) {
+	if p == nil || p.isClosed() {
+		return
 	}
+	if p.ev != nil && p.ev.Upgrade == "websocket" {
+		return
+	}
+	if p.ProxyNeedClose {
+		p.Close()
+		return
+	}
+	p.ProxyConn.SetDeadline(time.Time{})
+	upstreamPool().put(p.ProxyAddr, p)
 }
 
 func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle) string {
@@ -257,10 +310,21 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) (int, error) 
 
 	//logging.ConsoleLog.Debug().Msgf("\n\n" + string(req_data) + "\n\n")
 	if err := p.sendToUpstreamServer(req_data); err != nil {
-		if err != ProxyErrorSendToUpstreamTimeout {
-			logging.ConsoleLog.Debug().Msg("unhandled send to upstream server errror")
+		// 复用的空闲连接可能已被上游悄悄关闭：换新连接重试一次
+		if !p.reused || err == ProxyErrorSendToUpstreamTimeout {
+			return 0, err
 		}
-		return 0, err
+		p.Close()
+		fresh, derr := dialUpstream(p.ProxyAddr, p.ProxyType)
+		if derr != nil {
+			return 0, derr
+		}
+		fresh.ev = p.ev
+		fresh.ProxyNeedCache = p.ProxyNeedCache
+		*p = *fresh
+		if err := p.sendToUpstreamServer(req_data); err != nil {
+			return 0, err
+		}
 	}
 
 	resData, err := p.readFromUpstreamServer(ev)
@@ -286,7 +350,8 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) (int, error) 
 /*  ====  这两个函数可以用 event ===== */
 func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
 	if status, ok := pc.Serve(ev); ok {
-		// 命中缓存：直接回放缓存里的响应，不回源。
+		// 命中缓存：借来的上游连接没被使用，直接归还
+		releaseProxy(p)
 		logProxyAccess(ev, status, len(ev.RR.Res.Body))
 		writeProxyResponse(ev)
 		return
@@ -294,10 +359,13 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 
 	status, err := p.getDataFromServer(ev, req_data)
 	if err != nil {
+		// 上游连接状态未知，一律关闭不回收
+		p.Close()
 		ev.RR.Res = response.DefaultServerError()
 		ev.WriteResponseClose(nil)
 		return
 	}
+	releaseProxy(p)
 	pc.Store(ev, status)
 	writeProxyResponse(ev)
 }
@@ -325,6 +393,8 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 	_, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
+		// 上游连接状态未知，一律关闭不回收
+		p.Close()
 		if err == ProxyErrorSendToUpstreamTimeout || err == ProxyErrorReadFromUpstreamTimeout {
 			ev.Close()
 			ev.Reuse = false
@@ -345,6 +415,10 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 		ev.Reuse = true
 	} else {
 		ev.WriteResponseClose(nil)
+	}
+	// websocket 会话由 CircleData 持有这条连接，其余归还进池
+	if ev.Upgrade != "websocket" {
+		releaseProxy(p)
 	}
 }
 
