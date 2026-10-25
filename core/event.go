@@ -111,15 +111,26 @@ func (ev *Event) CheckIfTimeOut(err error) bool {
 	}
 }
 
-// read data from EventFd
+// readBufPool 复用热路径上的读缓冲。每个请求一次的 4KB 分配
+// 是 GC 压力的大头之一。取出的缓冲只在单次 parseRequest 生命周期内有效。
+var readBufPool = sync.Pool{
+	New: func() interface{} { return make([]byte, READ_HEADER_BUF_LEN) },
+}
+
+// GetReadBuf 取一个热路径读缓冲。归还后调用方不得再引用它或其别名。
+func GetReadBuf() []byte { return readBufPool.Get().([]byte) }
+
+// PutReadBuf 归还读缓冲。
+func PutReadBuf(b []byte) { readBufPool.Put(b) }
+
+// ReadRequestInto 从连接读入调用方提供的缓冲，返回有效前缀。
+// 返回 nil 表示连接已不可读（对端关闭、超时或其他错误）。
 // attention: row str only can be used when parse FirstLine or Headers
 // only for HTTP/1.1
-func (ev *Event) ReadRequest() []byte {
+func (ev *Event) ReadRequestInto(buf []byte) []byte {
 	now := time.Now()
 	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
-	header_buffer := make([]byte, READ_HEADER_BUF_LEN)
-	// buffer := header_buffer
-	n, err := ev.Conn.Read(header_buffer)
+	n, err := ev.Conn.Read(buf)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
 			logging.PrintInfo(ev.Conn.RemoteAddr(), " closed")
@@ -134,8 +145,7 @@ func (ev *Event) ReadRequest() []byte {
 		return nil
 	}
 
-	header_buffer = header_buffer[:n]
-	return header_buffer // return row str or bytes
+	return buf[:n]
 }
 
 func (ev *Event) WriteResponse(data []byte) error {

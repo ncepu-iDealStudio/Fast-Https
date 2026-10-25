@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/textproto"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -49,7 +50,7 @@ func ResponseInit() *Response {
 }
 
 func (r *Response) SetFirstLine(statusCode int, statusText string) {
-	r.FirstLine = fmt.Sprintf("HTTP/1.1 %d %s", statusCode, statusText)
+	r.FirstLine = "HTTP/1.1 " + strconv.Itoa(statusCode) + " " + statusText
 }
 
 func (r *Response) SetHeader(key, value string) {
@@ -64,32 +65,31 @@ func (r *Response) GetBody() []byte {
 	return r.Body
 }
 
+// generateHeaders 把状态行与头部追加到 dst，单一预分配路径，
+// 替代此前 Sprintf + += 的多次中间分配。
+func (r *Response) generateHeaders(dst []byte) []byte {
+	dst = append(dst, r.FirstLine...)
+	dst = append(dst, HTTP_SPLIT...)
+	for _, key := range sortedHeaderKeys(r.Headers) {
+		dst = append(dst, key...)
+		dst = append(dst, ": "...)
+		dst = append(dst, r.Headers[key]...)
+		dst = append(dst, HTTP_SPLIT...)
+	}
+	dst = append(dst, HTTP_SPLIT...)
+	return dst
+}
+
 // Generate a response data (bytes)
 // attention: this function must return bytes, not str
 // once response contain '\0', it will doesn't work
 func (r *Response) GenerateResponse() []byte {
-	var res []byte
-	response := r.FirstLine + HTTP_SPLIT
-	for _, key := range sortedHeaderKeys(r.Headers) {
-		response += fmt.Sprintf("%s: %s\r\n", key, r.Headers[key])
-	}
-	res = append(res, []byte(response)...)
-	res = append(res, []byte("\r\n")...)
-	res = append(res, r.Body...)
-
-	return res
+	dst := r.generateHeaders(make([]byte, 0, len(r.FirstLine)+64*len(r.Headers)+len(r.Body)+8))
+	return append(dst, r.Body...)
 }
 
 func (r *Response) GenerateHeaderBytes() []byte {
-	var res []byte
-	response := r.FirstLine + HTTP_SPLIT
-	for _, key := range sortedHeaderKeys(r.Headers) {
-		response += fmt.Sprintf("%s: %s\r\n", key, r.Headers[key])
-	}
-	res = append(res, []byte(response)...)
-	res = append(res, []byte("\r\n")...)
-
-	return res
+	return r.generateHeaders(make([]byte, 0, len(r.FirstLine)+64*len(r.Headers)+8))
 }
 
 // HttpResParse 解析上游响应。非法头返回对应 *ResponError；已解析出的头保留，

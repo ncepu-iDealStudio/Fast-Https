@@ -5,10 +5,17 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/andybalholm/brotli"
 	"github.com/klauspost/compress/gzip"
 )
+
+// gzipWriterPool 复用 gzip.Writer：klauspost 的 Reset 让同一个 writer
+// 可以反复用于不同响应，省掉每请求一次的窗口表分配。
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} { return gzip.NewWriter(io.Discard) },
+}
 
 // brotliLevel 是在线压缩的质量级别：体积比 gzip 默认级别更小，
 // 又不落到 9-11 级那种只适合离线预压缩的 CPU 成本。
@@ -26,17 +33,17 @@ func CompressBytes(data []byte, encoding string) ([]byte, error) {
 	}
 }
 
+// CompressBytesGzip 从池里取 writer 压缩数据。
 func CompressBytesGzip(data []byte) ([]byte, error) {
 	var b bytes.Buffer
-	gz := gzip.NewWriter(&b)
+	gz := gzipWriterPool.Get().(*gzip.Writer)
+	defer gzipWriterPool.Put(gz)
+	gz.Reset(&b)
 
-	_, err := gz.Write(data)
-	if err != nil {
+	if _, err := gz.Write(data); err != nil {
 		return nil, err
 	}
-
-	err = gz.Close()
-	if err != nil {
+	if err := gz.Close(); err != nil {
 		return nil, err
 	}
 

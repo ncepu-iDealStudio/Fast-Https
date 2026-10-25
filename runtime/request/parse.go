@@ -58,6 +58,10 @@ type Request struct {
 	Body      bytes.Buffer
 	BodyLen   int
 	H2        bool
+
+	// multipartScanned 记录 multipart 判结束时已经扫过的 Body 前缀长度。
+	// 每轮读只扫新增部分，避免大上传每轮全量重扫的 O(n²)。
+	multipartScanned int
 }
 
 var http_method = []string{
@@ -153,6 +157,7 @@ func (r *Request) SetHeader(key string, val string, cfg *listener.ListenCfg) {
 // flush request struct
 func (r *Request) Flush() {
 	r.Body.Reset()
+	r.multipartScanned = 0
 	for k := range r.Headers {
 		delete(r.Headers, k)
 	}
@@ -311,11 +316,22 @@ func (r *Request) RequestBodyValid() bool {
 	if strings.Contains(contentType, "multipart/form-data") {
 		po := strings.Index(contentType, "boundary=")
 		boundaryStr := contentType[po+len("boundary="):]
-		if strings.Contains(r.Body.String(), boundaryStr+"--") {
-			return true
-		} else {
-			return false
+		// 从上次扫到的位置继续找终止边界：分块到达的大 body
+		// 不能每轮都全量重扫。保留 needle 长度的重叠区，
+		// 防止边界跨读块被截断
+		body := r.Body.Bytes()
+		if r.multipartScanned > len(body) {
+			r.multipartScanned = 0
 		}
+		if bytes.Contains(body[r.multipartScanned:], []byte(boundaryStr+"--")) {
+			r.multipartScanned = 0
+			return true
+		}
+		r.multipartScanned = len(body) - len(boundaryStr)
+		if r.multipartScanned < 0 {
+			r.multipartScanned = 0
+		}
+		return false
 	}
 
 	contentLength := r.GetContentLength()

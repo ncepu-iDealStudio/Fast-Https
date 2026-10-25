@@ -119,8 +119,13 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		rr.Req.Flush()
 	}
 
+	// 读缓冲从池里取：byte_row 可能别名这段缓冲，但 parseRequest
+	// 返回前所有需要保留的内容都已拷贝进 Req/Body，归还后无人再读它
+	readBuf := core.GetReadBuf()
+	defer core.PutReadBuf(readBuf)
+
 	// read data (bytes and str) from socket
-	byte_row := ev.ReadRequest()
+	byte_row := ev.ReadRequestInto(readBuf)
 
 	if byte_row == nil { // client closed
 		return 0
