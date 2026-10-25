@@ -13,7 +13,7 @@
 - 启动前校验 `config/fast-https.json` 和 `http.include`
 - 缺处理函数的 `location.type` 不会进入监听。`start` 和 `dev` 由 `cmd.RegisterHandlers` 登记 static、proxy、rewrite、devmod（2026-10-16，架构收敛阶段 3 第 2 步）
 - 日志默认写到 `logs/`，控制台 DEBUG/TRACE 走 stderr
-- 黑名单、限流、`xss` 有拒绝和放行测试；`sql` 明确不拦截
+- 黑名单、限流、`xss` 有拒绝和放行测试；`sql` 对 query 与 body 做保守注入特征检测（2026-10-25）
 - 无效配置重载不会替换内存中的 `GConfig`，也不会继续切换监听
 - HTTP/2 连接可以发 GOAWAY 并关闭，common 端口可以热更新配置
 - `status` 读取 `fast-https.pid`，区分没有 pid 文件、pid 已过期、进程仍在运行
@@ -51,7 +51,7 @@
 | P1-3 配置真源与说明文档 | 基线 | 已关闭 |
 | P2-1 两套日志管道 | 基线 | 已关闭 |
 | P2-2 HTTP/2 与 HPACK 边界 | R5 | 已关闭 |
-| P2-3 安全与限流验证 | 基线 | 已关闭 |
+| P2-3 安全与限流验证 | 基线 | 已关闭（sql 检测于 2026-10-25 落地） |
 | P3-1 配置文件自动监听 | R7 | 暂缓 |
 | P3-2 代理 upstream | R8 | 未做 |
 
