@@ -92,6 +92,6 @@ FastCGI、uWSGI、SCGI 和 gRPC 是另一类后端协议。应用可以自己听
 
 ## 7. 和现有计划的关系
 
-[iteration-plan.md](iteration-plan.md) 里 R1 到 R6 已落地，R7 暂缓，R8 未做。第 4 节的六项已落地，不改那张状态表。
+[iteration-plan.md](develop/plans/iteration-plan.md) 里 R1 到 R6 已落地，R7 暂缓，R8 未做。第 4 节的六项已落地，不改那张状态表。
 
 启动和请求路径以 [about.md](about.md) 为准。2.0 的对话式运维以 [product-design-2.0.md](product-design-2.0.md) 为准，那里的运行计数仍留在 2.0。

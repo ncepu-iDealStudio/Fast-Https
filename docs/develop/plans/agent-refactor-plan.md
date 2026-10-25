@@ -1,7 +1,7 @@
 # fast-https Agent 化改造方案（2.0 实施计划）
 
 > 定位：本文只讲**怎么改、分几步、验收什么**，不写代码。
-> 设计本身以 [product-design-2.0.md](product-design-2.0.md) 为准，本文是它的**落地改造计划**，并补上该设计稿缺失的 **Agent 状态栏**（依据 `agent-status-design` 技能）。
+> 设计本身以 [product-design-2.0.md](../../product-design-2.0.md) 为准，本文是它的**落地改造计划**，并补上该设计稿缺失的 **Agent 状态栏**（依据 `agent-status-design` 技能）。
 >
 > 已确认决策（2026-10-14，来自需求澄清）：
 > - **目标**：落地 2.0 常驻智能体控制面 = 数据面可观测 + `agent` 常驻进程 + 多轮对话/快环/慢环 + Agent 状态栏。

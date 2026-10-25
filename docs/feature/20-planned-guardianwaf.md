@@ -3,7 +3,7 @@
 状态：🚧 集成已落地（2026-10-25，commit 见 git log），待线上灰度观察后从 monitor 收敛到 enforce 的运营决策
 
 > 实现进度已超出本占位文档：功能现状见 [15-appfirewall.md](15-appfirewall.md)，
-> 完整方案见 `docs/guardianwaf-adoption.md`。以下为立项时的原始规划，留作对照。
+> 完整方案见 `docs/develop/plans/guardianwaf-adoption.md`。以下为立项时的原始规划，留作对照。
 
 ## 功能（目标）
 
@@ -11,7 +11,7 @@
 
 ## 方案
 
-完整架构方案见 `docs/guardianwaf-adoption.md`。要点：
+完整架构方案见 `docs/develop/plans/guardianwaf-adoption.md`。要点：
 
 - **只用库模式**（`Engine.Check(*http.Request)`），fast-https 本身是网关，不用 standalone/sidecar。
 - **适配层**：`core.Event` 合成检测专用 `*http.Request`（body 已缓冲、零拷贝引用、不做 URL 解码）。

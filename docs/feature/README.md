@@ -39,6 +39,6 @@
 
 ## 约定
 
-- 每篇文档描述**当前主干**的实现，历史演进见 `docs/architecture-convergence-plan.md` 与 `docs/iteration-plan.md`。
+- 每篇文档描述**当前主干**的实现，历史演进见 `docs/develop/plans/`（架构收敛计划、迭代计划）。
 - 涉及并发语义的功能均以 `go test -race ./...` 全绿为底线（29 个包）。
 - 依赖清单与选型理由见根目录 `README.md` 依赖表。

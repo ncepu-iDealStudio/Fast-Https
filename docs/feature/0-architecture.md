@@ -56,4 +56,4 @@ init/       启动编排：配置→日志→证书→缓存
 
 ## 相关文档
 
-[1-http1.md](1-http1.md)、[4-reload.md](4-reload.md)、[15-appfirewall.md](15-appfirewall.md)、`docs/architecture-convergence-plan.md`
+[1-http1.md](1-http1.md)、[4-reload.md](4-reload.md)、[15-appfirewall.md](15-appfirewall.md)、`docs/develop/plans/architecture-convergence-plan.md`

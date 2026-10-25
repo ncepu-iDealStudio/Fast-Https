@@ -99,11 +99,11 @@ tests/client_test/     # 子进程或完整部署链路测试
 
 **难度：易；风险：低。**
 
-**状态：已完成（2026-10-13）。** package 职责、生产入口、注册关系、构建路径和验证基线见 [architecture-map.md](architecture-map.md)。全量测试使用匹配的 Go 1.27.1 工具链串行通过；本机默认 GOROOT 混用问题及并行测试 exe 的 Windows `Access is denied` 已记入基线，不属于本阶段代码改动。
+**状态：已完成（2026-10-13）。** package 职责、生产入口、注册关系、构建路径和验证基线见 [architecture-map.md](../../architecture-map.md)。全量测试使用匹配的 Go 1.27.1 工具链串行通过；本机默认 GOROOT 混用问题及并行测试 exe 的 Windows `Access is denied` 已记入基线，不属于本阶段代码改动。
 
 #### 阶段 0：工作内容
 
-- 已维护 package 职责、生产入口、主要依赖者和默认服务器启动路径清单，见 [architecture-map.md](architecture-map.md) 第 1 节。
+- 已维护 package 职责、生产入口、主要依赖者和默认服务器启动路径清单，见 [architecture-map.md](../../architecture-map.md) 第 1 节。
 - 已区分主服务器、Windows monitor、测试工具和示例程序的构建入口，见该文档第 4、5 节。
 - 已记录 `core.Handler` 与通用 Module registry 的调用方和用途，见第 2 节；去留在阶段 3 第 4 步决定。
 - 已记录 package/import 结构及 Docker、GoReleaser、RPM、CI 入口；本阶段未移动目录或改变运行行为。
@@ -125,7 +125,7 @@ tests/client_test/     # 子进程或完整部署链路测试
 
 **难度：易；风险：低。**
 
-**状态：已完成（2026-10-14）。** 只改了说明。`engine` 和 `routine_pool` 标为未启用，`workchain/example` 标为示例，`modules/module.go` 标为遗留注册表。代码未删，导入未改。记录见 [architecture-map.md](architecture-map.md) 第 1、2、5 节，以及 README 的目录树。
+**状态：已完成（2026-10-14）。** 只改了说明。`engine` 和 `routine_pool` 标为未启用，`workchain/example` 标为示例，`modules/module.go` 标为遗留注册表。代码未删，导入未改。记录见 [architecture-map.md](../../architecture-map.md) 第 1、2、5 节，以及 README 的目录树。
 
 #### 阶段 1：工作内容
 
@@ -149,13 +149,13 @@ tests/client_test/     # 子进程或完整部署链路测试
 
 **难度：易；风险：低。并入约定，不单独做目录迁移。**
 
-**状态：已完成（2026-10-16）。** 约定写在 [tests/readme.md](../tests/readme.md) 第 1.0 节，1.1 节目录树已按实际文件更新（去掉不存在的 `safe/safe_test.go`，补上 `handler_ready_test.go`、`infra/logging`、H2 连接测试和 `client_test` 的进程辅助文件）。核对时发现两个存量文件需要说明：`tests/fast-https_test.go` 有写 pid、生成证书的副作用；`tests/client_test/http_https_change_test.go` 是只有 `func main` 的手工客户端。两者均已在 1.0 节写明。后者已于同日移到 `tests/single/httpclient/main.go`，`client_test` 的进程辅助文件改为 `_test.go` 后缀，`go build ./...` 整体通过。生产代码没有导入 `tests/` 下的 package。
+**状态：已完成（2026-10-16）。** 约定写在 [tests/readme.md](../../../tests/readme.md) 第 1.0 节，1.1 节目录树已按实际文件更新（去掉不存在的 `safe/safe_test.go`，补上 `handler_ready_test.go`、`infra/logging`、H2 连接测试和 `client_test` 的进程辅助文件）。核对时发现两个存量文件需要说明：`tests/fast-https_test.go` 有写 pid、生成证书的副作用；`tests/client_test/http_https_change_test.go` 是只有 `func main` 的手工客户端。两者均已在 1.0 节写明。后者已于同日移到 `tests/single/httpclient/main.go`，`client_test` 的进程辅助文件改为 `_test.go` 后缀，`go build ./...` 整体通过。生产代码没有导入 `tests/` 下的 package。
 
 现有测试已经形成三种稳定形式：源码旁的单测、`tests/unit_test/` 下的集中单测、`tests/client_test/` 下的子进程 E2E。批量迁移或把 `client_test` 改名为 `e2e` 会牵动 CI、文档和命令，对后续阶段没有帮助。
 
 #### 阶段 2：工作内容
 
-- 在 [tests/readme.md](../tests/readme.md) 写明约定：新增单测放在被测 package 旁；`tests/unit_test/` 只保留已有测试，不再新增；跨进程、真实 listener/upstream 的测试放在 `tests/client_test/`。
+- 在 [tests/readme.md](../../../tests/readme.md) 写明约定：新增单测放在被测 package 旁；`tests/unit_test/` 只保留已有测试，不再新增；跨进程、真实 listener/upstream 的测试放在 `tests/client_test/`。
 - `tests/unit_test/` 中的测试只在所测代码被阶段 3、4 改动时顺带迁到对应 package 旁，不专门搬迁。
 - 生产代码不能依赖 `tests/` 下的任何 package。
 
@@ -214,7 +214,7 @@ tests/client_test/     # 子进程或完整部署链路测试
 - `modules/workchain`（含 `example`）
 - `tests/unit_test/modules/module_test.go`、`module_registration_consistency_test.go`
 
-README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) 已去掉这些路径。`engine` 和 `routine_pool` 仍保留，标为未启用。
+README、README.en.md 目录树和 [architecture-map.md](../../architecture-map.md) 已去掉这些路径。`engine` 和 `routine_pool` 仍保留，标为未启用。
 
 验收结果：`go build ./...` 与 `go test -p 1 ./...` 通过。文档不再把已删除 package 写成生产路径。
 
@@ -308,7 +308,7 @@ README、README.en.md 目录树和 [architecture-map.md](architecture-map.md) �
 每一步合并前都必须满足：
 
 1. 先运行受影响 package 的测试，再运行 `go test ./...`（Windows 上使用 `-p 1`）。
-2. 结构变化同步更新 README、README.en.md、[architecture-map.md](architecture-map.md) 和构建路径；行为变化同步更新 [iteration-plan.md](iteration-plan.md)。
+2. 结构变化同步更新 README、README.en.md、[architecture-map.md](../../architecture-map.md) 和构建路径；行为变化同步更新 [iteration-plan.md](iteration-plan.md)。
 3. 协议与配置不变时，运行代理 E2E；涉及重载时运行 reload E2E。
 4. Windows 与 Linux 相关文件有各自的编译或 CI 验证，不以单平台本地通过代替。
 5. 测试不得改写仓库内的 `config/fast-https.json`。
