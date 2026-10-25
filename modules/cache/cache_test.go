@@ -114,6 +114,8 @@ func TestReadCacheMissesWhenFileIsGone(t *testing.T) {
 	GCacheContainer.WriteCache(key, 60, 0, dir, CacheEntry{FirstLine: "HTTP/1.1 200 OK", Status: 200, Data: []byte("x")})
 	waitEntry(t, key)
 
+	// 热层会遮住磁盘状态，先摘掉再验证磁盘一致性
+	GCacheContainer.hotRemove(key)
 	node, _ := GCacheContainer.Index.Touch(key)
 	if err := os.Remove(filepath.Join(node.Path, key)); err != nil {
 		t.Fatal(err)
@@ -135,6 +137,8 @@ func TestReadCacheRejectsLegacyEntry(t *testing.T) {
 	GCacheContainer.WriteCache(key, 60, 0, dir, CacheEntry{FirstLine: "HTTP/1.1 200 OK", Status: 200, Data: []byte("x")})
 	waitEntry(t, key)
 
+	// 热层会遮住磁盘状态，先摘掉再验证磁盘一致性
+	GCacheContainer.hotRemove(key)
 	node, _ := GCacheContainer.Index.Touch(key)
 	realPath := filepath.Join(node.Path, key)
 

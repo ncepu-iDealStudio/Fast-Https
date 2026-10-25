@@ -12,6 +12,7 @@ import (
 	"fast-https/infra/logging"
 	"os"
 	"path/filepath"
+	"container/list"
 	"sync"
 	"time"
 )
@@ -40,7 +41,14 @@ type CacheEntry struct {
 	Size      int
 }
 
-// CacheContainer 持有缓存索引与容量记账。
+// 热条目内存副本的容量上限：条数与字节双限制，超限按 LRU 淘汰。
+// 磁盘条目保持完整，热层只是命中的加速层。
+const (
+	hotMaxEntries = 4096
+	hotMaxBytes   = 64 << 20
+)
+
+// CacheContainer 持有缓存索引、容量记账与热条目副本。
 type CacheContainer struct {
 	Index *CacheIndex
 
@@ -48,6 +56,28 @@ type CacheContainer struct {
 	sizes     map[string]int
 	totalSize int
 	warned    bool
+
+	// hot 是磁盘条目的内存副本：命中不再开文件 + gob 解码。
+	// hotOrder 前端是最近使用的，超限从尾部淘汰。
+	hotMu      sync.Mutex
+	hot        map[string]*hotEntry
+	hotOrder   *list.List
+	hotEntries int
+	hotBytes   int
+	hotCap     int
+	hotCapByte int
+}
+
+// hotEntry 是热层里的一条缓存：磁盘 CacheEntry 的共享只读副本。
+type hotEntry struct {
+	key     string
+	entry   *CacheEntry
+	element *list.Element
+}
+
+// hotSize 记一条热条目占用的字节数。
+func hotSize(he *hotEntry) int {
+	return len(he.entry.Data) + len(he.key) + 128
 }
 
 var (
@@ -65,9 +95,17 @@ func init() {
 
 // NewCacheContainer 创建一个空的缓存容器。
 func NewCacheContainer() *CacheContainer {
+	return newCacheContainerWithCaps(hotMaxEntries, hotMaxBytes)
+}
+
+func newCacheContainerWithCaps(hotEntries, hotBytes int) *CacheContainer {
 	return &CacheContainer{
-		Index: NewCacheIndex(),
-		sizes:  make(map[string]int),
+		Index:      NewCacheIndex(),
+		sizes:      make(map[string]int),
+		hot:        make(map[string]*hotEntry),
+		hotOrder:   list.New(),
+		hotCap:     hotEntries,
+		hotCapByte: hotBytes,
 	}
 }
 
@@ -80,6 +118,7 @@ func GetMd5(str string) string {
 // WriteToDisk 持续消费落盘队列。
 //
 // 索引在文件写成功之后才建立：否则未完成的写入会被读路径当成损坏条目。
+// 写成功的条目同时进入热层，首个请求即命中内存。
 func (CC *CacheContainer) WriteToDisk() {
 	for entry := range CacheChan {
 		if err := writeEntryToDisk(entry); err != nil {
@@ -89,6 +128,7 @@ func (CC *CacheContainer) WriteToDisk() {
 		}
 		node := CacheNode(entry.Head)
 		CC.Index.Set(&node)
+		CC.hotPut(node.Md5, &entry)
 	}
 }
 
@@ -207,11 +247,17 @@ func (CC *CacheContainer) WriteCache(key string, expire, maxSize int, path strin
 }
 
 // ReadCache 读取一条缓存，命中时顺延过期时间（读即续期）。
-// 索引与磁盘不一致或遇到旧格式条目时按未命中处理，并清理索引。
+// 热层命中直接返回内存副本，未命中才读盘；索引与磁盘不一致或
+// 遇到旧格式条目时按未命中处理，并清理索引与热层。
 func (CC *CacheContainer) ReadCache(key string) (*CacheEntry, bool) {
 	node, ok := CC.Index.Touch(key)
 	if !ok {
+		CC.hotRemove(key)
 		return nil, false
+	}
+
+	if entry := CC.hotGet(key); entry != nil {
+		return entry, true
 	}
 
 	entry, err := readEntry(filepath.Join(node.Path, key))
@@ -225,15 +271,18 @@ func (CC *CacheContainer) ReadCache(key string) (*CacheEntry, bool) {
 		CC.unindex(key)
 		return nil, false
 	}
+	CC.hotPut(key, entry)
 	return entry, true
 }
 
-// ExpireCache 清理已过期条目：先在索引里摘除，再删除磁盘文件并释放容量记账。
+// ExpireCache 清理已过期条目：先在索引里摘除，再删除磁盘文件并释放
+// 容量记账与热层副本。
 func (CC *CacheContainer) ExpireCache() {
 	now := int(time.Now().Unix())
 	for _, node := range CC.Index.TakeExpired(now) {
 		RemoveFromDisk(*node)
 		CC.release(node.Md5)
+		CC.hotRemove(node.Md5)
 	}
 }
 
@@ -242,11 +291,72 @@ func RemoveFromDisk(node CacheNode) {
 	_ = os.Remove(filepath.Join(node.Path, node.Md5))
 }
 
-// unindex 只摘除索引与容量记账，不动磁盘文件。
+// unindex 只摘除索引、容量记账与热层副本，不动磁盘文件。
 // 文件可能正在被覆盖写入，删文件会与写协程竞争。
 func (CC *CacheContainer) unindex(key string) {
 	CC.Index.Remove(key)
 	CC.release(key)
+	CC.hotRemove(key)
+}
+
+// ---------- 热条目内存副本（LRU） ----------
+
+// hotGet 返回热副本并把条目移到最近使用端。
+func (CC *CacheContainer) hotGet(key string) *CacheEntry {
+	CC.hotMu.Lock()
+	defer CC.hotMu.Unlock()
+	he, ok := CC.hot[key]
+	if !ok {
+		return nil
+	}
+	CC.hotOrder.MoveToFront(he.element)
+	return he.entry
+}
+
+// hotPut 放入或刷新热副本，超限从最近最少使用端淘汰。
+func (CC *CacheContainer) hotPut(key string, entry *CacheEntry) {
+	CC.hotMu.Lock()
+	defer CC.hotMu.Unlock()
+
+	if he, ok := CC.hot[key]; ok {
+		CC.hotBytes -= hotSize(he)
+		he.entry = entry
+		CC.hotBytes += hotSize(he)
+		CC.hotOrder.MoveToFront(he.element)
+		return
+	}
+
+	he := &hotEntry{key: key, entry: entry}
+	he.element = CC.hotOrder.PushFront(he)
+	CC.hot[key] = he
+	CC.hotEntries++
+	CC.hotBytes += hotSize(he)
+
+	for (CC.hotEntries > CC.hotCap || CC.hotBytes > CC.hotCapByte) && CC.hotOrder.Len() > 0 {
+		oldest := CC.hotOrder.Back()
+		if oldest == nil {
+			break
+		}
+		victim := oldest.Value.(*hotEntry)
+		CC.hotOrder.Remove(oldest)
+		delete(CC.hot, victim.key)
+		CC.hotEntries--
+		CC.hotBytes -= hotSize(victim)
+	}
+}
+
+// hotRemove 从热层摘除一个键。
+func (CC *CacheContainer) hotRemove(key string) {
+	CC.hotMu.Lock()
+	defer CC.hotMu.Unlock()
+	he, ok := CC.hot[key]
+	if !ok {
+		return
+	}
+	CC.hotOrder.Remove(he.element)
+	delete(CC.hot, he.key)
+	CC.hotEntries--
+	CC.hotBytes -= hotSize(he)
 }
 
 // admit 做容量记账，返回是否允许写入。
