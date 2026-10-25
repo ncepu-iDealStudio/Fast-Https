@@ -52,7 +52,7 @@ func fileFdSize(pathName string) (file *os.File, size int64, modtime time.Time) 
 func writeHeader(rr *core.RRcircle, firstLineCode int, reason string) {
 	rr.Res.SetFirstLine(firstLineCode, reason)
 	rr.Res.SetHeader("Server", "Fast-Https")
-	rr.Res.SetHeader("Date", time.Now().String())
+	rr.Res.SetHeader("Date", response.CachedDate())
 }
 
 // fileReadWrite 把文件流式写给客户端。

@@ -46,6 +46,12 @@ func TestStaticConditionalRequest(t *testing.T) {
 	if lm == "" {
 		t.Fatalf("missing Last-Modified in %q", first)
 	}
+	// Date 头必须是 RFC 7231 格式（曾是 time.Now().String() 的违规输出）
+	if d := headerValue(first, "Date"); d == "" {
+		t.Fatal("missing Date header")
+	} else if _, err := http.ParseTime(d); err != nil {
+		t.Fatalf("Date %q is not RFC 7231: %v", d, err)
+	}
 	if !strings.Contains(first, "conditional-body") {
 		t.Fatalf("first response missing body: %q", first)
 	}

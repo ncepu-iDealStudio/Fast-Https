@@ -7,7 +7,6 @@ import (
 	"fast-https/runtime/response"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // defaultCacheMethods 是未配置 proxy_cache.methods 时允许读写缓存的方法。
@@ -168,7 +167,7 @@ func cachedResponse(entry *cache.CacheEntry) *response.Response {
 		res.Headers[key] = value
 	}
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", response.CachedDate())
 	res.SetHeader("Content-Length", strconv.Itoa(len(entry.Data)))
 	res.Body = entry.Data
 	return res

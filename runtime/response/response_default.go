@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"time"
 )
 
 const (
@@ -36,7 +35,7 @@ func DefaultTest() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(200, "OK")
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", CachedDate())
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("Welcome to Fast-Https!", "Welcome to Fast-Https!"))
@@ -64,7 +63,7 @@ func DefaultBadRequest() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(400, "BADREQUEST")
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", CachedDate())
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("400 Bad Request", "The request could not be understood by the server due to malformed syntax."))
@@ -77,7 +76,7 @@ func DefaultNotFound() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(404, "NOTFOUND")
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", CachedDate())
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("404 Not Found", "The requested URL was not found on this server."))
@@ -90,7 +89,7 @@ func DefaultTooMany() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(429, "TOOMANY")
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", CachedDate())
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("429 Too Many Requests", "The request was rejected because the client has sent too many requests in a short period of time."))
@@ -103,7 +102,7 @@ func DefaultServerError() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(500, "SERVERERROR")
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", CachedDate())
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("500 Server Error", "The server encountered an internal error and was unable to complete your request."))
@@ -116,7 +115,7 @@ func DefaultServerHeaderError() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(500, "SERVERHeaderERROR")
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", CachedDate())
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("500 Server Error", "The server encountered an proxy header error"))
@@ -129,7 +128,7 @@ func DefaultForbidden() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(403, "FORBIDDEN")
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", CachedDate())
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("403 Forbidden", "The request was rejected by the application firewall."))
@@ -142,7 +141,7 @@ func DefaultBlackBan() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(403, "FORBIDDEN")
 	res.SetHeader("Server", "Fast-Https")
-	res.SetHeader("Date", time.Now().String())
+	res.SetHeader("Date", CachedDate())
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("403 Forbidden", "The request was rejected because the client has been blacklisted."))
