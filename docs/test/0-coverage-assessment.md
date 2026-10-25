@@ -10,41 +10,48 @@ go tool cover -func=cover.out
 > 2026-10-25 二次实测：完成三大补测缺口 + 公开语料覆盖（见
 > [1-boundary-cases.md §1.8](1-boundary-cases.md#18-公开语料覆盖真实用例)）后，
 > 合并覆盖率 50.8% → **55.7%**。
+>
+> 2026-10-25 三次实测：**全功能模块补测**（auth/rewrite/dev_mod/safe-counts/
+> static 主流程/proxy 主流程与缓存策略/websocket/proxy_tcp/events EventHandler
+> 与 h2 助手/dynlog/config 解析/listener/core hooks/color/autocert）后，
+> 合并覆盖率 55.7% → **68.5%**，通过测试的包 30 → 35。本轮发现并修复
+> 1 个 P0 级缺陷（proxy 发送路径对非 net.Error 写错误走 Fatal=os.Exit，
+> 一条上游连接异常即可打死整个进程）。
 
 ## 总览
 
 | 口径 | 数值 |
 | --- | --- |
-| 合并覆盖率（-coverpkg=./...） | **55.7%**（补测前 50.8%） |
-| 单包覆盖率均值 | 36.8%（补测前） |
-| 包数 / 通过 `-race` | 30 / 30 |
+| 合并覆盖率（-coverpkg=./...） | **68.5%**（语料回打前 55.7%，首轮 50.8%） |
+| 包数 / 通过 `-race` | 35 / 35 |
 | 关键热点函数 | ParseHeader 93.7%、ReadBytes 100%、LoadCache 95.5% |
 
-## 分包数据与解读
+## 分包数据与解读（2026-10-25 三轮补测后）
 
-| 包 | 覆盖率 | 解读 |
+| 包 | 状态 | 解读 |
 | --- | --- | --- |
-| infra/banner | 93.8% | 彩色/无色双路径全覆盖 |
-| modules/safe | 92.6% | 控制面 API + overlay 语义全覆盖 |
-| modules/appfirewall | 86.9% | 引擎生命周期与检测入口已测 |
-| modules/cache | 73.6% | 热层/LRU/过期已测；LoadCache 磁盘恢复已补测（函数口径 95.5%） |
-| modules/static | 67.7% | 协商/Range/穿越已测；gzip 大文件路径未测 |
-| modules/compress | 65.1% | 双算法往返已测 |
-| config | 61.4% | reload/paths/校验已测；include 展开分支部分未测 |
-| runtime/server | 50.3% | 信号/停机/accept 已测；Daemon fork 仅 Linux |
-| modules/proxy_tcp、websocket | 45.7% | 搬运循环部分分支未测 |
-| core | 25.4% | 契约层多为胶水；DefaultParseCommandHandler 未测 |
-| runtime/request | 25.9%* | *单包口径；合并口径下解析主路径覆盖率高（injection/parse/chunked 全测） |
-| runtime/response | 26.7%* | 同上，序列化主路径已测 |
-| runtime/events | 18.7% | h1 事件循环主体靠 E2E 覆盖，单测缺口在 parseRequest 分片读分支 |
-| runtime/listener | 19.8% | 端口增删靠 reload E2E；单测缺口在 SortBy/processHostMap |
-| modules/proxy | 20.3% | 连接池单测完备；getDataFromServer 读路径靠 proxy E2E |
-| cmd | 14.4% | 命令 handler 靠 unit_test/cmd 的行为测试；CLI 主循环未测 |
-| init | 17.0% | InitSystem 编排链靠 E2E |
+| infra/banner | 高 | 彩色/无色双路径全覆盖 |
+| modules/safe | 高 | 控制面 API + overlay + per-IP 计数限流（counts 全语义）已测 |
+| modules/auth | 已补测（原 0%） | Basic 解析畸形矩阵 + 常数时间比较 + 401 路径 |
+| modules/appfirewall | 高 | 引擎生命周期/检测入口/未知规则忽略已测 |
+| modules/cache | 高 | 热层/LRU/过期/磁盘恢复（95.5%）已测 |
+| modules/rewrite、dev_mod | 已补测（原 0%） | 301 重定向与 dev 应答主路径 |
+| modules/websocket、proxy_tcp | 已补测 | 回显搬运 + 坏 CircleData 保护 + 拨号失败 + 上游断开收尾 |
+| modules/static | 已补测 | 301/keep-alive/close/404 主流程；gzip 大文件路径未测 |
+| modules/compress | 中 | 双算法往返已测；DecompressBytesGzip 死代码已删 |
+| config | 已补测 | include 目录遍历（嵌套/非 json/坏 json/空目录/缺失）、parsePathType/parseZip、Reload 失败保护快照 |
+| runtime/events | 已补测 | EventHandler 全链路分发 + GFilterHostPath 回退 + h2 助手（fillRequest/statusFromFirstLine/hop-by-hop/writer） |
+| runtime/listener | 已补测 | SortByPort 构建/去重/LisType、certMatches（通配/预解析/坏 DER） |
+| runtime/dynlog | 已补测 | pathTypeName 全枚举 + fieldTime 占位 |
+| core | 已补测 | Services 钩子注入/nil 安全/撤销注册、DefaultParseCommandHandler、EventReuse |
+| runtime/server | 中 | 信号/停机/accept 已测；Daemon fork 仅 Linux |
+| cmd | 低（保留） | 命令 handler 靠 unit_test/cmd 行为测试；CLI 主循环与平台 fork 不做单测 |
+| init | 部分 | randomSerialNumber 已测；InitSystem/newRoot/newCert 为启动编排与 ACME 路径，靠 E2E |
+| monitor | 不测 | Windows 托盘 GUI 封装 |
 
 ## 已识别并清零的死代码（2026-10-25）
 
-- `compress.DecompressBytesGzip`（无生产调用方）
+- `compress.DecompressBytesGzip`（无生产调用方；三轮补测中再次确认后删除）
 - `PathQuery.Del/Set`（无调用方）
 - 此前轮次已删：`validWAFMode`、`Parse()`（chunked 死实现）、`setConnCfg`、`allow` 包装等
 

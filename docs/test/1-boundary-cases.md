@@ -146,3 +146,33 @@
 | 3 | 响应 reason 只取 `parts[2]`；无 reason 无空格的行误拒 | `runtime/response/response.go` | `Service Unavailable` 截断成 `Service`；`HTTP/1.1 200\r\n` 误 509 |
 | 4 | `ReadBytes` 非超时错误不退出循环 | `modules/proxy/proxy_read.go` | keep-alive 半响应/重置 → 无限自旋吃满 CPU；超时交付半截 body（缓存投毒面） |
 | 5 | `LoadCache` 恢复过期条目进索引 | `modules/cache/cache.go` | Touch 读即续期把过期条目刷成"永不过期"，陈旧内容无限回放 |
+
+### 全模块补测（第三轮）修掉的缺陷
+
+| # | 缺陷 | 位置 | 后果（修复前） |
+| --- | --- | --- | --- |
+| 6 | **上游写错误非 net.Error 时走 Fatal（os.Exit）** | `modules/proxy/event_proxy.go` sendToUpstreamServer | P0：`io.ErrClosedPipe` 等一条上游连接的异常写直接打死整个进程 |
+| 7 | `DecompressBytesGzip` 死代码残留 | `modules/compress/compress.go` | 无调用方，误导维护者 |
+
+### 全模块补测（第三轮）新增用例位置
+
+| 模块 | 测试文件 | 覆盖点 |
+| --- | --- | --- |
+| modules/auth | `auth_test.go` | Basic 解析畸形矩阵、常数时间比较、401 写出、放行 |
+| modules/rewrite | `rewrite_test.go` | 301 + Location + 关闭 |
+| modules/dev_mod | `dev_mod_test.go` | dev 应答主路径 |
+| modules/safe | `counts_test.go` | per-IP 计数限流全语义（rate 精确边界/窗口重置/超额直通/清扫节流/表构建/429 写出） |
+| modules/appfirewall | `adapter_test.go` 追加 | isKnownDetector 边界 |
+| modules/proxy | `flow_test.go`、`cache_flow_test.go` | 构造/ChangeHeader(200/509)/ChangeHead($变量)/DialFailureResponse/明文与 TLS 读写闭包/池借还与复用/websocket 整条持有/ProxyInit/缓存 Serve·Store·逐跳头剔除·no-cache 指令 |
+| modules/proxy_tcp | `event_proxy_tcp_test.go` 追加 | 拨号失败关连接不 panic |
+| modules/websocket | `websocket_test.go` 追加 | 坏 CircleData 保护分支、上游断开收尾 |
+| modules/static | `flow_test.go` | HandelSlash 301、StaticEvent keep-alive/close/404、event301 |
+| runtime/events | `h2_helpers_test.go`、`eventhandler_test.go` | h2 助手全套、EventHandler 全链路分发、GFilterHostPath 回退 DEFAULT_PORT |
+| runtime/dynlog | `dynlog_test.go` | pathTypeName 全枚举 |
+| runtime/request | `parse_test.go` 追加 | query 变体/ParseHost 端口/RequestBodyValid 四分支/取值器/TryFixBody |
+| runtime/response | `response_corpus_test.go` 追加 | DefaultTest/DefaultServerHeaderError/GetBody |
+| runtime/listener | `sort_cert_test.go` | SortByPort 去重与 LisType、certMatches 通配/预解析/坏 DER |
+| config | `internal_parse_test.go` | include 遍历五分支、parsePathType、parseZip、Reload 失败保护 |
+| core | `services_test.go` | 钩子注入/nil 安全/撤销注册、RegisteredTypes、DefaultParseCommandHandler/XFF |
+| infra/color | `color_test.go` | 16 色包装器往返 |
+| init | `autocert_serial_test.go` | randomSerialNumber 范围与唯一性 |

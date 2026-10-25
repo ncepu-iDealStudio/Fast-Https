@@ -76,3 +76,59 @@ func TestWebSocketHandlerEcho(t *testing.T) {
 		t.Fatal("websocket handler did not return after the upstream closed")
 	}
 }
+
+// CircleData 断言失败/上游连接缺失：必须安全关闭而不是空指针 panic
+func TestWebSocketHandlerBadCircleData(t *testing.T) {
+	for name, data := range map[string]interface{}{
+		"nil":      nil,
+		"wrong-t":  "not-a-proxy",
+		"no-conn":  &proxy.Proxy{},
+	} {
+		t.Run(name, func(t *testing.T) {
+			server, client := net.Pipe()
+			t.Cleanup(func() { _ = client.Close() })
+			ev := core.NewEvent(nil, server)
+			ev.RR.CircleData = data
+
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				WebSocketHandler(ev)
+			}()
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("handler hung on invalid circle data")
+			}
+			client.SetWriteDeadline(time.Now().Add(time.Second))
+			if _, err := client.Write([]byte("x")); err == nil {
+				t.Fatal("connection should be closed after invalid circle data")
+			}
+		})
+	}
+}
+
+// 上游主动断开：两个搬运方向都要收尾退出
+func TestWebSocketHandlerExitsWhenUpstreamCloses(t *testing.T) {
+	backendClient, backendServer := net.Pipe()
+	t.Cleanup(func() { _ = backendClient.Close() })
+
+	server, client := net.Pipe()
+	t.Cleanup(func() { _ = client.Close() })
+	ev := core.NewEvent(nil, server)
+	ev.RR.CircleData = &proxy.Proxy{ProxyConn: backendClient}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		WebSocketHandler(ev)
+	}()
+
+	// 上游关闭 → 客户端方向读错误 → handler 退出
+	_ = backendServer.Close()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler did not exit after upstream closed")
+	}
+}

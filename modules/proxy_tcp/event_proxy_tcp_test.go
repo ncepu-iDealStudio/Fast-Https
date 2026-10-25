@@ -67,3 +67,27 @@ func TestProxyEventTcpEcho(t *testing.T) {
 		t.Fatal("tcp proxy did not return after the upstream closed")
 	}
 }
+
+// 上游建连失败：直接关闭客户端连接并返回，不得 panic
+func TestProxyEventTcpDialFailureCloses(t *testing.T) {
+	server, client := net.Pipe()
+	t.Cleanup(func() { _ = client.Close() })
+	ev := core.NewEvent(nil, server)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ProxyEventTcp(ev, "127.0.0.1:1") // 无人监听
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("dial failure path hung")
+	}
+
+	// ev.Close 已执行：客户端侧写应立即出错
+	client.SetWriteDeadline(time.Now().Add(time.Second))
+	if _, err := client.Write([]byte("x")); err == nil {
+		t.Fatal("client side should be closed after dial failure")
+	}
+}

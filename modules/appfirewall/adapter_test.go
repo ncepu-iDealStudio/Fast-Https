@@ -80,3 +80,17 @@ func TestToHTTPRequestH2Proto(t *testing.T) {
 		t.Errorf("h2 ProtoMajor = %d, want 2", r.ProtoMajor)
 	}
 }
+
+// wafConfigured 对未知规则名只告警忽略，不构建未知检测器
+func TestIsKnownDetector(t *testing.T) {
+	for _, name := range wafDetectorNames {
+		if !isKnownDetector(name) {
+			t.Errorf("detector %q must be known", name)
+		}
+	}
+	for _, name := range []string{"", "sql", "exec", "not-a-detector"} {
+		if isKnownDetector(name) {
+			t.Errorf("%q must not be a known detector", name)
+		}
+	}
+}

@@ -1,6 +1,7 @@
 package request
 
 import (
+	"fast-https/runtime/listener"
 	"fast-https/runtime/request"
 	"fmt"
 	"testing"
@@ -316,5 +317,121 @@ func TestFlushClearsQuery(t *testing.T) {
 	req.Flush()
 	if len(req.Query) != 0 {
 		t.Errorf("Flush() left query %v, want empty", req.Query)
+	}
+}
+
+// ---- 查询串与请求体校验的剩余分支 ----
+
+func TestParseQueryParamsVariants(t *testing.T) {
+	req := request.RequestInit(false)
+	req.Path = "/list?a=1&b=2&flag&c=3"
+	req.Headers["Host"] = "h" // ParseHost 守卫要求 Host 非空
+	req.ParseHost(&listener.Listener{Port: "8080"}) // 内部触发 parseQueryParams
+	if req.Query["a"] != "1" || req.Query["b"] != "2" || req.Query["c"] != "3" {
+		t.Fatalf("query = %v", req.Query)
+	}
+	// 无 = 的参数（flag）不产生条目
+	if _, ok := req.Query["flag"]; ok {
+		t.Fatal("parameter without '=' must be skipped")
+	}
+
+	// 无查询串、纯 '?'、'?' 后为空
+	for _, p := range []string{"/plain", "/q?", "/q"} {
+		r := request.RequestInit(false)
+		r.Path = p
+		r.Headers["Host"] = "h"
+		r.ParseHost(&listener.Listener{Port: "8080"})
+		if len(r.Query) != 0 {
+			t.Fatalf("path %q produced query %v", p, r.Query)
+		}
+	}
+}
+
+func TestParseHostAppendsDefaultPort(t *testing.T) {
+	req := request.RequestInit(false)
+	req.Headers["Host"] = "a.example"
+	req.ParseHost(&listener.Listener{Port: "80"})
+	if req.GetHost() != "a.example:80" {
+		t.Fatalf("host = %q, want :80 appended", req.GetHost())
+	}
+
+	req2 := request.RequestInit(false)
+	req2.Headers["Host"] = "b.example"
+	req2.ParseHost(&listener.Listener{Port: "443"})
+	if req2.GetHost() != "b.example:443" {
+		t.Fatalf("host = %q, want :443 appended", req2.GetHost())
+	}
+
+	// 非 80/443 端口或无 Host：保持原样
+	req3 := request.RequestInit(false)
+	req3.Headers["Host"] = "c.example"
+	req3.ParseHost(&listener.Listener{Port: "8080"})
+	if req3.GetHost() != "c.example" {
+		t.Fatalf("host = %q, must stay unmodified", req3.GetHost())
+	}
+}
+
+func TestRequestBodyValidBranches(t *testing.T) {
+	t.Run("content-length mismatch", func(t *testing.T) {
+		req := request.RequestInit(false)
+		req.Headers["Content-Length"] = "5"
+		req.Body.WriteString("abc") // 3 != 5
+		if req.RequestBodyValid() {
+			t.Fatal("short body must be invalid")
+		}
+	})
+
+	t.Run("content-length non-numeric", func(t *testing.T) {
+		req := request.RequestInit(false)
+		req.Headers["Content-Length"] = "abc"
+		req.Body.WriteString("abc")
+		if req.RequestBodyValid() {
+			t.Fatal("non-numeric CL must be invalid (no panic)")
+		}
+	})
+
+	t.Run("no framing headers", func(t *testing.T) {
+		req := request.RequestInit(false)
+		if !req.RequestBodyValid() {
+			t.Fatal("no CL body is vacuously valid")
+		}
+	})
+
+	t.Run("multipart complete via incremental scan", func(t *testing.T) {
+		req := request.RequestInit(false)
+		req.Headers["Content-Type"] = "multipart/form-data; boundary=BOUND"
+		req.TryFixBody([]byte("--BOUND\r\nfield\r\n"))
+		if req.RequestBodyValid() {
+			t.Fatal("multipart without terminal boundary must be invalid")
+		}
+		req.TryFixBody([]byte("--BOUND--\r\n"))
+		if !req.RequestBodyValid() {
+			t.Fatal("terminal boundary must complete the body")
+		}
+	})
+}
+
+func TestHeaderGettersAndSetHeader(t *testing.T) {
+	req := request.RequestInit(false)
+	req.SetHeader("X-Custom", "v", &listener.ListenCfg{})
+	if req.GetHeader("X-Custom") != "v" {
+		t.Fatalf("SetHeader/GetHeader roundtrip failed")
+	}
+	if req.GetUpgrade() != "" || req.GetAuthorization() != "" || req.GetContentType() != "" {
+		t.Fatal("unset headers must read as empty strings")
+	}
+	req.Headers["Upgrade"] = "websocket"
+	req.Headers["Authorization"] = "Basic x"
+	if req.GetUpgrade() != "websocket" || req.GetAuthorization() != "Basic x" {
+		t.Fatal("typed getters must read the map")
+	}
+}
+
+func TestTryFixBodyAppends(t *testing.T) {
+	req := request.RequestInit(false)
+	req.TryFixBody([]byte("one"))
+	req.TryFixBody([]byte("two"))
+	if req.Body.String() != "onetwo" {
+		t.Fatalf("body = %q", req.Body.String())
 	}
 }

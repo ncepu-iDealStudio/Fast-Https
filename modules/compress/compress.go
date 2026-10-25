@@ -68,17 +68,3 @@ func CompressBytesBrotli(data []byte) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-func DecompressBytesGzip(compressed []byte) ([]byte, error) {
-	reader, err := gzip.NewReader(bytes.NewReader(compressed))
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-
-	decompressed, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	return decompressed, nil
-}

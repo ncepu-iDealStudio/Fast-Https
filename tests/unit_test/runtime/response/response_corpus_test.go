@@ -11,6 +11,7 @@
 package response
 
 import (
+	"strings"
 	"testing"
 
 	"fast-https/runtime/response"
@@ -46,7 +47,7 @@ var responseCorpus = []struct {
 	},
 	{
 		name: "test_response_reason_missing_no_space_with_headers", raw: "HTTP/1.1 200\r\nFoo: bar\r\n\r\n",
-		wantFirst: "HTTP/1.1 200 ",
+		wantFirst:  "HTTP/1.1 200 ",
 		wantHeader: map[string]string{"Foo": "bar"},
 	},
 	{
@@ -57,7 +58,7 @@ var responseCorpus = []struct {
 	{
 		// 多词 reason 必须整体保留，不得截断到第一个词
 		name: "test_response_multiline_reason", raw: "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\n\r\n",
-		wantFirst: "HTTP/1.1 503 Service Unavailable",
+		wantFirst:  "HTTP/1.1 503 Service Unavailable",
 		wantHeader: map[string]string{"Connection": "close"},
 	},
 	{
@@ -87,21 +88,21 @@ var responseCorpus = []struct {
 	{
 		// httparse test_forbid_response_with_whitespace_between_header_name_and_colon
 		// + RFC 7230 §3.2.4：冒号前空白必须拒绝（TE 混淆走私形态）
-		name: "forbid_whitespace_between_header_name_and_colon",
-		raw:  "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Credentials : true\r\nBread: baguette\r\n\r\n",
+		name:    "forbid_whitespace_between_header_name_and_colon",
+		raw:     "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Credentials : true\r\nBread: baguette\r\n\r\n",
 		wantErr: corpusInvalidHeaders,
 	},
 	{
 		// obs-fold 折行残迹：行首空白拒绝
-		name: "forbid_leading_space_header_line",
-		raw:  "HTTP/1.1 200 OK\r\n X-Folded: true\r\n\r\n",
+		name:    "forbid_leading_space_header_line",
+		raw:     "HTTP/1.1 200 OK\r\n X-Folded: true\r\n\r\n",
 		wantErr: corpusInvalidHeaders,
 	},
 	{
 		// 头已到但终止空行未到：头照常解析，Body 保持为空
-		name: "test_response_partial_parses_headers_as_much_as_it_can",
-		raw:  "HTTP/1.1 200 OK\r\nServer: yolo\r\n",
-		wantFirst: "HTTP/1.1 200 OK",
+		name:       "test_response_partial_parses_headers_as_much_as_it_can",
+		raw:        "HTTP/1.1 200 OK\r\nServer: yolo\r\n",
+		wantFirst:  "HTTP/1.1 200 OK",
 		wantHeader: map[string]string{"Server": "yolo"},
 	},
 }
@@ -139,5 +140,30 @@ func TestResponseCorpus(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// 默认响应构造器：状态行与基础头齐备
+func TestDefaultResponses(t *testing.T) {
+	test := response.DefaultTest()
+	if test.FirstLine != "HTTP/1.1 200 OK" || len(test.GetBody()) == 0 {
+		t.Fatalf("DefaultTest: %+v", test)
+	}
+	if got := test.GenerateResponse(); len(got) == 0 {
+		t.Fatal("DefaultTest must serialize")
+	}
+
+	headerErr := response.DefaultServerHeaderError()
+	if !strings.Contains(headerErr.FirstLine, "500") {
+		t.Fatalf("DefaultServerHeaderError first line: %q", headerErr.FirstLine)
+	}
+}
+
+// GetBody 返回响应体切片
+func TestGetBody(t *testing.T) {
+	res := response.ResponseInit()
+	res.SetBody([]byte("payload"))
+	if string(res.GetBody()) != "payload" {
+		t.Fatalf("GetBody = %q", res.GetBody())
 	}
 }

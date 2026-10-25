@@ -9,11 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"fast-https/infra/logging"
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/response"
-	"fast-https/infra/color"
-	"fast-https/infra/logging"
 	"net"
 	"strings"
 )
@@ -287,10 +286,11 @@ func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 		if ok && neterr.Timeout() {
 			logging.ConsoleLog.Debug().Msg("send to upstream server time out")
 			err = ProxyErrorSendToUpstreamTimeout
-		} else if ok {
-			logging.ConsoleLog.Debug().Msgf("%s%s", color.Red("unhandled send to upstream server: "), err.Error())
 		} else {
-			logging.ConsoleLog.Fatal().Msg("convent net error")
+			// 非 net.Error 的写错误（io.ErrClosedPipe、TLS 包装错误等）
+			// 也必须按普通错误处理：此前这里走 Fatal（os.Exit），一条
+			// 上游连接的异常写就能打死整个进程。
+			logging.ConsoleLog.Debug().Msgf("send to upstream server error: %s", err.Error())
 		}
 
 		p.Close()  // close proxy connection
