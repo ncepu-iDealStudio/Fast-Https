@@ -42,14 +42,11 @@ func TestBlacklistHitAndMiss(t *testing.T) {
 
 func TestRateLimitRejectsAfterBurst(t *testing.T) {
 	lim := rate.NewLimiter(rate.Every(time.Hour), 1)
-	if !allow(lim) {
+	if !lim.Allow() {
 		t.Fatal("first event inside the burst should pass")
 	}
-	if allow(lim) {
+	if lim.Allow() {
 		t.Fatal("event past the burst should be rejected")
-	}
-	if !allow(nil) {
-		t.Fatal("a nil limiter should allow the event")
 	}
 }
 

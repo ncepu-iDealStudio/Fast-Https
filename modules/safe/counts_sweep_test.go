@@ -56,8 +56,7 @@ func TestCountLimitStillCountsAfterSweep(t *testing.T) {
 	cl.gMap["1.1.1.1"] = countIP{curr: 0, expire: 0, count: 0, rate: 2}
 	cl.num = 1
 
-	// 既有语义：新条目放行时不计数，Allow 先判断后自增，
-	// 因此 rate=2 实际放行 3 次后开始拒绝
+	// 语义：先比较后自增，rate=2 恰好放行 2 次
 	allowed := 0
 	for allowed < 10 {
 		if !cl.Insert("1.1.1.1") {
@@ -65,7 +64,18 @@ func TestCountLimitStillCountsAfterSweep(t *testing.T) {
 		}
 		allowed++
 	}
-	if allowed != 3 {
-		t.Errorf("allowed = %d, want 3", allowed)
+	if allowed != 2 {
+		t.Errorf("allowed = %d, want 2", allowed)
+	}
+}
+
+// 新 IP 的首个请求即计数
+func TestCountLimitFirstRequestCounts(t *testing.T) {
+	cl := NewCountLimit(0, 1, 1000)
+	if !cl.Insert("3.3.3.3") {
+		t.Fatal("first request should pass")
+	}
+	if cl.Insert("3.3.3.3") {
+		t.Error("second request within window should be rejected at rate=1")
 	}
 }

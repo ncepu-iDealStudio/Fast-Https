@@ -80,24 +80,16 @@ func (l *countIP) Allow(ipstr string) bool {
 	if int(now.Unix()) >= l.expire {
 		// 到时间了 重置计数器
 		l.Reset(now)
-		l.count++
-		// fmt.Println("重置计数器之后", ipstr, "插入成功，现在count：", l.count)
-
-		return true
-	} else {
-		if l.count == l.rate {
-			//达到请求个数限制
-			//拒绝访问
-			// fmt.Println(ipstr, "拒绝插入")
-			return false
-		} else {
-			//没有达到速率限制，计数加1
-			l.count++
-			// fmt.Println(ipstr, "插入成功，现在count：", l.count)
-			return true
-		}
-
 	}
+	// 先比较后自增：rate 次就是 rate 次。
+	// 旧实现先判断后自增，实际放行 rate+1 次。
+	if l.count >= l.rate {
+		//达到请求个数限制
+		//拒绝访问
+		return false
+	}
+	l.count++
+	return true
 }
 
 func NewCountLimit(num int, rate int, size int) *CountLimit {
@@ -122,8 +114,9 @@ func (cl *CountLimit) Insert(ipstr string) bool {
 
 	a, ok := cl.gMap[ipstr]
 	if !ok {
-		// 如果键不存在，初始化 countIP 结构体值
-		cl.gMap[ipstr] = countIP{now, now + defaultTimeLength, 0, cl.rate}
+		// 如果键不存在，初始化 countIP 结构体值；
+		// 当前请求即计数 1，与 Allow 的"先比较后自增"语义一致
+		cl.gMap[ipstr] = countIP{now, now + defaultTimeLength, 1, cl.rate}
 		cl.num++
 		return true
 	}
