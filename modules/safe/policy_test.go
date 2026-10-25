@@ -12,30 +12,30 @@ import (
 
 func TestBlacklistHitAndMiss(t *testing.T) {
 	list := NewBlacklist()
-	if err := list.Add("127.0.0.2"); err != nil {
+	if err := list.Add(BlacklistSourceRuntime, "127.0.0.2"); err != nil {
 		t.Fatalf("add ip: %v", err)
 	}
-	if err := list.Add("192.168.1.10-192.168.1.12"); err != nil {
+	if err := list.Add(BlacklistSourceRuntime, "192.168.1.10-192.168.1.12"); err != nil {
 		t.Fatalf("add range: %v", err)
 	}
 
-	if !list.isInBlacklist("127.0.0.2") {
+	if !list.Contains("127.0.0.2") {
 		t.Fatal("listed ip should be rejected")
 	}
-	if list.isInBlacklist("127.0.0.1") {
+	if list.Contains("127.0.0.1") {
 		t.Fatal("unlisted ip should be allowed")
 	}
-	if !list.isInBlacklist("192.168.1.11") {
+	if !list.Contains("192.168.1.11") {
 		t.Fatal("ip inside the range should be rejected")
 	}
-	if list.isInBlacklist("192.168.1.13") {
+	if list.Contains("192.168.1.13") {
 		t.Fatal("ip outside the range should be allowed")
 	}
 
 	if err := list.Remove("127.0.0.2"); err != nil {
 		t.Fatalf("remove ip: %v", err)
 	}
-	if list.isInBlacklist("127.0.0.2") {
+	if list.Contains("127.0.0.2") {
 		t.Fatal("removed ip should be allowed")
 	}
 }

@@ -1,7 +1,4 @@
 // waf.go 封装 GuardianWAF 引擎：构建、原子切换与全项目唯一的检测入口。
-//
-// 边界约束（tests/arch 守卫）：guardianwaf 只允许出现在本包与 cmd，
-// core/runtime 不感知检测引擎的存在。
 package appfirewall
 
 import (
@@ -20,6 +17,7 @@ import (
 
 // guardianWAF 版本钉死 v1.0.0：检测器名与模式常量以该版本源码为准
 // （检测器：sqli/xss/lfi/cmdi/xxe/ssrf；模式：enforce/monitor/disabled）。
+// 检测器选项的配置映射见 mapping.go。
 
 type wafEngine struct {
 	e *guardianwaf.Engine
@@ -27,79 +25,6 @@ type wafEngine struct {
 
 // current 持有当前引擎；nil = 未启用 = 所有请求放行（零开销默认）。
 var current atomic.Pointer[wafEngine]
-
-// wafDetectorNames 是 v1.0.0 的全部检测器（WithDetector 合法名）。
-var wafDetectorNames = []string{"sqli", "xss", "lfi", "cmdi", "xxe", "ssrf"}
-
-// legacyRuleMap 把旧 appfirewall 规则名映射到检测器名。
-var legacyRuleMap = map[string]string{
-	"sql": "sqli",
-	"xss": "xss",
-}
-
-// validWAFMode 判定 waf.mode 配置是否合法。
-func validWAFMode(mode string) bool {
-	switch mode {
-	case "", guardianwaf.ModeEnforce, guardianwaf.ModeMonitor, guardianwaf.ModeDisabled:
-		return true
-	}
-	return false
-}
-
-// wafConfigured 报告是否有任何 location 或全局块启用了防火墙。
-func wafConfigured(cfg *config.Fast_Https) bool {
-	if cfg.Waf != nil {
-		return true
-	}
-	for i := range cfg.Servers {
-		for j := range cfg.Servers[i].Path {
-			if len(cfg.Servers[i].Path[j].AppFireWall) > 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// resolveDetectors 计算启用的检测器集合：
-// location 的 appfirewall 名（含旧规则名映射）与直写检测器名取并集；
-// 全局 waf 块存在但没有 location 级配置时启用全部检测器。
-// 返回 (检测器名集合, 是否启用)。
-func resolveDetectors(cfg *config.Fast_Https) map[string]bool {
-	set := make(map[string]bool)
-	for i := range cfg.Servers {
-		for j := range cfg.Servers[i].Path {
-			for _, rule := range cfg.Servers[i].Path[j].AppFireWall {
-				name, ok := legacyRuleMap[rule]
-				if !ok {
-					if isKnownDetector(rule) {
-						name = rule
-					} else {
-						logging.ConsoleLog.Warn().Msgf("appfirewall: unknown rule %q is ignored", rule)
-						continue
-					}
-				}
-				set[name] = true
-			}
-		}
-	}
-	if len(set) == 0 && cfg.Waf != nil {
-		// 显式 waf 块 = 全量启用
-		for _, name := range wafDetectorNames {
-			set[name] = true
-		}
-	}
-	return set
-}
-
-func isKnownDetector(name string) bool {
-	for _, d := range wafDetectorNames {
-		if d == name {
-			return true
-		}
-	}
-	return false
-}
 
 // BuildWAF 按配置快照构建检测引擎。
 // 由 AfterListen 钩子在监听器创建后与每次 reload 时调用；
@@ -164,7 +89,6 @@ func Allowed(_ *listener.ListenCfg, ev *core.Event) bool {
 	if w == nil {
 		return true
 	}
-	logging.ConsoleLog.Info().Msg("waf: CHECKING with engine")
 
 	result := w.e.Check(toHTTPRequest(ev))
 	if result.Logged && len(result.Findings) > 0 {
