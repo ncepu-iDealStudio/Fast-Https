@@ -297,6 +297,12 @@ func (r *Request) parseHeaderLine(line []byte) error {
 	// HTTP 头名大小写不敏感，统一成 canonical 形式供后续读取
 	ks := canonHeaderKey(key)
 	value := bytes.TrimSpace(line[colon+1:])
+	// 头名与头值都不允许出现裸 CR/LF：正常解析流程按 \r\n 切行不会
+	// 留下这两个字符，但值中间的裸 \n（如 "a\nEvil: x"）若被放行，
+	// 会在 ByteRow 重建报文时原样写出——构成请求头注入/走私。
+	if bytes.ContainsAny(key, "\r\n") || bytes.ContainsAny(value, "\r\n") {
+		return InvalidHeaders
+	}
 	if ks == "Content-Length" {
 		if n, err := strconv.Atoi(string(value)); err != nil || n < 0 {
 			return InvalidHeaders
@@ -338,6 +344,11 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 	protocol := first[sp2+1:]
 	if bytes.IndexByte(protocol, ' ') >= 0 {
 		// 首行字段数超过 3
+		return FirstLineInvalid
+	}
+	// 请求行任何字段都不允许出现裸 CR/LF：路径里的 "\n" 若被放行，
+	// 会在 ByteRow 重建请求时把第二行拆出来（请求走私）。
+	if bytes.ContainsAny(first, "\r\n") {
 		return FirstLineInvalid
 	}
 

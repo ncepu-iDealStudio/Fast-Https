@@ -118,6 +118,11 @@ func (r *Response) HttpResParse(request string) error {
 		if key == "" { // ": value" 这样的行不合法
 			return InvalidHeaders
 		}
+		// 上游是不可信输入：头值含裸 CR/LF 时若放行，会在响应序列化
+		// 时原样写给客户端——构成响应头注入。拒绝。
+		if strings.ContainsAny(key, "\r\n") || strings.ContainsAny(kv[1], "\r\n") {
+			return InvalidHeaders
+		}
 		key = textproto.CanonicalMIMEHeaderKey(key)
 		value := strings.TrimSpace(kv[1])
 		r.Headers[key] = value

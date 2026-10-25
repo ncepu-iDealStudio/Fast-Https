@@ -152,3 +152,32 @@ func TestHttpResParse(t *testing.T) {
 		}
 	}
 }
+
+// 上游响应头值含裸 LF 必须拒绝：否则透传给客户端时构成响应头注入
+func TestHttpResParseRejectsBareLFInHeaderValue(t *testing.T) {
+	res := response.ResponseInit()
+	err := res.HttpResParse("HTTP/1.1 200 OK\r\nSet-Cookie: a\nEvil: injected\r\n\r\nbody")
+	if err != response.InvalidHeaders {
+		t.Fatalf("bare LF in upstream header value got %v, want InvalidHeaders", err)
+	}
+}
+
+// 上游响应头名含裸 CR 同样拒绝
+func TestHttpResParseRejectsBareCRInHeaderName(t *testing.T) {
+	res := response.ResponseInit()
+	err := res.HttpResParse("HTTP/1.1 200 OK\r\nX-Evil\rFoo: bar\r\n\r\nbody")
+	if err != response.InvalidHeaders {
+		t.Fatalf("bare CR in upstream header name got %v, want InvalidHeaders", err)
+	}
+}
+
+// 无终止空行的响应：头合法时正常解析，Body 保持零值（既有望保持的语义）
+func TestHttpResParseWithoutTerminatorKeepsBody(t *testing.T) {
+	res := response.ResponseInit()
+	if err := res.HttpResParse("HTTP/1.1 200 OK\r\nContent-Length: 3"); err != response.ResponseOk {
+		t.Fatalf("headers without terminator got %v", err)
+	}
+	if res.Body != nil {
+		t.Fatalf("body = %q, want nil without \r\n\r\n", res.Body)
+	}
+}
