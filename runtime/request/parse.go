@@ -290,8 +290,10 @@ func (r *Request) parseHeaderLine(line []byte) error {
 	if colon < 0 {
 		return errNoColon
 	}
-	key := bytes.TrimSpace(line[:colon])
-	if len(key) == 0 { // ": value" 这样的行不合法
+	key := line[:colon]
+	// 头名两侧不允许空白："Name : v" 是 RFC 7230 §3.2.4 明确要求
+	// 拒绝的走私混淆形式；行首空白（obs-fold 折行残迹）同样拒绝。
+	if k := bytes.TrimSpace(key); len(k) != len(key) || len(k) == 0 {
 		return InvalidHeaders
 	}
 	// HTTP 头名大小写不敏感，统一成 canonical 形式供后续读取
@@ -323,10 +325,29 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 		return None
 	}
 
+	// RFC 7230 §3.5：请求行之前应忽略空行（部分客户端以 CRLF 开场）
+	for bytes.HasPrefix(request_byte, crlf) {
+		request_byte = request_byte[2:]
+	}
+	if len(request_byte) == 0 {
+		return RequestNeedReadMore // 目前只收到开场空行，请求行还没到
+	}
+
 	// 请求行
 	lineEnd := bytes.Index(request_byte, crlf)
 	if lineEnd < 0 {
-		return UnknowInvalid // 连一个 \r\n 都没有
+		// 缓冲里还没有任何完整 CRLF。结尾孤立的 \r 可能是跨 TCP 段
+		// 到达的半个 CRLF，剥掉后再看：仍残留 CR/LF 说明对端在用
+		// LF 或孤立 CR 分行（走私变体），立即拒绝；否则就是请求行
+		// 尚未读全，交回调用方继续读（头分片到达的正常路径）。
+		buf := request_byte
+		if buf[len(buf)-1] == '\r' {
+			buf = buf[:len(buf)-1]
+		}
+		if bytes.ContainsAny(buf, "\r\n") {
+			return UnknowInvalid
+		}
+		return RequestNeedReadMore
 	}
 	first := request_byte[:lineEnd]
 	rest := request_byte[lineEnd+2:]

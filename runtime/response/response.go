@@ -100,11 +100,22 @@ func (r *Response) HttpResParse(request string) error {
 		return None
 	}
 	requestLine := strings.Split(request, "\r\n")
-	parts := strings.Split(requestLine[0], " ")
-	if len(parts) < 3 {
+	first := requestLine[0]
+	// 上游用裸 LF 分行时整个"首行"里就带着 \n：若放行会在序列化时
+	// 原样写给客户端（响应拆分），直接拒绝。
+	if strings.ContainsAny(first, "\r\n") {
+		return FirstLineInvalid
+	}
+	parts := strings.Split(first, " ")
+	if len(parts) < 2 {
 		return FirstLineInvalid // invalid first line
 	}
-	r.FirstLine = parts[0] + " " + parts[1] + " " + parts[2]
+	reason := ""
+	if len(parts) > 2 {
+		// reason 短语可以含空格（如 "Service Unavailable"），必须整体保留
+		reason = strings.Join(parts[2:], " ")
+	}
+	r.FirstLine = parts[0] + " " + parts[1] + " " + reason
 
 	for _, line := range requestLine[1:] {
 		if line == "" {
@@ -114,16 +125,17 @@ func (r *Response) HttpResParse(request string) error {
 		if len(kv) == 1 { // 无 ":" 的行不合法
 			return InvalidHeaders
 		}
-		key := strings.TrimSpace(kv[0])
-		if key == "" { // ": value" 这样的行不合法
+		// 头名两侧不允许空白（RFC 7230 §3.2.4；obs-fold 折行残迹同理），
+		// 该约束对上游响应与对客户端请求一致。
+		if k := strings.TrimSpace(kv[0]); len(k) != len(kv[0]) || len(k) == 0 {
 			return InvalidHeaders
 		}
 		// 上游是不可信输入：头值含裸 CR/LF 时若放行，会在响应序列化
 		// 时原样写给客户端——构成响应头注入。拒绝。
-		if strings.ContainsAny(key, "\r\n") || strings.ContainsAny(kv[1], "\r\n") {
+		if strings.ContainsAny(kv[0], "\r\n") || strings.ContainsAny(kv[1], "\r\n") {
 			return InvalidHeaders
 		}
-		key = textproto.CanonicalMIMEHeaderKey(key)
+		key := textproto.CanonicalMIMEHeaderKey(kv[0])
 		value := strings.TrimSpace(kv[1])
 		r.Headers[key] = value
 	}

@@ -57,7 +57,6 @@ func everyFromRate(rps int) rate.Limit {
 // setRate 运行时调整限流参数并清空既有桶（新请求按新参数建桶）。
 // 调用方负责参数校验与 overlay 记录。
 func (il *ipLimiters) setRate(rate, burst int) {
-	println("SETRATE", rate, burst)
 	il.mu.Lock()
 	defer il.mu.Unlock()
 	il.rate = everyFromRate(rate)

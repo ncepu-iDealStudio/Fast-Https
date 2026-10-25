@@ -115,7 +115,10 @@ func (rka *ReadKeepAlive) Read(data []byte) (int, error) {
 }
 
 // debug by zhangjiayue
-func (rka *ReadKeepAlive) ReadBytes(size int) {
+// ReadBytes 读满 Content-Length 承诺的 body。任何读错误都必须上抛：
+// 上游半响应即断开/重置时，把截断数据当 200 回给客户端（更糟的是
+// 落进缓存）等于投毒；超时同样按错误处理而不是交付半截 body。
+func (rka *ReadKeepAlive) ReadBytes(size int) error {
 	totalLen := size
 	//ro.ProxyConn.SetReadDeadline(time.Now().Add(time.Second * 100))
 	for totalLen > 0 {
@@ -127,14 +130,15 @@ func (rka *ReadKeepAlive) ReadBytes(size int) {
 		tempLen, err := rka.Read(tmpBuf)
 		if err != nil {
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				logging.ConsoleLog.Debug().Msg("read bytes time out")
-				break
+				return ProxyErrorReadFromUpstreamTimeout
 			}
+			return err
 		}
 		rka.finalStr = append(rka.finalStr, tmpBuf[:tempLen]...)
 		rka.body = append(rka.body, tmpBuf[:tempLen]...)
 		totalLen -= tempLen
 	}
+	return nil
 }
 
 func (rka *ReadKeepAlive) proxyKeepAlive() error {
@@ -165,7 +169,9 @@ readAgain:
 	if size == 0 { // will not need to read
 		return nil
 	} else if size > 0 { // need read data in size
-		rka.ReadBytes(size)
+		if err := rka.ReadBytes(size); err != nil {
+			return err
+		}
 	} else if size == -2 { // need read header
 		// fmt.Println("invalid header")
 		goto readAgain

@@ -7,13 +7,18 @@ go test ./... -coverpkg=./... -coverprofile=cover.out
 go tool cover -func=cover.out
 ```
 
+> 2026-10-25 二次实测：完成三大补测缺口 + 公开语料覆盖（见
+> [1-boundary-cases.md §1.8](1-boundary-cases.md#18-公开语料覆盖真实用例)）后，
+> 合并覆盖率 50.8% → **55.7%**。
+
 ## 总览
 
 | 口径 | 数值 |
 | --- | --- |
-| 合并覆盖率（-coverpkg=./...） | **50.8%** |
-| 单包覆盖率均值 | 36.8% |
+| 合并覆盖率（-coverpkg=./...） | **55.7%**（补测前 50.8%） |
+| 单包覆盖率均值 | 36.8%（补测前） |
 | 包数 / 通过 `-race` | 30 / 30 |
+| 关键热点函数 | ParseHeader 93.7%、ReadBytes 100%、LoadCache 95.5% |
 
 ## 分包数据与解读
 
@@ -22,7 +27,7 @@ go tool cover -func=cover.out
 | infra/banner | 93.8% | 彩色/无色双路径全覆盖 |
 | modules/safe | 92.6% | 控制面 API + overlay 语义全覆盖 |
 | modules/appfirewall | 86.9% | 引擎生命周期与检测入口已测 |
-| modules/cache | 73.6% | 热层/LRU/过期已测；LoadCache 磁盘恢复未测 |
+| modules/cache | 73.6% | 热层/LRU/过期已测；LoadCache 磁盘恢复已补测（函数口径 95.5%） |
 | modules/static | 67.7% | 协商/Range/穿越已测；gzip 大文件路径未测 |
 | modules/compress | 65.1% | 双算法往返已测 |
 | config | 61.4% | reload/paths/校验已测；include 展开分支部分未测 |
@@ -45,9 +50,15 @@ go tool cover -func=cover.out
 
 ## 补测优先级（按风险 × 缺口）
 
-1. **runtime/events.parseRequest 的分片读分支**（头跨多个 TCP 段到达）：目前只有整包到达的用例，分片路径是 keep-alive 真实网络形态。
-2. **proxy getDataFromServer 的上游异常矩阵**（连接重置/半响应/超时重试）：现有 E2E 只覆盖健康上游。
-3. **cache LoadCache 磁盘恢复**：启动时索引重建的损坏文件/旧格式分支。
+> **2026-10-25 更新：前三项已全部补测完成**，并叠加了一轮公开语料
+> （httparse 向量 + payload-box 走私 payload）覆盖性回打，合计修掉 5 个
+> 真实缺陷（分片误拒 400、冒号前空白放行、响应 reason 截断、
+> ReadBytes 自旋/半截交付、过期缓存条目回放）。明细见
+> [1-boundary-cases.md §1.8](1-boundary-cases.md#18-公开语料覆盖真实用例)。
+
+1. ~~runtime/events.parseRequest 的分片读分支~~ ✅ `runtime/events/fragment_test.go`
+2. ~~proxy getDataFromServer 的上游异常矩阵~~ ✅ `modules/proxy/upstream_matrix_test.go`（M1-M7：半响应/关闭/真实 RST/慢/对照/close 路径）
+3. ~~cache LoadCache 磁盘恢复~~ ✅ `modules/cache/load_cache_test.go`（合法/损坏 gob/旧格式/过期/坏目录）
 4. **config include 的目录遍历分支**（空目录/非 json 文件/嵌套）。
 5. cmd 的 CLI 参数解析（cobra 层）：低优先，行为已由 commands_test 锁定。
 
