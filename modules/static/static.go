@@ -13,6 +13,7 @@ import (
 	"fast-https/infra/logging"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -26,59 +27,48 @@ func Register() {
 }
 
 // don't forget closing file.
-func fileFdSize(pathName string) (file *os.File, size int64) {
+func fileFdSize(pathName string) (file *os.File, size int64, modtime time.Time) {
 	var err error
 	file, err = os.Open(pathName)
 	if err != nil {
 		logging.PrintWarn("no such file")
-		return nil, -1
+		return nil, -1, time.Time{}
 	}
 
 	var info fs.FileInfo
 	info, err = file.Stat()
 	if err != nil {
 		file.Close()
-		return nil, -1
+		return nil, -1, time.Time{}
 	}
 	size = info.Size()
 	if info.IsDir() { // pathName is a dir
 		file.Close()
-		return nil, -1
+		return nil, -1, time.Time{}
 	}
-	return
+	return file, size, info.ModTime()
 }
 
-func writeHeader(rr *core.RRcircle, firstLineCode int) {
-	rr.Res.SetFirstLine(firstLineCode, "OK")
+func writeHeader(rr *core.RRcircle, firstLineCode int, reason string) {
+	rr.Res.SetFirstLine(firstLineCode, reason)
 	rr.Res.SetHeader("Server", "Fast-Https")
 	rr.Res.SetHeader("Date", time.Now().String())
 }
 
+// fileReadWrite 把文件流式写给客户端。
+// io.Copy 经 net.TCPConn.ReadFrom 自动走 sendfile 零拷贝（Linux），
+// Windows 上回退普通拷贝。
 func fileReadWrite(file *os.File, ev *core.Event) int {
-	rr := ev.RR
-	for {
-		// 读取文件内容
-		n, err := file.Read(rr.ReqBuf)
-		if n == 0 || err != nil {
-			file.Close()
-			if err != nil && err != io.EOF {
-				return -10
-			}
-			break
-		}
-
-		// 发送读取到的内容
-		_, err = ev.Conn.Write(rr.ReqBuf[:n])
-		if err != nil {
-			file.Close()
-			return -10
-		}
+	if _, err := io.Copy(ev.Conn, file); err != nil {
+		file.Close()
+		return -10
 	}
+	file.Close()
 	return 0
 }
 
-func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool, file *os.File, file_size int64) {
-	file, file_size = fileFdSize(path)
+func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool, file *os.File, file_size int64, modtime time.Time) {
+	file, file_size, modtime = fileFdSize(path)
 
 	if file == nil { // Not Found
 		for _, item := range try.Files { // Find files in default Index array
@@ -86,7 +76,7 @@ func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool
 			// 结尾的 "/"，靠请求路径的结尾斜杠拼索引文件会拼出
 			// "rootindex.html" 这样的路径
 			p := filepath.Join(path, item)
-			file, file_size = fileFdSize(p)
+			file, file_size, modtime = fileFdSize(p)
 			if file != nil {
 				found = true
 				break
@@ -97,13 +87,13 @@ func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool
 	}
 
 	if !found && try.Next != "" {
-		file, file_size = fileFdSize(cfg.StaticRoot + "/" + try.Next)
+		file, file_size, modtime = fileFdSize(cfg.StaticRoot + "/" + try.Next)
 		if file != nil {
 			found = true
 		}
 	}
 
-	return found, file, file_size
+	return found, file, file_size, modtime
 }
 
 func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
@@ -127,20 +117,21 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 
 	var file *os.File   // file fd
 	var file_size int64 // file size
+	var modtime time.Time
 	var found bool
 
 	for _, try := range lisdata.Trys {
 		if mathed := try.UriRe.Match([]byte(rr.Req.Path)); !mathed && try.Next == "" {
 			continue
 		}
-		found, file, file_size = dofind(realPath, &try, lisdata)
+		found, file, file_size, modtime = dofind(realPath, &try, lisdata)
 		if found || try.Next != "" {
 			break
 		}
 	}
 
 	if lisdata.Trys == nil {
-		found, file, file_size = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex}, nil)
+		found, file, file_size, modtime = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex}, nil)
 	}
 
 	if !found {
@@ -150,29 +141,90 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	}
 
 	name := file.Name()
-	payloadLen := file_size
-	var payload []byte
-	encoding := encodingWanted(lisdata.Zip, acceptEncoding(ev))
-	stream := true
-	if encoding != "" {
-		raw, err := io.ReadAll(file)
-		file.Close()
-		file = nil
-		if err != nil {
+	lastModified := modtime.UTC().Format(http.TimeFormat)
+
+	// 304/416 无正文：h2 交给协议层统一写出，h1 直接写头返回
+	writeNoBody := func(code int, reason string) int {
+		if rr.Req != nil && rr.Req.H2 {
+			log.Status(code)
+			log.Size(0)
+			return 1
+		}
+		if _, err := ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes()); err != nil {
 			return -10
 		}
-		compressed, err := compress.CompressBytes(raw, encoding)
-		if err != nil {
-			return -10
-		}
-		payload = compressed
-		payloadLen = int64(len(payload))
-		stream = false
+		log.Status(code)
+		log.Size(0)
+		return 1
 	}
 
-	writeHeader(&rr, 200)
+	// 条件请求：If-Modified-Since 不早于文件修改时间 → 304
+	if ims := rr.Req.HeaderFold("If-Modified-Since"); ims != "" {
+		if t, err := http.ParseTime(ims); err == nil && !modtime.Truncate(time.Second).After(t) {
+			file.Close()
+			writeHeader(&rr, 304, "Not Modified")
+			rr.Res.SetHeader("Last-Modified", lastModified)
+			rr.Res.SetHeader("Connection", connection)
+			return writeNoBody(304, "Not Modified")
+		}
+	}
+
+	// Range 只对 GET 生效；存在 Range 时跳过压缩协商（单段范围）。
+	rngStart, rngEnd := int64(-1), int64(-1)
+	if rr.Req != nil && rr.Req.Method == "GET" {
+		if spec := rr.Req.HeaderFold("Range"); spec != "" {
+			s, e, st := parseRange(spec, file_size)
+			if st < 0 {
+				// 416：范围无法满足
+				file.Close()
+				writeHeader(&rr, 416, "Range Not Satisfiable")
+				rr.Res.SetHeader("Content-Range", "bytes */"+strconv.FormatInt(file_size, 10))
+				rr.Res.SetHeader("Content-Length", "0")
+				rr.Res.SetHeader("Connection", connection)
+				return writeNoBody(416, "Range Not Satisfiable")
+			}
+			if st > 0 {
+				rngStart, rngEnd = s, e
+			}
+		}
+	}
+
+	var payload []byte
+	encoding := ""
+	stream := true
+	if rngStart == -1 {
+		encoding = encodingWanted(lisdata.Zip, acceptEncoding(ev))
+		if encoding != "" {
+			raw, err := io.ReadAll(file)
+			file.Close()
+			file = nil
+			if err != nil {
+				return -10
+			}
+			compressed, err := compress.CompressBytes(raw, encoding)
+			if err != nil {
+				return -10
+			}
+			payload = compressed
+			stream = false
+		}
+	}
+	payloadLen := file_size
+	if rngStart >= 0 {
+		payloadLen = rngEnd - rngStart + 1
+	}
+
+	if rngStart >= 0 {
+		writeHeader(&rr, 206, "Partial Content")
+		rr.Res.SetHeader("Content-Range", "bytes "+
+			strconv.FormatInt(rngStart, 10)+"-"+strconv.FormatInt(rngEnd, 10)+"/"+
+			strconv.FormatInt(file_size, 10))
+	} else {
+		writeHeader(&rr, 200, "OK")
+	}
 	rr.Res.SetHeader("Content-Type", getContentType(name))
 	rr.Res.SetHeader("Content-Length", strconv.Itoa(int(payloadLen)))
+	rr.Res.SetHeader("Last-Modified", lastModified)
 	if !stream {
 		rr.Res.SetHeader("Content-Encoding", encoding)
 	}
@@ -187,19 +239,24 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	// 把响应体交给 Res，由 EventWrite 统一写出。
 	if rr.Req != nil && rr.Req.H2 {
 		var body []byte
-		if !stream {
-			body = payload
-			if file != nil {
+		switch {
+		case rngStart >= 0:
+			if _, err := file.Seek(rngStart, io.SeekStart); err != nil {
 				file.Close()
-				file = nil
+				return -10
 			}
-		} else {
+			var err error
+			body, err = io.ReadAll(io.LimitReader(file, rngEnd-rngStart+1))
+			file.Close()
+			if err != nil {
+				return -10
+			}
+		case !stream:
+			body = payload
+		default:
 			var err error
 			body, err = io.ReadAll(file)
-			if file != nil {
-				file.Close()
-				file = nil
-			}
+			file.Close()
 			if err != nil {
 				return -10
 			}
@@ -218,12 +275,25 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	}
 
 	if ev.RR.Req == nil || ev.RR.Req.Method != "HEAD" {
-		if !stream {
+		switch {
+		case rngStart >= 0:
+			if _, err := file.Seek(rngStart, io.SeekStart); err != nil {
+				file.Close()
+				return -10
+			}
+			if _, err := io.CopyN(ev.Conn, file, rngEnd-rngStart+1); err != nil {
+				file.Close()
+				return -10
+			}
+			file.Close()
+		case !stream:
 			if _, err := ev.Conn.Write(payload); err != nil {
 				return -10
 			}
-		} else if fileReadWrite(file, ev) != 0 {
-			return -10
+		default:
+			if fileReadWrite(file, ev) != 0 {
+				return -10
+			}
 		}
 	} else if file != nil {
 		file.Close()
@@ -234,6 +304,53 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	log.Size(int(payloadLen))
 
 	return 1 // find source
+}
+
+// parseRange 解析单段 "bytes=" 范围请求。
+// 返回 (start, end, status)：status 1 = 有效范围；0 = 无可应用的
+// 范围（多段范围或单位不是 bytes，按 200 全量返回）；-1 = 畸形或
+// 越界范围，应回 416。
+func parseRange(spec string, size int64) (int64, int64, int) {
+	const prefix = "bytes="
+	if !strings.HasPrefix(spec, prefix) {
+		return 0, 0, 0
+	}
+	spec = spec[len(prefix):]
+	if strings.Contains(spec, ",") { // 多段范围：忽略，全量返回
+		return 0, 0, 0
+	}
+	dash := strings.Index(spec, "-")
+	if dash < 0 {
+		return 0, 0, -1
+	}
+	startStr, endStr := spec[:dash], spec[dash+1:]
+
+	if startStr == "" { // 后缀范围：-N 取最后 N 字节
+		n, err := strconv.ParseInt(endStr, 10, 64)
+		if err != nil || n <= 0 {
+			return 0, 0, -1
+		}
+		if n > size {
+			n = size
+		}
+		return size - n, size - 1, 1
+	}
+
+	start, err := strconv.ParseInt(startStr, 10, 64)
+	if err != nil || start < 0 || start >= size {
+		return 0, 0, -1
+	}
+	end := size - 1
+	if endStr != "" {
+		end, err = strconv.ParseInt(endStr, 10, 64)
+		if err != nil || end < start {
+			return 0, 0, -1
+		}
+		if end >= size {
+			end = size - 1
+		}
+	}
+	return start, end, 1
 }
 
 // staticPathInRoot 清洗拼接后的文件路径并校验没有逃出站点根目录。
