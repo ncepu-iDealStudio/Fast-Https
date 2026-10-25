@@ -8,9 +8,10 @@ import (
 	"testing"
 )
 
-func TestSqlRuleDoesNotIntercept(t *testing.T) {
-	if Blocks("sql") {
-		t.Fatal("sql is a stub and must not be treated as a blocking rule")
+// sql 规则现在具备拦截能力：body 里的注入特征会被拒绝
+func TestSqlRuleInterceptsInjection(t *testing.T) {
+	if !Blocks("sql") {
+		t.Fatal("sql should be a blocking rule now")
 	}
 	req := request.RequestInit(false)
 	req.Method = "POST"
@@ -19,15 +20,22 @@ func TestSqlRuleDoesNotIntercept(t *testing.T) {
 	req.Headers["Content-Length"] = strconv.Itoa(len(body))
 	req.Body.WriteString(body)
 
-	if !HandleSql(req) {
-		t.Fatal("sql stub should allow the request")
+	if HandleSql(req) {
+		t.Fatal("injection in body should be rejected")
 	}
 	cfg := &listener.ListenCfg{AppFireWall: []string{"sql"}}
-	if !HandleAppFireWall(cfg, req) {
-		t.Fatal("sql rule should leave the request allowed")
+	if HandleAppFireWall(cfg, req) {
+		t.Fatal("sql rule should reject the injected request")
 	}
-	if req.Body.String() != body {
-		t.Fatal("sql rule should leave the body unchanged")
+
+	clean := request.RequestInit(false)
+	clean.Method = "POST"
+	cleanBody := `{"q":"2026-10-25"}`
+	clean.Headers["Content-Type"] = "application/json"
+	clean.Headers["Content-Length"] = strconv.Itoa(len(cleanBody))
+	clean.Body.WriteString(cleanBody)
+	if !HandleAppFireWall(cfg, clean) {
+		t.Fatal("clean request should pass the sql rule")
 	}
 }
 

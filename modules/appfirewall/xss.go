@@ -33,16 +33,23 @@ type XssMw struct {
 
 type XssMwJson map[string]interface{}
 
+// bluemonday 策略构建代价高（要编译整套 CSS/URL 规则），构建后
+// 并发使用是安全的，因此包级构建一次、所有请求共享，
+// 不再每个请求重新构建。
+var (
+	strictPolicy = bluemonday.StrictPolicy()
+	ugcPolicy    = bluemonday.UGCPolicy()
+)
+
 // Get which Bluemonday policy
 func (mw *XssMw) GetBlueMondayPolicy() *bluemonday.Policy {
 
 	if mw.BmPolicy == "UGCPolicy" {
-		return bluemonday.UGCPolicy()
-		//} else if mw.BmPolicy == "New" {
+		return ugcPolicy
 	}
 
 	// default
-	return bluemonday.StrictPolicy()
+	return strictPolicy
 }
 
 func HandleXss(req *request.Request) bool {

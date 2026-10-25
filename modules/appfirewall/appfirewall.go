@@ -13,13 +13,13 @@ func init() {
 	GAppFireWallMap = make(map[string]func(*request.Request) bool)
 	GAppFireWallMap["sql"] = HandleSql
 	GAppFireWallMap["xss"] = HandleXss
-	logging.ConsoleLog.Info().Msg("appfirewall rule sql is registered and does not intercept requests")
+	logging.ConsoleLog.Info().Msg("appfirewall rules sql/xss are registered")
 }
 
 // Blocks reports whether a named rule can reject a request.
-// sql is registered for configuration compatibility and does not inspect the request.
+// sql 与 xss 都具备拦截能力。
 func Blocks(name string) bool {
-	return name == "xss"
+	return name == "xss" || name == "sql"
 }
 
 // HandleAppFireWall runs configured rules.
