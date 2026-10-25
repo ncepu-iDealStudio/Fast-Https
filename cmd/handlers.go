@@ -4,6 +4,7 @@ import (
 	"fast-https/config"
 	"fast-https/core"
 	"fast-https/infra/logging"
+	"fast-https/modules/appfirewall"
 	"fast-https/modules/auth"
 	"fast-https/modules/dev_mod"
 	"fast-https/modules/proxy"
@@ -35,9 +36,31 @@ func RegisterServices() {
 		HandleListen:   handleListen,
 		RejectLocation: rejectLocation,
 		RejectAuth:     rejectAuth,
-		AfterListen:    safe.Init,
-		AfterStop:      logging.CloseLogFiles,
+		// Reject 钩子契约是"返回 true = 拒绝"，Allowed 是"返回 true = 放行"，
+		// 此处取反对齐
+		RejectWAF: rejectWAF,
+		AfterListen: afterListen,
+		AfterStop:   afterStop,
 	})
+}
+
+// rejectWAF 把防火墙的"放行"语义翻译成 Reject 钩子的"拒绝"语义。
+func rejectWAF(cfg *listener.ListenCfg, ev *core.Event) bool {
+	return !appfirewall.Allowed(cfg, ev)
+}
+
+// afterListen 在监听器创建后与每次 reload 时重建安全状态与防火墙引擎。
+func afterListen() {
+	safe.Init()
+	if err := appfirewall.BuildWAF(config.Current()); err != nil {
+		// 构建失败已保留旧引擎（或空引擎），不阻断 reload
+		logging.ConsoleLog.Error().Msg("waf init kept previous engine")
+	}
+}
+
+func afterStop() {
+	appfirewall.ShutdownWAF()
+	logging.CloseLogFiles()
 }
 
 func rejectConn(ev *core.Event) bool {

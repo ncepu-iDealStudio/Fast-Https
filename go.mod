@@ -6,10 +6,11 @@ toolchain go1.27.1
 
 require (
 	fyne.io/systray v1.12.2
+	github.com/andybalholm/brotli v1.2.7
 	github.com/fatih/color v1.19.0
+	github.com/guardianwaf/guardianwaf v1.0.0
 	github.com/kardianos/service v1.3.0
 	github.com/klauspost/compress v1.17.2
-	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -19,10 +20,7 @@ require (
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.7 // indirect
-	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
-	github.com/gorilla/css v1.0.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

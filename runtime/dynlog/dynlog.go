@@ -70,8 +70,15 @@ func LogRegister() {
 //
 // 直接往 zerolog 事件上加字段，不为每条请求分配中间结构。
 func Log(l *DynLogger, ev *core.Event) {
+	fields := logFields.Load()
+	if fields == nil {
+		// 防御：LogRegister 未跑过（如早期拒绝路径或测试环境）时
+		// 惰性构建默认字段表；并发重复构建是幂等的
+		LogRegister()
+		fields = logFields.Load()
+	}
 	event := logging.AccessEvent()
-	for _, fn := range *logFields.Load() {
+	for _, fn := range *fields {
 		fn(event, l, ev)
 	}
 	event.Send()

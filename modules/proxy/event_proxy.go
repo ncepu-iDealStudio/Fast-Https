@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fast-https/config"
-	"fast-https/modules/appfirewall"
 	"fast-https/core"
 	"strconv"
 	"time"
@@ -462,11 +461,7 @@ func DialFailureResponse(cfg *listener.ListenCfg) *response.Response {
 
 func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	ChangeHead(cfg, ev)
-	if !appfirewall.HandleAppFireWall(cfg, ev.RR.Req) {
-		ev.RR.Res = response.DefaultForbidden()
-		ev.WriteResponseClose(nil)
-		return false
-	}
+	// 应用防火墙检查已收敛到 events.EventHandler 统一执行
 	return true
 }
 

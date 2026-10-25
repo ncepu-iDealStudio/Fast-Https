@@ -1,6 +1,9 @@
 # 20. GuardianWAF 集成（占位）
 
-状态：📋 计划占位——方案已定，实施进行中（iteration-plan R9）
+状态：🚧 集成已落地（2026-10-25，commit 见 git log），待线上灰度观察后从 monitor 收敛到 enforce 的运营决策
+
+> 实现进度已超出本占位文档：功能现状见 [15-appfirewall.md](15-appfirewall.md)，
+> 完整方案见 `docs/guardianwaf-adoption.md`。以下为立项时的原始规划，留作对照。
 
 ## 功能（目标）
 

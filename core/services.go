@@ -16,6 +16,9 @@ type Services struct {
 	RejectLocation func(*listener.ListenCfg, *Event) bool
 	// RejectAuth refuses a request that fails authentication and writes the response.
 	RejectAuth func(*listener.ListenCfg, *Event) bool
+	// RejectWAF refuses a request flagged by the application firewall and
+	// writes the refusal response itself. Nil allows the request.
+	RejectWAF func(*listener.ListenCfg, *Event) bool
 	// AfterListen runs once listeners exist, including after a reload.
 	// Implementations must be idempotent: reload calls it again.
 	AfterListen func()
@@ -64,6 +67,15 @@ func AuthRejected(cfg *listener.ListenCfg, ev *Event) bool {
 		return false
 	}
 	return services.RejectAuth(cfg, ev)
+}
+
+// WAFRejected reports whether the composed application firewall refuses ev.
+// The hook writes the refusal response itself.
+func WAFRejected(cfg *listener.ListenCfg, ev *Event) bool {
+	if services.RejectWAF == nil {
+		return false
+	}
+	return services.RejectWAF(cfg, ev)
 }
 
 // RunAfterListen calls the composed post-listen hook when one is set.

@@ -87,6 +87,12 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 	if core.AuthRejected(cfg, ev) {
 		return
 	}
+	// 应用防火墙：全项目唯一的检测检查点（location 匹配与认证之后，
+	// handler 分发之前），每请求恰好一次；未配置防火墙时零开销放行。
+	// 经 core.Services 钩子注入，runtime 不反向依赖功能包。
+	if core.WAFRejected(cfg, ev) {
+		return
+	}
 	ev.Type = cfg.Type
 	// according to user's confgure and requets endporint handle events
 	handler, ok := core.Handler(int(cfg.Type))

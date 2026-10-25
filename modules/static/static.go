@@ -3,7 +3,6 @@ package static
 
 import (
 	"fast-https/config"
-	"fast-https/modules/appfirewall"
 	"fast-https/modules/compress"
 	"fast-https/core"
 	"fast-https/runtime/dynlog"
@@ -444,11 +443,7 @@ func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
 		event301(ev, ev.RR.Req.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
 		return false
 	}
-	if !appfirewall.HandleAppFireWall(cfg, ev.RR.Req) {
-		ev.RR.Res = response.DefaultForbidden()
-		ev.WriteResponseClose(nil)
-		return false
-	}
+	// 应用防火墙检查已收敛到 events.EventHandler 统一执行
 	return true
 }
 

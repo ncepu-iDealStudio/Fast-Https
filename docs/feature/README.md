@@ -23,7 +23,7 @@
 | 12 | [12-compress.md](12-compress.md) | 响应压缩 | gzip/brotli 内容协商 |
 | 13 | [13-safe.md](13-safe.md) | 黑名单与限流 | per-IP 令牌桶、location 计数限流 |
 | 14 | [14-auth.md](14-auth.md) | Basic 认证 | location 级 HTTP Basic |
-| 15 | [15-appfirewall.md](15-appfirewall.md) | 应用防火墙 | sql/xss 规则（GuardianWAF 接入中） |
+| 15 | [15-appfirewall.md](15-appfirewall.md) | 应用防火墙 | GuardianWAF 引擎，sql/xss 规则 |
 | 16 | [16-logging.md](16-logging.md) | 日志系统 | 五路 JSON 日志、log_format 定制 |
 | 17 | [17-config.md](17-config.md) | 配置系统 | JSON schema 解析、conf.d include、校验 |
 | 18 | [18-cli-service.md](18-cli-service.md) | 服务管理与 CLI | start/stop/reload/install/status |
@@ -33,7 +33,7 @@
 
 | 编号 | 文档 | 功能 | 状态 |
 | --- | --- | --- | --- |
-| 20 | [20-planned-guardianwaf.md](20-planned-guardianwaf.md) | GuardianWAF 集成 | 方案已定，实施中（R9） |
+| 20 | [20-planned-guardianwaf.md](20-planned-guardianwaf.md) | GuardianWAF 集成 | 已落地（R9），待灰度运营决策 |
 | 21 | [21-planned-upstream-failover.md](21-planned-upstream-failover.md) | 代理上游故障转移 | 未排期（R8） |
 | 22 | [22-planned-config-autoreload.md](22-planned-config-autoreload.md) | 配置文件自动重载 | 暂缓（R7） |
 

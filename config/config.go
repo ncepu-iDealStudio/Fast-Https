@@ -119,6 +119,14 @@ type Engine struct {
 	SlavePort    int    // slave uses
 }
 
+// WAFConfig 是全局应用防火墙（GuardianWAF）的最小配置。
+// 不配置 waf 块且无任何 location 配置 appfirewall 时不构建引擎（零开销）。
+type WAFConfig struct {
+	// Mode 引擎模式：enforce（默认，命中阻断）、monitor（只记录不阻断）、
+	// disabled（等价于不启用）。
+	Mode string `json:"mode"`
+}
+
 type Fast_Https struct {
 	ErrorPage ErrorPath
 	Error_log string
@@ -132,6 +140,7 @@ type Fast_Https struct {
 	LogFormat                 []string
 	Include                   []string
 	DefaultType               string
+	Waf                       *WAFConfig
 	ServerNamesHashBucketSize uint16
 	ClientHeaderBufferSize    uint16
 	LargeClientHeaderBuffers  uint8
@@ -220,6 +229,7 @@ type jsonConfig struct {
 	Pid     string     `json:"pid"`
 	LogRoot string     `json:"log_root"`
 	Engine  jsonEngine `json:"engine"`
+	WAF     *WAFConfig `json:"waf"`
 	HTTP    jsonHTTP   `json:"http"`
 }
 
@@ -316,6 +326,14 @@ func ValidateConfigFile(configPath string) error {
 	baseDir := filepath.Dir(configPath)
 	if len(root.HTTP.Servers) == 0 {
 		return errors.New("http.server must contain at least one server")
+	}
+
+	if root.WAF != nil {
+		switch root.WAF.Mode {
+		case "", "enforce", "monitor", "disabled":
+		default:
+			return fmt.Errorf("waf.mode is invalid: %s (want enforce, monitor or disabled)", root.WAF.Mode)
+		}
 	}
 
 	for i := range root.HTTP.Servers {
@@ -531,6 +549,7 @@ func processRoot(configPath string) (Fast_Https, error) {
 		SlaveIp:      jc.Engine.SlaveIP,
 		SlavePort:    jc.Engine.SlavePort,
 	}
+	cfg.Waf = jc.WAF
 	if err := processHttp(&cfg, jc.HTTP); err != nil {
 		return cfg, err
 	}
