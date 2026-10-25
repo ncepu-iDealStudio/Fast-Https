@@ -124,7 +124,7 @@ fast-https/
 Signals:
 
 - `SIGTERM` and `SIGQUIT` stop accepting, wait up to 5 seconds for accepted requests to finish, then exit
-- `SIGINT`, including Ctrl+C in the foreground, reloads configuration on every platform and does not exit
+- `SIGINT`: in daemon mode it reloads configuration without exiting; in `dev` foreground mode it shuts down gracefully (Ctrl+C exits, 2026-10-25)
 - `reload` reads the pid file and sends `SIGINT`. On Windows it tries Ctrl+Break, then Ctrl+C
 - Stop the process with `stop`, which sends `Kill` to the pid and does not wait for in-flight requests
 

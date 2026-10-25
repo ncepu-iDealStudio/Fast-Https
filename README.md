@@ -127,7 +127,7 @@ fast-https/
 信号处理：
 
 - `SIGTERM`、`SIGQUIT`：停止接受新连接，最多等待 5 秒让已接受的请求结束，然后退出
-- `SIGINT`（包含前台 Ctrl+C）：各平台都重载配置，不退出进程
+- `SIGINT`：守护进程模式重载配置，不退出进程；`dev` 前台模式改为优雅停机（Ctrl+C 直接退出，2026-10-25）
 - `reload` 读取 pid 后发送 `SIGINT`。Windows 上先发 Ctrl+Break，再试 Ctrl+C
 - 停止进程用 `stop`。它向 pid 发送 `Kill`，不等待在途请求
 
@@ -216,9 +216,9 @@ go run fast-https.go uninstall
 
 ### 注意事项
 
-1. `dev` 会打开调试端口并提高日志量，适合本机开发
+1. `dev` 会打开调试端口并提高日志量，适合本机开发；**dev 模式下 Ctrl+C 优雅停止服务**（2026-10-25 起），改完配置重新 `dev` 即可生效
 2. 自签名证书只用于测试访问
-3. 修改配置后执行 `reload`，或向运行中的进程发送 `SIGINT`。前台 Ctrl+C 也会重载，不会退出
+3. 守护进程模式（`start`）修改配置后执行 `reload`，或向运行中的进程发送 `SIGINT`（dev 模式下 SIGINT 是停止，见第 1 条）
 
 ## 使用说明
 

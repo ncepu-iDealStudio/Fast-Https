@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -103,6 +104,7 @@ func ScanPorts() error {
 
 // signalEffect is what the process should do with one OS signal.
 // SIGINT reloads on every platform. Stopping uses SIGTERM, SIGQUIT, or the stop command.
+// dev 前台模式例外：SIGINT 触发优雅停机（见 foregroundDev）。
 type signalEffect int
 
 const (
@@ -122,13 +124,27 @@ func signalEffectOf(sig os.Signal) signalEffect {
 	}
 }
 
+// foregroundDev 标记前台开发模式：SIGINT 触发优雅停机而非重载。
+// 守护进程模式保持 SIGINT=reload（守护进程没有 Ctrl+C，reload 走命令）。
+// 必须在 ServerInit 之前设置。
+var foregroundDev atomic.Bool
+
+// SetForegroundDev 标记前台开发模式（dev 命令调用）。
+func SetForegroundDev(v bool) { foregroundDev.Store(v) }
+
 // SigHandler handles system signals received by the server.
-// SIGTERM and SIGQUIT stop the process. SIGINT reloads configuration.
+// SIGTERM and SIGQUIT stop the process. SIGINT reloads configuration,
+// 除非处于 dev 前台模式——此时 SIGINT（Ctrl+C）优雅停机。
 func (s *Server) SigHandler(sig os.Signal) {
 	switch signalEffectOf(sig) {
 	case signalStop:
 		s.gracefulStop()
 	case signalReload:
+		if foregroundDev.Load() {
+			logging.PrintInfo("dev mode: got SIGINT, shutting down gracefully")
+			s.gracefulStop()
+			return
+		}
 		logging.ConsoleLog.Info().Msg("========= server reload start ========")
 		s.Reload()
 	}

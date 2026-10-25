@@ -18,4 +18,5 @@ httpdoc/root/root.crt
 httpdoc/root/root.key
 httpdoc/theme/*
 .idea/*
-.vscode/*
+.vscode/*logs/
+*.log

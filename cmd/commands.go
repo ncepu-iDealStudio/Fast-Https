@@ -225,6 +225,8 @@ func DevStartHandler() error {
 
 	RegisterHandlers()
 	RegisterServices()
+	// dev 前台模式：SIGINT（Ctrl+C）优雅停机，而不是重载配置
+	server.SetForegroundDev(true)
 	server := server.ServerInit()
 	banner.PrintPortsListenerStart()
 	server.Run()

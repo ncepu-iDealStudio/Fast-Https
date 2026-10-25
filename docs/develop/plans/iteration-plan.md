@@ -19,7 +19,7 @@
 - `status` 读取 `fast-https.pid`，区分没有 pid 文件、pid 已过期、进程仍在运行
 - 配置重载成功后按当前 `log_root` 重新打开四份日志；新目录打不开时继续写原来的文件
 - Gitee Go 流水线文件是 `.workflow/go-test.yml`，执行 `go test ./...`。开通 Gitee Go 后才会在推送和合并请求上运行
-- `SIGINT` 在各平台都重载配置。停止走 `stop`、`SIGTERM` 或 `SIGQUIT`
+- `SIGINT` 在守护进程模式下重载配置；`dev` 前台模式优雅停机（2026-10-25）。停止走 `stop`、`SIGTERM` 或 `SIGQUIT`
 - 未知 HTTP/2 帧会被丢掉并继续读；非法 HPACK 索引关闭该流；对端窗口不够时停止写出 DATA 并关闭连接
 - `xss` 会清洗 JSON 对象和 JSON 数组里的 script 标签
 - 运行时只读 `config/fast-https.json` 和 `http.include`。`config/dev.yaml` 不加载
@@ -75,7 +75,7 @@
 
 ### R1 重载信号语义与端到端测试
 
-已落地。`SIGINT` 在各平台都调用 `Reload()`。`SIGTERM` 和 `SIGQUIT` 停止接受新连接，最多等待 5 秒后退出。`stop` 仍然发送 `Kill`。Windows 的 `reload` 先发 Ctrl+Break，再试 Ctrl+C，不再把进程停掉。前台 Ctrl+C 会重载，不会退出。
+已落地。`SIGINT` 在各平台都调用 `Reload()`。`SIGTERM` 和 `SIGQUIT` 停止接受新连接，最多等待 5 秒后退出。`stop` 仍然发送 `Kill`。Windows 的 `reload` 先发 Ctrl+Break，再试 Ctrl+C，不再把进程停掉。前台 Ctrl+C 会重载，不会退出。2026-10-25 起例外：`dev` 前台模式 SIGINT 触发优雅停机。
 
 `runtime/server/signal_test.go` 锁定这三种信号。`FASTHTTPS_E2E_RELOAD=1` 时，`TestReloadPortSwitchE2E` 在当前系统上切换端口；默认 `go test` 不跑它。同一 SSL 端口重载时不重新绑定套接字，能解析的新证书在下一次握手生效；证书文件缺失时监听保持打开。
 
