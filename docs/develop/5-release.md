@@ -2,7 +2,7 @@
 
 ## 版本号
 
-`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.3.2`）；GoReleaser 快照版本号 `1.3.2-next`。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。
+`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.4.0`）；GoReleaser 快照版本号 `1.4.0-next`。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。
 
 ## 本地快照构建
 

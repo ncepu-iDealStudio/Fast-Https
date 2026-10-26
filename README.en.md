@@ -10,7 +10,7 @@ The project is part of the openEuler community (<https://gitee.com/src-openeuler
 
 ## Stack, Versions, and Dependencies
 
-The product version is `V1.3.2` (`CURRENT_VERSION` in `config/consts.go`). The module declares **Go 1.27.0** and toolchain **go1.27.1** in `go.mod`. That is the current supported release as of October 2026; Go 1.26 is the other supported line. The root `Dockerfile` builds with `golang:1.27-alpine`. The RPM `spec` downloads Go 1.27.1.
+The product version is `V1.4.0` (`CURRENT_VERSION` in `config/consts.go`). The module declares **Go 1.27.0** and toolchain **go1.27.1** in `go.mod`. That is the current supported release as of October 2026; Go 1.26 is the other supported line. The root `Dockerfile` builds with `golang:1.27-alpine`. The RPM `spec` downloads Go 1.27.1.
 
 The server parses HTTP/1.1 itself; the HTTP/2 stack (framing, HPACK, flow control) is delegated to `golang.org/x/net/http2`, with only the connection intake and `core.Event` adapter kept in-tree. The standard library supplies TCP, `crypto/tls`, and config parsing (the config file is plain JSON). Development mode serves pprof from the default `net/http` mux on `0.0.0.0:10000`.
 
@@ -30,7 +30,7 @@ Direct runtime dependencies, versions from `go.mod`:
 | `golang.org/x/sys` | v0.49.0 | Windows console Ctrl+Break / Ctrl+C |
 | `github.com/fatih/color` | v1.19.0 | Colored console output |
 
-Everything else comes from the standard library: TCP listening, `crypto/tls`, config parsing (`encoding/json` — the config file is plain JSON), a plain map for the cache index, `slices` for listener port de-duplication, and the in-house HTTP/1.1 parser. `github.com/stretchr/testify` v1.12.1 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.3.2-next`.
+Everything else comes from the standard library: TCP listening, `crypto/tls`, config parsing (`encoding/json` — the config file is plain JSON), a plain map for the cache index, `slices` for listener port de-duplication, and the in-house HTTP/1.1 parser. `github.com/stretchr/testify` v1.12.1 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.4.0-next`.
 
 ## Software Architecture
 
@@ -210,7 +210,7 @@ Test layout: [tests/readme.md](tests/readme.md).
 
 ## Packaging
 
-The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1). The product version is **V1.3.2**. The RPM version is `1.3.2`. GoReleaser snapshots use `1.3.2-next`. Run the commands from the repository root.
+The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1). The product version is **V1.4.0**. The RPM version is `1.4.0`. GoReleaser snapshots use `1.4.0-next`. Run the commands from the repository root.
 
 `LoadFile` turns site roots, certificates, the log directory, and include paths into absolute paths. Images set `FASTHTTPS_FOREGROUND=1`, so the process stays in the foreground and does not fork or change directory.
 
@@ -234,7 +234,7 @@ The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1). Th
 
 3. RPM
 
-   `spec` is version `1.3.2` and builds with `-tags=rpm`, which sets the base directory to `/usr/share/fast-https/`.
+   `spec` is version `1.4.0` and builds with `-tags=rpm`, which sets the base directory to `/usr/share/fast-https/`.
 
 4. Container images
 
@@ -246,7 +246,7 @@ The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1). Th
    docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .
    ```
 
-   Runtime bases are Alpine, Ubuntu 24.04, and CentOS 7. The Ubuntu and CentOS images install into `/usr/local/fast-https` and set `Fast-Https_VERSION=1.3.2`.
+   Runtime bases are Alpine, Ubuntu 24.04, and CentOS 7. The Ubuntu and CentOS images install into `/usr/local/fast-https` and set `Fast-Https_VERSION=1.4.0`.
 
 ## Contributing
 

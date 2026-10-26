@@ -10,7 +10,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 
 ## 技术栈及软件版本和相关重要依赖
 
-当前产品版本是 `V1.3.2`（`config/consts.go` 的 `CURRENT_VERSION`）。
+当前产品版本是 `V1.4.0`（`config/consts.go` 的 `CURRENT_VERSION`）。
 模块声明的 Go 版本是 **1.27.0**，工具链固定为 **go1.27.1**，见 `go.mod`。这是 2026 年 10 月仍在官方支持期内的当前主流版本，同时受支持的还有 1.26。根目录 `Dockerfile` 使用 `golang:1.27-alpine` 编译；`spec` 里的 RPM 构建脚本下载 Go 1.27.1。
 
 
@@ -32,7 +32,7 @@ Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-ht
 | `golang.org/x/sys` | v0.49.0 | Windows 控制台 Ctrl+Break / Ctrl+C |
 | `github.com/fatih/color` | v1.19.0 | 控制台着色 |
 
-其余能力全部用标准库：TCP 监听、`crypto/tls`、配置解析（`encoding/json`，配置文件是纯 JSON）、缓存索引用内置 map、监听端口去重用 `slices`、HTTP/1.1 解析自研。测试依赖 `github.com/stretchr/testify` v1.12.1，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml`。快照版本号是 `1.3.2-next`。
+其余能力全部用标准库：TCP 监听、`crypto/tls`、配置解析（`encoding/json`，配置文件是纯 JSON）、缓存索引用内置 map、监听端口去重用 `slices`、HTTP/1.1 解析自研。测试依赖 `github.com/stretchr/testify` v1.12.1，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml`。快照版本号是 `1.4.0-next`。
 
 ## 软件架构
 
@@ -234,7 +234,7 @@ go run fast-https.go uninstall
 
 ## 打包与发布
 
-语言版本 **1.27.0**，工具链 **go1.27.1**，见 `go.mod`。产品版本是 **V1.3.2**。RPM 版本写成 `1.3.2`（没有 `V` 前缀）。GoReleaser 快照版本是 `1.3.2-next`。下面的命令都在仓库根目录执行。
+语言版本 **1.27.0**，工具链 **go1.27.1**，见 `go.mod`。产品版本是 **V1.4.0**。RPM 版本写成 `1.4.0`（没有 `V` 前缀）。GoReleaser 快照版本是 `1.4.0-next`。下面的命令都在仓库根目录执行。
 
 加载配置时会把站点 root、证书、日志目录和 include 转成绝对路径。容器镜像设置 `FASTHTTPS_FOREGROUND=1`，进程保持前台，不 fork，也不切换工作目录。
 
@@ -258,13 +258,13 @@ go build -o fast-https .
 goreleaser release -f .goreleaser.yaml --snapshot --clean
 ```
 
-`--snapshot` 使用版本 `1.3.2-next`，不依赖 git tag。`--clean` 会清空上一次的 `dist/`。
+`--snapshot` 使用版本 `1.4.0-next`，不依赖 git tag。`--clean` 会清空上一次的 `dist/`。
 
 压缩包打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/`、`httpdoc/root/index.html`、`httpdoc/root/favicon.ico` 和 `README.md`。另外列出了 `config/cert/.keep`、`config/conf.d/.keep` 和 `logs/.keep`，用来在包里保留空目录。
 
 ### RPM
 
-`spec` 的版本是 `1.3.2`。构建时下载 Go 1.27.1，并用 `-tags=rpm` 编译。这个 tag 把配置和站点根目录固定为 `/usr/share/fast-https/`。安装结果是：
+`spec` 的版本是 `1.4.0`。构建时下载 Go 1.27.1，并用 `-tags=rpm` 编译。这个 tag 把配置和站点根目录固定为 `/usr/share/fast-https/`。安装结果是：
 
 - 可执行文件：`/usr/bin/fast-https`
 - 配置、默认站点和日志目录：`/usr/share/fast-https/`
@@ -279,7 +279,7 @@ docker build -f docker/Dockerfile_ubuntu -t fast-https:ubuntu .
 docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .
 ```
 
-运行阶段分别是 Alpine、Ubuntu 24.04 和 CentOS 7。Ubuntu 与 CentOS 镜像把程序放在 `/usr/local/fast-https`，环境变量 `Fast-Https_VERSION` 为 `1.3.2`。
+运行阶段分别是 Alpine、Ubuntu 24.04 和 CentOS 7。Ubuntu 与 CentOS 镜像把程序放在 `/usr/local/fast-https`，环境变量 `Fast-Https_VERSION` 为 `1.4.0`。
 
 ## 参与贡献
 

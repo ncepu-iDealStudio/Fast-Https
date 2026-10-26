@@ -12,7 +12,7 @@
 
 ## 1. 现状与缺口（带证据）
 
-**代码现状（V1.3.2）**
+**代码现状（V1.4.0）**
 
 - 全仓检索 `状态栏|StatusBar|status_bar|agent|Agent` 在生产代码 **0 命中**：没有控制面、没有统一计数器出口、没有 LLM 接入。fast-https 目前是纯**数据面** Web 服务器。
 - 配置加载、校验、热重载已就绪：`config.LoadFile/ReloadFile`（校验失败回退上一份 `GConfig`）、`config.ValidateConfigFile`（含 `conf.d` include 校验）、`cmd` 的 `start/stop/reload/status/check` 子命令（cobra）。

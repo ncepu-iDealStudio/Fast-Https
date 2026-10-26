@@ -25,7 +25,7 @@ COPY --from=builder /app/fast-https .
 COPY config/fast-https.json config/mime.json config/fastcgi.conf ./config/
 COPY httpdoc/root/index.html httpdoc/root/favicon.ico ./httpdoc/root/
 
-ENV Fast-Https_VERSION=1.3.2
+ENV Fast-Https_VERSION=1.4.0
 ENV FASTHTTPS_FOREGROUND=1
 ENV PATH=$PATH:/usr/local/fast-https
 
