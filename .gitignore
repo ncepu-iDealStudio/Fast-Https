@@ -19,5 +19,7 @@ httpdoc/root/root.crt
 httpdoc/root/root.key
 httpdoc/theme/*
 .idea/*
-.vscode/*logs/
+.vscode/*logs/*
 *.log
+*.exe
+*.pid
