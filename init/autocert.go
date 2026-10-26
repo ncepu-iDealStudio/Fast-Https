@@ -31,6 +31,12 @@ func CertInit() {
 		logging.PrintErr(err, "failed to create certificate directory")
 		return
 	}
+	// CA 文件写在 ROOT_CRT_DIR 下，首次启动那个目录可能还不存在，
+	// 不建目录会写失败，随后 loadCa 读到空内容直接空指针崩溃。
+	if err := os.MkdirAll(config.ROOT_CRT_DIR, 0o755); err != nil {
+		logging.PrintErr(err, "failed to create CA directory")
+		return
+	}
 
 	file := filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt"
 	// logging.PrintInfo(file)
@@ -40,7 +46,10 @@ func CertInit() {
 		newRoot()
 	}
 
-	loadCa() // init caCert   init caKey
+	if !loadCa() { // init caCert   init caKey
+		logging.PrintErr("ERROR: local CA is unavailable, skip certificate generation")
+		return
+	}
 	for _, serverconfig := range config.Current().Servers {
 
 		certfile := filepath.Join(config.CERT_DIR, serverconfig.ServerName) + ".pem"
@@ -132,35 +141,45 @@ func newRoot() {
 	logging.PrintInfo("Created a new local CA")
 }
 
-func loadCa() {
+// loadCa 读取本地 CA 证书与私钥。
+// 返回 false 表示读不出来：调用方必须停下，不能带着 nil 的 caCert/caKey
+// 继续签发证书（旧实现在这里会解引用空的 PEM 块直接 panic）。
+func loadCa() bool {
 	// logging.PrintInfo(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt")
 
 	certPEMBlock, err := os.ReadFile(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt")
 	if err != nil {
 		logging.PrintErr(err, "failed to read the CA certificate")
+		return false
 	}
 
 	certDERBlock, _ := pem.Decode(certPEMBlock)
 	if certDERBlock == nil || certDERBlock.Type != "CERTIFICATE" {
 		logging.PrintErr("ERROR: failed to read the CA certificate: unexpected content")
+		return false
 	}
 	caCert, err = x509.ParseCertificate(certDERBlock.Bytes)
 	if err != nil {
 		logging.PrintErr(err, "failed to parse the CA certificate")
+		return false
 	}
 
 	keyPEMBlock, err := os.ReadFile(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".key")
 	if err != nil {
 		logging.PrintErr(err, "failed to read the CA key")
+		return false
 	}
 	keyDERBlock, _ := pem.Decode(keyPEMBlock)
 	if keyDERBlock == nil || keyDERBlock.Type != "PRIVATE KEY" {
 		logging.PrintErr("ERROR: failed to read the CA key: unexpected content")
+		return false
 	}
 	caKey, err = x509.ParsePKCS8PrivateKey(keyDERBlock.Bytes)
 	if err != nil {
 		logging.PrintErr(err, "failed to parse the CA key")
+		return false
 	}
+	return true
 }
 
 func newCert(hosts []string) {

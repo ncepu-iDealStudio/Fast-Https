@@ -20,6 +20,8 @@
 ## 实现方案（modules/static/static.go）
 
 - **查找**：`dofind` 依次尝试请求路径 → `try.Files` 候选（`filepath.Join` 拼接）→ `try.Next` 回退。
+- **目录重定向**：请求指向真实目录但缺结尾斜杠（`/about`）时回 `301` 到 `/about/`，与 nginx 的
+  `try_files $uri/` 一致；否则会直接 404，页面内相对链接也会失效。末段带 `.` 的路径按文件请求处理，不做这一步 Stat。
 - **安全**：打开前 `staticPathInRoot` 对拼接结果 Clean 并校验仍在 `StaticRoot` 内，`/../` 逃逸一律 404；服务不做 URL 解码，`%2e%2e` 天然不生效。文件句柄全路径关闭（目录请求、客户端中断均不泄漏）。
 - **条件请求**：200/206 带 `Last-Modified`（RFC 7231 格式）；`If-Modified-Since` 不早于修改时间回 304 无正文。
 - **Range**：仅 GET、单段 `bytes=`；命中回 206 + `Content-Range`（Seek + `io.CopyN`）；畸形/越界回 416 + `bytes */size`；多段范围回 200 全量；带 Range 时跳过压缩。

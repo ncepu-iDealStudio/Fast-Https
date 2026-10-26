@@ -150,6 +150,35 @@ func TestGFilterHostPathFallbacksToDefaultPort(t *testing.T) {
 	}
 }
 
+// Host 不匹配任何 server_name 时回落到该端口第一个 server 块（nginx
+// default_server），否则用 IP 或别名访问会整站 404。
+func TestGFilterHostPathFallsBackToFirstServerBlock(t *testing.T) {
+	re := regexp.MustCompile("^/")
+	first := listener.ListenCfg{ID: 1, ServerName: "site.local:18080", Path: "/", PathRe: re, Type: config.LOCAL}
+	second := listener.ListenCfg{ID: 2, ServerName: "other.local:18080", Path: "/", PathRe: re, Type: config.LOCAL}
+	lis := &listener.Listener{
+		Port: "18080",
+		Cfg:  []listener.ListenCfg{first, second},
+		HostMap: map[string][]listener.ListenCfg{
+			first.ServerName:  {first},
+			second.ServerName: {second},
+		},
+	}
+
+	ev := core.NewEvent(lis, nil)
+	ev.RR.Req = request.RequestInit(false)
+	ev.RR.Req.Path = "/about/"
+	ev.RR.Req.Headers["Host"] = "10.0.0.5:18080"
+
+	cfg, ok := filters.NewFilter().Fif.RequestFilter(ev)
+	if !ok {
+		t.Fatal("unmatched Host should fall back to the first server block")
+	}
+	if cfg.ID != first.ID {
+		t.Fatalf("matched cfg.ID = %d, want %d", cfg.ID, first.ID)
+	}
+}
+
 // startReader 复用 fragment_test 的并发读取模式
 func startReader(t *testing.T, client net.Conn) func() string {
 	t.Helper()

@@ -109,6 +109,17 @@ func (l *Listener) Cfgs() []ListenCfg {
 	return l.Cfg
 }
 
+// DefaultHosts 返回该端口第一个 server 块的 locations，对应 nginx 的
+// default_server：Host 不匹配任何 server_name 时用它，否则用 IP 或
+// 别名访问会整站 404。Cfg 按配置顺序追加，首项即第一个 server 块。
+func (l *Listener) DefaultHosts() []ListenCfg {
+	cfgs := l.Cfgs()
+	if len(cfgs) == 0 {
+		return nil
+	}
+	return l.Hosts()[cfgs[0].ServerName]
+}
+
 var GLisinfos []*Listener
 
 func FindPorts() []string {

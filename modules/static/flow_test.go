@@ -141,4 +141,48 @@ func TestEvent301(t *testing.T) {
 	}
 }
 
+// 目录缺结尾斜杠：301 到带斜杠的地址（nginx try_files $uri/ 的行为），
+// 否则 /about 这种链接会直接 404、页面里的相对链接也会失效。
+func TestStaticEventRedirectsDirectoryWithoutTrailingSlash(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "about"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "about", "index.html"), []byte("about-page"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := &listener.ListenCfg{Path: "/", StaticRoot: dir, StaticIndex: []string{"index.html"}}
+
+	t.Run("目录缺斜杠 301 且保留 query", func(t *testing.T) {
+		ev, client := newStaticEvent(t, "GET", "/about?from=home")
+		ev.RR.Req.Headers["Connection"] = "close"
+		collect := startReader(t, client)
+		StaticEvent(cfg, ev)
+		got := collect()
+		if !strings.Contains(got, "301") || !strings.Contains(got, "Location: /about/?from=home") {
+			t.Fatalf("301 response: %q", got)
+		}
+	})
+
+	t.Run("带斜杠返回索引页", func(t *testing.T) {
+		ev, client := newStaticEvent(t, "GET", "/about/")
+		ev.RR.Req.Headers["Connection"] = "close"
+		collect := startReader(t, client)
+		StaticEvent(cfg, ev)
+		if got := collect(); !strings.Contains(got, "about-page") {
+			t.Fatalf("directory index: %q", got)
+		}
+	})
+
+	t.Run("不存在的目录不重定向", func(t *testing.T) {
+		ev, client := newStaticEvent(t, "GET", "/nope")
+		ev.RR.Req.Headers["Connection"] = "close"
+		collect := startReader(t, client)
+		StaticEvent(cfg, ev)
+		if got := collect(); !strings.Contains(got, "404") {
+			t.Fatalf("missing path should be 404: %q", got)
+		}
+	})
+}
+
 var _ = dynlog.DynLogger{} // StaticEvent 依赖 dynlog 记录，保持引用一致

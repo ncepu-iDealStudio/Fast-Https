@@ -352,6 +352,36 @@ func parseRange(spec string, size int64) (int64, int64, int) {
 	return start, end, 1
 }
 
+// directoryRedirect 判断请求指向一个真实存在的目录却没有结尾斜杠，
+// 返回应当 301 过去的地址（query 原样带上）。
+func directoryRedirect(root, reqPath, filePath string) (string, bool) {
+	if reqPath == "" || strings.HasSuffix(reqPath, "/") {
+		return "", false
+	}
+	pathOnly, query, _ := strings.Cut(reqPath, "?")
+	// 末段带 "." 基本是文件请求（css/js/图片/html），跳过这次 Stat，
+	// 不给每个静态资源都多叠一次系统调用。
+	if last := pathOnly[strings.LastIndex(pathOnly, "/")+1:]; last == "" || strings.Contains(last, ".") {
+		return "", false
+	}
+	fsPath, _, _ := strings.Cut(filePath, "?")
+
+	fsPath, inRoot := staticPathInRoot(root, fsPath)
+	if !inRoot {
+		return "", false
+	}
+	info, err := os.Stat(fsPath)
+	if err != nil || !info.IsDir() {
+		return "", false
+	}
+
+	target := pathOnly + "/"
+	if query != "" {
+		target += "?" + query
+	}
+	return target, true
+}
+
 // staticPathInRoot 清洗拼接后的文件路径并校验没有逃出站点根目录。
 // StaticRoot 在配置加载时已解析为绝对路径；rooted 是 StaticRoot 与
 // URL 路径直接拼接的结果。本服务不做 URL 解码，%2e%2e 不会被还原
@@ -457,6 +487,14 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		path = cfg.StaticRoot + path
 	} else {
 		path = cfg.StaticRoot + rr.Req.Path
+	}
+
+	// 目录请求缺结尾斜杠：先 301 补齐，再谈取文件。
+	// nginx 的 try_files $uri/ 就是这个行为，缺了它 /about 会直接 404，
+	// 页面里的相对链接也会因为基准路径不同而失效。
+	if target, ok := directoryRedirect(cfg.StaticRoot, rr.Req.Path, path); ok {
+		event301(ev, target)
+		return
 	}
 
 	log := dynlog.DynLogger{}
