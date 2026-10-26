@@ -10,7 +10,13 @@
 goreleaser release -f .goreleaser.yaml --snapshot --clean
 ```
 
-产物在 `dist/`；压缩包内打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。
+产物在 `dist/`；压缩包内打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/usage.html`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。
+
+发行包只带使用文档 `docs/usage.html`，其余 `docs/` 内容属于开发与设计资料，不进包。生成命令：
+
+```bash
+go run ./tools/docgen
+```
 
 ## RPM
 
@@ -22,6 +28,7 @@ goreleaser release -f .goreleaser.yaml --snapshot --clean
 
 ## 发布前清单
 
+0. `go run ./tools/docgen` 重新生成使用文档（`go test ./tools/docgen` 校验 md 与 html 是否一致）
 1. `go build ./... && go vet ./...` 干净
 2. `go test -race ./...` 全绿（29 包）
 3. 三个 E2E：`FASTHTTPS_E2E_RELOAD=1` reload、proxy、h2

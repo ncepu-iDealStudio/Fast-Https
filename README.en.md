@@ -200,8 +200,11 @@ The repository default also serves `443 ssl` for `localhost`, using `config/cert
 
 Product manual: <https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#>
 
+Release archives ship a single usage document, `docs/usage.html` (one self-contained HTML file generated from `docs/usage.md` with `go run ./tools/docgen`; the version comes from `CURRENT_VERSION`). The rest of `docs/` is development and design material and is not packaged.
+
 In-repo docs ([docs/README.md](docs/README.md) is the index):
 
+- [docs/usage.md](docs/usage.md): operations-facing usage document; generates the `docs/usage.html` that ships in release archives
 - [docs/feature/](docs/feature/README.md): 23 per-feature pages (0-19 implemented, 20-22 planned), each with config examples and implementation notes
 - [docs/develop/](docs/develop/README.md): developer guides (environment, testing, standards, config development, debugging, release) plus historical plans under `develop/plans/`
 - [docs/architecture-map.md](docs/architecture-map.md): current package inventory and dependency directions

@@ -6,11 +6,15 @@ docs/
   feature/           产品功能（23 篇，按编号排列，含计划占位）
   develop/           开发文档（环境/测试/规范/配置/调试/发布 + plans 过程规划）
   test/              测试专项（覆盖率评估/边界用例集/压测计划）
+  usage.md               面向部署运维的使用文档（源），生成 usage.html 随发行包分发
+  usage.html             由 usage.md 生成，不改源文件就不要手改它
   architecture-map.md    当前 package 盘点与依赖方向
   about.md               启动与运行逻辑（含流程图）
   nginx-core-gap.md      与 Nginx 核心功能对比
   product-design-2.0.md  2.0 产品设计稿
 ```
+
+`usage.html` 由 `go run ./tools/docgen` 生成，版本号取自 `config.CURRENT_VERSION`。改了 `usage.md` 之后必须重新生成，`tools/docgen` 的测试会在不一致时报错。
 
 ## 按角色入口
 

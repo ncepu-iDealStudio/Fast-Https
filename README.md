@@ -224,8 +224,11 @@ go run fast-https.go uninstall
 
 见文档：<https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#> 《Fast-Https产品说明》
 
+发行包内只带一份使用文档 `docs/usage.html`（单文件 HTML，由 `docs/usage.md` 经 `go run ./tools/docgen` 生成，版本号取自 `CURRENT_VERSION`）。其余 `docs/` 内容属于开发与设计资料，不随包分发。
+
 仓库内文档（[docs/README.md](docs/README.md) 为总索引）：
 
+- [docs/usage.md](docs/usage.md)：部署运维向的使用文档，生成 `docs/usage.html` 进发行包
 - [docs/feature/](docs/feature/README.md)：按功能分篇的 23 篇说明（已实现 0-19、计划占位 20-22），每篇含配置示例与实现方案
 - [docs/develop/](docs/develop/README.md)：开发文档（环境构建、测试体系、代码规范、配置项开发、调试、发布）与历史规划（`develop/plans/`）
 - [docs/architecture-map.md](docs/architecture-map.md)：当前 package 盘点与依赖方向
@@ -260,7 +263,13 @@ goreleaser release -f .goreleaser.yaml --snapshot --clean
 
 `--snapshot` 使用版本 `1.4.0-next`，不依赖 git tag。`--clean` 会清空上一次的 `dist/`。
 
-压缩包打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/`、`httpdoc/root/index.html`、`httpdoc/root/favicon.ico` 和 `README.md`。另外列出了 `config/cert/.keep`、`config/conf.d/.keep` 和 `logs/.keep`，用来在包里保留空目录。
+压缩包打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/usage.html`、`httpdoc/root/index.html`、`httpdoc/root/favicon.ico` 和 `README.md`。另外列出了 `config/cert/.keep`、`config/conf.d/.keep` 和 `logs/.keep`，用来在包里保留空目录。
+
+`docs/usage.html` 需要先重新生成，否则包里会带旧内容：
+
+```bash
+go run ./tools/docgen
+```
 
 ### RPM
 

@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fast-Https 使用文档</title>
+<style>
+:root{--fg:#1f2328;--muted:#59636e;--line:#d8dee4;--bg:#fff;--soft:#f6f8fa;--accent:#0969da}
+*{box-sizing:border-box}
+body{margin:0;color:var(--fg);background:var(--bg);font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif}
+header.top{position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:12px;padding:10px 24px;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+header.top .brand{font-weight:700;letter-spacing:.3px}
+header.top .ver{font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 10px}
+.layout{display:flex;align-items:flex-start;max-width:1180px;margin:0 auto;padding:0 24px}
+nav.toc{position:sticky;top:52px;flex:0 0 232px;max-height:calc(100vh - 72px);overflow:auto;padding:20px 16px 40px 0;font-size:14px}
+nav.toc .toc-title{margin:0 0 8px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+nav.toc ul{list-style:none;margin:0;padding:0}
+nav.toc li{margin:2px 0}
+nav.toc li.lvl3{padding-left:14px;font-size:13px}
+nav.toc a{color:var(--muted);text-decoration:none;display:block;padding:2px 0}
+nav.toc a:hover{color:var(--accent)}
+main{flex:1 1 auto;min-width:0;padding:20px 0 80px}
+h1{font-size:28px;margin:8px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+h2{font-size:21px;margin:34px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+h3{font-size:17px;margin:24px 0 8px}
+h4{font-size:15px;margin:18px 0 6px;color:var(--muted)}
+p{margin:10px 0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:.9em;background:var(--soft);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+pre{background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow:auto;margin:12px 0}
+pre code{background:none;border:0;padding:0;font-size:13px;line-height:1.6}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14px;display:block;overflow:auto}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:var(--soft);font-weight:600;white-space:nowrap}
+tbody tr:nth-child(even){background:#fafbfc}
+blockquote{margin:14px 0;padding:8px 14px;border-left:3px solid var(--accent);background:var(--soft);color:var(--muted)}
+blockquote p{margin:4px 0}
+hr{border:0;border-top:1px solid var(--line);margin:26px 0}
+ul,ol{margin:10px 0;padding-left:24px}
+li{margin:4px 0}
+footer{max-width:1180px;margin:0 auto;padding:16px 24px 40px;color:var(--muted);font-size:13px;border-top:1px solid var(--line)}
+@media (max-width:860px){nav.toc{display:none}.layout{padding:0 18px}main{padding-top:8px}}
+@media print{header.top,nav.toc{display:none}main{padding:0}pre,table{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header class="top"><span class="brand">Fast-Https</span><span class="ver">V1.4.0</span></header>
+<div class="layout">
+<nav class="toc"><p class="toc-title">目录</p><ul><li><a href="#sec-2">1. 能力一览</a></li><li><a href="#sec-3">2. 获取与安装</a></li><li class="lvl3"><a href="#sec-4">发行包</a></li><li class="lvl3"><a href="#sec-5">RPM</a></li><li class="lvl3"><a href="#sec-6">容器</a></li><li><a href="#sec-7">3. 目录布局</a></li><li><a href="#sec-8">4. 快速开始</a></li><li class="lvl3"><a href="#sec-9">4.1 最小配置</a></li><li class="lvl3"><a href="#sec-10">4.2 启动并验证</a></li><li class="lvl3"><a href="#sec-11">4.3 打开 HTTPS 与 HTTP/2</a></li><li class="lvl3"><a href="#sec-12">4.4 停止</a></li><li><a href="#sec-13">5. 配置文件</a></li><li class="lvl3"><a href="#sec-14">5.1 顶层键</a></li><li class="lvl3"><a href="#sec-15">5.2 <code>http</code> 段</a></li><li class="lvl3"><a href="#sec-16">5.3 <code>server</code> 段</a></li><li class="lvl3"><a href="#sec-17">5.4 <code>location</code> 段</a></li><li><a href="#sec-18">6. 典型配置</a></li><li class="lvl3"><a href="#sec-19">6.1 静态站点 + try_files</a></li><li class="lvl3"><a href="#sec-20">6.2 反向代理</a></li><li class="lvl3"><a href="#sec-21">6.3 TCP 转发</a></li><li class="lvl3"><a href="#sec-22">6.4 压缩</a></li><li class="lvl3"><a href="#sec-23">6.5 代理缓存</a></li><li class="lvl3"><a href="#sec-24">6.6 Basic 认证与限流</a></li><li><a href="#sec-25">7. TLS 与证书</a></li><li><a href="#sec-26">8. HTTP/2</a></li><li><a href="#sec-27">9. 日志</a></li><li><a href="#sec-28">10. 命令行</a></li><li><a href="#sec-29">11. 热重载与停机</a></li><li><a href="#sec-30">12. 排错</a></li><li><a href="#sec-31">13. 已知限制</a></li><li><a href="#sec-32">14. 版本与许可</a></li></ul></nav>
+<main>
+<h1 id="sec-1">Fast-Https 使用文档</h1>
+<p>本文面向部署与运维人员，只讲&#34;怎么装、怎么配、怎么跑、怎么排错&#34;。开发、架构与测试相关内容在仓库 <code>docs/</code> 下的其他目录，不随发行包分发。</p>
+<blockquote><p>文档中的路径都相对于解压后的程序根目录。配置里的相对路径按<strong>进程工作目录</strong>解析，因此请始终在根目录启动程序，或改用绝对路径。</p></blockquote>
+<h2 id="sec-2">1. 能力一览</h2>
+<table>
+<thead><tr><th>能力</th><th>说明</th><th>关键配置</th></tr></thead>
+<tbody>
+<tr><td>静态文件</td><td>目录索引、<code>try_files</code>、304、Range、目录穿越防护</td><td><code>type: local</code></td></tr>
+<tr><td>反向代理</td><td>上游连接池、请求/响应头改写、分块解码</td><td><code>type: proxy</code> + <code>proxy_pass</code></td></tr>
+<tr><td>TCP 转发</td><td>四层转发，不解析 HTTP</td><td><code>listen: &#34;9000 tcp&#34;</code></td></tr>
+<tr><td>WebSocket</td><td>升级劫持与双向管道</td><td><code>type: proxy</code></td></tr>
+<tr><td>代理缓存</td><td>落盘持久化 + 内存热层 LRU</td><td><code>proxy_cache</code></td></tr>
+<tr><td>响应压缩</td><td>gzip / brotli 内容协商</td><td><code>zip</code></td></tr>
+<tr><td>URL 重写</td><td>301 重定向与开发模式</td><td><code>type: rewrite</code>、<code>type: devmod</code></td></tr>
+<tr><td>Basic 认证</td><td>location 级</td><td><code>auth</code></td></tr>
+<tr><td>黑名单与限流</td><td>per-IP 令牌桶、location 计数限流</td><td><code>blaklist</code>、<code>limit</code></td></tr>
+<tr><td>应用防火墙</td><td>GuardianWAF 引擎，命中返回 403</td><td><code>waf</code>、<code>appfirewall</code></td></tr>
+<tr><td>配置热重载</td><td>校验通过后原子切换快照，零停机</td><td><code>reload</code> 命令</td></tr>
+<tr><td>HTTP/2</td><td>协议栈由 <code>golang.org/x/net/http2</code> 承担</td><td><code>listen: &#34;443 ssl h2&#34;</code></td></tr>
+</tbody>
+</table>
+<h2 id="sec-3">2. 获取与安装</h2>
+<h3 id="sec-4">发行包</h3>
+<ol>
+<li>从 &lt;https://gitee.com/ncepu-bj/fast-https/releases/&gt; 下载对应平台的包</li>
+<li>解压到目标目录（Linux/macOS 为 <code>tar.gz</code>，Windows 为 <code>zip</code>）</li>
+<li>按需修改 <code>config/fast-https.json</code></li>
+</ol>
+<h3 id="sec-5">RPM</h3>
+<pre><code class="language-bash">rpm -ivh fast-https-*.rpm</code></pre>
+<p>RPM 把程序装到 <code>/usr/share/fast-https/</code>。</p>
+<h3 id="sec-6">容器</h3>
+<pre><code class="language-bash">docker build -t fast-https .
+docker build -f docker/Dockerfile_ubuntu -t fast-https:ubuntu .
+docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .</code></pre>
+<p>镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 8080 与 443。</p>
+<h2 id="sec-7">3. 目录布局</h2>
+<pre><code class="language-text">fast-https                  主程序（Windows 下另有 monitor.exe 托盘程序）
+config/fast-https.json      唯一配置真源
+config/conf.d/              拆分出来的站点配置（由 http.include 指向）
+config/mime.json            扩展名 → Content-Type 映射
+config/cert/                TLS 证书，*.pem 不入库，首次启动自动生成
+httpdoc/root/               默认站点根目录
+logs/                       运行日志</code></pre>
+<h2 id="sec-8">4. 快速开始</h2>
+<h3 id="sec-9">4.1 最小配置</h3>
+<p><code>config/fast-https.json</code>：</p>
+<pre><code class="language-json">{
+  &#34;log_root&#34;: &#34;./logs&#34;,
+  &#34;http&#34;: {
+    &#34;server&#34;: [
+      {
+        &#34;listen&#34;: 8080,
+        &#34;server_name&#34;: &#34;localhost&#34;,
+        &#34;location&#34;: [
+          {
+            &#34;url&#34;: &#34;/&#34;,
+            &#34;type&#34;: &#34;local&#34;,
+            &#34;root&#34;: &#34;./httpdoc/root&#34;,
+            &#34;index&#34;: [&#34;index.html&#34;, &#34;index.htm&#34;]
+          }
+        ]
+      }
+    ],
+    &#34;include&#34;: [&#34;./config/conf.d&#34;]
+  }
+}</code></pre>
+<h3 id="sec-10">4.2 启动并验证</h3>
+<pre><code class="language-bash">./fast-https start                 # 无参数等同 start
+curl -I http://127.0.0.1:8080/</code></pre>
+<p>看到 <code>200</code> 与 <code>Server: fast-https</code> 即启动成功。<code>listen</code> 也可以写成字符串 <code>&#34;8080&#34;</code>，两种写法等价。</p>
+<h3 id="sec-11">4.3 打开 HTTPS 与 HTTP/2</h3>
+<pre><code class="language-json">{
+  &#34;listen&#34;: &#34;443 ssl h2&#34;,
+  &#34;server_name&#34;: &#34;localhost&#34;,
+  &#34;ssl_certificate&#34;: &#34;./config/cert/localhost.pem&#34;,
+  &#34;ssl_certificate_key&#34;: &#34;./config/cert/localhost-key.pem&#34;,
+  &#34;location&#34;: [
+    { &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;local&#34;, &#34;root&#34;: &#34;./httpdoc/root&#34;, &#34;index&#34;: [&#34;index.html&#34;] }
+  ]
+}</code></pre>
+<p><code>ssl_certificate</code> 指向的文件不存在时，启动阶段会用它自己签发的本地 CA 生成一张自签证书，可以直接用 <code>curl -k</code> 验证。浏览器不信任这张证书，正式环境请替换为权威 CA 签发的证书文件。</p>
+<h3 id="sec-12">4.4 停止</h3>
+<pre><code class="language-bash">./fast-https stop</code></pre>
+<h2 id="sec-13">5. 配置文件</h2>
+<h3 id="sec-14">5.1 顶层键</h3>
+<table>
+<thead><tr><th>键</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>pid</code></td><td>pid 文件路径，<code>status</code> / <code>stop</code> 依赖它</td></tr>
+<tr><td><code>log_root</code></td><td>日志目录，默认 <code>./logs</code></td></tr>
+<tr><td><code>engine</code></td><td>预留的主从注册字段，当前不参与运行逻辑</td></tr>
+<tr><td><code>waf</code></td><td>全局应用防火墙：`{&#34;mode&#34;: &#34;enforce&#34; \</td><td>&#34;monitor&#34; \</td><td>&#34;disabled&#34;}`</td></tr>
+<tr><td><code>http</code></td><td>HTTP 服务主体，见下</td></tr>
+</tbody>
+</table>
+<h3 id="sec-15">5.2 <code>http</code> 段</h3>
+<table>
+<thead><tr><th>键</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>server</code></td><td>站点数组，每一项是一个虚拟主机</td></tr>
+<tr><td><code>include</code></td><td>额外加载的目录或 json 文件列表，默认 <code>config/conf.d</code></td></tr>
+<tr><td><code>default_type</code></td><td>未知扩展名的默认 Content-Type</td></tr>
+<tr><td><code>servers_limit</code></td><td><code>max_body_size</code>、<code>max_header_size</code>、<code>limit</code>、<code>burst</code></td></tr>
+<tr><td><code>blaklist</code></td><td>IP 黑名单（键名是历史拼写，保持兼容）</td></tr>
+<tr><td><code>log_format</code></td><td>访问日志字段顺序，见第 9 节</td></tr>
+</tbody>
+</table>
+<h3 id="sec-16">5.3 <code>server</code> 段</h3>
+<table>
+<thead><tr><th>键</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>listen</code></td><td>端口，可带 <code>ssl</code>、<code>h2</code>、<code>tcp</code>，例如 <code>8080</code>、<code>443 ssl</code>、<code>443 ssl h2</code>、<code>9000 tcp</code></td></tr>
+<tr><td><code>server_name</code></td><td>虚拟主机名，按 <code>Host</code> 匹配，必填</td></tr>
+<tr><td><code>ssl_certificate</code></td><td>证书链 PEM 路径，<code>listen</code> 含 <code>ssl</code> 时必填</td></tr>
+<tr><td><code>ssl_certificate_key</code></td><td>私钥 PEM 路径，<code>listen</code> 含 <code>ssl</code> 时必填</td></tr>
+<tr><td><code>location</code></td><td>路由数组，见 5.4</td></tr>
+</tbody>
+</table>
+<h3 id="sec-17">5.4 <code>location</code> 段</h3>
+<table>
+<thead><tr><th>键</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>url</code></td><td>匹配规则，支持正则，例如 <code>/</code>、<code>/api/</code>、<code>\.php$</code></td></tr>
+<tr><td><code>type</code></td><td><code>local</code>（静态）、<code>proxy</code>（反向代理）、<code>rewrite</code>（重定向）、<code>devmod</code>（开发模式）</td></tr>
+<tr><td><code>root</code></td><td><code>local</code> 的站点根目录</td></tr>
+<tr><td><code>index</code></td><td>默认索引文件名列表</td></tr>
+<tr><td><code>try</code></td><td><code>try_files</code> 语义：<code>[{&#34;uri&#34;: &#34;/&#34;, &#34;file&#34;: [&#34;index.html&#34;], &#34;next&#34;: &#34;@backend&#34;}]</code></td></tr>
+<tr><td><code>rewrite</code></td><td><code>type: rewrite</code> 时的目标地址</td></tr>
+<tr><td><code>proxy_pass</code></td><td><code>type: proxy</code> 时的上游地址，必须带 <code>http://</code> 或 <code>https://</code></td></tr>
+<tr><td><code>proxy_set_header</code></td><td>请求头改写，格式 <code>[{&#34;HeaderKey&#34;: &#34;X-Real-IP&#34;, &#34;HeaderValue&#34;: &#34;$remote_addr&#34;}]</code></td></tr>
+<tr><td><code>proxy_cache</code></td><td>代理缓存，见 6.5</td></tr>
+<tr><td><code>zip</code></td><td>响应压缩，取值 <code>gzip</code>、<code>br</code>，可同时配置</td></tr>
+<tr><td><code>limit</code></td><td><code>mem</code>、<code>rate</code>、<code>burst</code>、<code>nodelay</code></td></tr>
+<tr><td><code>auth</code></td><td><code>{&#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;...&#34;, &#34;pswd&#34;: &#34;...&#34;}</code></td></tr>
+<tr><td><code>appfirewall</code></td><td>应用防火墙开关，例如 <code>[&#34;xss&#34;, &#34;sqli&#34;]</code></td></tr>
+<tr><td><code>error_page</code></td><td><code>{&#34;not_found&#34;: &#34;./httpdoc/404.html&#34;, &#34;proxy&#34;: &#34;./httpdoc/502.html&#34;}</code></td></tr>
+</tbody>
+</table>
+<p><code>proxy_set_header</code> 的 <code>HeaderValue</code> 支持变量插值：</p>
+<table>
+<thead><tr><th>变量</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td><code>$request_method</code></td><td>请求方法</td></tr>
+<tr><td><code>$request_uri</code></td><td>原始请求 URI</td></tr>
+<tr><td><code>$host</code></td><td>请求的 Host</td></tr>
+<tr><td><code>$proxy_host</code></td><td>上游地址</td></tr>
+<tr><td><code>$remote_addr</code></td><td>客户端 IP</td></tr>
+<tr><td><code>$proxy_add_x_forwarded_for</code></td><td>追加当前客户端 IP 后的 <code>X-Forwarded-For</code></td></tr>
+</tbody>
+</table>
+<h2 id="sec-18">6. 典型配置</h2>
+<h3 id="sec-19">6.1 静态站点 + try_files</h3>
+<pre><code class="language-json">{
+  &#34;url&#34;: &#34;/&#34;,
+  &#34;type&#34;: &#34;local&#34;,
+  &#34;root&#34;: &#34;./httpdoc/root&#34;,
+  &#34;index&#34;: [&#34;index.html&#34;],
+  &#34;try&#34;: [{ &#34;uri&#34;: &#34;/&#34;, &#34;file&#34;: [&#34;index.html&#34;], &#34;next&#34;: &#34;&#34; }]
+}</code></pre>
+<h3 id="sec-20">6.2 反向代理</h3>
+<pre><code class="language-json">{
+  &#34;url&#34;: &#34;/api/&#34;,
+  &#34;type&#34;: &#34;proxy&#34;,
+  &#34;proxy_pass&#34;: &#34;http://127.0.0.1:9000&#34;,
+  &#34;proxy_set_header&#34;: [
+    { &#34;HeaderKey&#34;: &#34;X-Real-IP&#34;, &#34;HeaderValue&#34;: &#34;$remote_addr&#34; },
+    { &#34;HeaderKey&#34;: &#34;X-Forwarded-For&#34;, &#34;HeaderValue&#34;: &#34;$proxy_add_x_forwarded_for&#34; }
+  ]
+}</code></pre>
+<p><code>proxy_pass</code> 缺少 <code>http://</code> / <code>https://</code> 前缀时会按 <code>local</code> 处理，不会报错，这是最容易踩的坑。</p>
+<h3 id="sec-21">6.3 TCP 转发</h3>
+<pre><code class="language-json">{
+  &#34;listen&#34;: &#34;9000 tcp&#34;,
+  &#34;server_name&#34;: &#34;db&#34;,
+  &#34;location&#34;: [{ &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;proxy&#34;, &#34;proxy_pass&#34;: &#34;http://10.0.0.9:3306&#34; }]
+}</code></pre>
+<p><code>listen</code> 带 <code>tcp</code> 时整条连接按四层转发，不解析 HTTP。</p>
+<h3 id="sec-22">6.4 压缩</h3>
+<pre><code class="language-json">{ &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;local&#34;, &#34;root&#34;: &#34;./httpdoc/root&#34;, &#34;zip&#34;: [&#34;gzip&#34;, &#34;br&#34;] }</code></pre>
+<p>按 <code>Accept-Encoding</code> 协商，客户端同时支持时优先给 brotli。</p>
+<h3 id="sec-23">6.5 代理缓存</h3>
+<pre><code class="language-json">&#34;proxy_cache&#34;: {
+  &#34;path&#34;: &#34;./cache&#34;,
+  &#34;key&#34;: &#34;$request_uri&#34;,
+  &#34;valid&#34;: [&#34;200:1h&#34;, &#34;404:1m&#34;, &#34;any:5m&#34;],
+  &#34;methods&#34;: [&#34;GET&#34;, &#34;HEAD&#34;],
+  &#34;max_size&#34;: 1073741824
+}</code></pre>
+<p><code>valid</code> 的格式是 <code>状态码:时长</code>，<code>any</code> 匹配其余状态码；命中会顺延一个周期（读即续期）。<code>key</code> 支持变量插值。</p>
+<h3 id="sec-24">6.6 Basic 认证与限流</h3>
+<pre><code class="language-json">{
+  &#34;url&#34;: &#34;/admin/&#34;,
+  &#34;type&#34;: &#34;local&#34;,
+  &#34;root&#34;: &#34;./httpdoc/admin&#34;,
+  &#34;auth&#34;: { &#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;admin&#34;, &#34;pswd&#34;: &#34;change-me&#34; },
+  &#34;limit&#34;: { &#34;rate&#34;: 10, &#34;burst&#34;: 20, &#34;nodelay&#34;: true }
+}</code></pre>
+<h2 id="sec-25">7. TLS 与证书</h2>
+<ul>
+<li><strong>SNI 多证书</strong>：同一端口上的多个 <code>server_name</code> 各自持有证书，握手时按 SNI 选择，匹配不到用该端口的第一张。</li>
+<li><strong>自动生成</strong>：首次启动时，若 <code>config/cert/&lt;server_name&gt;.pem</code> 不存在，会用一个本地自签 CA 生成证书。CA 有效期 10 年，域名证书 2 年 3 个月。</li>
+<li><strong>热替换</strong>：执行 <code>reload</code> 后证书从磁盘重新加载，不需要重启进程。</li>
+<li><strong>不自动续期</strong>：程序只判断文件是否存在，不检查有效期。证书过期前需要替换文件并 <code>reload</code>。</li>
+<li><strong>外部签发</strong>：用 acme.sh、certbot 等外部工具签发后，把 <code>fullchain.pem</code> 与私钥路径填进 <code>ssl_certificate</code> / <code>ssl_certificate_key</code> 即可。</li>
+</ul>
+<blockquote><p>安全提示：本地 CA 的私钥生成在 <code>httpdoc/root/root.key</code>，而 <code>httpdoc/root</code> 默认是对外服务的站点根目录。上线前请确认该文件不可通过 HTTP 直接访问，或把 CA 私钥移到不对外服务的目录。</p></blockquote>
+<h2 id="sec-26">8. HTTP/2</h2>
+<p><code>listen</code> 加上 <code>h2</code> 即可，例如 <code>&#34;listen&#34;: &#34;443 ssl h2&#34;</code>。</p>
+<ul>
+<li>ALPN 只在含 <code>h2</code> 的端口通告 <code>h2</code>，纯 <code>ssl</code> 端口只走 HTTP/1.1，避免浏览器协商到 HTTP/2 后被 HTTP/1.1 解析器处理。</li>
+<li>同一端口同时通告了 <code>http/1.1</code>，不支持 HTTP/2 的客户端会自动降级。</li>
+<li><code>reload</code> 或停止时通过 <code>http.Server.Shutdown</code> 发送 GOAWAY 并等待在途请求，最长 5 秒。</li>
+</ul>
+<h2 id="sec-27">9. 日志</h2>
+<p>运行日志都写成 JSON，位于 <code>log_root</code> 指向的目录：</p>
+<table>
+<thead><tr><th>文件</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td><code>system.log</code></td><td>启动、配置加载、监听建立等系统事件</td></tr>
+<tr><td><code>access.log</code></td><td>访问日志，字段由 <code>log_format</code> 决定</td></tr>
+<tr><td><code>error.log</code></td><td>运行时错误</td></tr>
+<tr><td><code>safe.log</code></td><td>黑名单、限流、应用防火墙命中</td></tr>
+</tbody>
+</table>
+<p><code>log_format</code> 可按任意顺序组合以下字段：</p>
+<table>
+<thead><tr><th>字段</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td><code>ip_port</code></td><td>客户端地址与端口</td></tr>
+<tr><td><code>time</code></td><td>请求时间</td></tr>
+<tr><td><code>type</code></td><td>命中的 location 类型</td></tr>
+<tr><td><code>method</code></td><td>请求方法</td></tr>
+<tr><td><code>path</code></td><td>请求路径</td></tr>
+<tr><td><code>host</code></td><td>请求的 Host</td></tr>
+<tr><td><code>status</code></td><td>响应状态码</td></tr>
+<tr><td><code>size</code></td><td>响应字节数</td></tr>
+<tr><td><code>user_agent</code></td><td>User-Agent</td></tr>
+</tbody>
+</table>
+<p>修改 <code>log_root</code> 后执行 <code>reload</code> 会重新打开日志文件；新目录打不开时继续写原文件。</p>
+<h2 id="sec-28">10. 命令行</h2>
+<table>
+<thead><tr><th>命令</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>start</code></td><td>以守护进程方式启动（无参数等同此命令）</td></tr>
+<tr><td><code>dev</code></td><td>前台启动，日志级别 6，并在 <code>0.0.0.0:10000</code> 开 pprof</td></tr>
+<tr><td><code>stop</code></td><td>停止服务</td></tr>
+<tr><td><code>reload</code></td><td>校验配置后热重载，失败时保留旧配置</td></tr>
+<tr><td><code>status</code></td><td>读 pid 文件，进程存在返回 0，否则非 0</td></tr>
+<tr><td><code>check</code></td><td>只校验配置，不监听端口、不写 pid</td></tr>
+<tr><td><code>install</code></td><td>安装为系统服务</td></tr>
+<tr><td><code>uninstall</code></td><td>卸载系统服务</td></tr>
+</tbody>
+</table>
+<p>两点行为需要留意：</p>
+<ul>
+<li><code>dev</code> 模式下 <code>Ctrl+C</code> 是<strong>停止服务</strong>，不是重载。</li>
+<li><code>check</code> 通过时打印 <code>config ok</code> 并以 0 退出；<code>start</code> 的预检会做同一项校验。</li>
+</ul>
+<h2 id="sec-29">11. 热重载与停机</h2>
+<p><code>reload</code> 的流程是：解析并校验新配置 → 校验失败则继续用旧快照 → 校验通过则原子替换快照 → 按差异增删改监听器 → 重新打开证书表与日志文件。整个过程中已有连接不受影响。</p>
+<p>守护进程模式下的等价操作是向主进程发送 <code>SIGINT</code>。停止时先停止接受新连接，再等待在途请求完成。</p>
+<h2 id="sec-30">12. 排错</h2>
+<table>
+<thead><tr><th>现象</th><th>原因与处理</th></tr></thead>
+<tbody>
+<tr><td>启动报 <code>ssl_certificate not found</code></td><td><code>listen</code> 含 <code>ssl</code> 时证书文件必须存在。首次启动会自动生成 <code>config/cert/&lt;server_name&gt;.pem</code>，请确认路径与 <code>server_name</code> 一致，或改用绝对路径</td></tr>
+<tr><td>启动报 <code>listen: port already in use</code></td><td>端口被占用，换端口或先释放</td></tr>
+<tr><td>配置校验通过但访问 404</td><td>检查 <code>root</code> 是相对路径时的实际解析位置，确认 <code>server_name</code> 与请求 <code>Host</code> 一致</td></tr>
+<tr><td>反向代理返回 404 或落到静态分支</td><td><code>proxy_pass</code> 缺少 <code>http://</code> / <code>https://</code> 前缀，被当作 <code>local</code> 处理</td></tr>
+<tr><td>HTTP/2 不生效</td><td><code>listen</code> 没写 <code>h2</code>；或客户端不支持 ALPN。可用 <code>curl -I --http2 https://...</code> 验证协议版本</td></tr>
+<tr><td>修改配置后不生效</td><td>守护进程模式需要执行 <code>reload</code>；<code>dev</code> 模式需要重启</td></tr>
+<tr><td>日志没有写到新目录</td><td>新 <code>log_root</code> 打不开时程序继续写原文件，检查目录权限</td></tr>
+</tbody>
+</table>
+<h2 id="sec-31">13. 已知限制</h2>
+<table>
+<thead><tr><th>项</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>ACME 自动签发</td><td>未接入。仓库内的 <code>acme.sh</code> 不参与启动流程，证书需外部工具签发后填入路径</td></tr>
+<tr><td>证书自动续期</td><td>不支持，需人工替换后 <code>reload</code></td></tr>
+<tr><td><code>engine</code> 配置段</td><td>主从注册的预留字段，当前不参与运行逻辑</td></tr>
+<tr><td>上游故障转移</td><td>未实现，单个上游不可用时直接返回错误页</td></tr>
+<tr><td>配置文件自动重载</td><td>暂不支持，监听文件变化后自动 reload 仍未排期</td></tr>
+</tbody>
+</table>
+<h2 id="sec-32">14. 版本与许可</h2>
+<p>版本号取自 <code>config/consts.go</code> 的 <code>CURRENT_VERSION</code>，启动横幅会打印。许可证见发行包内的 <code>LICENSE</code>。</p>
+</main>
+</div>
+<footer>本文档由 docs/usage.md 生成，请勿直接编辑 HTML。版本 V1.4.0。</footer>
+</body>
+</html>

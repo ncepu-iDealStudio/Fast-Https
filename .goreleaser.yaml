@@ -48,7 +48,7 @@ archives:
       - config/fast-https.json
       - config/fastcgi.conf
       - config/mime.json
-      - docs/*
+      - docs/usage.html
       - httpdoc/root/favicon.ico
       - httpdoc/root/index.html
       - logs/.keep
@@ -71,7 +71,7 @@ archives:
       - config/fast-https.json
       - config/fastcgi.conf
       - config/mime.json
-      - docs/*
+      - docs/usage.html
       - httpdoc/root/favicon.ico
       - httpdoc/root/index.html
       - logs/.keep
