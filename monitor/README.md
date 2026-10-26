@@ -1,8 +1,14 @@
 # Fast-Https 托盘程序
 
-Windows 任务栏托盘程序，用来在本机启动和停止 Fast-Https。它是 `monitor/` 下的独立程序，只支持 **windows/amd64**（`monitor.go` 与 `windows.go` 带有 `//go:build windows && amd64`）。界面使用 `github.com/getlantern/systray`。
+Windows 任务栏托盘程序，用来在本机启动和停止 Fast-Https。它是 `monitor/` 下的独立程序，只支持 **windows/amd64**（`monitor.go` 与 `windows.go` 带有 `//go:build windows && amd64`）。界面使用 `fyne.io/systray`。
 
-托盘程序自己不监听端口。它在当前工作目录里调用旁边的主程序 `fast-https.exe`。请在主程序所在目录启动它；从其它目录启动时，会找不到主程序、pid 文件和日志。
+托盘程序自己不监听端口。它在**可执行文件所在目录**里查找并调用旁边的 `fast-https.exe`，日志目录与 pid 文件也按该目录解析，所以从任意工作目录启动都可以，换目录启动不会再认错文件。
+
+## 单实例
+
+托盘是单实例的：`logs/monitor.lock` 以独占方式打开，第二个实例拿不到句柄，会记一条日志后直接退出，不会出现多个托盘图标各自启停同一个服务。
+
+锁靠文件句柄维持，进程结束（包括崩溃）时由内核释放，残留的 `monitor.lock` 不影响下次启动，不需要手工删除。
 
 ## 菜单
 
@@ -12,22 +18,26 @@ Windows 任务栏托盘程序，用来在本机启动和停止 Fast-Https。它�
 | --- | --- |
 | Start | 隐藏窗口执行 `fast-https`。没有参数时主程序走 `start`，即普通启动，不是 `dev`。 |
 | Stop | 隐藏窗口执行 `fast-https stop`。 |
-| Quit | 只退出托盘。已经启动的服务器继续运行。 |
+| Quit | 退出托盘。**由本托盘启动的服务器会被一起停止**，最长等待 10 秒；不是本托盘启动的（例如系统服务方式启动的实例）保持不动，只记一条日志。 |
 
-点 Start 后，Start 变为不可用，托盘图标换成运行中的图标。点 Stop 后，Start 恢复可用，图标换成已停止的图标。
+菜单状态由真实进程状态驱动，每 2 秒同步一次：
+
+- 服务器在跑：图标换成运行中，Start 置灰，Stop 可用。
+- 服务器已停：图标换成已停止，Start 可用，Stop 置灰。
+
+因为状态来自真实进程，服务在托盘之外被停掉或自己崩溃时，菜单会在下一个周期自动纠正，不会卡在"运行中"。
 
 `windows.go` 里有 `reloadServer`，它会执行 `fast-https reload`，但菜单没有接入这一项。
 
 ## 启动时如何判断服务器是否在跑
 
-启动时读取当前目录的 `fast-https.pid`。
+读取 `fast-https.pid`，用 `OpenProcess` 拿句柄后再调 `GetExitCodeProcess`，只有退出码为 `STILL_ACTIVE`（259）才算在运行。
 
-- 读不到文件，或文件为空：显示已停止图标，Start 可以点击。
-- 读到进程号：调用 `os.FindProcess`。在 Windows 上，只要进程号是合法数字，这个调用就会成功，并不确认进程仍在运行。因此残留的 `fast-https.pid` 也会显示为运行中，并禁用 Start。
+只判断 `OpenProcess` 是否成功是不够的：进程已经退出但内核对象还没回收时，该调用依然会成功，残留的 pid 文件就会被误判成"运行中"并禁用 Start。
 
 ## 日志与图标
 
-托盘自己的日志，以及它拉起的主程序标准输出，都追加写入当前目录的 `logs/monitor.log`。目录来自 `config.DEFAULT_LOG_ROOT`（`./logs`），文件名是 `monitor.log`。
+托盘自己的日志，以及它拉起的主程序标准输出，都追加写入程序目录下的 `logs/monitor.log`。目录来自 `config.DEFAULT_LOG_ROOT`（`./logs`），文件名是 `monitor.log`。
 
 托盘图标是 `icon.go` 里的两套内嵌图标：运行中为 `LogoExecuting`，已停止为 `LogoStopping`。
 
@@ -42,3 +52,11 @@ go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
 ```
 
 `.goreleaser.yaml` 的 `before` 钩子会用同一条命令编译 `monitor/monitor.exe`，再放进 Windows zip 的根目录，和 `fast-https.exe` 放在一起。钩子编译失败时，这次发布会停下来。
+
+## 测试
+
+`windows_test.go` 覆盖路径解析、单实例锁与非法 pid 判定：
+
+```bash
+go test ./monitor/
+```
