@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"runtime"
-	"syscall"
 
 	"github.com/kardianos/service"
 	"github.com/rs/zerolog"
@@ -322,7 +321,7 @@ func ReloadHandler() error {
 	err = signalReloadProcess(process, pid)
 
 	if err != nil {
-		logging.ConsoleLog.Fatal().Msgf("fast-https stop failed: %v", err)
+		logging.ConsoleLog.Fatal().Msgf("fast-https reload failed: %v", err)
 	}
 	return nil
 }
@@ -417,21 +416,14 @@ func PreCheckHandler() {
 		return
 	}
 
-	// 只有在成功读取到 PID 时才检查进程
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		// 进程不存在，可以继续
-		logging.ConsoleLog.Debug().Msgf("Process %d not found, starting new instance", pid)
-		return
-	}
-
-	// 检查进程是否真的在运行
-	err = process.Signal(syscall.Signal(0))
-	if err == nil {
-		// 进程正在运行
+	// 只有在成功读取到 PID 时才检查进程。
+	// 存活判定必须走平台实现：Windows 上 os.Process.Signal(syscall.Signal(0))
+	// 恒返回 EWINDOWS，会把正在跑的实例判成「没在跑」，重复启动就漏过去了。
+	if processRunning(pid) {
 		logging.ConsoleLog.Fatal().Msg("fast-https is already running")
 	}
 	// 进程不存在，可以继续
+	logging.ConsoleLog.Debug().Msgf("Process %d not found, starting new instance", pid)
 }
 
 // runInForeground keeps the process as PID 1. Containers are detected from
