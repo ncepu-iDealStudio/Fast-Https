@@ -1,0 +1,28 @@
+version: '1.0'
+name: go-test
+displayName: Go 测试
+triggers:
+  trigger: auto
+  push:
+    branches:
+      precise:
+        - master
+        - main
+  pr:
+    branches:
+      precise:
+        - master
+        - main
+stages:
+  - stage:
+    name: test
+    displayName: 单元测试
+    strategy: fast
+    trigger: auto
+    steps:
+      - step: build@golang
+        name: go_test
+        displayName: go test
+        golangVersion: '1.27.1'
+        commands:
+          - go test ./...

@@ -2,15 +2,13 @@ package proxy
 
 import (
 	"fast-https/config"
-	"fast-https/modules/core/response"
-	"fast-https/utils/message"
-	"fmt"
+	"fast-https/runtime/request"
+	"fast-https/runtime/response"
+	"fast-https/infra/logging"
 	"io"
 	"net"
 	"strconv"
 	"strings"
-
-	"github.com/Jxck/logger"
 )
 
 const (
@@ -75,82 +73,34 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 	}
 }
 
-func Parse(data string) ([]byte, int64) {
-	startIndex := 0
-	var after []byte
-	var total_len int64
-	for {
-		// 查找长度字段的结束位置
-		endLengthIndex := strings.Index(data[startIndex:], "\r\n")
-		if endLengthIndex == -1 {
-			break // 没有找到长度字段，退出循环
-		}
-		endLengthIndex += startIndex // 更新结束位置
-
-		// 获取长度字段
-		lengthStr := data[startIndex:endLengthIndex]
-		length, err := strconv.ParseInt(lengthStr, 16, 64)
+// parseChunked 解码上游的 chunked 响应体，并按解码后的实际长度改写响应头。
+// 此前实现只把带 chunk 帧的原始 body 原样透传，客户端会收到 chunk 元数据
+// 以及与实际内容矛盾的 Content-Length。
+func (rka *ReadKeepAlive) parseChunked() error {
+	body, err := request.ReadChunked(rka.body, func() ([]byte, error) {
+		buf := make([]byte, CHUNCKED_BODY_SIZE)
+		n, err := rka.Read(buf)
 		if err != nil {
-			// fmt.Println("解析长度失败:", err, "length string:", lengthStr)
-			return after, total_len
-		} else {
-			// fmt.Println(length)
-			total_len = total_len + length
+			return nil, err
 		}
-
-		if length == 0 {
-			break
-		}
-
-		// 计算数据区的结束位置
-		startDataIndex := endLengthIndex + 2
-		endDataIndex := startDataIndex + int(length)
-
-		// 获取数据部分
-		dataPart := data[startDataIndex:endDataIndex]
-
-		// 打印数据内容
-		// fmt.Println("数据内容:", dataPart)
-		after = append(after, []byte(dataPart)...)
-
-		// 更新起始位置，准备处理下一个数据区
-		startIndex = endDataIndex + 2
+		return buf[:n], nil
+	}, maxChunkedBody())
+	if err != nil {
+		return err
 	}
-
-	return nil, 0
+	rka.res.DelHeader("Transfer-Encoding")
+	rka.res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	rka.res.Body = body
+	rka.body = body
+	rka.finalStr = rka.res.GenerateResponse()
+	return nil
 }
 
-func (rka *ReadKeepAlive) parseChunked() {
-	var p int
-	// var after_body []byte
-	// var total_length int64
-	for {
-		if p = strings.Index(string(rka.body), "0\r\n\r\n"); p != -1 { // last block
-
-			// data := []byte("2\r\n11\r\n20\r\n22222222222222222222222222222222\r\n5\r\n33333\r\n0\r\n\r\n")
-			_, _ = Parse(string(rka.body))
-			// after_body, total_length = Parse(string(ro.body))
-			// fmt.Println(total_length)
-
-			// ro.res.DelHeader("Transfer-Encoding")
-			// ro.res.Headers["Content-Length"] = strconv.Itoa(int(total_length))
-			rka.res.Body = rka.body // after_body
-			rka.finalStr = rka.res.GenerateResponse()
-			return
-		} else {
-			// if p = strings.Index(string(ro.body), "\r\n"); p == -1 { // body like this  "2b8" or "2b81\r"
-			// }
-			lastBuf := make([]byte, CHUNCKED_BODY_SIZE)
-			n, err := rka.Read(lastBuf)
-			if err != nil {
-				fmt.Println("parseChuncked failed", err.Error())
-				return
-			} else {
-				rka.body = append(rka.body, lastBuf[:n]...)
-			}
-
-		}
+func maxChunkedBody() int {
+	if config.Current().Limit.MaxBodySize > 0 {
+		return config.Current().Limit.MaxBodySize
 	}
+	return config.DEFAULT_MAX_BODY_SIZE
 }
 
 func (rka *ReadKeepAlive) Read(data []byte) (int, error) {
@@ -159,13 +109,16 @@ func (rka *ReadKeepAlive) Read(data []byte) (int, error) {
 	} else if rka.p.ProxyType == config.PROXY_HTTPS {
 		return rka.p.ProxyTlsConn.Read(data)
 	} else {
-		message.PrintErr("--proxy read error")
+		logging.PrintErr("--proxy read error")
 		return 0, nil
 	}
 }
 
 // debug by zhangjiayue
-func (rka *ReadKeepAlive) ReadBytes(size int) {
+// ReadBytes 读满 Content-Length 承诺的 body。任何读错误都必须上抛：
+// 上游半响应即断开/重置时，把截断数据当 200 回给客户端（更糟的是
+// 落进缓存）等于投毒；超时同样按错误处理而不是交付半截 body。
+func (rka *ReadKeepAlive) ReadBytes(size int) error {
 	totalLen := size
 	//ro.ProxyConn.SetReadDeadline(time.Now().Add(time.Second * 100))
 	for totalLen > 0 {
@@ -177,14 +130,15 @@ func (rka *ReadKeepAlive) ReadBytes(size int) {
 		tempLen, err := rka.Read(tmpBuf)
 		if err != nil {
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				logger.Debug("read bytes time out")
-				break
+				return ProxyErrorReadFromUpstreamTimeout
 			}
+			return err
 		}
 		rka.finalStr = append(rka.finalStr, tmpBuf[:tempLen]...)
 		rka.body = append(rka.body, tmpBuf[:tempLen]...)
 		totalLen -= tempLen
 	}
+	return nil
 }
 
 func (rka *ReadKeepAlive) proxyKeepAlive() error {
@@ -199,10 +153,12 @@ readAgain:
 		if ok && neterr.Timeout() {
 			return ProxyErrorReadFromUpstreamTimeout
 		} else if ok {
-			logger.Debug("unhandled error")
+			logging.ConsoleLog.Debug().Msgf("proxy: unhandled net error: %v", err)
 			return err // can't read
 		} else {
-			logger.Fatal("can't convent net error")
+			// 原来这里调 logger.Fatal，会直接 os.Exit(1) 把整个进程带走。
+			logging.ConsoleLog.Error().Msgf("proxy: can't convert net error: %v", err)
+			return err
 		}
 	}
 	rka.finalStr = append(rka.finalStr, tmpByte[:len_once]...)
@@ -213,12 +169,17 @@ readAgain:
 	if size == 0 { // will not need to read
 		return nil
 	} else if size > 0 { // need read data in size
-		rka.ReadBytes(size)
+		if err := rka.ReadBytes(size); err != nil {
+			return err
+		}
 	} else if size == -2 { // need read header
 		// fmt.Println("invalid header")
 		goto readAgain
 	} else if size == -3 {
-		rka.parseChunked()
+		if err := rka.parseChunked(); err != nil {
+			logging.ConsoleLog.Debug().Msgf("proxy: decode chunked body: %v", err)
+			return err
+		}
 		return nil
 	} else if size == -4 {
 		return nil

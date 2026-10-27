@@ -1,72 +1,135 @@
-# Fast-Https Web server
+<h1 align="center">Fast-Https</h1>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-#### Description
-=======
-#### introduction
->>>>>>> develop
-=======
-#### introduction
->>>>>>> develop
-Fast-Https is a high-performance, multi-tasking web server product developed in Go language. It supports popular protocols and standards such as HTTP 1.1, HTTP 2.0, HTTPS, and RPC. It also offers reverse proxy functionality. Notably, the web server includes a built-in feature for generating self-signed SSL certificates, which greatly facilitates addressing the issue of server access based on the HTTPS protocol in testing environments.
+<p align="center">A multi-task, high-concurrency web server and reverse proxy written in Go.<br />
+One JSON file describes listen ports and locations; a single binary runs it.</p>
 
-Currently, we provide installation packages for both Windows and Linux platforms, with products for other platforms being gradually released.
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.4.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
+  <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
+  <img src="https://img.shields.io/badge/license-GPL--2.0-334155?style=flat-square" alt="license" />
+  <img src="https://img.shields.io/badge/Gitee-ncepu--bj%2Ffast--https-C71D23?style=flat-square&logo=gitee&logoColor=white" alt="gitee" />
+</p>
 
-#### Software Architecture
-Fast-Https is designed and developed in a modular manner, where the core server module supports horizontal expansion and the addition of new functionalities through plugins. This enhances the capabilities of the server.
-<<<<<<< HEAD
-<<<<<<< HEAD
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=go,docker,linux,windows" height="34" alt="tech stack" />
+</p>
 
+<p align="center"><a href="README.md">简体中文</a> | English</p>
 
-#### Installation
-1.  You can obtain the corresponding version and installation package at https://gitee.com/ncepu-bj/fast-https/releases/tag/V1.0.；
-2.  Extract the corresponding installation package to the target directory on the server.
-3.  Modify the configuration file.
+## Introduction
 
-#### Instructions
-see：https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?# 《Fast-Https产品说明》
+Fast-Https accepts connections, parses HTTP/1.1, and writes responses itself — no nginx or Caddy underneath. HTTP/2 framing and HPACK are delegated to `golang.org/x/net/http2`; TLS comes from the standard library. Configuration is plain JSON, and `location` blocks read like their nginx counterparts.
 
+How a request travels:
 
-#### Contribution
-1.  Fork the repository
-2.  Create Feat_xxx branch
-3.  Commit your code
-4.  Create Pull Request
-=======
-=======
->>>>>>> develop
+```text
+connection → rate limit / IP blacklist → location routing → application firewall → static file / reverse proxy / TCP / WebSocket → response
+```
 
-#### installation
-1. You can obtain the corresponding version and installation package at https://gitee.com/ncepu-bj/fast-https/releases/tag；
-2. Extract the corresponding installation package to the target directory on the server；
-3. Modify the configuration file；
+- **Static sites**: `Last-Modified` conditional requests return 304, a single `Range` returns 206/416, and gzip / brotli are negotiated from `Accept-Encoding`. A directory requested without a trailing slash is redirected with 301.
+- **Reverse proxy**: pooled upstream connections for HTTP/HTTPS, response cache (map index + LRU), WebSocket upgrade, and bidirectional TCP forwarding.
+- **Security**: per-IP token-bucket rate limiting, IP blacklist (IPv6 ranges included), Basic auth, and the GuardianWAF application firewall (sqli/xss/lfi/cmdi/xxe/ssrf, optionally log-only).
+- **Operations**: `start` / `stop` / `reload` / `status` / `check` / `dev`, config reload without dropping connections, a Windows tray program, and install as a system service.
+- **Packaging**: release archives for Linux / macOS / Windows, an RPM spec, and three Docker base images.
 
-#### user guider
-see there：https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?# 《Fast-Https产品说明》
+Core dependencies (versions live in `go.mod`; everything else is the standard library):
 
-#### 自行编译
-1. Compile Windows status bar control program
-   go build -ldflags "-s -w -H=windowsgui" -o monitor.exe monitor.go
+| Dependency | Role |
+| --- | --- |
+| `spf13/cobra` | CLI entry point and subcommands |
+| `rs/zerolog` | Console output plus system, access, error, and security JSON logs |
+| `golang.org/x/net` | HTTP/2 stack |
+| `guardianwaf/guardianwaf` | Application firewall engine |
+| `klauspost/compress`, `andybalholm/brotli` | gzip and brotli compression |
+| `kardianos/service`, `fyne.io/systray` | System service install, Windows tray |
 
-2. Compile distribution package for the Linux platform.
-   goreleaser release -f .goreleaser.yaml --snapshot --clean
+## Quick Start
 
-   if you need,you can modify the config file:”goreleaser.yaml“
+```bash
+# Option 1: release archive
+# Download the archive for your platform from https://gitee.com/ncepu-bj/fast-https/releases, then:
+./fast-https start
 
-3. Compile distribution package for the Windows platform
-   goreleaser release -f .goreleaser.windows.yaml --snapshot --clean
+# Option 2: build from source (Go 1.27)
+go build -o fast-https . && ./fast-https start
+```
 
+A minimal `config/fast-https.json` is enough to serve files:
 
-#### Contribution
-1.Fork the repository
+```json
+{
+  "http": {
+    "server": [
+      {
+        "listen": 8080,
+        "server_name": "localhost",
+        "location": [
+          { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] }
+        ]
+      }
+    ],
+    "include": ["./config/conf.d"]
+  }
+}
+```
 
-2.Create Feat_xxx branch
+```bash
+curl -I http://127.0.0.1:8080/    # expect 200 and Server: fast-https
+```
 
-3.Commit your code
+| Command | What it does |
+| --- | --- |
+| `./fast-https start` | Start the server (`start` is the default). Goes to the background on Linux / macOS; stays in the foreground under containers and systemd |
+| `./fast-https dev` | Foreground with log level 6 and pprof on `0.0.0.0:10000` |
+| `./fast-https stop` | Stop. Sends `SIGTERM` on Unix for a graceful shutdown; running it again is a no-op |
+| `./fast-https reload` | Validate the new config, then reload; a failed validation keeps the old config |
+| `./fast-https status` | Read the pid file and report whether the server is running |
+| `./fast-https check` | Validate the config only — no listening, no pid file |
+| `./fast-https install` | Install as a system service |
 
-4.Create Pull Request
-<<<<<<< HEAD
->>>>>>> develop
-=======
->>>>>>> develop
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | Deployment and operations: config keys, sites, certificates, proxy, cache, WAF |
+| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | The same guide in Chinese |
+| [docs/usage.md](docs/usage.md) | In-repo source of the usage guide; `docs/usage.html` is generated from it and ships with releases |
+| [docs/feature/](docs/feature/README.md) | One page per feature, with config samples and implementation notes |
+| [docs/develop/](docs/develop/README.md) | Build environment, tests, code standards, adding config keys, debugging, release |
+| [docs/architecture-map.md](docs/architecture-map.md) | Package inventory and dependency direction |
+| [docs/nginx-core-gap.md](docs/nginx-core-gap.md) | Feature-by-feature comparison with nginx |
+
+The full index is [docs/README.md](docs/README.md).
+
+## Project Structure
+
+```text
+fast-https/
+├── fast-https.go        Entry point, calls cmd.RootCmd()
+├── cmd/                 CLI: start / dev / stop / reload / status / check / install
+│                        daemon_unix.go daemonizes by re-exec, daemon_windows.go is a no-op
+├── config/              Config parsing, validation, and reload; fast-https.json is the single source
+├── init/                Startup initialization: config, logging, certificates, cache
+├── core/                Contracts: Event, handler registry, lifecycle hooks
+├── runtime/             Data plane: listeners, connections, request/response, filters, reload
+├── modules/             Features: static / proxy / proxy_tcp / websocket / cache /
+│                        compress / auth / safe / appfirewall / rewrite
+├── infra/               Infrastructure: logging / color / timeutil / banner
+├── monitor/             Windows tray program (separate main)
+├── httpdoc/root/        Default site and the self-signed root certificate directory
+├── docs/                Feature, development, and test documentation
+├── tests/               Unit tests and end-to-end tests
+└── spec/ docker/        RPM spec and container images
+```
+
+Layering rule: `core` holds contracts only, `runtime` never imports `modules`, and feature packages are wired at startup by `cmd.RegisterHandlers` / `cmd.RegisterServices`. Details in [docs/develop/2-code-standards.md](docs/develop/2-code-standards.md).
+
+## More
+
+- Packaging and release (binary, RPM, Docker, GoReleaser): [docs/develop/5-release.md](docs/develop/5-release.md)
+- Test layout and how to run them: [tests/readme.md](tests/readme.md); coverage and stress tests: [docs/test/](docs/test/README.md)
+- Startup flow and signal handling: [docs/about.md](docs/about.md)
+- Contributing: fork the repo, create a `Feat_xxx` branch, commit, and open a pull request
+- License [GPL-2.0](LICENSE); the project is part of the openEuler community (<https://gitee.com/src-openeuler/fast-https>)
