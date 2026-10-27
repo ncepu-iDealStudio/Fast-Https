@@ -1,24 +1,20 @@
+// Package proxy 把 HTTP/HTTPS 请求转发到配置的上游服务器。
 package proxy
 
 import (
 	"crypto/tls"
 	"errors"
 	"fast-https/config"
-	"fast-https/modules/appfirewall"
-	"fast-https/modules/cache"
-	"fast-https/modules/core"
-	"fmt"
+	"fast-https/core"
 	"strconv"
 	"time"
 
-	"fast-https/modules/core/listener"
-	"fast-https/modules/core/response"
-	"fast-https/utils/logger"
-	"fast-https/utils/message"
+	"fast-https/infra/logging"
+	"fast-https/runtime/dynlog"
+	"fast-https/runtime/listener"
+	"fast-https/runtime/response"
 	"net"
 	"strings"
-
-	"github.com/fatih/color"
 )
 
 type Proxy struct {
@@ -32,11 +28,17 @@ type Proxy struct {
 	Read           func([]byte) (int, error)
 	Close          func() error
 	ev             *core.Event
+	// reused 标记连接来自空闲池：上游可能早已悄悄关闭，首次发送
+	// 失败时换新连接重试一次
+	reused bool
+	// closed 在 Close 后置位，防止已关闭连接被归还进池
+	closed bool
 }
 
-func init() {
-	core.RRHandlerRegister(config.PROXY_HTTP, ProxyFilterHandler, ProxyEvent, nil)
-	core.RRHandlerRegister(config.PROXY_HTTPS, ProxyFilterHandler, ProxyEvent, nil)
+// Register installs the reverse-proxy handlers for HTTP and HTTPS upstreams.
+func Register() {
+	core.RegisterHandler(config.PROXY_HTTP, ProxyFilterHandler, ProxyEvent, nil)
+	core.RegisterHandler(config.PROXY_HTTPS, ProxyFilterHandler, ProxyEvent, nil)
 }
 
 func Newproxy(addr string, proxyType int, proxyNeedCache bool) *Proxy {
@@ -61,82 +63,130 @@ func (m *ProxyError) Error() string {
 	return m.msg
 }
 
-// connect to the server
-// init read write close handler
-func (p *Proxy) ProxyInit(ev *core.Event) error {
-	var err error
+// dialUpstream 建立到上游的新连接并完成读写闭包装配。
+// addr 必须已带端口（normalizeUpstreamAddr 负责补默认端口）。
+func dialUpstream(addr string, proxyType int) (*Proxy, error) {
+	p := &Proxy{ProxyAddr: addr, ProxyType: proxyType}
 
-	p.ProxyConn, err = net.Dial("tcp", p.ProxyAddr)
-
+	conn, err := net.Dial("tcp", p.ProxyAddr)
 	p.Read = p.read
 	p.Write = p.write
 	p.Close = p.close
-	p.ev = ev
+	p.ProxyNeedClose = false
+
+	if err != nil {
+		logging.ConsoleLog.Debug().Msgf("proxy event: can't connect to upstream server %s", err.Error())
+		return nil, ProxyErrorDialUpstream // no server
+	}
+	p.ProxyConn = conn
 
 	if p.ProxyType == config.PROXY_HTTPS {
-		config := tls.Config{InsecureSkipVerify: true}
-		tlsConn := tls.Client(p.ProxyConn, &config)
+		tlsConn := tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
 		p.ProxyTlsConn = tlsConn
 
 		p.Read = p.readSSL
 		p.Write = p.writeSSL
 		p.Close = p.closeSSL
 	}
-	p.ProxyNeedClose = false // keep-alive default
 
-	if err != nil {
-		logger.Debug("proxy event: can't connect to upstream server" + err.Error())
-		return ProxyErrorDialUpstream // no server
+	p.ProxyConn.SetDeadline(time.Now().Add(time.Second * 20)) // proxy server time out
+	return p, nil
+}
+
+// normalizeUpstreamAddr 给不带端口的上游地址补默认端口，同时作为
+// 连接池的分组键。
+func normalizeUpstreamAddr(addr string, proxyType int) string {
+	if strings.Contains(addr, ":") {
+		return addr
 	}
-	now := time.Now()
-	p.ProxyConn.SetDeadline(now.Add(time.Second * 20)) // proxy server time out
+	if proxyType == int(config.PROXY_HTTPS) {
+		return addr + ":443"
+	}
+	if proxyType == int(config.PROXY_HTTP) {
+		return addr + ":80"
+	}
+	logging.PrintErr("--proxy cant not set addr")
+	return addr
+}
 
+// connect to the server
+// init read write close handler
+func (p *Proxy) ProxyInit(ev *core.Event) error {
+	fresh, err := dialUpstream(normalizeUpstreamAddr(p.ProxyAddr, p.ProxyType), p.ProxyType)
+	if err != nil {
+		return err
+	}
+	p.ProxyAddr = fresh.ProxyAddr
+	p.ProxyConn = fresh.ProxyConn
+	p.ProxyTlsConn = fresh.ProxyTlsConn
+	p.Read, p.Write, p.Close = fresh.Read, fresh.Write, fresh.Close
+	p.ProxyNeedClose = false
+	p.ev = ev
 	return nil
 }
 
-// get a inited proxy
+// getProxy 借一条到上游的连接。
+//
+// websocket 升级后连接被当作双向管道整条占用，必须在一个会话里
+// 保持同一上游连接，因此由 CircleData 持有而不进池；普通 HTTP
+// 请求每请求从池里借、响应后归还，跨客户端连接复用。
 func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Proxy, error) {
-	var proxy *Proxy
-
-	// init proxy tcp connection
-	if !rr.ProxyConnInit {
-		rr.ProxyConnInit = true
-
-		configCache := true
-		if cfg.ProxyCache.Key == "" {
-			configCache = false
+	if ev.Upgrade == "websocket" {
+		if rr.ProxyConnInit {
+			proxy, ok := rr.CircleData.(*Proxy)
+			if !ok || proxy == nil {
+				logging.ConsoleLog.Error().Msg("proxy can not convert circle data to *Proxy")
+				return nil, ProxyErrorDialUpstream
+			}
+			return proxy, nil
 		}
 
-		proxy = Newproxy(cfg.ProxyAddr, int(cfg.Type), configCache)
-		proxy.proxyHandleAddr()
-		err := proxy.ProxyInit(ev)
-		if err != nil { // only one type error: `ProxyErrorDialUpstream`
+		proxy := Newproxy(cfg.ProxyAddr, int(cfg.Type), cfg.ProxyCache.Key != "")
+		if err := proxy.ProxyInit(ev); err != nil { // only one type error: `ProxyErrorDialUpstream`
 			return nil, err
 		}
-
+		rr.ProxyConnInit = true
 		rr.CircleData = proxy
-	} else {
-		var flag bool
-		proxy, flag = (rr.CircleData).(*Proxy)
-		if !flag {
-			logger.Fatal("proxy can not convert circle data to *Proxy")
-		}
+		return proxy, nil
 	}
 
-	return proxy, nil
+	addr := normalizeUpstreamAddr(cfg.ProxyAddr, int(cfg.Type))
+	p, err := upstreamPool().get(addr, func() (*Proxy, error) {
+		fresh, derr := dialUpstream(addr, int(cfg.Type))
+		if derr != nil {
+			return nil, derr
+		}
+		fresh.ev = ev
+		fresh.ProxyNeedCache = cfg.ProxyCache.Key != ""
+		return fresh, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if p.reused {
+		// 新的请求周期，刷新整体 20s 截止时间
+		p.ProxyConn.SetDeadline(time.Now().Add(time.Second * 20))
+		p.ev = ev
+	}
+	return p, nil
 }
 
-// TODO: when add upstream, this function need to do more
-func (p *Proxy) proxyHandleAddr() {
-	if !strings.Contains(p.ProxyAddr, ":") {
-		if p.ProxyType == config.PROXY_HTTP {
-			p.ProxyAddr = p.ProxyAddr + ":80"
-		} else if p.ProxyType == config.PROXY_HTTPS {
-			p.ProxyAddr = p.ProxyAddr + ":443"
-		} else {
-			message.PrintErr("--proxy cant not set addr")
-		}
+// releaseProxy 在一个请求周期结束后回收上游连接：
+// websocket 会话由 CircleData 持有不进池；上游要求关闭或已出错
+// 关闭的连接直接丢弃；健康连接清除整体 deadline 后归还。
+func releaseProxy(p *Proxy) {
+	if p == nil || p.isClosed() {
+		return
 	}
+	if p.ev != nil && p.ev.Upgrade == "websocket" {
+		return
+	}
+	if p.ProxyNeedClose {
+		p.Close()
+		return
+	}
+	p.ProxyConn.SetDeadline(time.Time{})
+	upstreamPool().put(p.ProxyAddr, p)
 }
 
 func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle) string {
@@ -148,7 +198,7 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 
 	firstLineDec := strings.Split(temp_res.FirstLine, " ")
 	if len(firstLineDec) < 2 {
-		logger.Error(string(tmpByte))
+		logging.ConsoleLog.Error().Msgf("%s", string(tmpByte))
 		rr.Res = response.DefaultServerHeaderError()
 		return "509"
 	} else {
@@ -178,12 +228,12 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err error) {
 	if !ev.RR.Req.IsKeepalive() {
 		if ev.Upgrade == "websocket" {
-			logger.Debug("-----This is Read websocket")
+			logging.ConsoleLog.Debug().Msg("-----This is Read websocket")
 			web := make([]byte, 1024)
 			var n int
 			n, err = p.Read(web)
 			if err != nil {
-				logger.Debug("proxy event: can't read websocket %v", err.Error())
+				logging.ConsoleLog.Debug().Msgf("proxy event: can't read websocket %v", err.Error())
 				err = errors.New("proxy read websocket")
 				return
 			}
@@ -192,11 +242,11 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 			rcc := ReadConnectionClose{
 				p: p,
 			}
-			logger.Debug("-----This is ReadConnectionClose")
+			logging.ConsoleLog.Debug().Msg("-----This is ReadConnectionClose")
 			resData, err = rcc.proxyReadAll()
 			if err != nil {
 				if err != ProxyErrorReadFromUpstreamTimeout {
-					logger.Debug("can't read connection close %v", err.Error())
+					logging.ConsoleLog.Debug().Msgf("can't read connection close %v", err.Error())
 				}
 				return
 			}
@@ -207,11 +257,11 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 			TryNum: 0,
 			p:      p,
 		}
-		logger.Debug("-----This is ReadKeepAlive")
+		logging.ConsoleLog.Debug().Msg("-----This is ReadKeepAlive")
 		err = rka.proxyKeepAlive()
 		if err != nil {
 			if err != ProxyErrorReadFromUpstreamTimeout {
-				logger.Debug("can't read keep alive %v", err.Error())
+				logging.ConsoleLog.Debug().Msgf("can't read keep alive %v", err.Error())
 			}
 			return
 		}
@@ -234,104 +284,116 @@ func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 	if err != nil {
 		neterr, ok := err.(net.Error)
 		if ok && neterr.Timeout() {
-			logger.Debug("send to upstream server time out")
+			logging.ConsoleLog.Debug().Msg("send to upstream server time out")
 			err = ProxyErrorSendToUpstreamTimeout
-		} else if ok {
-			logger.Debug(color.RedString("unhandled send to upstream server: ") + err.Error())
 		} else {
-			logger.Fatal("convent net error")
+			// 非 net.Error 的写错误（io.ErrClosedPipe、TLS 包装错误等）
+			// 也必须按普通错误处理：此前这里走 Fatal（os.Exit），一条
+			// 上游连接的异常写就能打死整个进程。
+			logging.ConsoleLog.Debug().Msgf("send to upstream server error: %s", err.Error())
 		}
 
 		p.Close()  // close proxy connection
 		return err // can't write
 	}
 	if len(req_data) != n {
-		logger.Debug("send to upstream server part")
+		logging.ConsoleLog.Debug().Msg("send to upstream server part")
 	}
 
 	return nil
 }
 
-// fast-https will send data to real server and get response from target
-func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) error {
+// fast-https will send data to real server and get response from target.
+// 返回上游状态码，调用方据此决定是否缓存。
+func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) (int, error) {
 
-	//logger.Debug("\n\n" + string(req_data) + "\n\n")
+	//logging.ConsoleLog.Debug().Msgf("\n\n" + string(req_data) + "\n\n")
 	if err := p.sendToUpstreamServer(req_data); err != nil {
-		if err != ProxyErrorSendToUpstreamTimeout {
-			logger.Debug("unhandled send to upstream server errror")
+		// 复用的空闲连接可能已被上游悄悄关闭：换新连接重试一次
+		if !p.reused || err == ProxyErrorSendToUpstreamTimeout {
+			return 0, err
 		}
-		return err
+		p.Close()
+		fresh, derr := dialUpstream(p.ProxyAddr, p.ProxyType)
+		if derr != nil {
+			return 0, derr
+		}
+		fresh.ev = p.ev
+		fresh.ProxyNeedCache = p.ProxyNeedCache
+		*p = *fresh
+		if err := p.sendToUpstreamServer(req_data); err != nil {
+			return 0, err
+		}
 	}
 
 	resData, err := p.readFromUpstreamServer(ev)
 	if err != nil {
 		if err != ProxyErrorReadFromUpstreamTimeout {
-			logger.Debug("unhandled read form upstream server error")
+			logging.ConsoleLog.Debug().Msg("unhandled read form upstream server error")
 		}
-		// logger.Debug("	send\n%s\nto server%s", string(ev.DEBUG_BUFFER), ev.Conn.RemoteAddr().String())
-		return err
+		// logging.ConsoleLog.Debug().Msgf("	send\n%s\nto server%s", string(ev.DEBUG_BUFFER), ev.Conn.RemoteAddr().String())
+		return 0, err
 	}
 
 	if !ev.RR.Req.IsKeepalive() && ev.Upgrade == "" { // connection close
 		p.Close()
 	}
 
-	head_code := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
-	b_len := len(ev.RR.Res.Body)
+	headCode := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
+	status, _ := strconv.Atoi(headCode)
+	logProxyAccess(ev, status, len(ev.RR.Res.Body))
 
-	core.LogOther(&ev.Log, "status", head_code)
-	core.LogOther(&ev.Log, "size", strconv.Itoa(b_len))
-	core.Log(&ev.Log, ev, "")
-	core.LogClear(&ev.Log)
-
-	return nil // no error
+	return status, nil
 }
 
 /*  ====  这两个函数可以用 event ===== */
 func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
-	var res []byte
-	var err error
-
-	flag := false
-	uriStringMd5, _ := pc.ProcessCacheConfig(ev, "")
-	_, flag = cache.GCacheContainer.ReadCache(uriStringMd5)
-
-	if ev.RR.Req.Headers["Cache-Control"] == "no-cache" {
-		flag = false
+	if status, ok := pc.Serve(ev); ok {
+		// 命中缓存：借来的上游连接没被使用，直接归还
+		releaseProxy(p)
+		logProxyAccess(ev, status, len(ev.RR.Res.Body))
+		writeProxyResponse(ev)
+		return
 	}
 
-	if !flag {
-
-		err = p.getDataFromServer(ev, req_data)
-
-		// Server error
-		if err != nil {
-			ev.RR.Res = response.DefaultServerError()
-			ev.WriteResponseClose(nil)
-			return
-		}
-		pc.CacheData(ev, "200", res, len(res))
-
-	} else {
-		core.Log(&ev.Log, ev, "")
-		core.LogClear(&ev.Log)
+	status, err := p.getDataFromServer(ev, req_data)
+	if err != nil {
+		// 上游连接状态未知，一律关闭不回收
+		p.Close()
+		ev.RR.Res = response.DefaultServerError()
+		ev.WriteResponseClose(nil)
+		return
 	}
+	releaseProxy(p)
+	pc.Store(ev, status)
+	writeProxyResponse(ev)
+}
 
-	// proxy server return valid data
+// logProxyAccess 按响应状态与长度写一条访问日志。
+func logProxyAccess(ev *core.Event, status, size int) {
+	log := dynlog.DynLogger{}
+	log.Status(status)
+	log.Size(size)
+	dynlog.Log(&log, ev)
+}
+
+// writeProxyResponse 写出响应，并按连接可复用性决定是否关闭。
+func writeProxyResponse(ev *core.Event) {
 	if ev.RR.Req.IsKeepalive() {
 		ev.WriteResponse(nil)
-		// events.Handle_event(ev)
 		ev.Reuse = true
-	} else {
-		ev.WriteResponseClose(nil)
+		return
 	}
+	ev.WriteResponseClose(nil)
 }
 
 func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 
-	err := p.getDataFromServer(ev, req_data)
+	_, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
+		// 上游连接状态未知，一律关闭不回收
+		p.Close()
 		if err == ProxyErrorSendToUpstreamTimeout || err == ProxyErrorReadFromUpstreamTimeout {
 			ev.Close()
 			ev.Reuse = false
@@ -347,12 +409,15 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else if ev.Upgrade == "websocket" {
-		fmt.Println("-------------------- websocket -------------")
 		ev.WriteResponse(nil)
 		// events.Handle_event(ev)
 		ev.Reuse = true
 	} else {
 		ev.WriteResponseClose(nil)
+	}
+	// websocket 会话由 CircleData 持有这条连接，其余归还进池
+	if ev.Upgrade != "websocket" {
+		releaseProxy(p)
 	}
 }
 
@@ -372,22 +437,31 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	// }
 	proxy, err := getProxy(ev, &ev.RR, cfg)
 	if err != nil { // one type error `ProxyErrorDialUpstream`
-		ev.RR.Res = response.DefaultServerError()
+		ev.RR.Res = DialFailureResponse(cfg)
 		ev.WriteResponseClose(nil)
 		return
 	}
 
 	if proxy.ProxyNeedCache {
-		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid, cfg.ProxyCache.Path)
+		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid,
+			cfg.ProxyCache.Path, cfg.ProxyCache.Methods, cfg.ProxyCache.MaxSize)
 		proxy.proxyNeedCache(proxyCache, req_data, ev)
 	} else {
 		proxy.proxyNoCache(req_data, ev)
 	}
 }
 
+func DialFailureResponse(cfg *listener.ListenCfg) *response.Response {
+	res := response.DefaultServerError()
+	if cfg != nil {
+		response.UseFile(res, cfg.ErrorProxy)
+	}
+	return res
+}
+
 func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	ChangeHead(cfg, ev)
-	appfirewall.HandleAppFireWall(cfg, ev.RR.Req)
+	// 应用防火墙检查已收敛到 events.EventHandler 统一执行
 	return true
 }
 

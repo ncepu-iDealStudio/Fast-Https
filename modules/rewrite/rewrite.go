@@ -1,13 +1,15 @@
+// Package rewrite 在提供服务前按规则改写 URL。
 package rewrite
 
 import (
 	"fast-https/config"
-	"fast-https/modules/core"
-	"fast-https/modules/core/listener"
+	"fast-https/core"
+	"fast-https/runtime/listener"
 )
 
-func init() {
-	core.RRHandlerRegister(config.REWRITE, ReWriteFilter, ReWriteEvent, nil)
+// Register installs the redirect handler for location type rewrite.
+func Register() {
+	core.RegisterHandler(config.REWRITE, ReWriteFilter, ReWriteEvent, nil)
 }
 
 func rewriteInfo(ev *core.Event, path string) {

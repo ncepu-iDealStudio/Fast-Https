@@ -1,5 +1,5 @@
 Name:           fast-https
-Version:        1.0.0
+Version:        1.4.0
 Release:        1%{?dist}
 Summary:        fast-https web server
 
@@ -16,8 +16,8 @@ fast-https web server
 
 %prep
 %setup -q -c -T
-wget https://go.dev/dl/go1.22.4.linux-amd64.tar.gz
-tar xvf go1.22.4.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.27.1.linux-amd64.tar.gz
+tar xvf go1.27.1.linux-amd64.tar.gz
 export PATH=$PATH:`pwd`/go/bin
 tar -zxvf %{_sourcedir}/%{name}-%{version}.tar.gz
 go env -w GO111MODULE=on
