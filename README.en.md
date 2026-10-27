@@ -1,259 +1,135 @@
-# Fast-Https Web Server
+<h1 align="center">Fast-Https</h1>
+
+<p align="center">A multi-task, high-concurrency web server and reverse proxy written in Go.<br />
+One JSON file describes listen ports and locations; a single binary runs it.</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.4.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
+  <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
+  <img src="https://img.shields.io/badge/license-GPL--2.0-334155?style=flat-square" alt="license" />
+  <img src="https://img.shields.io/badge/Gitee-ncepu--bj%2Ffast--https-C71D23?style=flat-square&logo=gitee&logoColor=white" alt="gitee" />
+</p>
+
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=go,docker,linux,windows" height="34" alt="tech stack" />
+</p>
+
+<p align="center"><a href="README.md">简体中文</a> | English</p>
 
 ## Introduction
 
-Fast-Https is a multi-task, high-concurrency web server written in Go. The current tree implements HTTP/1.1, HTTP/2, HTTPS, static files (conditional 304, Range, gzip/brotli negotiation), HTTP and HTTPS reverse proxy (upstream connection pool, response cache), TCP proxy, WebSocket upgrade, IP blacklist with tiered rate limiting, an application firewall (GuardianWAF engine), and zero-downtime config reload. On startup it can create a self-signed certificate for any server whose `listen` value contains `ssl`, which is meant for test access.
+Fast-Https accepts connections, parses HTTP/1.1, and writes responses itself — no nginx or Caddy underneath. HTTP/2 framing and HPACK are delegated to `golang.org/x/net/http2`; TLS comes from the standard library. Configuration is plain JSON, and `location` blocks read like their nginx counterparts.
 
-Installation packages are published for Windows and Linux. Packages for other platforms are added over time.
-
-The project is part of the openEuler community (<https://gitee.com/src-openeuler/fast-https>).
-
-## Stack, Versions, and Dependencies
-
-The product version is `V1.4.0` (`CURRENT_VERSION` in `config/consts.go`). The module declares **Go 1.27.0** and toolchain **go1.27.1** in `go.mod`. That is the current supported release as of October 2026; Go 1.26 is the other supported line. The root `Dockerfile` builds with `golang:1.27-alpine`. The RPM `spec` downloads Go 1.27.1.
-
-The server parses HTTP/1.1 itself; the HTTP/2 stack (framing, HPACK, flow control) is delegated to `golang.org/x/net/http2`, with only the connection intake and `core.Event` adapter kept in-tree. The standard library supplies TCP, `crypto/tls`, and config parsing (the config file is plain JSON). Development mode serves pprof from the default `net/http` mux on `0.0.0.0:10000`.
-
-Direct runtime dependencies, versions from `go.mod`:
-
-| Dependency | Version | Role |
-| --- | --- | --- |
-| `github.com/guardianwaf/guardianwaf` | v1.0.0 | Application firewall engine (tokenizer scoring: sqli/xss/lfi/cmdi/xxe/ssrf) |
-| `github.com/spf13/cobra` | v1.10.2 | CLI: `start`, `dev`, `stop`, `reload`, `install`, `uninstall`, `status` |
-| `github.com/rs/zerolog` | v1.35.1 | Console plus system, access, error, and safe JSON logs under `logs/` |
-| `golang.org/x/net` | v0.61.0 | HTTP/2 stack (`http2.Server` / `Transport` / HPACK) |
-| `github.com/klauspost/compress` | v1.17.2 | gzip compression (drop-in stdlib replacement, faster) |
-| `github.com/andybalholm/brotli` | v1.2.7 | brotli compression (`zip: ["br"]`, `Content-Encoding: br`) |
-| `golang.org/x/time` | v0.16.0 | Connection rate limit |
-| `github.com/kardianos/service` | v1.3.0 | Install and remove the OS service |
-| `fyne.io/systray` | v1.12.2 | Windows tray program in `monitor/` (maintained fork of getlantern/systray) |
-| `golang.org/x/sys` | v0.49.0 | Windows console Ctrl+Break / Ctrl+C |
-| `github.com/fatih/color` | v1.19.0 | Colored console output |
-
-Everything else comes from the standard library: TCP listening, `crypto/tls`, config parsing (`encoding/json` — the config file is plain JSON), a plain map for the cache index, `slices` for listener port de-duplication, and the in-house HTTP/1.1 parser. `github.com/stretchr/testify` v1.12.1 is test-only. Release archives are built with GoReleaser (`.goreleaser.yaml`). The snapshot version is `1.4.0-next`.
-
-## Software Architecture
-
-The server accepts connections, parses requests, and writes responses itself. `fast-https.go` is the entry point, `cmd` dispatches subcommands, `config` loads JSON, `init` prepares certificates and caches, and `core` owns listeners and protocol handling. Each configured port runs its own accept loop, then hands the connection to the HTTP/1.1 event loop or the HTTP/2 path.
-
-`location.type` selects the handler. `start` and `dev` call `cmd.RegisterHandlers` before listening, which registers the static, proxy, rewrite, and dev modules, and `cmd.RegisterServices`, which installs the blacklist, rate limit, authentication, TCP proxy, and WebSocket hooks.
-
-| `location.type` / `listen` | Package | Behavior |
-| --- | --- | --- |
-| `local` | `modules/static` | Serve files from `root` / `index` |
-| `proxy` with an `http` address | `modules/proxy` | HTTP reverse proxy |
-| `proxy` with an `https` address | `modules/proxy` | HTTPS reverse proxy |
-| `rewrite` | `modules/rewrite` | 301 with the configured `Location` |
-| `devmod` | `modules/dev_mod` | Fixed development response |
-| `listen` contains `tcp` | `modules/proxy_tcp` | Bidirectional TCP proxy, no HTTP parse |
-| `listen` contains `ssl` | `runtime/listener` | TLS |
-| `listen` contains `h2` | `runtime/events` | Delegated to `golang.org/x/net/http2` |
-
-A request passes connection filters (per-IP token-bucket rate limit and IP blacklist in `modules/safe`), per-location access counting, optional Basic auth (`modules/auth`), and then the application firewall (`modules/appfirewall`, GuardianWAF scoring engine — active for locations with `appfirewall` or a `waf` block; hits return 403; `waf.mode: monitor` only logs; without configuration the engine is never built and the check is free). The firewall check runs once per request from the shared event handler, so every location type is covered.
-
-`HEAD` keeps `Content-Length` and `Content-Type` and does not write a body. A body with `Content-Length` is read to that length. `Transfer-Encoding: chunked` is read chunk by chunk; a bad chunk or a body over `http.servers_limit.max_body_size` closes the connection. Static responses carry `Last-Modified`: a `If-Modified-Since` not older than the file mtime gets a 304; a single-segment `Range` gets 206 + `Content-Range` (malformed or out-of-range gets 416), and the body is written via `io.Copy` (sendfile zero-copy on Linux). The location `zip` setting drives compression negotiation: `["gzip"]` serves gzip only, `["br"]` serves brotli only, `["gzip","br"]` prefers brotli when the client accepts it and falls back to gzip; compressed responses carry `Vary: Accept-Encoding`. Optional `error_page.not_found` and `error_page.proxy` replace the 404 body and the upstream dial-failure body when those files can be read. A missing file keeps the default response.
-
-When `listen` contains `h2`, an unknown frame type is discarded and the next frame is read. An illegal HPACK index closes that stream. If the peer flow-control window cannot hold a DATA payload, the write loop stops and the connection closes.
-
-### Project Structure
+How a request travels:
 
 ```text
-fast-https/
-├── fast-https.go                 # Entry point, calls cmd.RootCmd()
-├── cmd/                          # start / dev / stop / reload / install / uninstall / status
-│   ├── commands.go
-│   ├── unix_linux_amd64.go       # Linux amd64 daemon
-│   ├── unix_other.go             # Daemon no-op on other platforms
-│   ├── reload_windows.go         # Windows reload signal
-│   └── reload_other.go           # Non-Windows reload signal
-├── config/                       # Runtime configuration
-│   ├── fast-https.json           # Source of truth
-│   ├── conf.d/                   # Extra JSON loaded from http.include
-│   ├── mime.json                 # Extension to Content-Type
-│   ├── cert/                     # Site certificates; created by init when missing
-│   ├── dev.yaml                  # Example only; not loaded at runtime
-│   ├── config.go                 # Parse, validate, reload
-│   ├── consts.go                 # Paths, version, defaults
-│   ├── base_dir.go               # Default base directory ./
-│   └── base_dir_rpm.go           # /usr/share/fast-https/ when built with -tags=rpm
-├── init/
-│   ├── init.go                   # Config, logs, certificates, cache
-│   └── autocert.go               # Self-signed root and site certificates
-├── core/                         # Contracts: Event, handler registry, lifecycle hooks
-│   ├── event.go                  # Event / RRcircle / RRcircleHandler
-│   ├── registry.go               # Map registry: RegisterHandler / Handler
-│   ├── services.go               # Connect, listen, auth and shutdown hooks
-│   ├── handlers.go               # Missing-handler check and type names
-│   └── commands.go               # Default command parser
-├── runtime/                      # Data-plane runtime; must not import modules
-│   ├── server/                   # Start, signals, hot reload
-│   ├── listener/                 # Listeners from the listen field
-│   ├── events/                   # Connection and request dispatch
-│   ├── request/  response/
-│   ├── filters/
-│   └── dynlog/                   # Access-log field assembly
-├── modules/                      # Pluggable features
-│   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
-│   ├── auth/  safe/  cache/  compress/  appfirewall/
-│   └── dev_mod/
-├── infra/                        # Infrastructure; must not depend on config
-│   ├── logging/                  # Single log exit: console plus four JSON files
-│   └── files/  color/  timeutil/
-├── output/                       # Logo and startup banners
-├── monitor/                      # Windows tray program (separate main)
-├── httpdoc/root/                 # Default static site and self-signed root certificate
-├── tests/                        # Automated tests; scripts/ and single/ are manual helpers, not go test
-├── docker/                       # CentOS 7 and Ubuntu Dockerfiles
-├── Dockerfile                    # Multi-stage image, exposes 8080 and 443
-├── spec                          # RPM spec; build uses -tags=rpm
-├── shell/.acme.sh/               # Bundled acme.sh; the Go process does not call it
-├── engine.sh                     # Unused path: rewrites the engine id and builds master/slave; not go build .
-├── .goreleaser.yaml              # Linux, Darwin, and Windows release
-└── .workflow/go-test.yml         # Gitee Go: go test ./... on push and merge requests
+connection → rate limit / IP blacklist → location routing → application firewall → static file / reverse proxy / TCP / WebSocket → response
 ```
 
-### Service Startup
+- **Static sites**: `Last-Modified` conditional requests return 304, a single `Range` returns 206/416, and gzip / brotli are negotiated from `Accept-Encoding`. A directory requested without a trailing slash is redirected with 301.
+- **Reverse proxy**: pooled upstream connections for HTTP/HTTPS, response cache (map index + LRU), WebSocket upgrade, and bidirectional TCP forwarding.
+- **Security**: per-IP token-bucket rate limiting, IP blacklist (IPv6 ranges included), Basic auth, and the GuardianWAF application firewall (sqli/xss/lfi/cmdi/xxe/ssrf, optionally log-only).
+- **Operations**: `start` / `stop` / `reload` / `status` / `check` / `dev`, config reload without dropping connections, a Windows tray program, and install as a system service.
+- **Packaging**: release archives for Linux / macOS / Windows, an RPM spec, and three Docker base images.
 
-1. `fast-https.go` runs `cmd.RootCmd()`. With no subcommand, the process starts as `start`. Console log level defaults to `info` in `infra/logging`.
-2. `start` and `dev` pre-check `config/fast-https.json` and its includes, scan ports, and refuse to start when a live pid is already recorded.
-3. After the logo, `init.InitSystem()` loads config and `mime.json`, starts the message logger, creates or loads certificates, and restores the disk cache and its expiry loop.
-4. Outside a container, Linux amd64 `start` forks without changing the working directory and writes the child pid to `fast-https.pid`. Windows, `FASTHTTPS_FOREGROUND=1`, and container marker files keep the process in the foreground and write the same pid file. `dev` does not daemonize, raises the console log level to `trace`, and serves pprof on `0.0.0.0:10000`.
-5. `server.ServerInit()` installs the signal loop, opens listeners from config, initializes the safe module, and registers dynamic logs.
-6. Each port accepts in its own goroutine. A `listen` value that contains `h2` uses HTTP/2; every other listener uses the HTTP/1.1 event loop.
+Core dependencies (versions live in `go.mod`; everything else is the standard library):
 
-Signals:
-
-- `SIGTERM` and `SIGQUIT` stop accepting, wait up to 5 seconds for accepted requests to finish, then exit
-- `SIGINT`: in daemon mode it reloads configuration without exiting; in `dev` foreground mode it shuts down gracefully (Ctrl+C exits, 2026-10-25)
-- `reload` reads the pid file and sends `SIGINT`. On Windows it tries Ctrl+Break, then Ctrl+C
-- Stop the process with `stop`, which sends `Kill` to the pid and does not wait for in-flight requests
-
-Reload rereads configuration, hot-updates listeners that stay up, closes removed ports, and starts goroutines for new ports. On a removed port, the accept loop and in-flight HTTP/1.1 connections exit.
-
-## Installation
-
-1. Download a release from <https://gitee.com/ncepu-bj/fast-https/releases/>
-2. Extract it on the server
-3. Edit `config/fast-https.json`. Extra site files belong in the directories listed by `http.include` (default `config/conf.d`)
+| Dependency | Role |
+| --- | --- |
+| `spf13/cobra` | CLI entry point and subcommands |
+| `rs/zerolog` | Console output plus system, access, error, and security JSON logs |
+| `golang.org/x/net` | HTTP/2 stack |
+| `guardianwaf/guardianwaf` | Application firewall engine |
+| `klauspost/compress`, `andybalholm/brotli` | gzip and brotli compression |
+| `kardianos/service`, `fyne.io/systray` | System service install, Windows tray |
 
 ## Quick Start
 
-### Runtime Config Source
-
-- The runtime source of truth is `config/fast-https.json`
-- Startup loads that file, then every JSON path in `http.include` (default `config/conf.d`)
-- `config/mime.json` maps file extensions to Content-Type
-- `config/dev.yaml` is an example and is not loaded
-
-### Common Commands
-
 ```bash
-# Foreground or daemon start (no args is the same as start)
-go run fast-https.go start
+# Option 1: release archive
+# Download the archive for your platform from https://gitee.com/ncepu-bj/fast-https/releases, then:
+./fast-https start
 
-# Development mode: console log level trace and pprof on port 10000
-go run fast-https.go dev
-
-go run fast-https.go stop
-go run fast-https.go reload
-go run fast-https.go status
-go run fast-https.go check
-go run fast-https.go install
-go run fast-https.go uninstall
+# Option 2: build from source (Go 1.27)
+go build -o fast-https . && ./fast-https start
 ```
 
-`status` reads `fast-https.pid`. It prints the pid and exits 0 when that process is running. It exits non-zero when the pid file is missing or the process is gone.
-
-`check` validates `config/fast-https.json` and `http.include`. It does not listen and does not write a pid file. Success prints `config ok` and exits 0. Failure prints the field or include path and exits non-zero. `start` still runs the same check before listening.
-
-A successful `reload` reopens the four log files under the current `log_root`. If the new directory cannot be created, logging stays on the previous files.
-
-### Minimal Config
-
-`config/fast-https.json`:
+A minimal `config/fast-https.json` is enough to serve files:
 
 ```json
 {
-   "http": {
-      "server": [
-         {
-            "listen": 8080,
-            "server_name": "localhost",
-            "location": [
-               {
-                  "url": "/",
-                  "type": "local",
-                  "root": "./httpdoc/root",
-                  "index": ["index.html", "index.htm"]
-               }
-            ]
-         }
-      ],
-      "include": ["./config/conf.d"]
-   }
+  "http": {
+    "server": [
+      {
+        "listen": 8080,
+        "server_name": "localhost",
+        "location": [
+          { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] }
+        ]
+      }
+    ],
+    "include": ["./config/conf.d"]
+  }
 }
 ```
 
-The repository default also serves `443 ssl` for `localhost`, using `config/cert/localhost.pem` and `config/cert/localhost-key.pem`.
+```bash
+curl -I http://127.0.0.1:8080/    # expect 200 and Server: fast-https
+```
 
-## Usage
+| Command | What it does |
+| --- | --- |
+| `./fast-https start` | Start the server (`start` is the default). Goes to the background on Linux / macOS; stays in the foreground under containers and systemd |
+| `./fast-https dev` | Foreground with log level 6 and pprof on `0.0.0.0:10000` |
+| `./fast-https stop` | Stop. Sends `SIGTERM` on Unix for a graceful shutdown; running it again is a no-op |
+| `./fast-https reload` | Validate the new config, then reload; a failed validation keeps the old config |
+| `./fast-https status` | Read the pid file and report whether the server is running |
+| `./fast-https check` | Validate the config only — no listening, no pid file |
+| `./fast-https install` | Install as a system service |
 
-Product manual: <https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#>
+## Documentation
 
-Release archives ship a single usage document, `docs/usage.html` (one self-contained HTML file generated from `docs/usage.md` with `go run ./tools/docgen`; the version comes from `CURRENT_VERSION`). The rest of `docs/` is development and design material and is not packaged.
+| Document | Contents |
+| --- | --- |
+| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | Deployment and operations: config keys, sites, certificates, proxy, cache, WAF |
+| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | The same guide in Chinese |
+| [docs/usage.md](docs/usage.md) | In-repo source of the usage guide; `docs/usage.html` is generated from it and ships with releases |
+| [docs/feature/](docs/feature/README.md) | One page per feature, with config samples and implementation notes |
+| [docs/develop/](docs/develop/README.md) | Build environment, tests, code standards, adding config keys, debugging, release |
+| [docs/architecture-map.md](docs/architecture-map.md) | Package inventory and dependency direction |
+| [docs/nginx-core-gap.md](docs/nginx-core-gap.md) | Feature-by-feature comparison with nginx |
 
-In-repo docs ([docs/README.md](docs/README.md) is the index):
+The full index is [docs/README.md](docs/README.md).
 
-- [docs/usage.md](docs/usage.md): operations-facing usage document; generates the `docs/usage.html` that ships in release archives
-- [docs/feature/](docs/feature/README.md): 23 per-feature pages (0-19 implemented, 20-22 planned), each with config examples and implementation notes
-- [docs/develop/](docs/develop/README.md): developer guides (environment, testing, standards, config development, debugging, release) plus historical plans under `develop/plans/`
-- [docs/architecture-map.md](docs/architecture-map.md): current package inventory and dependency directions
+## Project Structure
 
-Test layout: [tests/readme.md](tests/readme.md).
+```text
+fast-https/
+├── fast-https.go        Entry point, calls cmd.RootCmd()
+├── cmd/                 CLI: start / dev / stop / reload / status / check / install
+│                        daemon_unix.go daemonizes by re-exec, daemon_windows.go is a no-op
+├── config/              Config parsing, validation, and reload; fast-https.json is the single source
+├── init/                Startup initialization: config, logging, certificates, cache
+├── core/                Contracts: Event, handler registry, lifecycle hooks
+├── runtime/             Data plane: listeners, connections, request/response, filters, reload
+├── modules/             Features: static / proxy / proxy_tcp / websocket / cache /
+│                        compress / auth / safe / appfirewall / rewrite
+├── infra/               Infrastructure: logging / color / timeutil / banner
+├── monitor/             Windows tray program (separate main)
+├── httpdoc/root/        Default site and the self-signed root certificate directory
+├── docs/                Feature, development, and test documentation
+├── tests/               Unit tests and end-to-end tests
+└── spec/ docker/        RPM spec and container images
+```
 
-## Packaging
+Layering rule: `core` holds contracts only, `runtime` never imports `modules`, and feature packages are wired at startup by `cmd.RegisterHandlers` / `cmd.RegisterServices`. Details in [docs/develop/2-code-standards.md](docs/develop/2-code-standards.md).
 
-The Go version is declared in `go.mod` (language 1.27.0, toolchain go1.27.1). The product version is **V1.4.0**. The RPM version is `1.4.0`. GoReleaser snapshots use `1.4.0-next`. Run the commands from the repository root.
+## More
 
-`LoadFile` turns site roots, certificates, the log directory, and include paths into absolute paths. Images set `FASTHTTPS_FOREGROUND=1`, so the process stays in the foreground and does not fork or change directory.
-
-1. Server binary
-
-   ```bash
-   go build -o fast-https .
-   ```
-
-   Run it with `start` or `dev`, for example `./fast-https start`.
-
-2. Release archives
-
-   `.goreleaser.yaml` builds Linux and Darwin (`amd64`, `arm64`, `tar.gz`) and Windows (`amd64`, `zip`). The Windows binary uses `-H=windowsgui`. A before hook compiles `monitor/monitor.exe` and the zip contains it. Output goes to `dist/`.
-
-   ```bash
-   goreleaser release -f .goreleaser.yaml --snapshot --clean
-   ```
-
-   See [monitor/README.md](monitor/README.md) for the tray program.
-
-3. RPM
-
-   `spec` is version `1.4.0` and builds with `-tags=rpm`, which sets the base directory to `/usr/share/fast-https/`.
-
-4. Container images
-
-   All three Dockerfiles compile the current source with `golang:1.27-alpine`. They copy config JSON and the default site, create empty cert, include, and log directories, and expose 8080 and 443.
-
-   ```bash
-   docker build -t fast-https .
-   docker build -f docker/Dockerfile_ubuntu -t fast-https:ubuntu .
-   docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .
-   ```
-
-   Runtime bases are Alpine, Ubuntu 24.04, and CentOS 7. The Ubuntu and CentOS images install into `/usr/local/fast-https` and set `Fast-Https_VERSION=1.4.0`.
-
-## Contributing
-
-1. Fork this repository
-2. Create a Feat_xxx branch
-3. Commit your changes
-4. Open a pull request
+- Packaging and release (binary, RPM, Docker, GoReleaser): [docs/develop/5-release.md](docs/develop/5-release.md)
+- Test layout and how to run them: [tests/readme.md](tests/readme.md); coverage and stress tests: [docs/test/](docs/test/README.md)
+- Startup flow and signal handling: [docs/about.md](docs/about.md)
+- Contributing: fork the repo, create a `Feat_xxx` branch, commit, and open a pull request
+- License [GPL-2.0](LICENSE); the project is part of the openEuler community (<https://gitee.com/src-openeuler/fast-https>)

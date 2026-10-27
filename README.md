@@ -16,6 +16,8 @@
   <img src="https://skillicons.dev/icons?i=go,docker,linux,windows" height="34" alt="tech stack" />
 </p>
 
+<p align="center">简体中文 | <a href="README.en.md">English</a></p>
+
 ## 介绍
 
 Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx / Caddy 这类现成服务器；HTTP/2 的分帧与 HPACK 交给 `golang.org/x/net/http2`，TLS 用标准库。配置是纯 JSON，`location` 的写法与 nginx 的心智接近。
