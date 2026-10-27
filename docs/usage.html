@@ -133,6 +133,7 @@ curl -I http://127.0.0.1:8080/</code></pre>
 <p><code>ssl_certificate</code> 指向的文件不存在时，启动阶段会用它自己签发的本地 CA 生成一张自签证书，可以直接用 <code>curl -k</code> 验证。浏览器不信任这张证书，正式环境请替换为权威 CA 签发的证书文件。</p>
 <h3 id="sec-12">4.4 停止</h3>
 <pre><code class="language-bash">./fast-https stop</code></pre>
+<p>Linux / macOS 上 <code>stop</code> 发送 <code>SIGTERM</code>，服务会关闭监听并等在途请求处理完（最长 <code>GracefulStopTimeout</code>）再退出，pid 文件随之删除；重复执行 <code>stop</code> 视为「本来就没在跑」，返回 0。Windows 上没有信号语义，直接终止进程。容器内、systemd（<code>INVOCATION_ID</code>）与设置了 <code>FASTHTTPS_FOREGROUND=1</code> 时 <code>start</code> 不转后台，交由进程管理器托管。</p>
 <h2 id="sec-13">5. 配置文件</h2>
 <h3 id="sec-14">5.1 顶层键</h3>
 <table>

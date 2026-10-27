@@ -44,8 +44,8 @@ go tool cover -func=cover.out
 | runtime/listener | 已补测 | SortByPort 构建/去重/LisType、certMatches（通配/预解析/坏 DER） |
 | runtime/dynlog | 已补测 | pathTypeName 全枚举 + fieldTime 占位 |
 | core | 已补测 | Services 钩子注入/nil 安全/撤销注册、DefaultParseCommandHandler、EventReuse |
-| runtime/server | 中 | 信号/停机/accept 已测；Daemon fork 仅 Linux |
-| cmd | 低（保留） | 命令 handler 靠 unit_test/cmd 行为测试；CLI 主循环与平台 fork 不做单测 |
+| runtime/server | 中 | 信号/停机/accept 已测；后台化 exec 自身仅 Linux 手工验证 |
+| cmd | 低（保留） | 命令 handler 靠 unit_test/cmd 行为测试；writePidTo / waitProcessGone 已单测，CLI 主循环与平台后台化不做单测 |
 | init | 部分 | randomSerialNumber 已测；InitSystem/newRoot/newCert 为启动编排与 ACME 路径，靠 E2E |
 | monitor | 不测 | Windows 托盘 GUI 封装 |
 

@@ -1,298 +1,133 @@
-# Fast-Https Web服务器
+<h1 align="center">Fast-Https</h1>
+
+<p align="center">用 Go 写的多任务、高并发 Web 服务器与反向代理。<br />
+一份 JSON 描述监听端口与 location，单文件二进制直接跑。</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.4.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
+  <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
+  <img src="https://img.shields.io/badge/license-GPL--2.0-334155?style=flat-square" alt="license" />
+  <img src="https://img.shields.io/badge/Gitee-ncepu--bj%2Ffast--https-C71D23?style=flat-square&logo=gitee&logoColor=white" alt="gitee" />
+</p>
+
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=go,docker,linux,windows" height="34" alt="tech stack" />
+</p>
 
 ## 介绍
 
-Fast-Https 是一款用 Go 开发的多任务、高并发 Web 服务器。当前实现覆盖 HTTP/1.1、HTTP/2、HTTPS、静态站点（条件请求 304、Range 分段、gzip/brotli 内容协商压缩）、HTTP/HTTPS 反向代理（上游连接池、响应缓存）、TCP 代理、WebSocket 升级、IP 黑名单与多级限流、应用防火墙（GuardianWAF 引擎）与不停机的配置热重载。测试环境下，服务启动时可以为带 `ssl` 的站点自动生成自签名证书。
+Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx / Caddy 这类现成服务器；HTTP/2 的分帧与 HPACK 交给 `golang.org/x/net/http2`，TLS 用标准库。配置是纯 JSON，`location` 的写法与 nginx 的心智接近。
 
-目前提供 Windows 与 Linux 安装包，其它平台陆续补充。
-
-Fast-Https 已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-https>），欢迎更多开发者一起完善。
-
-## 技术栈及软件版本和相关重要依赖
-
-当前产品版本是 `V1.4.0`（`config/consts.go` 的 `CURRENT_VERSION`）。
-模块声明的 Go 版本是 **1.27.0**，工具链固定为 **go1.27.1**，见 `go.mod`。这是 2026 年 10 月仍在官方支持期内的当前主流版本，同时受支持的还有 1.26。根目录 `Dockerfile` 使用 `golang:1.27-alpine` 编译；`spec` 里的 RPM 构建脚本下载 Go 1.27.1。
-
-
-服务自己解析 HTTP/1.1。HTTP/2 的协议栈（分帧、HPACK、流状态机、流量控制）委托给 `golang.org/x/net/http2`，项目只保留连接接入与 `core.Event` 适配层。标准库提供 TCP、`crypto/tls` 与配置解析（配置文件是纯 JSON）。开发模式在 `0.0.0.0:10000` 使用 `net/http` 的默认多路复用器提供 pprof。
-
-运行时直接依赖如下，版本以 `go.mod` 为准：
-
-| 依赖 | 版本 | 用途 |
-| --- | --- | --- |
-| `github.com/guardianwaf/guardianwaf` | v1.0.0 | 应用防火墙引擎（分词评分，sqli/xss/lfi/cmdi/xxe/ssrf） |
-| `github.com/spf13/cobra` | v1.10.2 | 命令行：`start`、`dev`、`stop`、`reload`、`install`、`uninstall`、`status` |
-| `github.com/rs/zerolog` | v1.35.1 | 控制台与 `logs/` 下的系统、访问、错误、安全 JSON 日志 |
-| `golang.org/x/net` | v0.61.0 | HTTP/2 协议栈（`http2.Server` / `Transport` / HPACK） |
-| `github.com/klauspost/compress` | v1.17.2 | gzip 压缩（标准库 API 平替，速度更快） |
-| `github.com/andybalholm/brotli` | v1.2.7 | brotli 压缩（`zip: ["br"]`，`Content-Encoding: br`） |
-| `golang.org/x/time` | v0.16.0 | 连接限流 |
-| `github.com/kardianos/service` | v1.3.0 | 安装、卸载系统服务 |
-| `fyne.io/systray` | v1.12.2 | Windows 托盘程序 `monitor/`（getlantern/systray 的活跃分支） |
-| `golang.org/x/sys` | v0.49.0 | Windows 控制台 Ctrl+Break / Ctrl+C |
-| `github.com/fatih/color` | v1.19.0 | 控制台着色 |
-
-其余能力全部用标准库：TCP 监听、`crypto/tls`、配置解析（`encoding/json`，配置文件是纯 JSON）、缓存索引用内置 map、监听端口去重用 `slices`、HTTP/1.1 解析自研。测试依赖 `github.com/stretchr/testify` v1.12.1，不参与服务器二进制。发布包用 GoReleaser，配置是 `.goreleaser.yaml`。快照版本号是 `1.4.0-next`。
-
-## 软件架构
-
-服务自己完成监听、请求解析和响应写出。入口在 `fast-https.go`，命令由 `cmd` 分发，配置由 `config` 加载，初始化在 `init`，连接与协议处理在 `core`。每个监听端口由独立协程 `Accept`，再按连接类型进入 HTTP/1.1 事件循环或 HTTP/2 处理。
-
-`location.type` 决定请求交给哪个处理函数。`start` 和 `dev` 在监听前调用 `cmd.RegisterHandlers` 登记静态文件、反向代理、重写和开发模块，并调用 `cmd.RegisterServices` 装入黑名单、限流、认证、TCP 转发、WebSocket 和应用防火墙（经 `core.Services` 钩子注入，`runtime`/`core` 不依赖功能包）。
-
-| `location.type` / `listen` | 处理位置 | 行为 |
-| --- | --- | --- |
-| `local` | `modules/static` | 按 `root` / `index` 返回本地文件 |
-| `proxy`，地址以 `http` 开头 | `modules/proxy` | HTTP 反向代理 |
-| `proxy`，地址以 `https` 开头 | `modules/proxy` | HTTPS 反向代理 |
-| `rewrite` | `modules/rewrite` | 返回 301，`Location` 为配置中的重写地址 |
-| `devmod` | `modules/dev_mod` | 返回固定的开发响应 |
-| `listen` 含 `tcp` | `modules/proxy_tcp` | 按 TCP 双向转发，不走 HTTP 解析 |
-| `listen` 含 `ssl` | `runtime/listener` | TLS |
-| `listen` 含 `h2` | `runtime/events` | 交给 `golang.org/x/net/http2` 处理 |
-
-同一条请求依次经过：连接过滤（per-IP 令牌桶限流、IP 黑名单，`modules/safe`）→ location 访问计数限流 → 可选的 Basic 认证（`modules/auth`）→ 应用防火墙（`modules/appfirewall`，GuardianWAF 分词评分引擎，配置了 `appfirewall` 或 `waf` 的 location 生效，命中回 403；`waf.mode: monitor` 只记录不阻断；未配置时引擎不构建、零开销）。防火墙检查在 `events.EventHandler` 统一执行，每请求恰好一次，所有 location 类型默认受保护。
-
-`HEAD` 保留 `Content-Length` 和 `Content-Type`，不写正文。带 `Content-Length` 的请求体按长度读取。`Transfer-Encoding: chunked` 按块读完；块格式错误或超过 `http.servers_limit.max_body_size` 时关闭连接。静态响应带 `Last-Modified`：`If-Modified-Since` 不早于文件修改时间回 304；支持单段 `Range`（206 + `Content-Range`，畸形/越界回 416），文件正文经 `io.Copy` 在 Linux 上走 sendfile 零拷贝。location 的 `zip` 配置决定压缩协商：`["gzip"]` 只出 gzip，`["br"]` 只出 brotli，`["gzip","br"]` 客户端认 br 时优先 br 否则回退 gzip，配置了压缩的响应带 `Vary: Accept-Encoding`。location 可以选配 `error_page.not_found` 和 `error_page.proxy`：文件可读时分别替换 404 和上游拨号失败的正文，文件不存在时仍用默认响应。
-
-`listen` 含 `h2` 时，TLS 握手与 ALPN 协商由 `net/http` 完成，`h2` 协商成功后进入 `http2.Server`；重载或停止时通过 `http.Server.Shutdown` 发送 GOAWAY 并等待在途 stream，最长 `5s`。响应头使用 HPACK 静态表和动态表压缩，帧大小受对端 `SETTINGS_MAX_FRAME_SIZE` 约束，逐跳首部（`Connection` 等）不会写到 HTTP/2 响应里。
-
-### 项目结构
+一条请求的处理链路：
 
 ```text
-fast-https/
-├── fast-https.go                 # 程序入口，调用 cmd.RootCmd()
-├── cmd/                          # 命令行：start / dev / stop / reload / install / uninstall / status
-│   ├── commands.go
-│   ├── unix_linux_amd64.go       # Linux amd64 守护进程
-│   ├── unix_other.go             # 其它平台的守护进程空实现
-│   ├── reload_windows.go         # Windows 重载信号
-│   └── reload_other.go           # 非 Windows 重载信号
-├── config/                       # 运行时配置
-│   ├── fast-https.json           # 配置真源
-│   ├── conf.d/                   # 由 http.include 继续加载的 json
-│   ├── mime.json                 # Content-Type 映射
-│   ├── cert/                     # 站点证书；缺失时由 init 生成
-│   ├── dev.yaml                  # 开发参数示例，运行时不会加载
-│   ├── config.go                 # 解析、校验、重载
-│   ├── consts.go                 # 路径、版本、默认值
-│   ├── base_dir.go               # 默认工作目录 ./
-│   └── base_dir_rpm.go           # -tags=rpm 时安装到 /usr/share/fast-https/
-├── init/
-│   ├── init.go                   # 配置、日志、证书、缓存初始化
-│   └── autocert.go               # 自签名根证书与站点证书
-├── core/                         # 契约层：Event、处理器注册表、生命周期钩子
-│   ├── event.go                  # Event / RRcircle / RRcircleHandler
-│   ├── registry.go               # map 注册表：RegisterHandler / Handler
-│   ├── services.go               # 连接、监听、鉴权、WAF 与停机钩子
-│   ├── handlers.go               # handler 缺失检查与类型名
-│   └── commands.go               # 默认命令解析
-├── runtime/                      # 数据面运行时（不依赖 modules）
-│   ├── server/                   # 启停、信号、热重载
-│   ├── listener/                 # 按 listen 建监听器
-│   ├── events/                   # 连接与请求分发
-│   ├── request/  response/       # 报文解析与默认响应
-│   ├── filters/                  # 连接、监听、解析、路由过滤
-│   └── dynlog/                   # 访问日志字段组装
-├── modules/                      # 可插拔功能
-│   ├── static/  proxy/  proxy_tcp/  rewrite/  websocket/
-│   ├── auth/  safe/  cache/  compress/  appfirewall/
-│   └── dev_mod/                  # location type = devmod
-├── infra/                        # 基础设施：不依赖 config
-│   ├── logging/                  # 唯一日志出口：控制台 + 四路 JSON 文件
-│   ├── color/  timeutil/
-│   └── banner/                   # 彩色启动横幅与初始化阶段提示
-├── monitor/                      # Windows 托盘程序（独立 main）
-├── httpdoc/root/                 # 默认静态站点与自签名根证书存放目录
-├── docs/                         # 文档：feature/（功能）+ develop/（开发）+ plans（规划）
-├── tests/                        # 自动测试；scripts/ 与 single/ 是手工脚本和示例，不进入 go test
-├── docker/                       # CentOS 7、Ubuntu 镜像
-├── Dockerfile                    # 多阶段构建，暴露 8080 与 443
-├── spec                          # RPM spec，构建时使用 -tags=rpm
-├── shell/.acme.sh/               # 随仓库附带的 acme.sh，Go 启动流程不会调用
-├── engine.sh                     # 未启用路径：改写引擎标识后另编 master/slave，不是 go build .
-├── .goreleaser.yaml              # Linux、Darwin、Windows 发布
-└── .workflow/go-test.yml         # Gitee Go：推送和合并请求上执行 go test ./...
+连接 → 限流 / IP 黑名单 → location 路由 → 应用防火墙 → 静态文件 / 反向代理 / TCP / WebSocket → 响应
 ```
 
-### 服务启动流程
+- **静态站点**：`Last-Modified` 条件请求返回 304，单段 `Range` 返回 206/416，按 `Accept-Encoding` 协商 gzip / brotli；目录缺结尾斜杠时 301 到带斜杠的地址。
+- **反向代理**：HTTP/HTTPS 上游连接池复用、响应缓存（map 索引 + LRU）、WebSocket 升级、TCP 双向转发。
+- **安全**：per-IP 令牌桶限流、IP 黑名单（含 IPv6 网段）、Basic 认证、GuardianWAF 应用防火墙（sqli/xss/lfi/cmdi/xxe/ssrf，可只记录不阻断）。
+- **运维**：`start` / `stop` / `reload` / `status` / `check` / `dev`，配置热重载不断连接；Windows 有托盘程序，支持安装为系统服务。
+- **交付**：Linux / macOS / Windows 安装包、RPM、三套 Docker 基础镜像。
 
-1. `fast-https.go` 执行 `cmd.RootCmd()`。没有子命令时按 `start` 处理。控制台日志级别由 `infra/logging` 默认为 `info`。
-2. `start` / `dev` 先做预检：校验 `config/fast-https.json` 及其 `include`、扫描端口、确认没有已在运行的实例。
-3. 打印 Logo 后调用 `init.InitSystem()`：加载配置与 `mime.json`、打开四路 JSON 日志文件、生成或加载证书、从磁盘恢复缓存并启动过期清理。
-4. `start` 在容器外的 Linux amd64 上会 fork，并保持当前工作目录，再把子进程 pid 写入 `fast-https.pid`。Windows，以及设置了 `FASTHTTPS_FOREGROUND=1` 或检测到容器标记文件时，进程保持前台并写同一 pid 文件。`dev` 不进入守护进程，控制台日志级别提到 `trace`，并在 `0.0.0.0:10000` 打开 pprof。
-5. `server.ServerInit()` 注册信号处理，按配置创建监听器，再初始化安全模块、构建应用防火墙引擎（reload 时幂等重建）并注册动态日志。
-6. 每个端口一个协程接受连接。`listen` 含 `h2` 时走 HTTP/2，其余走 HTTP/1.1 事件循环。
+核心依赖（版本以 `go.mod` 为准，其余均为标准库）：
 
-信号处理：
+| 依赖 | 用途 |
+| --- | --- |
+| `spf13/cobra` | 命令行入口与子命令 |
+| `rs/zerolog` | 控制台 + 系统/访问/错误/安全四路 JSON 日志 |
+| `golang.org/x/net` | HTTP/2 协议栈 |
+| `guardianwaf/guardianwaf` | 应用防火墙引擎 |
+| `klauspost/compress`、`andybalholm/brotli` | gzip 与 brotli 压缩 |
+| `kardianos/service`、`fyne.io/systray` | 系统服务安装、Windows 托盘 |
 
-- `SIGTERM`、`SIGQUIT`：停止接受新连接，最多等待 5 秒让已接受的请求结束，然后退出
-- `SIGINT`：守护进程模式重载配置，不退出进程；`dev` 前台模式改为优雅停机（Ctrl+C 直接退出，2026-10-25）
-- `reload` 读取 pid 后发送 `SIGINT`。Windows 上先发 Ctrl+Break，再试 Ctrl+C
-- 停止进程用 `stop`。它向 pid 发送 `Kill`，不等待在途请求
-
-重载会重新读取配置，热更新仍在监听的端口，关闭已删除的端口，并为新增端口启动协程。被删掉的端口上，接受循环和尚未结束的 HTTP/1.1 连接会退出。
-
-## 安装教程
-
-1. 在 <https://gitee.com/ncepu-bj/fast-https/releases/> 获取对应版本的安装包
-2. 解压到目标目录
-3. 修改 `config/fast-https.json`，需要拆分的站点配置放到 `http.include` 指向的目录（默认 `config/conf.d`）
-
-## 开发模式说明
-
-### 配置真源说明
-
-- 运行时唯一配置真源是 `config/fast-https.json`
-- 启动时读取该文件，再按 `http.include` 加载其中列出的 json（默认包含 `config/conf.d`）
-- `config/mime.json` 提供扩展名到 Content-Type 的映射
-- `config/dev.yaml` 只是开发参数示例，运行时不会加载
-
-### 启动常用命令
+## 快速开始
 
 ```bash
-# 前台或守护进程启动（无参数等同 start）
-go run fast-https.go start
+# 方式一：安装包
+# 到 https://gitee.com/ncepu-bj/fast-https/releases 下载对应平台压缩包，解压后进入目录
+./fast-https start
 
-# 开发模式：日志级别 6，并打开 10000 端口的 pprof
-go run fast-https.go dev
-
-# 停止、重载、安装为系统服务、卸载
-go run fast-https.go stop
-go run fast-https.go reload
-go run fast-https.go status
-go run fast-https.go check
-go run fast-https.go install
-go run fast-https.go uninstall
+# 方式二：源码构建（需要 Go 1.27）
+go build -o fast-https . && ./fast-https start
 ```
 
-`status` 读取 `fast-https.pid`。进程在运行时打印 pid 并以 0 退出；没有 pid 文件，或 pid 对应的进程已经不在时，以非 0 退出。
-
-`check` 只校验 `config/fast-https.json` 和 `http.include`，不监听端口，也不写 pid 文件。通过时打印 `config ok` 并以 0 退出。失败时打印字段或 include 路径，并以非 0 退出。`start` 的预检仍然会做同一项校验。
-
-`reload` 成功后会按当前 `log_root` 重新打开 `logs` 下的四份日志。新目录打不开时，继续写原来的文件。
-
-### 开发模式特性
-
-1. **详细日志**
-   - 日志级别设为 6
-   - 保留初始化阶段的控制台输出
-
-2. **调试入口**
-   - `0.0.0.0:10000` 使用默认 HTTP 多路复用器，可接 pprof
-   - 示例：`go tool pprof http://localhost:10000/debug/pprof/profile`
-
-3. **进程行为**
-   - 不进入 Linux 守护进程
-   - 证书文件不存在时，`init.CertInit` 会为带 `ssl` 的 `server_name` 生成自签名证书
-
-### 最小配置
-
-`config/fast-https.json`：
+`config/fast-https.json` 写一份最小配置即可访问：
 
 ```json
 {
-   "http": {
-      "server": [
-         {
-            "listen": 8080,
-            "server_name": "localhost",
-            "location": [
-               {
-                  "url": "/",
-                  "type": "local",
-                  "root": "./httpdoc/root",
-                  "index": ["index.html", "index.htm"]
-               }
-            ]
-         }
-      ],
-      "include": ["./config/conf.d"]
-   }
+  "http": {
+    "server": [
+      {
+        "listen": 8080,
+        "server_name": "localhost",
+        "location": [
+          { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] }
+        ]
+      }
+    ],
+    "include": ["./config/conf.d"]
+  }
 }
 ```
 
-仓库里的默认配置还包含 `443 ssl` 的 localhost 站点，证书路径为 `config/cert/localhost.pem` 与 `config/cert/localhost-key.pem`。
-
-### 注意事项
-
-1. `dev` 会打开调试端口并提高日志量，适合本机开发；**dev 模式下 Ctrl+C 优雅停止服务**（2026-10-25 起），改完配置重新 `dev` 即可生效
-2. 自签名证书只用于测试访问
-3. 守护进程模式（`start`）修改配置后执行 `reload`，或向运行中的进程发送 `SIGINT`（dev 模式下 SIGINT 是停止，见第 1 条）
-
-## 使用说明
-
-见文档：<https://idealstudio-ncepu.yuque.com/dkna2e/lbeklg?#> 《Fast-Https产品说明》
-
-发行包内只带一份使用文档 `docs/usage.html`（单文件 HTML，由 `docs/usage.md` 经 `go run ./tools/docgen` 生成，版本号取自 `CURRENT_VERSION`）。其余 `docs/` 内容属于开发与设计资料，不随包分发。
-
-仓库内文档（[docs/README.md](docs/README.md) 为总索引）：
-
-- [docs/usage.md](docs/usage.md)：部署运维向的使用文档，生成 `docs/usage.html` 进发行包
-- [docs/feature/](docs/feature/README.md)：按功能分篇的 23 篇说明（已实现 0-19、计划占位 20-22），每篇含配置示例与实现方案
-- [docs/develop/](docs/develop/README.md)：开发文档（环境构建、测试体系、代码规范、配置项开发、调试、发布）与历史规划（`develop/plans/`）
-- [docs/architecture-map.md](docs/architecture-map.md)：当前 package 盘点与依赖方向
-
-测试布局与运行方式见 [tests/readme.md](tests/readme.md)。
-
-## 打包与发布
-
-语言版本 **1.27.0**，工具链 **go1.27.1**，见 `go.mod`。产品版本是 **V1.4.0**。RPM 版本写成 `1.4.0`（没有 `V` 前缀）。GoReleaser 快照版本是 `1.4.0-next`。下面的命令都在仓库根目录执行。
-
-加载配置时会把站点 root、证书、日志目录和 include 转成绝对路径。容器镜像设置 `FASTHTTPS_FOREGROUND=1`，进程保持前台，不 fork，也不切换工作目录。
-
-### 本地二进制
-
 ```bash
-go build -o fast-https .
+curl -I http://127.0.0.1:8080/    # 期望 200 与 Server: fast-https
 ```
 
-产物是当前平台的 `fast-https`。运行时需要带上 `start` 或 `dev`，例如 `./fast-https start`。
+| 命令 | 作用 |
+| --- | --- |
+| `./fast-https start` | 启动（无参数等同 `start`）。Linux / macOS 转后台，容器与 systemd 托管时保持前台 |
+| `./fast-https dev` | 前台启动，日志级别 6，并在 `0.0.0.0:10000` 打开 pprof |
+| `./fast-https stop` | 停止。Unix 发 `SIGTERM` 优雅停机，重复执行视为已停止 |
+| `./fast-https reload` | 校验配置后热重载，失败保留旧配置 |
+| `./fast-https status` | 读 pid 文件判断是否在运行 |
+| `./fast-https check` | 只校验配置，不监听端口、不写 pid |
+| `./fast-https install` | 安装为系统服务 |
 
-### Windows 托盘
+## 使用文档
 
-发布配置会在打包前编译 `monitor/monitor.exe`，不依赖 `windres`。托盘图标来自 `icon.go`。手动编译和菜单说明见 [monitor/README.md](monitor/README.md)。
+| 文档 | 内容 |
+| --- | --- |
+| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | 面向部署运维：配置项、站点、证书、代理、缓存、WAF |
+| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | 同上，英文版 |
+| [docs/usage.md](docs/usage.md) | 仓库内使用文档源文件，生成 `docs/usage.html` 随发行包分发 |
+| [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案 |
+| [docs/develop/](docs/develop/README.md) | 环境构建、测试体系、代码规范、新增配置项、调试、发布 |
+| [docs/architecture-map.md](docs/architecture-map.md) | package 盘点与依赖方向 |
+| [docs/nginx-core-gap.md](docs/nginx-core-gap.md) | 与 nginx 核心功能的差异对比 |
 
-### 安装包
+文档总索引见 [docs/README.md](docs/README.md)。
 
-一份 `.goreleaser.yaml` 同时打 Linux、Darwin 和 Windows。`CGO_ENABLED=0`。Linux / Darwin 的目标架构是 amd64 和 arm64，归档为 `tar.gz`。Windows 只打 amd64，链接参数为 `-s -w -H=windowsgui`，归档为 `zip`，根目录包含 `monitor.exe`。输出都在 `dist/`。
+## 项目结构
 
-```bash
-goreleaser release -f .goreleaser.yaml --snapshot --clean
+```text
+fast-https/
+├── fast-https.go        入口，调用 cmd.RootCmd()
+├── cmd/                 命令行：start / dev / stop / reload / status / check / install
+│                        daemon_unix.go 后台化（exec 自身），daemon_windows.go 为空实现
+├── config/              配置解析、校验与热重载，fast-https.json 是唯一真源
+├── init/                启动初始化：配置、日志、证书、缓存
+├── core/                契约层：Event、处理器注册表、生命周期钩子
+├── runtime/             数据面：监听、连接、请求/响应、过滤、热重载
+├── modules/             功能包：static / proxy / proxy_tcp / websocket / cache /
+│                        compress / auth / safe / appfirewall / rewrite
+├── infra/               基础设施：logging / color / timeutil / banner
+├── monitor/             Windows 托盘程序（独立 main）
+├── httpdoc/root/        默认站点与自签发根证书目录
+├── docs/                功能、开发、测试文档
+├── tests/               单元测试与端到端测试
+└── spec/ docker/        RPM spec 与容器镜像
 ```
 
-`--snapshot` 使用版本 `1.4.0-next`，不依赖 git tag。`--clean` 会清空上一次的 `dist/`。
+分层约定：`core` 只放契约，`runtime` 不认识 `modules`，功能包统一由 `cmd.RegisterHandlers` / `cmd.RegisterServices` 在启动时装配。细节见 [docs/develop/2-code-standards.md](docs/develop/2-code-standards.md)。
 
-压缩包打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/usage.html`、`httpdoc/root/index.html`、`httpdoc/root/favicon.ico` 和 `README.md`。另外列出了 `config/cert/.keep`、`config/conf.d/.keep` 和 `logs/.keep`，用来在包里保留空目录。
+## 更多
 
-`docs/usage.html` 需要先重新生成，否则包里会带旧内容：
-
-```bash
-go run ./tools/docgen
-```
-
-### RPM
-
-`spec` 的版本是 `1.4.0`。构建时下载 Go 1.27.1，并用 `-tags=rpm` 编译。这个 tag 把配置和站点根目录固定为 `/usr/share/fast-https/`。安装结果是：
-
-- 可执行文件：`/usr/bin/fast-https`
-- 配置、默认站点和日志目录：`/usr/share/fast-https/`
-
-### 容器镜像
-
-三份 Dockerfile 都从当前源码构建，构建阶段是 `golang:1.27-alpine`。镜像只复制配置 JSON 和默认站点文件，并新建空的 `config/cert`、`config/conf.d` 和 `logs`。本机证书和日志不会进镜像。暴露 8080 和 443。
-
-```bash
-docker build -t fast-https .
-docker build -f docker/Dockerfile_ubuntu -t fast-https:ubuntu .
-docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .
-```
-
-运行阶段分别是 Alpine、Ubuntu 24.04 和 CentOS 7。Ubuntu 与 CentOS 镜像把程序放在 `/usr/local/fast-https`，环境变量 `Fast-Https_VERSION` 为 `1.4.0`。
-
-## 参与贡献
-
-1. Fork 本仓库
-2. 新建 Feat_xxx 分支
-3. 提交代码
-4. 新建 Pull Request
+- 打包与发布（二进制、RPM、Docker、GoReleaser）：[docs/develop/5-release.md](docs/develop/5-release.md)
+- 测试布局与运行方式：[tests/readme.md](tests/readme.md)；覆盖率与压测：[docs/test/](docs/test/README.md)
+- 启动流程与信号处理：[docs/about.md](docs/about.md)
+- 参与贡献：Fork 仓库 → 新建 `Feat_xxx` 分支 → 提交 → 发起 Pull Request
+- 许可证 [GPL-2.0](LICENSE)；项目已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-https>）

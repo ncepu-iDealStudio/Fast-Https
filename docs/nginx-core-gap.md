@@ -38,7 +38,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | 能力 | Nginx 的作用 | 当前差距 | 建议 |
 | --- | --- | --- | --- |
 | 配置检查命令 | `nginx -t` 只校验，不监听 | `check` 调用现有校验，不监听、不写 pid | 已落地 |
-| 优雅停止 | `nginx -s quit` 停止接受并等在途请求 | `SIGTERM` / `SIGQUIT` 停接受并最多等 5 秒。`stop` 仍发送 `Kill` | 已落地 |
+| 优雅停止 | `nginx -s quit` 停止接受并等在途请求 | `SIGTERM` / `SIGQUIT` 停接受并最多等 5 秒；Unix 上 `stop` 发 `SIGTERM` 走同一条优雅停机路径 | 已落地 |
 | `HEAD` | 只返回头，不返回正文 | 保留 `Content-Length`，不写正文 | 已落地 |
 | 分块请求体 | `Transfer-Encoding: chunked` 的 POST 能读完 | 按块解码，错误或超限关闭连接。`Content-Length` 路径不变 | 已落地 |
 | 按编码压缩正文 | 看 `Accept-Encoding`，压缩后再写 `Content-Length` | 静态文件在 location 打开 gzip 且客户端接受时压缩正文 | 已落地 |
@@ -65,7 +65,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 2026-10-13 已落地。现有 JSON 字段名不变。`error_page` 是可选新字段。
 
 1. **`check`。** 调用 `config.ValidateConfigFile`。成功打印 `config ok` 并以 0 退出。失败把校验错误返回给命令行，进程以非 0 退出。不监听，不写 pid。`start` 预检仍做同一项校验。
-2. **优雅停止。** `SIGTERM` 和 `SIGQUIT` 取消各监听上下文，不再接受新连接，并最多等待 5 秒。已跟踪的 HTTP/1.1 和 HTTP/2 处理协程退出后 `Run` 返回。时限到了也退出。`stop` 仍发送 `Kill`。
+2. **优雅停止。** `SIGTERM` 和 `SIGQUIT` 取消各监听上下文，不再接受新连接，并最多等待 5 秒。已跟踪的 HTTP/1.1 和 HTTP/2 处理协程退出后 `Run` 返回。时限到了也退出。Unix 上 `stop` 发送 `SIGTERM`，走同一条路径并在退出后清理 pid 文件；Windows 没有信号语义，直接终止进程。
 3. **`HEAD`。** `Event.ResponseBytes` 和静态文件写出都保留 `Content-Length`、`Content-Type`，不写正文。
 4. **分块请求体。** `Transfer-Encoding: chunked` 由 `request.ReadChunked` 解码后再进入处理器。块格式错误或解码后超过 `max_body_size` 时关闭连接。带 `Content-Length` 的请求仍按长度读取。
 5. **gzip 正文。** location 的 `zip` 为 `gzip` 或同时包含 `gzip` 与 `br`，且 `Accept-Encoding` 接受 gzip 时，静态正文压缩后再写 `Content-Length` 和 `Content-Encoding: gzip`。其它情况不写 `Content-Encoding`。brotli 库仍在，响应路径这一轮不使用它。

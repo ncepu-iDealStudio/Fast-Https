@@ -26,7 +26,7 @@
 - 空日志目录、`.`、`./` 落到 `./logs`。DEBUG、TRACE 走 stderr，其余级别走 stdout
 - `ServerInit` 在监听前调用 `core.MissingHandlers`。已配置的 location 类型没有处理函数时直接退出，不会 `Accept`
 - `check` 只校验配置，不监听、不写 pid。`HEAD` 不写正文。`Transfer-Encoding: chunked` 按块读取。静态 gzip/brotli 按客户端 Accept-Encoding 协商压缩正文，两种都配置时优先 br，配置了压缩的响应带 Vary: Accept-Encoding。`error_page.not_found` 和 `error_page.proxy` 可选，文件不可读时仍用默认响应
-- `SIGTERM`、`SIGQUIT` 停止接受并最多等待 5 秒。`stop` 仍发送 `Kill`
+- `SIGTERM`、`SIGQUIT` 停止接受并最多等待 5 秒。Unix 上 `stop` 发送 `SIGTERM` 走同一条路径，等进程退出后清理 pid 文件；Windows 直接终止进程
 - 重载时新配置和 MIME 表先在局部建好，再一次性替换 `GConfig`、`GContentTypeMap`，处理中的请求不会读到清空的配置或写入中的 MIME 表。限流计数表整体替换，按 location `ID` 定位；`ID` 不在新表中时这次请求不计数（2026-10-16，架构收敛阶段 4a）
 - 配置、MIME 表、监听器路由表、访问日志字段表、四路文件日志器全部改为 atomic 快照：reload 校验通过后整体替换，读取端要么看到完整的旧状态、要么看到完整的新状态，与 reload 协程之间没有数据竞争。读取端经 `config.Current()`/`config.MIME()`/`Listener.Hosts()`/`Listener.Cfgs()` 访问，直接读全局字段的做法已移除（2026-10-24，架构收敛阶段 4b 快照化部分；`-race` 下验证）
 
@@ -75,7 +75,7 @@
 
 ### R1 重载信号语义与端到端测试
 
-已落地。`SIGINT` 在各平台都调用 `Reload()`。`SIGTERM` 和 `SIGQUIT` 停止接受新连接，最多等待 5 秒后退出。`stop` 仍然发送 `Kill`。Windows 的 `reload` 先发 Ctrl+Break，再试 Ctrl+C，不再把进程停掉。前台 Ctrl+C 会重载，不会退出。2026-10-25 起例外：`dev` 前台模式 SIGINT 触发优雅停机。
+已落地。`SIGINT` 在各平台都调用 `Reload()`。`SIGTERM` 和 `SIGQUIT` 停止接受新连接，最多等待 5 秒后退出。Unix 上 `stop` 发送 `SIGTERM`（Windows 直接终止进程）。Windows 的 `reload` 先发 Ctrl+Break，再试 Ctrl+C，不再把进程停掉。前台 Ctrl+C 会重载，不会退出。2026-10-25 起例外：`dev` 前台模式 SIGINT 触发优雅停机。
 
 `runtime/server/signal_test.go` 锁定这三种信号。`FASTHTTPS_E2E_RELOAD=1` 时，`TestReloadPortSwitchE2E` 在当前系统上切换端口；默认 `go test` 不跑它。同一 SSL 端口重载时不重新绑定套接字，能解析的新证书在下一次握手生效；证书文件缺失时监听保持打开。
 
