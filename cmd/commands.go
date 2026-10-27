@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fast-https/config"
 	"fast-https/infra/banner"
 	"fast-https/infra/logging"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/kardianos/service"
 	"github.com/rs/zerolog"
@@ -240,6 +242,29 @@ func StartHandler() error {
 	// pre-check before server start
 	PreCheckHandler()
 
+	// 后台化：重新 exec 自己，而不是 fork 之后继续跑 Go 代码。
+	// fork 出来的子进程继承了父进程的多线程与运行时锁状态，可能直接卡在
+	// 启动阶段；而且 fork 出来的父进程只能写下自己的 pid，一退出就变成
+	// 死 pid，stop / reload / status 都找不到真正在服务的进程。
+	// 容器与 systemd 托管时保持前台（见 runInForeground）。
+	if runtime.GOOS != "windows" && !runInForeground() {
+		pid, isParent, err := daemonize()
+		if err != nil {
+			logging.ConsoleLog.Warn().Msgf("run in background failed: %v, staying in foreground", err)
+		} else if isParent {
+			// 等子进程写好 pid 文件再返回，避免「命令刚返回，status 就说没在跑」
+			if waitPidFile(pid, 3*time.Second) {
+				logging.ConsoleLog.Info().Msgf("fast-https started in background, pid %d, logs in ./logs", pid)
+			} else {
+				logging.ConsoleLog.Warn().Msgf("fast-https (pid %d) did not take over in time, check ./logs", pid)
+			}
+			return nil
+		}
+	}
+
+	// 由真正提供服务的进程写自己的 pid，写完再做初始化。
+	_ = WritePid(config.PID_FILE)
+
 	// output logo, make initialization and start server
 	banner.PrintLogo(config.CURRENT_VERSION)
 
@@ -247,14 +272,6 @@ func StartHandler() error {
 	initialization.InitSystem()
 	banner.PrintInitialEnd()
 
-	// Outside a container, Linux/amd64 still forks. nochdir=1 keeps the working
-	// directory, and LoadFile has already turned site, certificate and log paths
-	// into absolute paths. Containers stay in the foreground as PID 1.
-	if runtime.GOOS != "windows" && !runInForeground() {
-		_ = Daemon(1, 1)
-	} else {
-		_ = WritePid(config.PID_FILE)
-	}
 	RegisterHandlers()
 	RegisterServices()
 	server := server.ServerInit()
@@ -277,28 +294,74 @@ func StopHandler() error {
 
 	pid, err := readPid(config.PID_FILE)
 	if err != nil {
-		logging.ConsoleLog.Fatal().Msg("read pid failed")
+		// 没有 pid 文件（已经停过）或文件损坏：按「没在跑」处理，stop 幂等
+		if errors.Is(err, os.ErrNotExist) {
+			logging.ConsoleLog.Info().Msg("fast-https is not running")
+		} else {
+			logging.ConsoleLog.Warn().Msgf("read pid file failed: %v", err)
+		}
+		return nil
 	}
 
-	// var cmd *exec.Cmd
-	// if runtime.GOOS == "windows" {
-	// 	cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
-	// } else {
-	// 	cmd = exec.Command("sudo", "kill", "-9", strconv.Itoa(pid))
-	// }
+	// pid 文件可能是上一次异常退出留下的：进程已经不在时按「本来就没在跑」
+	// 处理，顺手清掉残留文件，别让 stop 报一个看不懂的错。
+	if !processRunning(pid) {
+		_ = os.Remove(config.PID_FILE)
+		logging.ConsoleLog.Info().Msgf("fast-https is not running, removed stale pid file (pid %d)", pid)
+		return nil
+	}
+
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		logging.ConsoleLog.Fatal().Msgf("fast-https find process failed: %v", err)
 	}
 
-	err = process.Signal(os.Kill)
-
-	if err != nil {
+	// Unix 下发 SIGTERM 走优雅停机（关闭监听、等在途请求）；
+	// Windows 没有信号语义，落回 TerminateProcess。
+	if err := signalStopProcess(process); err != nil {
+		if errors.Is(err, os.ErrProcessDone) {
+			_ = os.Remove(config.PID_FILE)
+			logging.ConsoleLog.Info().Msgf("fast-https is not running (pid %d)", pid)
+			return nil
+		}
 		logging.ConsoleLog.Fatal().Msgf("fast-https stop failed: %v", err)
 	}
 
-	os.Remove(config.PID_FILE)
+	if !waitProcessGone(pid, server.GracefulStopTimeout+2*time.Second) {
+		logging.ConsoleLog.Fatal().Msgf("fast-https (pid %d) did not exit in time", pid)
+	}
+
+	_ = os.Remove(config.PID_FILE)
+	logging.ConsoleLog.Info().Msg("fast-https stopped")
 	return nil
+}
+
+// waitPidFile 等后台进程把自己的 pid 写进文件，超时返回 false。
+func waitPidFile(pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if current, err := readPid(config.PID_FILE); err == nil && current == pid {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// waitProcessGone 轮询等待进程退出。
+func waitProcessGone(pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if !processRunning(pid) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
 // ReloadHandler reload server
@@ -310,7 +373,19 @@ func ReloadHandler() error {
 
 	pid, err := readPid(config.PID_FILE)
 	if err != nil {
-		logging.ConsoleLog.Fatal().Msg("read pid failed")
+		if errors.Is(err, os.ErrNotExist) {
+			logging.ConsoleLog.Info().Msg("fast-https is not running, nothing to reload")
+		} else {
+			logging.ConsoleLog.Warn().Msgf("read pid file failed: %v", err)
+		}
+		return nil
+	}
+
+	// 残留 pid 文件（进程已退出）时提示「没在跑」并清理，不要对着死 pid 发信号。
+	if !processRunning(pid) {
+		_ = os.Remove(config.PID_FILE)
+		logging.ConsoleLog.Info().Msgf("fast-https is not running, nothing to reload (stale pid %d)", pid)
+		return nil
 	}
 
 	process, err := os.FindProcess(pid)
@@ -368,7 +443,8 @@ const (
 func InspectProcess(pidFile string) (ProcessState, int, error) {
 	pid, err := readPid(pidFile)
 	if err != nil {
-		if err.Error() == "error reading file" {
+		// 用 errors.Is 判断，别再比对错误字符串（readPid 换文案就失效）
+		if errors.Is(err, os.ErrNotExist) {
 			return ProcessAbsent, 0, nil
 		}
 		return ProcessAbsent, 0, err
@@ -406,7 +482,7 @@ func PreCheckHandler() {
 	// 检查 PID 文件
 	pid, err := readPid(config.PID_FILE)
 	if err != nil {
-		if err.Error() == "error reading file" {
+		if errors.Is(err, os.ErrNotExist) {
 			// PID 文件不存在，说明没有运行的实例，可以继续
 			logging.ConsoleLog.Debug().Msg("No existing process found")
 			return
@@ -432,6 +508,11 @@ func runInForeground() bool {
 	if os.Getenv("FASTHTTPS_FOREGROUND") == "1" {
 		return true
 	}
+	// systemd 由 unit 托管进程：再转后台会让 unit 认为服务已经退出。
+	// INVOCATION_ID 只由 systemd 注入，手工执行时不会有。
+	if os.Getenv("INVOCATION_ID") != "" {
+		return true
+	}
 	if _, err := os.Stat("/.dockerenv"); err == nil {
 		return true
 	}
@@ -444,9 +525,12 @@ func runInForeground() bool {
 // WritePid 将当前进程的PID写入指定文件
 // 使用JSON格式存储PID信息，便于后续进程管理
 func WritePid(filepath string) error {
-	// Get current PID and GID
-	pid := os.Getpid()
+	return writePidTo(filepath, os.Getpid())
+}
 
+// writePidTo 把指定进程的 pid 写进文件。后台化时由父进程写子进程的 pid，
+// 这样 stop / reload / status 才能找到真正在服务的进程。
+func writePidTo(filepath string, pid int) error {
 	// Create a map to hold PID and GID
 	pidGidMap := map[string]int{
 		"pid": pid,
@@ -472,7 +556,8 @@ func readPid(filepath string) (int, error) {
 	// Read the file contents
 	data, err := os.ReadFile(filepath)
 	if err != nil {
-		return 0, fmt.Errorf("error reading file")
+		// 带上原始错误，调用方才能区分「文件不存在」和「读不动」
+		return 0, fmt.Errorf("error reading file: %w", err)
 	}
 
 	// Create a map to hold the PID and GID

@@ -119,6 +119,8 @@ curl -I http://127.0.0.1:8080/
 ./fast-https stop
 ```
 
+Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请求处理完（最长 `GracefulStopTimeout`）再退出，pid 文件随之删除；重复执行 `stop` 视为「本来就没在跑」，返回 0。Windows 上没有信号语义，直接终止进程。容器内、systemd（`INVOCATION_ID`）与设置了 `FASTHTTPS_FOREGROUND=1` 时 `start` 不转后台，交由进程管理器托管。
+
 ## 5. 配置文件
 
 ### 5.1 顶层键

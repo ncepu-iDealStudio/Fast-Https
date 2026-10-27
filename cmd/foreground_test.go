@@ -14,6 +14,7 @@ func TestRunInForegroundFromEnv(t *testing.T) {
 
 func TestRunInForegroundUnset(t *testing.T) {
 	t.Setenv("FASTHTTPS_FOREGROUND", "")
+	t.Setenv("INVOCATION_ID", "")
 	if _, err := os.Stat("/.dockerenv"); err == nil {
 		t.Skip("container marker exists in this environment")
 	}
