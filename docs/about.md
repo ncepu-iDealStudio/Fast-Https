@@ -74,7 +74,7 @@ flowchart TD
 
 运行时主配置路径由 `config.CONFIG_FILE_PATH` 决定，默认是 `./config/fast-https.json`；MIME 文件默认是 `./config/mime.json`。根配置通过 `http.server` 定义站点，通过 `http.include` 引入额外 JSON 配置；被 include 的文件描述单个 server。加载后的结构保存在全局 `config.GConfig` 中。
 
-`LoadFile` 在监听前把站点 root、证书、日志目录和 include 路径转成绝对路径。Unix 上的 `start` 在容器外会把服务转到后台，做法是**重新 exec 自己**（`cmd/daemon_unix.go`：`Setsid` 独立会话、stdio 指向 `/dev/null`），而不是 fork 后继续跑 Go 代码——fork 出的子进程继承父进程的多线程与运行时锁状态，可能卡在启动阶段。父进程等子进程写好 pid 文件后退出，pid 由真正提供服务的进程写入 `fast-https.pid`。容器里存在 `/.dockerenv` 或 `/run/.containerenv`、systemd 托管（`INVOCATION_ID`）、或者设置了 `FASTHTTPS_FOREGROUND=1` 时，进程保持前台。
+`LoadFile` 在监听前把站点 root、证书、日志目录、`error_page` 与 include 路径转成绝对路径，相对路径以 `FAST_HTTPS_BASE_DIR` 为基准（开发构建是 `./`，带 `rpm` tag 的发行版构建是 `/usr/share/fast-https/`），`check` 用同一套基准，因此从任意工作目录启动或校验都指向同一份资源。Unix 上的 `start` 在容器外会把服务转到后台，做法是**重新 exec 自己**（`cmd/daemon_unix.go`：`Setsid` 独立会话、stdio 指向 `/dev/null`），而不是 fork 后继续跑 Go 代码——fork 出的子进程继承父进程的多线程与运行时锁状态，可能卡在启动阶段。父进程等子进程写好 pid 文件后退出，pid 由真正提供服务的进程写入 `fast-https.pid`。容器里存在 `/.dockerenv` 或 `/run/.containerenv`、systemd 托管（`INVOCATION_ID`）、或者设置了 `FASTHTTPS_FOREGROUND=1` 时，进程保持前台。
 
 开发模式额外启动 `http.ListenAndServe("0.0.0.0:10000", nil)`。当前代码中未发现该默认 mux 上注册 pprof handler 的实现；仅启动该端口并不意味着 `/debug/pprof/` 一定可用。
 

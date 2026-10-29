@@ -48,8 +48,9 @@ Core dependencies (versions live in `go.mod`; everything else is the standard li
 ## Quick Start
 
 ```bash
-# Option 1: release archive
-# Download the archive for your platform from https://gitee.com/ncepu-bj/fast-https/releases, then:
+# Option 1: release package
+# Windows: run fast-https-<version>-windows-<arch>-setup.exe.
+# Linux / macOS: download the archive from https://gitee.com/ncepu-bj/fast-https/releases and unpack it.
 ./fast-https start
 
 # Option 2: build from source (Go 1.27)
@@ -121,7 +122,7 @@ fast-https/
 ├── httpdoc/root/        Default site and the self-signed root certificate directory
 ├── docs/                Feature, development, and test documentation
 ├── tests/               Unit tests and end-to-end tests
-└── spec/ docker/        RPM spec and container images
+└── build/               Build and packaging: goreleaser, Dockerfile, RPM spec, NSIS, systemd unit
 ```
 
 Layering rule: `core` holds contracts only, `runtime` never imports `modules`, and feature packages are wired at startup by `cmd.RegisterHandlers` / `cmd.RegisterServices`. Details in [docs/develop/2-code-standards.md](docs/develop/2-code-standards.md).

@@ -51,7 +51,7 @@ Windows 任务栏托盘程序，用来在本机启动和停止 Fast-Https。它�
 go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
 ```
 
-`.goreleaser.yaml` 的 `before` 钩子会用同一条命令编译 `monitor/monitor.exe`，再放进 Windows zip 的根目录，和 `fast-https.exe` 放在一起。钩子编译失败时，这次发布会停下来。
+`build/goreleaser.yaml` 的 `before` 钩子会用同一条命令编译 `monitor/monitor.exe`，再放进 Windows zip 的根目录，和 `fast-https.exe` 放在一起。钩子编译失败时，这次发布会停下来。
 
 ## 测试
 

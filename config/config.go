@@ -355,7 +355,9 @@ func validateIncludes(includes []string, rootBaseDir string) error {
 		fullPath := includePath
 		if !filepath.IsAbs(includePath) {
 			if _, err := os.Stat(includePath); err != nil {
-				fullPath = filepath.Join(rootBaseDir, includePath)
+				// 与 processIncludeCfg 用同一个基准，包安装后 include 才指向
+				// /usr/share/fast-https/config/conf.d 而不是配置目录下的 config/。
+				fullPath = absConfigPath(includePath)
 			}
 		}
 
@@ -487,10 +489,12 @@ func pathExists(path, baseDir, rootBaseDir string) bool {
 	if strings.TrimSpace(path) == "" {
 		return false
 	}
-	// Certificate paths in the main config are relative to the process working
-	// directory, which is also how tls.LoadX509KeyPair reads them. Paths inside
-	// an included file may instead be relative to that file or the main config.
-	candidates := []string{path}
+	// Certificate paths in the main config are relative to FAST_HTTPS_BASE_DIR
+	// (the process working directory for non-package builds, /usr/share/fast-https
+	// for packages), which is also how tls.LoadX509KeyPair resolves them after
+	// ResolveRuntimePaths. Paths inside an included file may instead be relative
+	// to that file or the main config.
+	candidates := []string{path, absConfigPath(path)}
 	if !filepath.IsAbs(path) {
 		candidates = append(candidates,
 			filepath.Join(baseDir, path),
@@ -573,7 +577,11 @@ func processHttp(cfg *Fast_Https, http jsonHTTP) error {
 // server 块，与 http.server 数组元素同构。任何 include 文件读不了、
 // 解不开都返回错误：reload 路径上不能因为 Fatal 把整个进程带走。
 func processIncludeCfg(cfg *Fast_Https) error {
-	for _, item := range cfg.Include {
+	for i := range cfg.Include {
+		// 先按 FAST_HTTPS_BASE_DIR 展开，再遍历。否则相对路径会跟着
+		// 启动目录走：装好包后在别的目录执行就找不到 conf.d。
+		item := absConfigPath(cfg.Include[i])
+		cfg.Include[i] = item
 
 		err := filepath.Walk(item, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
@@ -717,18 +725,23 @@ func ResolveRuntimePaths(cfg *Fast_Https) {
 		for j := range server.Path {
 			server.Path[j].Root = absConfigPath(server.Path[j].Root)
 			server.Path[j].ProxyCache.Path = absConfigPath(server.Path[j].ProxyCache.Path)
+			server.Path[j].ErrorNotFound = absConfigPath(server.Path[j].ErrorNotFound)
+			server.Path[j].ErrorProxy = absConfigPath(server.Path[j].ErrorProxy)
 		}
 	}
 }
 
+// absConfigPath 把配置里的相对路径按 FAST_HTTPS_BASE_DIR 解析成绝对路径，
+// 而不是按进程的工作目录。装了包之后从任意目录执行 fast-https 都指向同一份资源。
+// 非包构建的 FAST_HTTPS_BASE_DIR 是 "./"，解析结果仍等于启动目录下的路径。
 func absConfigPath(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" || filepath.IsAbs(path) {
 		return path
 	}
-	abs, err := filepath.Abs(path)
+	base, err := filepath.Abs(FAST_HTTPS_BASE_DIR)
 	if err != nil {
 		return path
 	}
-	return abs
+	return filepath.Join(base, path)
 }
