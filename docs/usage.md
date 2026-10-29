@@ -277,7 +277,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 - **不自动续期**：程序只判断文件是否存在，不检查有效期。证书过期前需要替换文件并 `reload`。
 - **外部签发**：用 acme.sh、certbot 等外部工具签发后，把 `fullchain.pem` 与私钥路径填进 `ssl_certificate` / `ssl_certificate_key` 即可。
 
-> 安全提示：本地 CA 的私钥生成在 `httpdoc/root/root.key`，而 `httpdoc/root` 默认是对外服务的站点根目录。上线前请确认该文件不可通过 HTTP 直接访问，或把 CA 私钥移到不对外服务的目录。
+> 本地 CA 的证书 `root.crt` 放在 `httpdoc/root/`（首页可直接下载安装），私钥 `root.key` 放在 `config/cert/`，不在对外服务的站点根下。旧版本把两者都放在站点根，升级后首次启动会把私钥搬到 `config/cert/`。如果你自己改过站点根，确认新目录里不含私钥。
 
 ## 8. HTTP/2
 

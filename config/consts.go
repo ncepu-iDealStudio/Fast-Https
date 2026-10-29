@@ -34,9 +34,14 @@ const (
 )
 
 const (
-	ROOT_CRT_DIR  = FAST_HTTPS_BASE_DIR + "httpdoc/root"
-	CERT_DIR      = FAST_HTTPS_BASE_DIR + "config/cert"
-	ROOT_CRT_NAME = "root"
+	// 站点根。httpdoc/root/index.html 用 <a href="root.crt"> 提供自签 CA 下载，
+	// 所以 CA 证书本身留在这里，对外可见。
+	ROOT_CRT_DIR = FAST_HTTPS_BASE_DIR + "httpdoc/root"
+	// 服务器证书目录，CA 私钥也放这里。私钥不能落在站点根下：
+	// 静态模块只拦 ../ 逃逸，httpdoc/root/root.key 能被直接下载。
+	CERT_DIR         = FAST_HTTPS_BASE_DIR + "config/cert"
+	ROOT_CRT_KEY_DIR = CERT_DIR
+	ROOT_CRT_NAME    = "root"
 )
 
 /*

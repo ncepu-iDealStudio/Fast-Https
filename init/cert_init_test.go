@@ -4,6 +4,7 @@ import (
 	"fast-https/config"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,5 +37,22 @@ func TestCertInitCreatesLocalhostCert(t *testing.T) {
 	}
 	if err := config.CheckConfig(); err != nil {
 		t.Fatal(err)
+	}
+
+	// CA 私钥不能落在站点根下：静态模块只挡 ../ 逃逸，
+	// 放在 httpdoc/root 下能被 HTTP 直接下载。
+	keyDir, err := filepath.Abs(config.ROOT_CRT_KEY_DIR)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, server := range config.Current().Servers {
+		for _, p := range server.Path {
+			if p.Root == "" {
+				continue
+			}
+			if rel, err := filepath.Rel(p.Root, keyDir); err == nil && !strings.HasPrefix(rel, "..") {
+				t.Fatalf("CA key dir %s is inside site root %s", keyDir, p.Root)
+			}
+		}
 	}
 }

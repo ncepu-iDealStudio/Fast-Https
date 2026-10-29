@@ -261,7 +261,7 @@ curl -I http://127.0.0.1:8080/</code></pre>
 <li><strong>不自动续期</strong>：程序只判断文件是否存在，不检查有效期。证书过期前需要替换文件并 <code>reload</code>。</li>
 <li><strong>外部签发</strong>：用 acme.sh、certbot 等外部工具签发后，把 <code>fullchain.pem</code> 与私钥路径填进 <code>ssl_certificate</code> / <code>ssl_certificate_key</code> 即可。</li>
 </ul>
-<blockquote><p>安全提示：本地 CA 的私钥生成在 <code>httpdoc/root/root.key</code>，而 <code>httpdoc/root</code> 默认是对外服务的站点根目录。上线前请确认该文件不可通过 HTTP 直接访问，或把 CA 私钥移到不对外服务的目录。</p></blockquote>
+<blockquote><p>本地 CA 的证书 <code>root.crt</code> 放在 <code>httpdoc/root/</code>（首页可直接下载安装），私钥 <code>root.key</code> 放在 <code>config/cert/</code>，不在对外服务的站点根下。旧版本把两者都放在站点根，升级后首次启动会把私钥搬到 <code>config/cert/</code>。如果你自己改过站点根，确认新目录里不含私钥。</p></blockquote>
 <h2 id="sec-26">8. HTTP/2</h2>
 <p><code>listen</code> 加上 <code>h2</code> 即可，例如 <code>&#34;listen&#34;: &#34;443 ssl h2&#34;</code>。</p>
 <ul>

@@ -36,14 +36,20 @@ func CertInit() error {
 	if err := os.MkdirAll(config.CERT_DIR, 0o755); err != nil {
 		return fmt.Errorf("create certificate directory %s: %w", config.CERT_DIR, err)
 	}
-	// CA 文件写在 ROOT_CRT_DIR 下，首次启动那个目录可能还不存在，
-	// 不建目录会写失败，随后 loadCa 读到空内容直接空指针崩溃。
+	// CA 证书写在站点根下（首页提供 root.crt 下载），首次启动那个目录
+	// 可能还不存在，不建目录会写失败，随后 loadCa 读到空内容直接空指针崩溃。
 	if err := os.MkdirAll(config.ROOT_CRT_DIR, 0o755); err != nil {
 		return fmt.Errorf("create CA directory %s: %w", config.ROOT_CRT_DIR, err)
 	}
 
-	file := filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt"
-	if _, err := os.Stat(file); os.IsNotExist(err) {
+	// 旧版本把 CA 私钥和证书一起放在站点根下，静态服务能把 root.key 直接
+	// 下载走。升级后就地搬走，避免重新签发 CA 让已经信任的证书失效。
+	if err := migrateCaKey(); err != nil {
+		return err
+	}
+
+	crtPath := filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".crt"
+	if _, err := os.Stat(crtPath); os.IsNotExist(err) {
 		if err := newRoot(); err != nil {
 			return err
 		}
@@ -68,6 +74,30 @@ func CertInit() error {
 		logging.PrintInfo(certfile, " created")
 	}
 
+	return nil
+}
+
+// migrateCaKey 把旧版本留在站点根下的 CA 私钥搬到 CERT_DIR，
+// 同一个文件系统内 rename，失败时保持原文件不动并返回错误。
+func migrateCaKey() error {
+	if config.ROOT_CRT_KEY_DIR == config.ROOT_CRT_DIR {
+		return nil
+	}
+
+	oldKey := filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".key"
+	newKey := filepath.Join(config.ROOT_CRT_KEY_DIR, config.ROOT_CRT_NAME) + ".key"
+
+	if _, err := os.Stat(newKey); err == nil {
+		return nil
+	}
+	if _, err := os.Stat(oldKey); err != nil {
+		// 没有旧文件：首次启动由 newRoot 重新生成。
+		return nil
+	}
+	if err := os.Rename(oldKey, newKey); err != nil {
+		return fmt.Errorf("move CA key %s -> %s: %w", oldKey, newKey, err)
+	}
+	logging.PrintInfo("moved CA key out of the site root: ", newKey)
 	return nil
 }
 
@@ -132,7 +162,7 @@ func newRoot() error {
 		return fmt.Errorf("encode CA key: %w", err)
 	}
 
-	keyPath := filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".key"
+	keyPath := filepath.Join(config.ROOT_CRT_KEY_DIR, config.ROOT_CRT_NAME) + ".key"
 	if err := os.WriteFile(keyPath, pem.EncodeToMemory(
 		&pem.Block{Type: "PRIVATE KEY", Bytes: privDER}), 0o400); err != nil {
 		return fmt.Errorf("save CA key %s: %w", keyPath, err)
@@ -167,7 +197,7 @@ func loadCa() error {
 		return fmt.Errorf("parse CA certificate %s: %w", crtPath, err)
 	}
 
-	keyPath := filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME) + ".key"
+	keyPath := filepath.Join(config.ROOT_CRT_KEY_DIR, config.ROOT_CRT_NAME) + ".key"
 	keyPEMBlock, err := os.ReadFile(keyPath)
 	if err != nil {
 		return fmt.Errorf("read CA key %s: %w", keyPath, err)
