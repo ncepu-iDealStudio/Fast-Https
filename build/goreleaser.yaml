@@ -176,6 +176,14 @@ nfpms:
         type: dir
       - dst: /usr/share/fast-https/logs
         type: dir
+      # 与 Windows 归档一样用 .keep 占住这三个目录：只留空目录时，
+      # 打包工具或解包工具容易把它们当成空壳丢掉。
+      - src: config/cert/.keep
+        dst: /usr/share/fast-https/config/cert/.keep
+      - src: config/conf.d/.keep
+        dst: /usr/share/fast-https/config/conf.d/.keep
+      - src: logs/.keep
+        dst: /usr/share/fast-https/logs/.keep
     scripts:
       postinstall: build/packaging/linux/postinstall.sh
       preremove: build/packaging/linux/preremove.sh

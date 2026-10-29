@@ -11,6 +11,7 @@ case "$1" in
     configure|1|2|"")
         echo "fast-https: 配置目录 /usr/share/fast-https/config，日志目录 /usr/share/fast-https/logs"
         echo "fast-https: 启动命令 systemctl enable --now fast-https"
+        echo "fast-https: 这些目录归 root 所有，手工执行 start/check 请用 sudo"
         ;;
 esac
 
