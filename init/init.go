@@ -24,7 +24,9 @@ func InitSystem() {
 	logging.ConsoleLog.Info().Msg("message initialization finished")
 
 	// cert  initialization
-	CertInit()
+	if err := CertInit(); err != nil {
+		logging.ConsoleLog.Fatal().Err(err).Msg("certification initialization failed")
+	}
 	logging.ConsoleLog.Info().Msg("certification initialization finished")
 
 	// load cache from desk

@@ -27,7 +27,9 @@ func TestCertInitCreatesLocalhostCert(t *testing.T) {
 	for i, server := range config.Current().Servers {
 		t.Logf("server[%d] listen=%q name=%q cert=%q key=%q", i, server.Listen, server.ServerName, server.SSLCertificate, server.SSLCertificateKey)
 	}
-	CertInit()
+	if err := CertInit(); err != nil {
+		t.Fatalf("cert init: %v", err)
+	}
 	certPath := filepath.Join("config", "cert", "localhost.pem")
 	if _, err := os.Stat(certPath); err != nil {
 		t.Fatalf("cert not created: %v", err)

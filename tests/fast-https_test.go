@@ -45,7 +45,9 @@ func TestServerInit(t *testing.T) {
 	t.Log("step3: system message initialization")
 
 	// 5. self-signed certification initialization
-	initialiaztion.CertInit()
+	if err := initialiaztion.CertInit(); err != nil {
+		t.Fatalf("step5: init self-signed certification: %v", err)
+	}
 	t.Log("step5: init self-signed certification")
 
 	// 6. load cache
