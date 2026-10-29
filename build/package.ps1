@@ -12,13 +12,14 @@
     fast-https_Windows_x86_64.zip       fast-https_Windows_arm64.zip
     fast-https_Linux_x86_64.tar.gz      fast-https_Linux_arm64.tar.gz
     fast-https_Darwin_x86_64.tar.gz     fast-https_Darwin_arm64.tar.gz
+    fast-https_<version>_linux_{amd64,arm64}.{deb,rpm,apk}
     fast-https-<version>-windows-<arch>-setup.exe
     checksums.txt
 
 .EXAMPLE
-  .\scripts\package.ps1
-  .\scripts\package.ps1 -Release
-  .\scripts\package.ps1 -SkipBuild -NoInstaller
+  .\build\package.ps1
+  .\build\package.ps1 -Release
+  .\build\package.ps1 -SkipBuild -NoInstaller
 #>
 param(
     [switch]$Release,
@@ -32,6 +33,9 @@ Set-StrictMode -Version Latest
 
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+
+# 构建配置集中在 build/：goreleaser 需要显式指定 -f，产物仍落 $root\dist
+$grConfig = "build/goreleaser.yaml"
 
 function Resolve-Makensis {
     param([string]$Hint)
@@ -71,7 +75,7 @@ function ConvertTo-Version4 {
 
 # 1. goreleaser
 if (-not $SkipBuild) {
-    $grArgs = @("release", "--clean")
+    $grArgs = @("release", "-f", $grConfig, "--clean")
     if (-not $Release) { $grArgs += "--snapshot" }
     Write-Host "==> goreleaser $($grArgs -join ' ')"
     & goreleaser @grArgs
@@ -106,7 +110,7 @@ if (-not $NoInstaller) {
         $outFile = Join-Path $root "dist\fast-https-$version-windows-$arch-setup.exe"
         if (Test-Path $outFile) { Remove-Item $outFile -Force }
 
-        $nsi = Join-Path $root "installer\windows\fast-https.nsi"
+        $nsi = Join-Path $PSScriptRoot "installer\windows\fast-https.nsi"
         Ensure-Utf8Bom $nsi
 
         Write-Host "==> makensis $arch -> $(Split-Path -Leaf $outFile)"
@@ -116,14 +120,14 @@ if (-not $NoInstaller) {
             "/DAPP_ARCH=$arch" `
             "/DSTAGE_DIR=$stage" `
             "/DOUT_FILE=$outFile" `
-            (Join-Path $root "installer\windows\fast-https.nsi")
+            $nsi
         if ($LASTEXITCODE -ne 0) { throw "makensis failed (exit $LASTEXITCODE, arch $arch)" }
     }
     Remove-Item $stageRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # 3. keep only artifacts in dist
-$keep = '^(fast-https_.*\.(zip|tar\.gz)|fast-https-.*-setup\.exe|checksums\.txt)$'
+$keep = '^(fast-https_.*\.(zip|tar\.gz|deb|rpm|apk)|fast-https-.*-setup\.exe|checksums\.txt)$'
 Get-ChildItem (Join-Path $root "dist") -Force |
     Where-Object { $_.PSIsContainer -or $_.Name -notmatch $keep } |
     Remove-Item -Recurse -Force
