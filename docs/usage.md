@@ -44,6 +44,8 @@ systemctl enable --now fast-https
 man fast-https
 ```
 
+首次安装时包里没有证书文件，直接 `fast-https check` 会提示 `ssl_certificate not found`；先 `systemctl start fast-https`（或 `fast-https start`）生成自签证书，之后再 `check` 即可通过。运行期路径都以安装目录为基准，可以从任意工作目录执行 `fast-https`。
+
 ### 容器
 
 ```bash

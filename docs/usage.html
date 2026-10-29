@@ -84,6 +84,7 @@ apk add --allow-untrusted fast-https_*.apk   # Alpine</code></pre>
 <p>包装好后的位置：程序 <code>/usr/bin/fast-https</code>，配置、站点与日志 <code>/usr/share/fast-https/</code>，服务单元 <code>/usr/lib/systemd/system/fast-https.service</code>，手册页 <code>/usr/share/man/man1/fast-https.1</code>。启动与查手册：</p>
 <pre><code class="language-bash">systemctl enable --now fast-https
 man fast-https</code></pre>
+<p>首次安装时包里没有证书文件，直接 <code>fast-https check</code> 会提示 <code>ssl_certificate not found</code>；先 <code>systemctl start fast-https</code>（或 <code>fast-https start</code>）生成自签证书，之后再 <code>check</code> 即可通过。运行期路径都以安装目录为基准，可以从任意工作目录执行 <code>fast-https</code>。</p>
 <h3 id="sec-6">容器</h3>
 <pre><code class="language-bash">docker build -f build/Dockerfile -t fast-https .
 docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
