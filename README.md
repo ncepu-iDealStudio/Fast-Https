@@ -49,7 +49,8 @@ Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx
 
 ```bash
 # 方式一：安装包
-# 到 https://gitee.com/ncepu-bj/fast-https/releases 下载对应平台压缩包，解压后进入目录
+# Windows 用 dist 里的 fast-https-<version>-windows-<arch>-setup.exe 安装；
+# 其他平台到 https://gitee.com/ncepu-bj/fast-https/releases 下载压缩包，解压后进入目录
 ./fast-https start
 
 # 方式二：源码构建（需要 Go 1.27）

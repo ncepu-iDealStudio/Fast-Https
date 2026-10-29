@@ -48,8 +48,9 @@ Core dependencies (versions live in `go.mod`; everything else is the standard li
 ## Quick Start
 
 ```bash
-# Option 1: release archive
-# Download the archive for your platform from https://gitee.com/ncepu-bj/fast-https/releases, then:
+# Option 1: release package
+# Windows: run fast-https-<version>-windows-<arch>-setup.exe.
+# Linux / macOS: download the archive from https://gitee.com/ncepu-bj/fast-https/releases and unpack it.
 ./fast-https start
 
 # Option 2: build from source (Go 1.27)
