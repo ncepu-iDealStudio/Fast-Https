@@ -122,7 +122,7 @@ fast-https/
 ├── httpdoc/root/        Default site and the self-signed root certificate directory
 ├── docs/                Feature, development, and test documentation
 ├── tests/               Unit tests and end-to-end tests
-└── spec/ docker/        RPM spec and container images
+└── build/               Build and packaging: goreleaser, Dockerfile, RPM spec, NSIS, systemd unit
 ```
 
 Layering rule: `core` holds contracts only, `runtime` never imports `modules`, and feature packages are wired at startup by `cmd.RegisterHandlers` / `cmd.RegisterServices`. Details in [docs/develop/2-code-standards.md](docs/develop/2-code-standards.md).

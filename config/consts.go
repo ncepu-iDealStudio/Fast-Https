@@ -40,7 +40,7 @@ const (
 )
 
 /*
-goreleaser release -f .goreleaser.yaml --snapshot --clean
+goreleaser release -f build/goreleaser.yaml --snapshot --clean
 */
 
 /*

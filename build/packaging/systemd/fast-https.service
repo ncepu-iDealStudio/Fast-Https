@@ -1,0 +1,19 @@
+[Unit]
+Description=Fast-Https web server and reverse proxy
+Documentation=https://gitee.com/ncepu-bj/fast-https
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# -tags=rpm 编译的二进制把配置、站点、日志都定位到 /usr/share/fast-https/
+WorkingDirectory=/usr/share/fast-https
+Environment=FASTHTTPS_FOREGROUND=1
+ExecStart=/usr/bin/fast-https start
+ExecReload=/usr/bin/fast-https reload
+Restart=on-failure
+RestartSec=2s
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

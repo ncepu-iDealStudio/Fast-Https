@@ -29,20 +29,27 @@
 2. 解压到目标目录（Linux/macOS 为 `tar.gz`，Windows 为 `zip`）
 3. 按需修改 `config/fast-https.json`
 
-### RPM
+### Linux 发行版包（deb / rpm / apk）
 
 ```bash
-rpm -ivh fast-https-*.rpm
+dpkg -i fast-https_*.deb                     # Debian / Ubuntu
+rpm -ivh fast-https-*.rpm                    # RHEL / openEuler / CentOS
+apk add --allow-untrusted fast-https_*.apk   # Alpine
 ```
 
-RPM 把程序装到 `/usr/share/fast-https/`。
+包装好后的位置：程序 `/usr/bin/fast-https`，配置、站点与日志 `/usr/share/fast-https/`，服务单元 `/usr/lib/systemd/system/fast-https.service`，手册页 `/usr/share/man/man1/fast-https.1`。启动与查手册：
+
+```bash
+systemctl enable --now fast-https
+man fast-https
+```
 
 ### 容器
 
 ```bash
-docker build -t fast-https .
-docker build -f docker/Dockerfile_ubuntu -t fast-https:ubuntu .
-docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .
+docker build -f build/Dockerfile -t fast-https .
+docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
+docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .
 ```
 
 镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 8080 与 443。
