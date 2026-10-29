@@ -465,7 +465,9 @@ func PreCheckHandler() {
 	if err := config.Init(); err != nil {
 		logging.ConsoleLog.Fatal().Msgf("Start server failed. An error occurred for the following reason: %v", err)
 	}
-	initialization.CertInit()
+	if err := initialization.CertInit(); err != nil {
+		logging.ConsoleLog.Fatal().Msgf("Start server failed. An error occurred for the following reason: %v (run as root, or start it with systemctl start fast-https)", err)
+	}
 
 	// check config
 	err := config.CheckConfig()

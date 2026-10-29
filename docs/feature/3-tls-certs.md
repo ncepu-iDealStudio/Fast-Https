@@ -23,7 +23,7 @@
 
 - `listenSsl`：`net.Listen`（SO_REUSEPORT）+ `tls.NewListener`，`tls.Config.GetCertificate = certs.get`——按 ClientHello 的 SNI 动态选证书，一个端口可承载多域名。
 - `certSet`：持有多份证书，`replace()` 在 reload 时整体换入——同名端口 reload 后证书更新无需重启（`tests/unit_test/.../reload_cert_test.go` 验证：证书缺失时监听保持打开）。
-- 自签链：`init/autocert.go` 首次启动生成 3072 位 RSA 根 CA（`httpdoc/root/root.crt`），再为每个 ssl server_name 签发站点证书。
+- 自签链：`init/autocert.go` 首次启动生成 3072 位 RSA 根 CA（证书 `httpdoc/root/root.crt` 供首页下载，私钥 `config/cert/root.key` 不放在站点根下），再为每个 ssl server_name 签发站点证书。
 - ALPN：只有 `listen ... h2` 才通告 `h2`，否则纯 HTTP/1.1（防止客户端协商到 h2 却被 HTTP/1.1 解析器处理）。
 
 ## 测试

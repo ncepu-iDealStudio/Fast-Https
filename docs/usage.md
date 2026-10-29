@@ -29,20 +29,29 @@
 2. 解压到目标目录（Linux/macOS 为 `tar.gz`，Windows 为 `zip`）
 3. 按需修改 `config/fast-https.json`
 
-### RPM
+### Linux 发行版包（deb / rpm / apk）
 
 ```bash
-rpm -ivh fast-https-*.rpm
+dpkg -i fast-https_*.deb                     # Debian / Ubuntu
+rpm -ivh fast-https-*.rpm                    # RHEL / openEuler / CentOS
+apk add --allow-untrusted fast-https_*.apk   # Alpine
 ```
 
-RPM 把程序装到 `/usr/share/fast-https/`。
+包装好后的位置：程序 `/usr/bin/fast-https`，配置、站点与日志 `/usr/share/fast-https/`，服务单元 `/usr/lib/systemd/system/fast-https.service`，手册页 `/usr/share/man/man1/fast-https.1`。启动与查手册：
+
+```bash
+systemctl enable --now fast-https
+man fast-https
+```
+
+首次安装时包里没有证书文件，先 `systemctl start fast-https` 生成自签证书，之后 `fast-https check` 才会通过。`/usr/share/fast-https/` 下的目录归 root 所有，手工执行 `start` / `check` 要用 `sudo`，普通用户会因为写不了证书和日志而失败。运行期路径都以安装目录为基准，可以从任意工作目录执行 `fast-https`。
 
 ### 容器
 
 ```bash
-docker build -t fast-https .
-docker build -f docker/Dockerfile_ubuntu -t fast-https:ubuntu .
-docker build -f docker/Dockerfile_centos7 -t fast-https:centos7 .
+docker build -f build/Dockerfile -t fast-https .
+docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
+docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .
 ```
 
 镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 8080 与 443。
@@ -268,7 +277,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 - **不自动续期**：程序只判断文件是否存在，不检查有效期。证书过期前需要替换文件并 `reload`。
 - **外部签发**：用 acme.sh、certbot 等外部工具签发后，把 `fullchain.pem` 与私钥路径填进 `ssl_certificate` / `ssl_certificate_key` 即可。
 
-> 安全提示：本地 CA 的私钥生成在 `httpdoc/root/root.key`，而 `httpdoc/root` 默认是对外服务的站点根目录。上线前请确认该文件不可通过 HTTP 直接访问，或把 CA 私钥移到不对外服务的目录。
+> 本地 CA 的证书 `root.crt` 放在 `httpdoc/root/`（首页可直接下载安装），私钥 `root.key` 放在 `config/cert/`，不在对外服务的站点根下。旧版本把两者都放在站点根，升级后首次启动会把私钥搬到 `config/cert/`。如果你自己改过站点根，确认新目录里不含私钥。
 
 ## 8. HTTP/2
 

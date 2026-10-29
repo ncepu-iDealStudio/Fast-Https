@@ -49,7 +49,8 @@ Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx
 
 ```bash
 # 方式一：安装包
-# 到 https://gitee.com/ncepu-bj/fast-https/releases 下载对应平台压缩包，解压后进入目录
+# Windows 用 dist 里的 fast-https-<version>-windows-<arch>-setup.exe 安装；
+# 其他平台到 https://gitee.com/ncepu-bj/fast-https/releases 下载压缩包，解压后进入目录
 ./fast-https start
 
 # 方式二：源码构建（需要 Go 1.27）
@@ -121,7 +122,7 @@ fast-https/
 ├── httpdoc/root/        默认站点与自签发根证书目录
 ├── docs/                功能、开发、测试文档
 ├── tests/               单元测试与端到端测试
-└── spec/ docker/        RPM spec 与容器镜像
+└── build/               构建与打包：goreleaser、Dockerfile、RPM spec、NSIS、systemd unit
 ```
 
 分层约定：`core` 只放契约，`runtime` 不认识 `modules`，功能包统一由 `cmd.RegisterHandlers` / `cmd.RegisterServices` 在启动时装配。细节见 [docs/develop/2-code-standards.md](docs/develop/2-code-standards.md)。

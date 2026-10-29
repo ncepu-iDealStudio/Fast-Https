@@ -89,10 +89,11 @@
 | 产物/环境 | 当前入口与构建方式 |
 | --- | --- |
 | 主服务器本地构建 | 仓库根 package：`go build .`；主入口文件为 `fast-https.go` |
-| Docker | 根 `Dockerfile` 使用 Go 1.27 Alpine，在 `/app` 执行 `go build -o fast-https .`；运行镜像复制配置、MIME 和默认静态文件 |
-| GoReleaser | `.goreleaser.yaml` 的主程序 `main` 为 `./fast-https.go`，构建 Linux/Darwin amd64/arm64 和 Windows amd64 |
+| Docker | `build/Dockerfile` 使用 Go 1.27 Alpine，在 `/app` 执行 `go build -o fast-https .`；运行镜像复制配置、MIME 和默认静态文件 |
+| GoReleaser | `build/goreleaser.yaml` 的主程序 `main` 为 `./fast-https.go`，构建 Linux/Darwin amd64/arm64 和 Windows amd64 |
 | Windows monitor | 独立 package `./monitor`，源码 build tag 为 `windows && amd64` |
-| RPM | 根目录 `spec` 文件执行 `go build -tags=rpm .`，安装程序及 `config/`、`httpdoc/root/` 等运行资源 |
+| RPM | `build/spec` 文件执行 `go build -tags=rpm .`，安装程序及 `config/`、`httpdoc/root/` 等运行资源 |
+| Linux 包（deb/rpm/apk） | `build/goreleaser.yaml` 的 `nfpms` 段，安装单元 `build/packaging/systemd/`、安装脚本 `build/packaging/linux/` |
 | Go CI | `.workflow/go-test.yml` 使用 Go 1.27.1，执行 `go test ./...` |
 | Windows 测试脚本 | `_run_tests.bat` 选取部分 package，使用 `go test -p 1` |
 

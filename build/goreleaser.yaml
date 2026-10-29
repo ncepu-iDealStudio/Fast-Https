@@ -1,0 +1,203 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    # 手册页由命令树生成，打包前刷新一次，避免装出来的 man 与二进制命令不一致
+    - go run ./tools/manpage
+    # 托盘程序目前只提供 amd64 版本（Windows on ARM 可经 x64 模拟运行）
+    - go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
+
+builds:
+  - id: unix
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https
+    main: ./fast-https.go
+
+  - id: windows-amd64
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - amd64
+    binary: fast-https
+    main: ./fast-https.go
+    ldflags:
+      - "-s -w -H=windowsgui"
+
+  - id: windows-arm64
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - arm64
+    binary: fast-https
+    main: ./fast-https.go
+    ldflags:
+      - "-s -w -H=windowsgui"
+
+  # 发行版包专用：带 rpm tag，运行期资源定位到 /usr/share/fast-https/
+  - id: linux-pkg
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https
+    main: ./fast-https.go
+    tags:
+      - rpm
+
+archives:
+  - id: unix
+    ids:
+      - unix
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - config/cert/.keep
+      - config/conf.d/.keep
+      - config/fast-https.json
+      - config/fastcgi.conf
+      - config/mime.json
+      - docs/usage.html
+      - httpdoc/root/favicon.ico
+      - httpdoc/root/index.html
+      - logs/.keep
+      - README.md
+
+  - id: windows-amd64
+    ids:
+      - windows-amd64
+    formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - config/cert/.keep
+      - config/conf.d/.keep
+      - config/fast-https.json
+      - config/fastcgi.conf
+      - config/mime.json
+      - docs/usage.html
+      - httpdoc/root/favicon.ico
+      - httpdoc/root/index.html
+      - logs/.keep
+      - README.md
+      - src: monitor/monitor.exe
+        strip_parent: true
+
+  - id: windows-arm64
+    ids:
+      - windows-arm64
+    formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - config/cert/.keep
+      - config/conf.d/.keep
+      - config/fast-https.json
+      - config/fastcgi.conf
+      - config/mime.json
+      - docs/usage.html
+      - httpdoc/root/favicon.ico
+      - httpdoc/root/index.html
+      - logs/.keep
+      - README.md
+
+nfpms:
+  - id: linux-packages
+    ids:
+      - linux-pkg
+    package_name: fast-https
+    vendor: NCEPU-BJ
+    homepage: https://gitee.com/ncepu-bj/fast-https
+    maintainer: JFeng2048 <JFeng2048@outlook.com>
+    description: |-
+      Fast-Https 是一款 Go 编写的 web server 与反向代理。
+    license: GPL-2.0
+    formats:
+      - deb
+      - rpm
+      - apk
+    bindir: /usr/bin
+    umask: 0o022
+    contents:
+      - src: config/fast-https.json
+        dst: /usr/share/fast-https/config/fast-https.json
+        type: config|noreplace
+      - src: config/mime.json
+        dst: /usr/share/fast-https/config/mime.json
+        type: config|noreplace
+      - src: config/fastcgi.conf
+        dst: /usr/share/fast-https/config/fastcgi.conf
+        type: config|noreplace
+      - src: httpdoc/root/index.html
+        dst: /usr/share/fast-https/httpdoc/root/index.html
+      - src: httpdoc/root/favicon.ico
+        dst: /usr/share/fast-https/httpdoc/root/favicon.ico
+      - src: docs/usage.html
+        dst: /usr/share/doc/fast-https/usage.html
+      - src: build/packaging/man/fast-https.1
+        dst: /usr/share/man/man1/fast-https.1
+      - src: LICENSE
+        dst: /usr/share/licenses/fast-https/LICENSE
+      - src: build/packaging/systemd/fast-https.service
+        dst: /usr/lib/systemd/system/fast-https.service
+      - dst: /usr/share/fast-https/config/cert
+        type: dir
+      - dst: /usr/share/fast-https/config/conf.d
+        type: dir
+      - dst: /usr/share/fast-https/logs
+        type: dir
+      # 与 Windows 归档一样用 .keep 占住这三个目录：只留空目录时，
+      # 打包工具或解包工具容易把它们当成空壳丢掉。
+      - src: config/cert/.keep
+        dst: /usr/share/fast-https/config/cert/.keep
+      - src: config/conf.d/.keep
+        dst: /usr/share/fast-https/config/conf.d/.keep
+      - src: logs/.keep
+        dst: /usr/share/fast-https/logs/.keep
+    scripts:
+      postinstall: build/packaging/linux/postinstall.sh
+      preremove: build/packaging/linux/preremove.sh
+      postremove: build/packaging/linux/postremove.sh
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "1.4.0-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
