@@ -25,6 +25,7 @@
 | [agent-refactor-plan.md](plans/agent-refactor-plan.md) | Agent 化改造方案（2.0 实施） |
 | [performance-slimming-plan.md](plans/performance-slimming-plan.md) | 精简与性能优化计划 |
 | [fhs-layout-plan.md](plans/fhs-layout-plan.md) | 运行期目录改成 FHS 分离布局（待实施，仅规划） |
+| [acme-certmagic-plan.md](plans/acme-certmagic-plan.md) | 用 certmagic 自签 ACME 证书，取代 shell/.acme.sh（待实施，仅规划） |
 
 ## 参考文档（docs 根目录）
 

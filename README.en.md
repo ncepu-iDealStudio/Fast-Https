@@ -57,14 +57,14 @@ Core dependencies (versions live in `go.mod`; everything else is the standard li
 go build -o fast-https . && ./fast-https start
 ```
 
-A minimal `config/fast-https.json` is enough to serve files:
+The shipped `config/fast-https.json` already serves `./httpdoc/root` on port 80 (the same role as nginx's default site). Change `listen` to `8080` or another high port when running as a non-root user.
 
 ```json
 {
   "http": {
     "server": [
       {
-        "listen": 8080,
+        "listen": 80,
         "server_name": "localhost",
         "location": [
           { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] }
@@ -77,8 +77,10 @@ A minimal `config/fast-https.json` is enough to serve files:
 ```
 
 ```bash
-curl -I http://127.0.0.1:8080/    # expect 200 and Server: fast-https
+curl -I http://127.0.0.1/    # expect 200 and Server: fast-https
 ```
+
+The config tolerates `//` and `/* */` comments as well as trailing commas; the shipped file comments every block.
 
 | Command | What it does |
 | --- | --- |

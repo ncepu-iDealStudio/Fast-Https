@@ -252,12 +252,14 @@ func StartHandler() error {
 		if err != nil {
 			logging.ConsoleLog.Warn().Msgf("run in background failed: %v, staying in foreground", err)
 		} else if isParent {
-			// 等子进程写好 pid 文件再返回，避免「命令刚返回，status 就说没在跑」
-			if waitPidFile(pid, 3*time.Second) {
-				logging.ConsoleLog.Info().Msgf("fast-https started in background, pid %d, logs in ./logs", pid)
-			} else {
-				logging.ConsoleLog.Warn().Msgf("fast-https (pid %d) did not take over in time, check ./logs", pid)
+			// 等子进程报告「端口已监听」再返回。只等 pid 文件是不够的：
+			// 子进程写完 pid 后绑端口失败会立刻退出，父进程却报启动成功，
+			// 调用方只看到一句 stale pid，真正的原因无处可查。
+			if err := waitDaemonStarted(pid, daemonStartTimeout); err != nil {
+				return err
 			}
+			logging.ConsoleLog.Info().Msgf("fast-https started in background, pid %d, logs in %s",
+				pid, config.Current().LogRoot)
 			return nil
 		}
 	}
@@ -275,12 +277,19 @@ func StartHandler() error {
 	RegisterHandlers()
 	RegisterServices()
 	server := server.ServerInit()
+	// 监听已经建立（端口全部绑定成功）：通知父进程启动成功。
+	// 前台运行或 Windows 上没有父进程等待，这里是空操作。
+	notifyDaemonReady()
 	banner.PrintPortsListenerStart()
 	server.Run()
 
 	// server will clog here
 	return nil
 }
+
+// daemonStartTimeout 是父进程等后台子进程报告就绪的上限。
+// 首次启动要生成 CA 与自签证书（RSA 3072），给足时间但别让命令卡死。
+const daemonStartTimeout = 10 * time.Second
 
 // StopHandler stop server
 // StopHandler 函数用于停止运行中的进程。
@@ -334,20 +343,6 @@ func StopHandler() error {
 	_ = os.Remove(config.PID_FILE)
 	logging.ConsoleLog.Info().Msg("fast-https stopped")
 	return nil
-}
-
-// waitPidFile 等后台进程把自己的 pid 写进文件，超时返回 false。
-func waitPidFile(pid int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for {
-		if current, err := readPid(config.PID_FILE); err == nil && current == pid {
-			return true
-		}
-		if time.Now().After(deadline) {
-			return false
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
 }
 
 // waitProcessGone 轮询等待进程退出。
@@ -475,21 +470,25 @@ func PreCheckHandler() {
 		logging.ConsoleLog.Fatal().Msgf("Start server failed. An error occurred for the following reason: %v", err)
 	}
 
-	// check ports
-	err = server.ScanPorts()
-	if err != nil {
-		logging.ConsoleLog.Fatal().Msgf("Port has been used, An error occurred for the following reason: %v", err)
-	}
+	// 先判已有实例，再查端口：自己已经在跑的时候端口当然被占，
+	// 先查端口会报成「port 443 is already in use」，让人以为被别的程序占了。
+	checkRunningInstance()
 
-	// 检查 PID 文件
+	// check ports
+	if err := server.ScanPorts(); err != nil {
+		logging.ConsoleLog.Fatal().Msgf("Start server failed. An error occurred for the following reason: %v", err)
+	}
+}
+
+// checkRunningInstance 读 pid 文件，发现同名实例仍在运行就退出。
+// 残留 pid（进程已退出）只记一条 debug，不阻断启动。
+func checkRunningInstance() {
 	pid, err := readPid(config.PID_FILE)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			// PID 文件不存在，说明没有运行的实例，可以继续
 			logging.ConsoleLog.Debug().Msg("No existing process found")
 			return
 		}
-		// 其他错误
 		logging.ConsoleLog.Fatal().Msgf("Error checking process: %v", err)
 		return
 	}

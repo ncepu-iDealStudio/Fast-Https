@@ -1,3 +1,6 @@
+# Windows 的 NSIS 安装包不在本文件里：它由 build/package.ps1 在 goreleaser 结束后
+# 调用 makensis 生成（需要 NSIS 3.x）。只跑 goreleaser 只会得到
+# zip / tar.gz / deb / rpm / apk，不会出现 setup.exe。
 version: 2
 
 before:

@@ -47,7 +47,7 @@ footer{max-width:1180px;margin:0 auto;padding:16px 24px 40px;color:var(--muted);
 <body>
 <header class="top"><span class="brand">Fast-Https</span><span class="ver">V1.4.0</span></header>
 <div class="layout">
-<nav class="toc"><p class="toc-title">目录</p><ul><li><a href="#sec-2">1. 能力一览</a></li><li><a href="#sec-3">2. 获取与安装</a></li><li class="lvl3"><a href="#sec-4">发行包</a></li><li class="lvl3"><a href="#sec-5">Linux 发行版包（deb / rpm / apk）</a></li><li class="lvl3"><a href="#sec-6">容器</a></li><li><a href="#sec-7">3. 目录布局</a></li><li><a href="#sec-8">4. 快速开始</a></li><li class="lvl3"><a href="#sec-9">4.1 最小配置</a></li><li class="lvl3"><a href="#sec-10">4.2 启动并验证</a></li><li class="lvl3"><a href="#sec-11">4.3 打开 HTTPS 与 HTTP/2</a></li><li class="lvl3"><a href="#sec-12">4.4 停止</a></li><li><a href="#sec-13">5. 配置文件</a></li><li class="lvl3"><a href="#sec-14">5.1 顶层键</a></li><li class="lvl3"><a href="#sec-15">5.2 <code>http</code> 段</a></li><li class="lvl3"><a href="#sec-16">5.3 <code>server</code> 段</a></li><li class="lvl3"><a href="#sec-17">5.4 <code>location</code> 段</a></li><li><a href="#sec-18">6. 典型配置</a></li><li class="lvl3"><a href="#sec-19">6.1 静态站点 + try_files</a></li><li class="lvl3"><a href="#sec-20">6.2 反向代理</a></li><li class="lvl3"><a href="#sec-21">6.3 TCP 转发</a></li><li class="lvl3"><a href="#sec-22">6.4 压缩</a></li><li class="lvl3"><a href="#sec-23">6.5 代理缓存</a></li><li class="lvl3"><a href="#sec-24">6.6 Basic 认证与限流</a></li><li><a href="#sec-25">7. TLS 与证书</a></li><li><a href="#sec-26">8. HTTP/2</a></li><li><a href="#sec-27">9. 日志</a></li><li><a href="#sec-28">10. 命令行</a></li><li><a href="#sec-29">11. 热重载与停机</a></li><li><a href="#sec-30">12. 排错</a></li><li><a href="#sec-31">13. 已知限制</a></li><li><a href="#sec-32">14. 版本与许可</a></li></ul></nav>
+<nav class="toc"><p class="toc-title">目录</p><ul><li><a href="#sec-2">1. 能力一览</a></li><li><a href="#sec-3">2. 获取与安装</a></li><li class="lvl3"><a href="#sec-4">发行包</a></li><li class="lvl3"><a href="#sec-5">Linux 发行版包（deb / rpm / apk）</a></li><li class="lvl3"><a href="#sec-6">容器</a></li><li><a href="#sec-7">3. 目录布局</a></li><li><a href="#sec-8">4. 快速开始</a></li><li class="lvl3"><a href="#sec-9">4.1 默认配置</a></li><li class="lvl3"><a href="#sec-10">4.2 启动并验证</a></li><li class="lvl3"><a href="#sec-11">4.3 打开 HTTPS 与 HTTP/2</a></li><li class="lvl3"><a href="#sec-12">4.4 停止</a></li><li><a href="#sec-13">5. 配置文件</a></li><li class="lvl3"><a href="#sec-14">5.1 顶层键</a></li><li class="lvl3"><a href="#sec-15">5.2 <code>http</code> 段</a></li><li class="lvl3"><a href="#sec-16">5.3 <code>server</code> 段</a></li><li class="lvl3"><a href="#sec-17">5.4 <code>location</code> 段</a></li><li><a href="#sec-18">6. 典型配置</a></li><li class="lvl3"><a href="#sec-19">6.1 静态站点 + try_files</a></li><li class="lvl3"><a href="#sec-20">6.2 反向代理</a></li><li class="lvl3"><a href="#sec-21">6.3 TCP 转发</a></li><li class="lvl3"><a href="#sec-22">6.4 压缩</a></li><li class="lvl3"><a href="#sec-23">6.5 代理缓存</a></li><li class="lvl3"><a href="#sec-24">6.6 Basic 认证与限流</a></li><li><a href="#sec-25">7. TLS 与证书</a></li><li><a href="#sec-26">8. HTTP/2</a></li><li><a href="#sec-27">9. 日志</a></li><li><a href="#sec-28">10. 命令行</a></li><li><a href="#sec-29">11. 热重载与停机</a></li><li><a href="#sec-30">12. 排错</a></li><li><a href="#sec-31">13. 已知限制</a></li><li><a href="#sec-32">14. 版本与许可</a></li></ul></nav>
 <main>
 <h1 id="sec-1">Fast-Https 使用文档</h1>
 <p>本文面向部署与运维人员，只讲&#34;怎么装、怎么配、怎么跑、怎么排错&#34;。开发、架构与测试相关内容在仓库 <code>docs/</code> 下的其他目录，不随发行包分发。</p>
@@ -84,12 +84,12 @@ apk add --allow-untrusted fast-https_*.apk   # Alpine</code></pre>
 <p>包装好后的位置：程序 <code>/usr/bin/fast-https</code>，配置、站点与日志 <code>/usr/share/fast-https/</code>，服务单元 <code>/usr/lib/systemd/system/fast-https.service</code>，手册页 <code>/usr/share/man/man1/fast-https.1</code>。启动与查手册：</p>
 <pre><code class="language-bash">systemctl enable --now fast-https
 man fast-https</code></pre>
-<p>首次安装时包里没有证书文件，先 <code>systemctl start fast-https</code> 生成自签证书，之后 <code>fast-https check</code> 才会通过。<code>/usr/share/fast-https/</code> 下的目录归 root 所有，手工执行 <code>start</code> / <code>check</code> 要用 <code>sudo</code>，普通用户会因为写不了证书和日志而失败。运行期路径都以安装目录为基准，可以从任意工作目录执行 <code>fast-https</code>。</p>
+<p>随包默认配置只监听 80 端口，不需要证书文件，装完 <code>systemctl enable --now fast-https</code> 就能直接提供站点；只有自己加了 <code>listen: &#34;... ssl&#34;</code> 的 server 块时，包内才需要证书，首次 <code>start</code> 会用本地 CA 生成 <code>config/cert/&lt;server_name&gt;.pem</code>，在那之前 <code>fast-https check</code> 会报证书缺失。<code>/usr/share/fast-https/</code> 下的目录归 root 所有，手工执行 <code>start</code> / <code>check</code> 要用 <code>sudo</code>，普通用户会因为写不了日志而失败。运行期路径都以安装目录为基准，可以从任意工作目录执行 <code>fast-https</code>。</p>
 <h3 id="sec-6">容器</h3>
 <pre><code class="language-bash">docker build -f build/Dockerfile -t fast-https .
 docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
 docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .</code></pre>
-<p>镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 8080 与 443。</p>
+<p>镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 80 与 443（随包默认配置只开 80，HTTPS 需要自己加 <code>listen: &#34;443 ssl h2&#34;</code> 的 server 块）。</p>
 <h2 id="sec-7">3. 目录布局</h2>
 <pre><code class="language-text">fast-https                  主程序（Windows 下另有 monitor.exe 托盘程序）
 config/fast-https.json      唯一配置真源
@@ -99,14 +99,15 @@ config/cert/                TLS 证书，*.pem 不入库，首次启动自动生
 httpdoc/root/               默认站点根目录
 logs/                       运行日志</code></pre>
 <h2 id="sec-8">4. 快速开始</h2>
-<h3 id="sec-9">4.1 最小配置</h3>
-<p><code>config/fast-https.json</code>：</p>
+<h3 id="sec-9">4.1 默认配置</h3>
+<p>随包的 <code>config/fast-https.json</code> 已经能直接服务，角色相当于 nginx 的默认站点：80 端口对外提供 <code>./httpdoc/root</code>，站点多了就拆到 <code>config/conf.d/</code>。</p>
 <pre><code class="language-json">{
-  &#34;log_root&#34;: &#34;./logs&#34;,
+  // http.server 是虚拟主机数组，conf.d/*.json 会被追加为更多 server 块
   &#34;http&#34;: {
     &#34;server&#34;: [
       {
-        &#34;listen&#34;: 8080,
+        // 80 是 HTTP 默认端口，绑定它需要 root；普通用户改成 8080 之类的高位端口
+        &#34;listen&#34;: 80,
         &#34;server_name&#34;: &#34;localhost&#34;,
         &#34;location&#34;: [
           {
@@ -122,9 +123,9 @@ logs/                       运行日志</code></pre>
   }
 }</code></pre>
 <h3 id="sec-10">4.2 启动并验证</h3>
-<pre><code class="language-bash">./fast-https start                 # 无参数等同 start
-curl -I http://127.0.0.1:8080/</code></pre>
-<p>看到 <code>200</code> 与 <code>Server: fast-https</code> 即启动成功。<code>listen</code> 也可以写成字符串 <code>&#34;8080&#34;</code>，两种写法等价。</p>
+<pre><code class="language-bash">sudo ./fast-https start            # 无参数等同 start；80 端口需要 root
+curl -I http://127.0.0.1/          # 换成高位端口时写成 http://127.0.0.1:8080/</code></pre>
+<p>看到 <code>200</code> 与 <code>Server: fast-https</code> 即启动成功。<code>listen</code> 也可以写成字符串 <code>&#34;80&#34;</code>，两种写法等价。</p>
 <h3 id="sec-11">4.3 打开 HTTPS 与 HTTP/2</h3>
 <pre><code class="language-json">{
   &#34;listen&#34;: &#34;443 ssl h2&#34;,
@@ -140,6 +141,7 @@ curl -I http://127.0.0.1:8080/</code></pre>
 <pre><code class="language-bash">./fast-https stop</code></pre>
 <p>Linux / macOS 上 <code>stop</code> 发送 <code>SIGTERM</code>，服务会关闭监听并等在途请求处理完（最长 <code>GracefulStopTimeout</code>）再退出，pid 文件随之删除；重复执行 <code>stop</code> 视为「本来就没在跑」，返回 0。Windows 上没有信号语义，直接终止进程。容器内、systemd（<code>INVOCATION_ID</code>）与设置了 <code>FASTHTTPS_FOREGROUND=1</code> 时 <code>start</code> 不转后台，交由进程管理器托管。</p>
 <h2 id="sec-13">5. 配置文件</h2>
+<p>文件仍然是 JSON（<code>http.include</code> 只收录 <code>*.json</code>），但解析前会先去掉 <code>//</code>、<code>/* */</code> 注释与对象/数组末尾多余的逗号，所以配置可以像 nginx.conf 一样逐段写注释。字符串里的 <code>//</code>（例如 <code>proxy_pass: &#34;http://...&#34;</code>）不受影响，纯 JSON 文件行为完全不变。</p>
 <h3 id="sec-14">5.1 顶层键</h3>
 <table>
 <thead><tr><th>键</th><th>说明</th></tr></thead>

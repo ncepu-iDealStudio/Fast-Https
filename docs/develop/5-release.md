@@ -14,10 +14,16 @@
 .\build\package.ps1 -SkipBuild -NoInstaller   # 只整理 dist / 只出安装包
 ```
 
-等价的手工命令：
+只想出压缩包与 Linux 包（不出 Windows 安装包）时可以手工执行：
 
 ```bash
 goreleaser release -f build/goreleaser.yaml --snapshot --clean
+```
+
+这条命令**不会**产出 `setup.exe`：`build/goreleaser.yaml` 里没有 `nsis:` 段，Windows 安装包是 `build/package.ps1` 在 goreleaser 跑完之后调用 `makensis` 生成的（`package.ps1` 还会读 `dist/metadata.json` 取版本号、给 `.nsi` 补 UTF-8 BOM）。已经跑过 goreleaser、只想补安装包时用：
+
+```powershell
+.\build\package.ps1 -SkipBuild
 ```
 
 产物在 `dist/`；压缩包内打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/usage.html`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。

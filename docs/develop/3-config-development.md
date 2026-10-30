@@ -1,6 +1,8 @@
 # 3. 配置项开发指引
 
-以新增一个 location 级配置项 `example` 为例，走完从 schema 到验收的六步。配置文件是纯 JSON，解析用标准库 `encoding/json`（viper 已移除），**文件 schema 与运行时结构分离**。
+以新增一个 location 级配置项 `example` 为例，走完从 schema 到验收的六步。配置文件是 JSON，解析用标准库 `encoding/json`（viper 已移除），**文件 schema 与运行时结构分离**。
+
+解析前会经 `config/jsonc.go` 预处理：去掉 `//`、`/* */` 注释与尾随逗号（注释替换成等长空格，`json.SyntaxError.Offset` 仍指向原文件）。所以新增配置项直接写进文档注释即可，不必担心用户"JSON 不能写注释"。读取配置一律走 `unmarshalConfig`，不要直接调 `json.Unmarshal`。
 
 ## 1. 定义 schema 与运行时字段
 
