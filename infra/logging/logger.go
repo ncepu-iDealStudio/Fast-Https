@@ -49,9 +49,19 @@ var (
 	logFiles []*os.File
 )
 
+// consoleEcho 控制四路文件日志是否同时回显到标准输出。
+// 后台子进程把标准输出指向 logs/daemon.log 时必须关掉：否则同一行写两遍，
+// 访问日志还会把 daemon.log 一路撑大，等于多一份没有轮转的副本。
+var consoleEcho atomic.Bool
+
+// SetConsoleEcho 开关文件日志的标准输出回显。只允许在启动阶段、
+// logging.Open 之前调用（后台子进程在 exec 后立刻设置）。
+func SetConsoleEcho(on bool) { consoleEcho.Store(on) }
+
 func init() {
 	zerolog.TimeFieldFormat = TimeFormat
 	ConsoleLog = consoleLogger(zerolog.InfoLevel)
+	consoleEcho.Store(true)
 	// 文件日志在 Open 之前保持静默，避免零值 Logger 写入 nil writer。
 	nop := zerolog.Nop()
 	systemLog.Store(&nop)
@@ -132,9 +142,14 @@ func openLogSet(path string) ([]*os.File, error) {
 	return opened, nil
 }
 
-// fileLogger 构造一路文件日志器，同时回显到标准输出。
+// fileLogger 构造一路文件日志器。默认同时回显到标准输出；
+// 后台子进程关掉回显后只写文件。
 func fileLogger(file *os.File, kind string) zerolog.Logger {
-	return zerolog.New(&syncWriter{w: io.MultiWriter(os.Stdout, file)}).
+	var out io.Writer = file
+	if consoleEcho.Load() {
+		out = io.MultiWriter(os.Stdout, file)
+	}
+	return zerolog.New(&syncWriter{w: out}).
 		Level(zerolog.DebugLevel).
 		With().
 		Timestamp().

@@ -10,6 +10,7 @@ import (
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/events"
 	"fast-https/runtime/listener"
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
@@ -87,18 +88,16 @@ func ServerInit() *Server {
 // Returns:
 //   - error: Returns error if ports are in use, nil otherwise
 //
-// 扫描配置的端口，检查它们是否已被占用
+// 检查的是**配置里**的端口，不是已建立的监听器：启动阶段 GLisinfos 还是空的，
+// 用 FindOldPorts 等于什么都不检查，端口被占用只能等监听失败才发现。
 func ScanPorts() error {
-	ports := listener.FindOldPorts()
-	for _, port := range ports {
+	for _, port := range listener.FindPorts() {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {
-			listener.GLisinfos = []*listener.Listener{}
-			return err
+			return fmt.Errorf("port %s is already in use: %w", port, err)
 		}
-		conn.Close()
+		_ = conn.Close()
 	}
-	listener.GLisinfos = []*listener.Listener{}
 	return nil
 }
 
