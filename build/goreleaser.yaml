@@ -78,7 +78,6 @@ archives:
       - config/cert/.keep
       - config/conf.d/.keep
       - config/fast-https.json
-      - config/fastcgi.conf
       - config/mime.json
       - docs/usage.html
       - httpdoc/root/favicon.ico
@@ -101,7 +100,6 @@ archives:
       - config/cert/.keep
       - config/conf.d/.keep
       - config/fast-https.json
-      - config/fastcgi.conf
       - config/mime.json
       - docs/usage.html
       - httpdoc/root/favicon.ico
@@ -126,7 +124,6 @@ archives:
       - config/cert/.keep
       - config/conf.d/.keep
       - config/fast-https.json
-      - config/fastcgi.conf
       - config/mime.json
       - docs/usage.html
       - httpdoc/root/favicon.ico
@@ -157,9 +154,6 @@ nfpms:
         type: config|noreplace
       - src: config/mime.json
         dst: /usr/share/fast-https/config/mime.json
-        type: config|noreplace
-      - src: config/fastcgi.conf
-        dst: /usr/share/fast-https/config/fastcgi.conf
         type: config|noreplace
       - src: httpdoc/root/index.html
         dst: /usr/share/fast-https/httpdoc/root/index.html

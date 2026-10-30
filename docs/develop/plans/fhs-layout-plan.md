@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | 二进制 | `/usr/bin/fast-https` | 符合 |
 | 主配置 `config/fast-https.json` | `/usr/share/fast-https/config/fast-https.json` | 应在 `/etc`；Debian 的 conffiles 机制按 `/etc` 识别，现在靠显式声明 `config\|noreplace` 兜着 |
-| `mime.json`、`fastcgi.conf` | `/usr/share/fast-https/config/` | 同上 |
+| `mime.json` | `/usr/share/fast-https/config/` | 同上 |
 | 证书与私钥 `config/cert/` | `/usr/share/fast-https/config/cert/` | 私钥放在世界可读的数据目录，权限模型不理想 |
 | 站点根 `httpdoc/root/` | `/usr/share/fast-https/httpdoc/root/` | 符合（架构无关的只读数据） |
 | 日志 `logs/` | `/usr/share/fast-https/logs/` | **违反 FHS**；`/usr` 只读（容器 `ProtectSystem=strict`、不可变发行版）时启动即失败 |
@@ -27,7 +27,7 @@
 
 | 基址常量 | 包内（`-tags=rpm`） | 开发 / 归档构建 | 内容 |
 | --- | --- | --- | --- |
-| `FAST_HTTPS_ETC_DIR` | `/etc/fast-https/` | `./config/` | 主配置、`mime.json`、`fastcgi.conf`、`cert/`、`conf.d/` |
+| `FAST_HTTPS_ETC_DIR` | `/etc/fast-https/` | `./config/` | 主配置、`mime.json`、`cert/`、`conf.d/` |
 | `FAST_HTTPS_DATA_DIR` | `/usr/share/fast-https/` | `./` | 站点根 `httpdoc/root/` |
 | `FAST_HTTPS_LOG_DIR` | `/var/log/fast-https/` | `./logs/` | 运行日志 |
 | `FAST_HTTPS_RUN_DIR` | `/run/fast-https/` | `./` | pid 文件 |
