@@ -44,7 +44,7 @@ systemctl enable --now fast-https
 man fast-https
 ```
 
-首次安装时包里没有证书文件，先 `systemctl start fast-https` 生成自签证书，之后 `fast-https check` 才会通过。`/usr/share/fast-https/` 下的目录归 root 所有，手工执行 `start` / `check` 要用 `sudo`，普通用户会因为写不了证书和日志而失败。运行期路径都以安装目录为基准，可以从任意工作目录执行 `fast-https`。
+随包默认配置只监听 80 端口，不需要证书文件，装完 `systemctl enable --now fast-https` 就能直接提供站点；只有自己加了 `listen: "... ssl"` 的 server 块时，包内才需要证书，首次 `start` 会用本地 CA 生成 `config/cert/<server_name>.pem`，在那之前 `fast-https check` 会报证书缺失。`/usr/share/fast-https/` 下的目录归 root 所有，手工执行 `start` / `check` 要用 `sudo`，普通用户会因为写不了日志而失败。运行期路径都以安装目录为基准，可以从任意工作目录执行 `fast-https`。
 
 ### 容器
 
@@ -54,7 +54,7 @@ docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
 docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .
 ```
 
-镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 8080 与 443。
+镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 80 与 443（随包默认配置只开 80，HTTPS 需要自己加 `listen: "443 ssl h2"` 的 server 块）。
 
 ## 3. 目录布局
 
@@ -70,17 +70,18 @@ logs/                       运行日志
 
 ## 4. 快速开始
 
-### 4.1 最小配置
+### 4.1 默认配置
 
-`config/fast-https.json`：
+随包的 `config/fast-https.json` 已经能直接服务，角色相当于 nginx 的默认站点：80 端口对外提供 `./httpdoc/root`，站点多了就拆到 `config/conf.d/`。
 
 ```json
 {
-  "log_root": "./logs",
+  // http.server 是虚拟主机数组，conf.d/*.json 会被追加为更多 server 块
   "http": {
     "server": [
       {
-        "listen": 8080,
+        // 80 是 HTTP 默认端口，绑定它需要 root；普通用户改成 8080 之类的高位端口
+        "listen": 80,
         "server_name": "localhost",
         "location": [
           {
@@ -100,11 +101,11 @@ logs/                       运行日志
 ### 4.2 启动并验证
 
 ```bash
-./fast-https start                 # 无参数等同 start
-curl -I http://127.0.0.1:8080/
+sudo ./fast-https start            # 无参数等同 start；80 端口需要 root
+curl -I http://127.0.0.1/          # 换成高位端口时写成 http://127.0.0.1:8080/
 ```
 
-看到 `200` 与 `Server: fast-https` 即启动成功。`listen` 也可以写成字符串 `"8080"`，两种写法等价。
+看到 `200` 与 `Server: fast-https` 即启动成功。`listen` 也可以写成字符串 `"80"`，两种写法等价。
 
 ### 4.3 打开 HTTPS 与 HTTP/2
 
@@ -131,6 +132,8 @@ curl -I http://127.0.0.1:8080/
 Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请求处理完（最长 `GracefulStopTimeout`）再退出，pid 文件随之删除；重复执行 `stop` 视为「本来就没在跑」，返回 0。Windows 上没有信号语义，直接终止进程。容器内、systemd（`INVOCATION_ID`）与设置了 `FASTHTTPS_FOREGROUND=1` 时 `start` 不转后台，交由进程管理器托管。
 
 ## 5. 配置文件
+
+文件仍然是 JSON（`http.include` 只收录 `*.json`），但解析前会先去掉 `//`、`/* */` 注释与对象/数组末尾多余的逗号，所以配置可以像 nginx.conf 一样逐段写注释。字符串里的 `//`（例如 `proxy_pass: "http://..."`）不受影响，纯 JSON 文件行为完全不变。
 
 ### 5.1 顶层键
 

@@ -1,35 +1,50 @@
 {
+  // fast-https 主配置，开箱即在 80 端口提供静态站点，等价于 nginx 的默认站点。
+  //
+  // - 本文件允许 // 与 /* */ 注释，也允许对象/数组末尾多一个逗号；
+  // - http.server 是虚拟主机数组，http.include 指向的目录里每个 *.json
+  //   都会被追加为一个 server 块，站点多了就拆到 config/conf.d/ 下；
+  // - 全部配置项见 https://gitee.com/ncepu-bj/fast-https 的 docs/usage.md。
+
   "http": {
     "server": [
       {
-        "listen": 8080,
+        // 对外服务端口。80 是 HTTP 默认端口，绑定它需要 root 权限：
+        // 发行版包由 systemd 以 root 启动，容器内同样是 root。
+        // 普通用户手工运行时改成 8080 之类的高位端口。
+        "listen": 80,
+
+        // 虚拟主机名，按请求的 Host 头匹配。没命中任何 server_name 时回落到
+        // 本端口第一个 server 块（相当于 nginx 的 default_server），
+        // 所以用 IP 或别名访问也能进到这个站点，不会整站 404。
         "server_name": "localhost",
+
         "location": [
           {
+            // 站点根目录，相对路径以安装目录为基准。
             "url": "/",
             "type": "local",
             "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"]
-          }
-        ]
-      },
-      {
-        "listen": "443 ssl",
-        "server_name": "localhost",
-        "ssl_certificate": "config/cert/localhost.pem",
-        "ssl_certificate_key": "config/cert/localhost-key.pem",
-        "location": [
-          {
-            "url": "/",
-            "type": "local",
-            "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"] 
+            "index": ["index.html", "index.htm"]
           }
         ]
       }
+
+      // 需要 HTTPS 时把下面这一块整体取消注释（注意那行开头的逗号也要一起
+      // 取消注释，它连着上面的 server 块）。首次启动会用本地 CA 生成
+      // config/cert/localhost.pem 与 localhost-key.pem，可以直接用 curl -k 验证；
+      // 正式环境把这两个路径换成权威 CA 签发的证书。
+      //
+      // ,{
+      //   "listen": "443 ssl h2",
+      //   "server_name": "localhost",
+      //   "ssl_certificate": "./config/cert/localhost.pem",
+      //   "ssl_certificate_key": "./config/cert/localhost-key.pem",
+      //   "location": [
+      //     { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] }
+      //   ]
+      // }
     ],
-    "include": [
-      "./config/conf.d"
-    ]
+    "include": ["./config/conf.d"]
   }
 }

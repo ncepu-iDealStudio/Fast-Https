@@ -57,14 +57,14 @@ Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx
 go build -o fast-https . && ./fast-https start
 ```
 
-`config/fast-https.json` 写一份最小配置即可访问：
+随包的 `config/fast-https.json` 已经是一份可直接服务的默认配置（等价于 nginx 的默认站点）：80 端口对外提供 `./httpdoc/root`，非 root 运行时把它改成 `8080` 之类的高位端口。
 
 ```json
 {
   "http": {
     "server": [
       {
-        "listen": 8080,
+        "listen": 80,
         "server_name": "localhost",
         "location": [
           { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] }
@@ -77,8 +77,10 @@ go build -o fast-https . && ./fast-https start
 ```
 
 ```bash
-curl -I http://127.0.0.1:8080/    # 期望 200 与 Server: fast-https
+curl -I http://127.0.0.1/    # 期望 200 与 Server: fast-https
 ```
+
+配置支持 `//` 与 `/* */` 注释和尾随逗号，随包文件里每段配置都带注释说明。
 
 | 命令 | 作用 |
 | --- | --- |

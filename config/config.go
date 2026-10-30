@@ -319,7 +319,7 @@ func ValidateConfigFile(configPath string) error {
 	}
 
 	var root jsonConfig
-	if err := json.Unmarshal(content, &root); err != nil {
+	if err := unmarshalConfig(content, &root); err != nil {
 		return fmt.Errorf("parse config json failed: %w", err)
 	}
 
@@ -401,7 +401,7 @@ func validateIncludeServerFile(includeFilePath, rootBaseDir string) error {
 	}
 
 	var s jsonServer
-	if err := json.Unmarshal(content, &s); err != nil {
+	if err := unmarshalConfig(content, &s); err != nil {
 		return fmt.Errorf("parse include json failed (%s): %w", includeFilePath, err)
 	}
 
@@ -540,7 +540,7 @@ func processRoot(configPath string) (Fast_Https, error) {
 	}
 
 	var jc jsonConfig
-	if err := json.Unmarshal(content, &jc); err != nil {
+	if err := unmarshalConfig(content, &jc); err != nil {
 		return cfg, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
@@ -598,7 +598,7 @@ func processIncludeCfg(cfg *Fast_Https) error {
 				return fmt.Errorf("error reading include config file %s: %w", path, err)
 			}
 			var js jsonServer
-			if err := json.Unmarshal(content, &js); err != nil {
+			if err := unmarshalConfig(content, &js); err != nil {
 				return fmt.Errorf("error unmarshaling include config %s: %w", path, err)
 			}
 
