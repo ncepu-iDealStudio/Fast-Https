@@ -1,7 +1,7 @@
 <h1 align="center">Fast-Https</h1>
 
-<p align="center">用 Go 写的多任务、高并发 Web 服务器与反向代理。<br />
-一份 JSON 描述监听端口与 location，单文件二进制直接跑。</p>
+<p align="center"><strong>Go 编写的轻量级 Web 服务器与反向代理：单二进制、JSON 配置、HTTP/2 与 TLS。</strong><br />
+一份 JSON 描述监听端口与 location，覆盖常见的站点与反向代理场景。</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.4.0-0E7490?style=flat-square" alt="version" />
@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
   <img src="https://img.shields.io/badge/license-GPL--2.0-334155?style=flat-square" alt="license" />
   <img src="https://img.shields.io/badge/Gitee-ncepu--bj%2Ffast--https-C71D23?style=flat-square&logo=gitee&logoColor=white" alt="gitee" />
+  <img src="https://img.shields.io/badge/openEuler-community-0E7490?style=flat-square" alt="openEuler community" />
 </p>
 
 <p align="center">
@@ -18,9 +19,11 @@
 
 <p align="center">简体中文 | <a href="README.en.md">English</a></p>
 
-## 介绍
+## Fast-Https 是什么？
 
-Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx / Caddy 这类现成服务器；HTTP/2 的分帧与 HPACK 交给 `golang.org/x/net/http2`，TLS 用标准库。配置是纯 JSON，`location` 的写法与 nginx 的心智接近。
+**Fast-Https 是一个用 Go 编写的开源 Web 服务器与反向代理。** 它自己完成端口监听、HTTP/1.1 解析和响应写出，不套用现成服务器的外壳；HTTP/2 的分帧与 HPACK 交给 `golang.org/x/net/http2`，TLS 使用 Go 标准库。
+
+全部功能编译进一个可执行文件，运行时不需要额外的动态库或脚本。配置是一份允许注释的 JSON，路由按 `location` 组织，可以在 Linux、macOS 和 Windows 上运行，也可以安装为系统服务。
 
 一条请求的处理链路：
 
@@ -28,11 +31,18 @@ Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx
 连接 → 限流 / IP 黑名单 → location 路由 → 应用防火墙 → 静态文件 / 反向代理 / TCP / WebSocket → 响应
 ```
 
-- **静态站点**：`Last-Modified` 条件请求返回 304，单段 `Range` 返回 206/416，按 `Accept-Encoding` 协商 gzip / brotli；目录缺结尾斜杠时 301 到带斜杠的地址。
-- **反向代理**：HTTP/HTTPS 上游连接池复用、响应缓存（map 索引 + LRU）、WebSocket 升级、TCP 双向转发。
-- **安全**：per-IP 令牌桶限流、IP 黑名单（含 IPv6 网段）、Basic 认证、GuardianWAF 应用防火墙（sqli/xss/lfi/cmdi/xxe/ssrf，可只记录不阻断）。
-- **运维**：`start` / `stop` / `reload` / `status` / `check` / `dev`，配置热重载不断连接；Windows 有托盘程序，支持安装为系统服务。
-- **交付**：Linux / macOS / Windows 安装包、RPM、三套 Docker 基础镜像。
+## 核心能力
+
+| 能力 | 说明 |
+| --- | --- |
+| 静态站点 | `root` / `index` / `try` 定位文件；`Last-Modified` 条件请求返回 304，单段 `Range` 返回 206 / 416；按 `Accept-Encoding` 协商 gzip 与 brotli；目录缺结尾斜杠时 301 到带斜杠地址；不生成目录列表 |
+| 反向代理 | 每个 location 一个 `proxy_pass`，支持 `http://` 与 `https://` 上游、连接池复用、`proxy_set_header`、响应缓存、WebSocket 升级与 TCP 双向转发 |
+| TLS 证书 | 每个 `server_name` 独立证书；同一 SSL 端口 `reload` 时热替换证书、不重新绑定端口；缺少证书文件时启动前生成自签名证书 |
+| HTTP/2 | `listen` 含 `h2` 时启用，ALPN 协商、HPACK、流状态机与流量控制由 `golang.org/x/net/http2` 处理，重载时发 GOAWAY 优雅关闭 |
+| 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
+| 运维 | `start` / `stop` / `reload` / `status` / `check` / `dev` / `install`；热重载不断开已有连接；`check` 只校验配置不监听端口 |
+| 日志 | `logs/` 下 system、access、error、safe 四路 JSON 日志，每条带 `kind` 与 RFC3339 时间，重载后重新打开文件 |
+| 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；Windows 附带托盘程序 |
 
 核心依赖（版本以 `go.mod` 为准，其余均为标准库）：
 
@@ -44,6 +54,43 @@ Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx
 | `guardianwaf/guardianwaf` | 应用防火墙引擎 |
 | `klauspost/compress`、`andybalholm/brotli` | gzip 与 brotli 压缩 |
 | `kardianos/service`、`fyne.io/systray` | 系统服务安装、Windows 托盘 |
+
+## 与通用 Web 服务器的差异
+
+两类产品的定位不同：通用 Web 服务器覆盖的协议与模块更广，Fast-Https 把常用能力收进一个二进制、用一份 JSON 描述。下表只说明能力边界，不构成优劣评价。
+
+| 维度 | 通用 Web 服务器 | Fast-Https |
+| --- | --- | --- |
+| 配置形式 | 领域专用配置文件，可拆分多份 | 单份 JSON，支持注释、尾随逗号与 `http.include` 拆分 |
+| 部署形态 | 系统包安装，能力按模块启用 | 单个可执行文件，功能全部编译进二进制 |
+| 静态站点 | `root` / `index` / `try` 类配置 | `root` / `index` / `try` 字段，含 304、206/416 与斜杠 301 |
+| 反向代理 | 多上游、超时与缓冲指令齐全 | 每个 location 一个上游，含连接池、响应缓存与 WebSocket |
+| HTTP/2 | 取决于版本与编译模块 | `listen` 加 `h2` 即启用 |
+| 配置预检 | 有独立校验入口 | `check` 子命令，不监听端口、不写 pid |
+| 优雅停止 | 停止接受并等待在途请求 | `SIGTERM` / `SIGQUIT`，最多等 5 秒 |
+| 证书热替换 | 重载配置后生效 | `reload` 在同一端口换证，不重新绑定 |
+| 扩展方式 | 模块与第三方插件生态 | 内置固定功能集，不加载动态模块 |
+| 多上游故障转移 | 支持多地址与健康检查 | 尚未支持，一个上游一个 `proxy_pass` |
+| 应用后端协议 | 可直连 FastCGI / uWSGI / gRPC | 支持 HTTP、HTTPS、WebSocket 与 TCP 转发 |
+| 运行计数 | 状态模块提供连接与请求指标 | `status` 只回答进程是否存活 |
+
+## 适用与不适用
+
+**适合：**
+
+- 单机部署的静态站点、文档站、内部管理后台；
+- 需要 TLS 终止与 HTTP/2、又不想维护庞大配置文件树的场景；
+- 把 HTTP 或 WebSocket 请求转发到本机或内网服务；
+- 交付物要尽量小：一个二进制、一份 JSON、一个日志目录；
+- Windows 上需要托盘或系统服务形态的轻量服务器。
+
+**暂不适合：**
+
+- 需要多上游负载均衡与故障转移的集群入口（R8 未实现）；
+- 依赖 `rewrite` 正则、`if`、`map` 等配置表达式语言的复杂路由（`rewrite` 目前只固定返回 301）；
+- 需要 FastCGI、uWSGI、SCGI、gRPC 直连后端的 PHP / Python 传统部署；
+- 前置 CDN 或负载均衡、依赖真实客户端 IP 做限流或黑名单的场景（当前使用连接地址，尚无可信代理与真实 IP 还原能力）；
+- 需要 HTTP/3、二进制热升级、多进程 worker 模型或运行时运行计数（`status` 只回答进程是否存活）。
 
 ## 快速开始
 
@@ -57,7 +104,7 @@ Fast-Https 自己完成监听、HTTP/1.1 解析和响应写出，不依赖 nginx
 go build -o fast-https . && ./fast-https start
 ```
 
-随包的 `config/fast-https.json` 已经是一份可直接服务的默认配置（等价于 nginx 的默认站点）：80 端口对外提供 `./httpdoc/root`，非 root 运行时把它改成 `8080` 之类的高位端口。
+随包的 `config/fast-https.json` 已经是一份可直接服务的默认配置（开箱即用的默认站点）：80 端口对外提供 `./httpdoc/root`，非 root 运行时把它改成 `8080` 之类的高位端口。
 
 ```json
 {
@@ -77,10 +124,12 @@ go build -o fast-https . && ./fast-https start
 ```
 
 ```bash
-curl -I http://127.0.0.1/    # 期望 200 与 Server: fast-https
+curl -I http://127.0.0.1/    # 期望 200 与 Server: Fast-Https
 ```
 
-配置支持 `//` 与 `/* */` 注释和尾随逗号，随包文件里每段配置都带注释说明。
+随包配置文件里每段都带注释说明，可直接对照修改。
+
+## 常用命令
 
 | 命令 | 作用 |
 | --- | --- |
@@ -92,6 +141,44 @@ curl -I http://127.0.0.1/    # 期望 200 与 Server: fast-https
 | `./fast-https check` | 只校验配置，不监听端口、不写 pid |
 | `./fast-https install` | 安装为系统服务 |
 
+## 常见问题
+
+### Fast-Https 能替代传统的 Web 服务器吗？
+
+在单机静态站点、TLS 终止、HTTP/HTTPS 反向代理和 WebSocket 转发这几类场景里可以承担服务端角色。它没有多上游故障转移、完整 rewrite 引擎、FastCGI 与 HTTP/3，复杂网关场景需要另选方案。
+
+### Fast-Https 支持 HTTP/2 和 HTTPS 吗？
+
+支持。`listen` 里加 `h2` 启用 HTTP/2，加 `ssl` 启用 TLS；两者可以同时开启。HTTP/2 协议栈来自 `golang.org/x/net/http2`，TLS 来自 Go 标准库。
+
+### 更新证书需要重启服务吗？
+
+不需要。`reload` 会在同一个监听 socket 上换证，下一次握手即使用新证书，端口不重新绑定，已有连接不受影响。
+
+### Fast-Https 会自动申请受信任证书吗？
+
+不会自动申请。缺少证书文件时启动前会生成自签名证书；受信任证书需要由外部 ACME 客户端签发并写出 PEM，再执行 `reload` 热替换。
+
+### 配置写错了会怎样？
+
+`start` 与 `reload` 都会先校验配置。校验失败时 `reload` 保留旧配置与旧监听，`check` 只校验不监听、不写 pid 文件。
+
+### 支持 Windows 吗？
+
+支持。提供 Windows 安装包（NSIS）、托盘程序和系统服务安装；`stop` 在 Windows 上直接终止进程，没有 Unix 的信号语义。
+
+### 支持 WebSocket 吗？
+
+支持。反向代理会识别升级请求并完成双向转发；TCP 类型 location 可以做纯字节转发。
+
+### 性能如何？
+
+Fast-Https 自己解析 HTTP/1.1、每个连接一个协程，没有 C 扩展或 worker 进程模型。仓库内没有对外发布的基准数字，压测方案与测试入口见 [docs/test/](docs/test/README.md)。
+
+### 配置里可以用变量或条件判断吗？
+
+不行。配置是静态 JSON 字段，`proxy_cache.key` 和 `proxy_set_header` 里的 `$变量` 只做一次性字符串替换，不是表达式求值。
+
 ## 使用文档
 
 | 文档 | 内容 |
@@ -102,7 +189,6 @@ curl -I http://127.0.0.1/    # 期望 200 与 Server: fast-https
 | [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案 |
 | [docs/develop/](docs/develop/README.md) | 环境构建、测试体系、代码规范、新增配置项、调试、发布 |
 | [docs/architecture-map.md](docs/architecture-map.md) | package 盘点与依赖方向 |
-| [docs/nginx-core-gap.md](docs/nginx-core-gap.md) | 与 nginx 核心功能的差异对比 |
 
 文档总索引见 [docs/README.md](docs/README.md)。
 
@@ -129,10 +215,18 @@ fast-https/
 
 分层约定：`core` 只放契约，`runtime` 不认识 `modules`，功能包统一由 `cmd.RegisterHandlers` / `cmd.RegisterServices` 在启动时装配。细节见 [docs/develop/2-code-standards.md](docs/develop/2-code-standards.md)。
 
+## 社区
+
+项目已加入 [openEuler 社区](https://www.openeuler.org/)，上游代码与打包规格同时维护在社区仓库 [src-openeuler/fast-https](https://gitee.com/src-openeuler/fast-https)。
+
+- openEuler 侧的打包与版本跟进在社区仓库进行，与安装包、spec 相关的问题和提交提到那里；
+- 功能开发与缺陷修复在本仓库进行，社区仓库跟进同步上游代码；
+- 使用问题先看 [docs/](docs/README.md)，仍没解决的可以在仓库 Issue 里提出。
+
 ## 更多
 
 - 打包与发布（二进制、RPM、Docker、GoReleaser）：[docs/develop/5-release.md](docs/develop/5-release.md)
 - 测试布局与运行方式：[tests/readme.md](tests/readme.md)；覆盖率与压测：[docs/test/](docs/test/README.md)
 - 启动流程与信号处理：[docs/about.md](docs/about.md)
 - 参与贡献：Fork 仓库 → 新建 `Feat_xxx` 分支 → 提交 → 发起 Pull Request
-- 许可证 [GPL-2.0](LICENSE)；项目已加入 openEuler 社区（<https://gitee.com/src-openeuler/fast-https>）
+- 许可证 [GPL-2.0](LICENSE)
