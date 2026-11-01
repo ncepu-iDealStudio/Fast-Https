@@ -26,7 +26,7 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 .\build\package.ps1 -SkipBuild
 ```
 
-产物在 `dist/`；压缩包内打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/usage.html`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。
+产物在 `dist/`；压缩包内打入 `config/fast-https.json`、`config/mime.json`、`docs/usage.html`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。
 
 `dist/` 里除了最终产物还会出现 GoReleaser 的中间目录（`unix_linux_amd64_v1/` 等）、`config.yaml`、`metadata.json`、`artifacts.json`。`build/package.ps1` 收尾会把它们删掉，只留下：
 

@@ -1,7 +1,7 @@
 <h1 align="center">Fast-Https</h1>
 
-<p align="center">A multi-task, high-concurrency web server and reverse proxy written in Go.<br />
-One JSON file describes listen ports and locations; a single binary runs it.</p>
+<p align="center"><strong>A lightweight web server and reverse proxy written in Go: single binary, JSON config, HTTP/2 and TLS.</strong><br />
+One JSON file describes listen ports and locations, covering common site and reverse-proxy scenarios.</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.4.0-0E7490?style=flat-square" alt="version" />
@@ -10,6 +10,7 @@ One JSON file describes listen ports and locations; a single binary runs it.</p>
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
   <img src="https://img.shields.io/badge/license-GPL--2.0-334155?style=flat-square" alt="license" />
   <img src="https://img.shields.io/badge/Gitee-ncepu--bj%2Ffast--https-C71D23?style=flat-square&logo=gitee&logoColor=white" alt="gitee" />
+  <img src="https://img.shields.io/badge/openEuler-community-0E7490?style=flat-square" alt="openEuler community" />
 </p>
 
 <p align="center">
@@ -18,9 +19,11 @@ One JSON file describes listen ports and locations; a single binary runs it.</p>
 
 <p align="center"><a href="README.md">简体中文</a> | English</p>
 
-## Introduction
+## What is Fast-Https?
 
-Fast-Https accepts connections, parses HTTP/1.1, and writes responses itself — no nginx or Caddy underneath. HTTP/2 framing and HPACK are delegated to `golang.org/x/net/http2`; TLS comes from the standard library. Configuration is plain JSON, and `location` blocks read like their nginx counterparts.
+**Fast-Https is an open-source web server and reverse proxy written in Go.** It accepts connections, parses HTTP/1.1, and writes responses itself instead of wrapping an existing server. HTTP/2 framing and HPACK are delegated to `golang.org/x/net/http2`; TLS comes from the Go standard library.
+
+Everything compiles into a single executable with no extra shared libraries or runtime scripts. Configuration is one JSON file that accepts comments, with routing organized in `location` blocks. It runs on Linux, macOS, and Windows, and can install itself as a system service.
 
 How a request travels:
 
@@ -28,11 +31,18 @@ How a request travels:
 connection → rate limit / IP blacklist → location routing → application firewall → static file / reverse proxy / TCP / WebSocket → response
 ```
 
-- **Static sites**: `Last-Modified` conditional requests return 304, a single `Range` returns 206/416, and gzip / brotli are negotiated from `Accept-Encoding`. A directory requested without a trailing slash is redirected with 301.
-- **Reverse proxy**: pooled upstream connections for HTTP/HTTPS, response cache (map index + LRU), WebSocket upgrade, and bidirectional TCP forwarding.
-- **Security**: per-IP token-bucket rate limiting, IP blacklist (IPv6 ranges included), Basic auth, and the GuardianWAF application firewall (sqli/xss/lfi/cmdi/xxe/ssrf, optionally log-only).
-- **Operations**: `start` / `stop` / `reload` / `status` / `check` / `dev`, config reload without dropping connections, a Windows tray program, and install as a system service.
-- **Packaging**: release archives for Linux / macOS / Windows, an RPM spec, and three Docker base images.
+## Core capabilities
+
+| Capability | What it does |
+| --- | --- |
+| Static sites | `root` / `index` / `try` resolve files; `Last-Modified` conditional requests return 304, a single `Range` returns 206 / 416; gzip and brotli are negotiated from `Accept-Encoding`; a directory requested without a trailing slash gets a 301; no directory listing |
+| Reverse proxy | One `proxy_pass` per location, `http://` and `https://` upstreams, pooled connections, `proxy_set_header`, a disk-backed response cache, WebSocket upgrade, and bidirectional TCP forwarding |
+| TLS certificates | Per-`server_name` certificates; `reload` swaps certificates on the same SSL port without rebinding the socket; a self-signed certificate is generated at startup when the PEM files are missing |
+| HTTP/2 | Adding `h2` to `listen` enables it — ALPN, HPACK, stream state machine, and flow control come from `golang.org/x/net/http2`, and reloads send GOAWAY for a graceful close |
+| Security | Global plus per-location, per-IP token-bucket rate limiting; IP and IPv6 range blacklists; Basic auth; GuardianWAF (sqli / xss / lfi / cmdi / xxe / ssrf, log-only mode available) |
+| Operations | `start` / `stop` / `reload` / `status` / `check` / `dev` / `install`; config reload without dropping connections; `check` validates without listening |
+| Logging | Four JSON logs in `logs/` — system, access, error, security — each line tagged with `kind` and an RFC3339 timestamp; files are reopened after a reload |
+| Packaging | Installers for Linux / macOS / Windows, an RPM spec, three Docker base images, and a Windows tray program |
 
 Core dependencies (versions live in `go.mod`; everything else is the standard library):
 
@@ -44,6 +54,43 @@ Core dependencies (versions live in `go.mod`; everything else is the standard li
 | `guardianwaf/guardianwaf` | Application firewall engine |
 | `klauspost/compress`, `andybalholm/brotli` | gzip and brotli compression |
 | `kardianos/service`, `fyne.io/systray` | System service install, Windows tray |
+
+## How it differs from general-purpose web servers
+
+The two are aimed at different jobs: a general-purpose web server covers more protocols and modules, while Fast-Https packs the common ones into one binary described by one JSON file. The table below states capability boundaries only — it is not a verdict on quality.
+
+| Aspect | General-purpose web server | Fast-Https |
+| --- | --- | --- |
+| Configuration | Domain-specific config files, splittable | One JSON file with comments, trailing commas, and `http.include` |
+| Deployment | Installed as packages, features enabled per module | One executable with every feature compiled in |
+| Static sites | `root` / `index` / `try` style config | `root` / `index` / `try` fields, including 304, 206/416, and the trailing-slash 301 |
+| Reverse proxy | Multiple upstreams, full timeout and buffer directives | One upstream per location, with connection pooling, response cache, and WebSocket |
+| HTTP/2 | Depends on version and compiled modules | Add `h2` to `listen` |
+| Config preflight | Dedicated validation entry point | `check` subcommand — no listening, no pid file |
+| Graceful stop | Stop accepting, drain in-flight requests | `SIGTERM` / `SIGQUIT`, up to 5 seconds |
+| Certificate swap | Takes effect after a config reload | `reload` swaps on the same port without rebinding |
+| Extensibility | Module and third-party plugin ecosystem | Fixed built-in feature set, no dynamic modules |
+| Multi-upstream failover | Multiple addresses with health checks | Not supported yet — one upstream per `proxy_pass` |
+| Application backends | FastCGI / uWSGI / gRPC directly | HTTP, HTTPS, WebSocket, and TCP forwarding |
+| Runtime counters | Status module with connection and request metrics | `status` only reports whether the process is alive |
+
+## When to use it — and when not to
+
+**Good fit:**
+
+- single-machine static sites, documentation sites, and internal dashboards;
+- TLS termination and HTTP/2 without maintaining a large configuration tree;
+- forwarding HTTP or WebSocket traffic to local or internal services;
+- shipping one binary, one JSON file, and one log directory;
+- lightweight servers on Windows that need tray or service mode.
+
+**Not a good fit yet:**
+
+- cluster ingress that needs multi-upstream load balancing and failover (R8 is not implemented);
+- complex routing that depends on `rewrite` regexes, `if`, or `map` expressions (`rewrite` currently returns a fixed 301);
+- PHP or Python deployments that need FastCGI, uWSGI, SCGI, or direct gRPC backends;
+- deployments behind a CDN or load balancer that rely on the real client IP for rate limiting or blacklists (the current implementation uses the connection address and has no `real_ip` equivalent);
+- HTTP/3, binary hot upgrade, a multi-process worker model, or runtime counters (`status` only reports whether the process is alive).
 
 ## Quick Start
 
@@ -57,7 +104,7 @@ Core dependencies (versions live in `go.mod`; everything else is the standard li
 go build -o fast-https . && ./fast-https start
 ```
 
-The shipped `config/fast-https.json` already serves `./httpdoc/root` on port 80 (the same role as nginx's default site). Change `listen` to `8080` or another high port when running as a non-root user.
+The shipped `config/fast-https.json` already serves `./httpdoc/root` on port 80 (a ready-to-run default site). Change `listen` to `8080` or another high port when running as a non-root user.
 
 ```json
 {
@@ -77,10 +124,12 @@ The shipped `config/fast-https.json` already serves `./httpdoc/root` on port 80 
 ```
 
 ```bash
-curl -I http://127.0.0.1/    # expect 200 and Server: fast-https
+curl -I http://127.0.0.1/    # expect 200 and Server: Fast-Https
 ```
 
-The config tolerates `//` and `/* */` comments as well as trailing commas; the shipped file comments every block.
+The shipped config comments every block, so it doubles as a reference for the available fields.
+
+## Commands
 
 | Command | What it does |
 | --- | --- |
@@ -92,6 +141,44 @@ The config tolerates `//` and `/* */` comments as well as trailing commas; the s
 | `./fast-https check` | Validate the config only — no listening, no pid file |
 | `./fast-https install` | Install as a system service |
 
+## FAQ
+
+### Can Fast-Https replace a traditional web server?
+
+For single-machine static sites, TLS termination, HTTP/HTTPS reverse proxying, and WebSocket forwarding, yes. It has no multi-upstream failover, no full rewrite engine, no FastCGI, and no HTTP/3, so complex gateway setups need a different approach.
+
+### Does it support HTTP/2 and HTTPS?
+
+Yes. Add `h2` to `listen` for HTTP/2 and `ssl` for TLS; both can be enabled on the same listener. HTTP/2 comes from `golang.org/x/net/http2` and TLS from the Go standard library.
+
+### Do I need to restart to load a renewed certificate?
+
+No. `reload` swaps the certificate on the same listening socket — the next handshake uses the new one, the port is not rebound, and existing connections are untouched.
+
+### Does Fast-Https request trusted certificates automatically?
+
+No. When the PEM files are missing it generates a self-signed certificate at startup. Trusted certificates are issued by an external ACME client and written as PEM, then picked up with `reload`.
+
+### What happens if the config is invalid?
+
+Both `start` and `reload` validate first. A failed `reload` keeps the old config and the old listeners; `check` validates without listening or writing a pid file.
+
+### Does it run on Windows?
+
+Yes. There is a Windows installer (NSIS), a tray program, and system service installation. `stop` terminates the process directly on Windows, since there are no Unix signals.
+
+### Does it support WebSocket?
+
+Yes. The reverse proxy detects upgrade requests and forwards both directions; `tcp` locations forward raw bytes.
+
+### How fast is it?
+
+Fast-Https parses HTTP/1.1 itself and uses one goroutine per connection — there is no C extension and no worker process model. The repository publishes no external benchmark numbers; the stress-test plan and entry points are in [docs/test/](docs/test/README.md).
+
+### Can I use variables or conditionals in the config?
+
+No. The config is static JSON. `$variable` occurrences in `proxy_cache.key` and `proxy_set_header` are one-shot string substitutions, not expression evaluation.
+
 ## Documentation
 
 | Document | Contents |
@@ -102,7 +189,6 @@ The config tolerates `//` and `/* */` comments as well as trailing commas; the s
 | [docs/feature/](docs/feature/README.md) | One page per feature, with config samples and implementation notes |
 | [docs/develop/](docs/develop/README.md) | Build environment, tests, code standards, adding config keys, debugging, release |
 | [docs/architecture-map.md](docs/architecture-map.md) | Package inventory and dependency direction |
-| [docs/nginx-core-gap.md](docs/nginx-core-gap.md) | Feature-by-feature comparison with nginx |
 
 The full index is [docs/README.md](docs/README.md).
 
@@ -129,10 +215,18 @@ fast-https/
 
 Layering rule: `core` holds contracts only, `runtime` never imports `modules`, and feature packages are wired at startup by `cmd.RegisterHandlers` / `cmd.RegisterServices`. Details in [docs/develop/2-code-standards.md](docs/develop/2-code-standards.md).
 
+## Community
+
+The project has joined the [openEuler community](https://www.openeuler.org/); upstream code and packaging specs are also maintained in the community repository [src-openeuler/fast-https](https://gitee.com/src-openeuler/fast-https).
+
+- openEuler packaging and version tracking happen in the community repo — file packaging and spec related issues and pull requests there;
+- Feature work and bug fixes happen in this repository, and the community repo follows upstream;
+- For usage questions, check [docs/](docs/README.md) first, then open an issue in this repository.
+
 ## More
 
 - Packaging and release (binary, RPM, Docker, GoReleaser): [docs/develop/5-release.md](docs/develop/5-release.md)
 - Test layout and how to run them: [tests/readme.md](tests/readme.md); coverage and stress tests: [docs/test/](docs/test/README.md)
 - Startup flow and signal handling: [docs/about.md](docs/about.md)
 - Contributing: fork the repo, create a `Feat_xxx` branch, commit, and open a pull request
-- License [GPL-2.0](LICENSE); the project is part of the openEuler community (<https://gitee.com/src-openeuler/fast-https>)
+- License [GPL-2.0](LICENSE)

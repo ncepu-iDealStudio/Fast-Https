@@ -44,7 +44,6 @@ func main() {
 var files = [][2]string{
 	{"/usr/share/fast-https/config/fast-https.json", "main configuration file"},
 	{"/usr/share/fast-https/config/mime.json", "MIME type table"},
-	{"/usr/share/fast-https/config/fastcgi.conf", "FastCGI parameter defaults"},
 	{"/usr/share/fast-https/config/conf.d/", "extra server definitions referenced by http.include"},
 	{"/usr/share/fast-https/config/cert/", "certificate and key files"},
 	{"/usr/share/fast-https/httpdoc/root/", "default site root"},
