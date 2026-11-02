@@ -25,6 +25,8 @@
 | [performance-slimming-plan.md](plans/performance-slimming-plan.md) | 精简与性能优化计划（精简部分已落地，性能与稳定性分期未完成） |
 | [fhs-layout-plan.md](plans/fhs-layout-plan.md) | 运行期目录改成 FHS 分离布局（待实施，仅规划） |
 | [acme-certmagic-plan.md](plans/acme-certmagic-plan.md) | 用 certmagic 自签 ACME 证书，取代 shell/.acme.sh（待实施，仅规划） |
+| [upstream-failover-plan.md](plans/upstream-failover-plan.md) | 代理上游故障转移：多地址、健康检查、负载均衡（R8，未排期） |
+| [config-autoreload-plan.md](plans/config-autoreload-plan.md) | 配置文件自动重载：watch + 防抖 + 复用 reload 链路（R7，暂缓） |
 
 ### 已实施的方案（archive/）
 

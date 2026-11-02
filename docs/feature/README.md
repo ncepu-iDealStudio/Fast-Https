@@ -1,8 +1,8 @@
 # 功能特性索引
 
-按编号组织本项目已实现与规划中的功能。每篇文档包含：功能说明、使用方式、实现方案、测试位置与已知限制。
+按编号组织本项目已实现的功能。每篇文档包含：功能说明、使用方式、实现方案、测试位置与已知限制。
 
-状态图例：✅ 已实现 ｜ 🚧 部分实现 ｜ 📋 计划占位（未实现）
+未实现的方案不在本目录，统一写在 [docs/develop/plans/](../develop/README.md)。
 
 ## 已实现
 
@@ -29,16 +29,9 @@
 | 18 | [18-cli-service.md](18-cli-service.md) | 服务管理与 CLI | start/stop/reload/install/status |
 | 19 | [19-monitor.md](19-monitor.md) | 托盘监控 | Windows 系统托盘控制服务 |
 
-## 规划中（占位）
-
-| 编号 | 文档 | 功能 | 状态 |
-| --- | --- | --- | --- |
-| 20 | [20-planned-guardianwaf.md](20-planned-guardianwaf.md) | GuardianWAF 集成 | 已落地（R9），待灰度运营决策 |
-| 21 | [21-planned-upstream-failover.md](21-planned-upstream-failover.md) | 代理上游故障转移 | 未排期（R8） |
-| 22 | [22-planned-config-autoreload.md](22-planned-config-autoreload.md) | 配置文件自动重载 | 暂缓（R7） |
-
 ## 约定
 
 - 每篇文档描述**当前主干**的实现，历史演进见 `docs/develop/archive/`（架构收敛计划、迭代计划）。
+- 尚未实现的方案不进本目录：上游故障转移见 [upstream-failover-plan.md](../develop/plans/upstream-failover-plan.md)，配置自动重载见 [config-autoreload-plan.md](../develop/plans/config-autoreload-plan.md)。
 - 涉及并发语义的功能均以 `go test -race ./...` 全绿为底线（29 个包）。
 - 依赖清单与选型理由见根目录 `README.md` 依赖表。
