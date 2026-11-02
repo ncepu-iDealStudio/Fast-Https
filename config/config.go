@@ -2,8 +2,10 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"fast-https/infra/jsonc"
 	"fast-https/infra/logging"
 	"fmt"
 	"os"
@@ -100,6 +102,7 @@ type Path struct {
 	Auth           PathAuth
 	ErrorNotFound  string
 	ErrorProxy     string
+	AllowMethods   []string
 }
 
 type Server struct {
@@ -141,6 +144,8 @@ type Fast_Https struct {
 	Include                   []string
 	DefaultType               string
 	Waf                       *WAFConfig
+	Acme                      *AcmeConfig
+	Security                  *SecurityConfig
 	ServerNamesHashBucketSize uint16
 	ClientHeaderBufferSize    uint16
 	LargeClientHeaderBuffers  uint8
@@ -157,6 +162,12 @@ type Fast_Https struct {
 // ---------- 配置文件 JSON schema ----------
 // 配置文件是纯 JSON，直接用标准库解析成 schema，再转换为运行时配置。
 // 单独的 schema 结构体让文件结构与运行时结构各自演进，互不牵连。
+
+// unmarshalConfig 解析配置文件。格式是 infra/jsonc 支持的 JSONC：允许
+// // 与 /* */ 注释、尾随逗号，解析结果与纯 JSON 完全一致。
+func unmarshalConfig(data []byte, v any) error {
+	return jsonc.Unmarshal(data, v)
+}
 
 // flexString 兼容 "listen": 8080（数字）与 "listen": "8080"（字符串）两种写法。
 type flexString string
@@ -178,6 +189,59 @@ func (s *flexString) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// flexList 兼容 "listen": 8080、"listen": "8080" 与
+// "listen": ["80", "443 ssl h2"]：一个 server 块可以同时监听多个端口。
+// 加载阶段会把多监听展开成多个运行期 server 块（同 server_name、同 location、
+// 同证书），端口监听与路由表因此不需要知道"一个块多个监听"这件事。
+type flexList []string
+
+func (l *flexList) UnmarshalJSON(b []byte) error {
+	trimmed := bytes.TrimSpace(b)
+	if len(trimmed) > 0 && trimmed[0] == '[' {
+		var items []json.RawMessage
+		if err := json.Unmarshal(trimmed, &items); err != nil {
+			return err
+		}
+		list := make(flexList, 0, len(items))
+		for _, item := range items {
+			var one flexString
+			if err := one.UnmarshalJSON(item); err != nil {
+				return err
+			}
+			list = append(list, string(one))
+		}
+		*l = list
+		return nil
+	}
+	var one flexString
+	if err := one.UnmarshalJSON(trimmed); err != nil {
+		return err
+	}
+	*l = flexList{string(one)}
+	return nil
+}
+
+// MarshalJSON 单个监听按标量输出（纯端口写数字），既有配置与 site show 的
+// 写法保持不变；多个监听才写成数组。
+func (l flexList) MarshalJSON() ([]byte, error) {
+	if len(l) == 1 {
+		return json.Marshal(listenValue(l[0]))
+	}
+	values := make([]any, 0, len(l))
+	for _, item := range l {
+		values = append(values, listenValue(item))
+	}
+	return json.Marshal(values)
+}
+
+// listenValue 纯数字监听写成 JSON 数字，带 "ssl"/"h2" 时保持字符串。
+func listenValue(listen string) any {
+	if port, err := strconv.Atoi(strings.TrimSpace(listen)); err == nil {
+		return port
+	}
+	return listen
+}
+
 type jsonPath struct {
 	URL            string        `json:"url"`
 	Type           string        `json:"type"`
@@ -193,6 +257,7 @@ type jsonPath struct {
 	ErrorPage      jsonErrorPage `json:"error_page"`
 	Zip            []string      `json:"zip"`
 	Try            []Try         `json:"try"`
+	AllowMethods   []string      `json:"allow_methods"`
 }
 
 type jsonErrorPage struct {
@@ -201,7 +266,7 @@ type jsonErrorPage struct {
 }
 
 type jsonServer struct {
-	Listen            flexString `json:"listen"`
+	Listen            flexList   `json:"listen"`
 	ServerName        string     `json:"server_name"`
 	SSLCertificate    string     `json:"ssl_certificate"`
 	SSLCertificateKey string     `json:"ssl_certificate_key"`
@@ -226,11 +291,13 @@ type jsonHTTP struct {
 }
 
 type jsonConfig struct {
-	Pid     string     `json:"pid"`
-	LogRoot string     `json:"log_root"`
-	Engine  jsonEngine `json:"engine"`
-	WAF     *WAFConfig `json:"waf"`
-	HTTP    jsonHTTP   `json:"http"`
+	Pid      string          `json:"pid"`
+	LogRoot  string          `json:"log_root"`
+	Engine   jsonEngine      `json:"engine"`
+	WAF      *WAFConfig      `json:"waf"`
+	Acme     *AcmeConfig     `json:"acme"`
+	Security *SecurityConfig `json:"security"`
+	HTTP     jsonHTTP        `json:"http"`
 }
 
 // 运行时配置快照。reload 校验通过后整体替换快照，读取端要么看到完整的
@@ -336,9 +403,18 @@ func ValidateConfigFile(configPath string) error {
 		}
 	}
 
+	if err := root.Acme.validate(); err != nil {
+		return err
+	}
+	if err := root.Security.validate(); err != nil {
+		return err
+	}
+	// http-01 需要对外暴露 80 端口，但也可能由前置反代转发，因此只告警不阻断。
+	root.Acme.warnHTTP01WithoutPort80(root.HTTP.Servers)
+
 	for i := range root.HTTP.Servers {
 		if err := validateServer(&root.HTTP.Servers[i], baseDir, baseDir,
-			fmt.Sprintf("http.server[%d]", i)); err != nil {
+			fmt.Sprintf("http.server[%d]", i), true); err != nil {
 			return err
 		}
 	}
@@ -406,28 +482,38 @@ func validateIncludeServerFile(includeFilePath, rootBaseDir string) error {
 	}
 
 	fileBaseDir := filepath.Dir(includeFilePath)
-	return validateServer(&s, fileBaseDir, rootBaseDir, includeFilePath)
+	return validateServer(&s, fileBaseDir, rootBaseDir, includeFilePath, true)
 }
 
 // validateServer 校验一个 server 块（主配置数组元素或 include 文件）。
-func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string) error {
-	listenStr := string(s.Listen)
-	if err := validateListenPort(listenStr); err != nil {
-		return fmt.Errorf("%s: %w", where, err)
+func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string, requireCerts bool) error {
+	if len(s.Listen) == 0 {
+		return fmt.Errorf("%s: listen must be non-empty", where)
+	}
+	// 一个块可以写多个监听，任意一个带 ssl 就要有证书。
+	ssl := false
+	for _, listen := range s.Listen {
+		if err := validateListenPort(listen); err != nil {
+			return fmt.Errorf("%s: %w", where, err)
+		}
+		if strings.Contains(listen, "ssl") {
+			ssl = true
+		}
 	}
 
 	if strings.TrimSpace(s.ServerName) == "" {
 		return fmt.Errorf("%s: server_name is required", where)
 	}
 
-	if strings.Contains(listenStr, "ssl") {
+	if ssl {
 		if strings.TrimSpace(s.SSLCertificate) == "" || strings.TrimSpace(s.SSLCertificateKey) == "" {
 			return fmt.Errorf("%s: ssl listen requires ssl_certificate and ssl_certificate_key", where)
 		}
-		if !pathExists(s.SSLCertificate, certBaseDir, rootBaseDir) {
+		// 新建站点时证书由首次 start 生成，落盘那一步不要求文件已经存在。
+		if requireCerts && !pathExists(s.SSLCertificate, certBaseDir, rootBaseDir) {
 			return fmt.Errorf("%s: ssl_certificate not found: %s", where, s.SSLCertificate)
 		}
-		if !pathExists(s.SSLCertificateKey, certBaseDir, rootBaseDir) {
+		if requireCerts && !pathExists(s.SSLCertificateKey, certBaseDir, rootBaseDir) {
 			return fmt.Errorf("%s: ssl_certificate_key not found: %s", where, s.SSLCertificateKey)
 		}
 	}
@@ -464,6 +550,15 @@ func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string) error
 			// valid and no extra required fields for minimal validator
 		default:
 			return fmt.Errorf("%s: location[%d].type is invalid: %s", where, i, typeStr)
+		}
+
+		for j, method := range loc.AllowMethods {
+			if strings.TrimSpace(method) == "" {
+				return fmt.Errorf("%s: location[%d].allow_methods[%d] is empty", where, i, j)
+			}
+			if strings.ContainsAny(method, " \t") {
+				return fmt.Errorf("%s: location[%d].allow_methods[%d] must be a single method: %q", where, i, j, method)
+			}
 		}
 	}
 
@@ -554,6 +649,8 @@ func processRoot(configPath string) (Fast_Https, error) {
 		SlavePort:    jc.Engine.SlavePort,
 	}
 	cfg.Waf = jc.WAF
+	cfg.Acme = jc.Acme
+	cfg.Security = jc.Security
 	if err := processHttp(&cfg, jc.HTTP); err != nil {
 		return cfg, err
 	}
@@ -568,7 +665,7 @@ func processHttp(cfg *Fast_Https, http jsonHTTP) error {
 	cfg.BlackList = http.BlackList
 	cfg.LogFormat = http.LogFormat
 	for _, js := range http.Servers {
-		cfg.Servers = append(cfg.Servers, convertServer(js))
+		cfg.Servers = append(cfg.Servers, convertServers(js)...)
 	}
 	return processIncludeCfg(cfg)
 }
@@ -602,7 +699,7 @@ func processIncludeCfg(cfg *Fast_Https) error {
 				return fmt.Errorf("error unmarshaling include config %s: %w", path, err)
 			}
 
-			cfg.Servers = append(cfg.Servers, convertServer(js))
+			cfg.Servers = append(cfg.Servers, convertServers(js)...)
 			return nil
 		})
 		if err != nil {
@@ -613,17 +710,29 @@ func processIncludeCfg(cfg *Fast_Https) error {
 	return nil
 }
 
-func convertServer(js jsonServer) Server {
-	server := Server{
-		Listen:            string(js.Listen),
+// convertServers 把一个 JSON server 块展开成运行期 server 块：写几个 listen
+// 就得到几个，server_name、location 与证书共用。多端口因此只是配置写法，
+// 监听与路由仍按"一块一个端口"处理。
+func convertServers(js jsonServer) []Server {
+	base := Server{
 		ServerName:        js.ServerName,
 		SSLCertificate:    js.SSLCertificate,
 		SSLCertificateKey: js.SSLCertificateKey,
 	}
 	for _, jl := range js.Locations {
-		server.Path = append(server.Path, convertPath(jl))
+		base.Path = append(base.Path, convertPath(jl))
 	}
-	return server
+
+	servers := make([]Server, 0, len(js.Listen))
+	for _, listen := range js.Listen {
+		server := base
+		// Path 是切片：复制一份，避免多个监听共享同一个底层数组，
+		// 后续按 server 改写路径（ResolveRuntimePaths）时互相影响。
+		server.Path = append([]Path(nil), base.Path...)
+		server.Listen = listen
+		servers = append(servers, server)
+	}
+	return servers
 }
 
 func convertPath(jl jsonPath) Path {
@@ -643,7 +752,25 @@ func convertPath(jl jsonPath) Path {
 		ErrorNotFound:  jl.ErrorPage.NotFound,
 		ErrorProxy:     jl.ErrorPage.Proxy,
 		Zip:            parseZip(jl.Zip),
+		AllowMethods:   normalizeMethods(jl.AllowMethods),
 	}
+}
+
+// normalizeMethods 统一成大写并去掉空白，让配置写成 get 也能工作；
+// HTTP 方法本身大小写敏感，但配置里的大小写手滑不该变成 405。
+func normalizeMethods(methods []string) []string {
+	if len(methods) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(methods))
+	for _, method := range methods {
+		trimmed := strings.ToUpper(strings.TrimSpace(method))
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, trimmed)
+	}
+	return out
 }
 
 func parseZip(zip []string) uint16 {
@@ -707,6 +834,10 @@ func SetDefault(cfg *Fast_Https) {
 	if cfg.LogRoot == "" {
 		cfg.LogRoot = DEFAULT_LOG_ROOT
 	}
+	// acme 段的默认值只在解析完成后补一次：校验路径上不能补默认值，
+	// 否则 check 与 load 对同一份文件的判断会不一致。
+	cfg.Acme.applyDefaults()
+	cfg.Security.applyDefaults()
 	ResolveRuntimePaths(cfg)
 }
 

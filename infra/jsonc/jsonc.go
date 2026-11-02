@@ -1,24 +1,24 @@
-package config
+// Package jsonc 解析带注释与尾随逗号的 JSON（JSON with comments）。
+//
+// 配置文件是给人改的，纯 JSON 不允注释就只能把每个键的解释堆到文档里；
+// 换 YAML 或 nginx 那种 conf 都要另写一套解析器。这里只加一层预处理：
+// 注释与多余逗号原地替换成空格、换行保留，因此 json.SyntaxError.Offset
+// 仍然对应原文件的行列，纯 JSON 文件解析结果完全不变。
+//
+// StripComments 返回与输入等长的字节缓冲，调用方可以继续用原文偏移做
+// 结构扫描（config 里的 acme 段就地改写依赖这一点）。
+package jsonc
 
 import "encoding/json"
 
-// 配置文件在标准 JSON 之上容忍 // 与 /* */ 注释以及尾随逗号。
-//
-// 配置是给人改的，纯 JSON 不允注释就只能把每个键的解释都堆到文档里。
-// 换成 YAML 或 nginx 那种 conf 都要另写一套解析器：YAML 需要给全部
-// schema 字段补 tag、迁移存量配置、重写 include 的扩展名过滤；conf 更是
-// 要从零写词法/语法分析。这里只加一层预处理：注释与多余逗号原地替换成
-// 空格、换行保留，因此 json.SyntaxError.Offset 仍然对应原文件的行列，
-// 纯 JSON 文件解析结果完全不变。
-
-// unmarshalConfig 解析配置文件，允许注释与尾随逗号。
-func unmarshalConfig(data []byte, v any) error {
-	return json.Unmarshal(stripJSONComments(data), v)
+// Unmarshal 解析允许注释与尾随逗号的 JSON。
+func Unmarshal(data []byte, v any) error {
+	return json.Unmarshal(StripComments(data), v)
 }
 
-// stripJSONComments 把注释与尾随逗号替换为空格，返回等长缓冲。
+// StripComments 把注释与尾随逗号替换为空格，返回等长缓冲。
 // 只处理字符串之外的内容，`"http://x"` 里的 `//` 不会被当成注释。
-func stripJSONComments(src []byte) []byte {
+func StripComments(src []byte) []byte {
 	out := make([]byte, len(src))
 	copy(out, src)
 
