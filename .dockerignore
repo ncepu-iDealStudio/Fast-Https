@@ -1,6 +1,5 @@
 .git
 .github
-shell
 logs
 dist
 dist_windows
