@@ -60,8 +60,8 @@ docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .
 
 ```text
 fast-https                  主程序（Windows 下另有 monitor.exe 托盘程序）
-config/fast-https.json      唯一配置真源
-config/conf.d/              拆分出来的站点配置（由 http.include 指向）
+config/fast-https.json      系统级配置（include、acme、日志、WAF…）
+config/conf.d/              站点配置，一个文件一个站点（由 http.include 指向）
 config/mime.json            扩展名 → Content-Type 映射
 config/cert/                TLS 证书，*.pem 不入库，首次启动自动生成
 httpdoc/root/               默认站点根目录
@@ -72,40 +72,37 @@ logs/                       运行日志
 
 ### 4.1 默认配置
 
-随包的 `config/fast-https.json` 已经能直接服务，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 `./httpdoc/root`，站点多了就拆到 `config/conf.d/`。文件刻意不带注释：
+配置分成两层：`config/fast-https.json` 只放系统级设置（`http.include`、`acme`、日志、WAF、安全响应头），站点一律写在 `config/conf.d/` 下，一个文件一个站点。两个文件都刻意不带注释。
+
+`config/fast-https.json`：
 
 ```json
 {
+  "log_root": "./logs",
+  "security": {
+    "host_check": "off",
+    "headers": {
+      "nosniff": true,
+      "hsts": "",
+      "x_frame_options": "",
+      "referrer_policy": "",
+      "content_security_policy": ""
+    }
+  },
+  "waf": {
+    "mode": "disabled"
+  },
   "http": {
-    "server": [
-      {
-        "listen": 80,
-        "server_name": "localhost",
-        "location": [
-          {
-            "url": "/",
-            "type": "local",
-            "root": "./httpdoc/root",
-            "index": ["index.html", "index.htm"]
-          }
-        ]
-      },
-      {
-        "listen": "443 ssl h2",
-        "server_name": "localhost",
-        "ssl_certificate": "./config/cert/localhost.pem",
-        "ssl_certificate_key": "./config/cert/localhost-key.pem",
-        "location": [
-          {
-            "url": "/",
-            "type": "local",
-            "root": "./httpdoc/root",
-            "index": ["index.html", "index.htm"]
-          }
-        ]
-      }
-    ],
-    "include": ["./config/conf.d"]
+    "include": ["./config/conf.d"],
+    "default_type": "application/octet-stream",
+    "servers_limit": {
+      "max_header_size": 4096,
+      "max_body_size": 524288,
+      "limit": 0,
+      "burst": 0
+    },
+    "blaklist": [],
+    "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
   },
   "acme": {
     "enabled": false,
@@ -114,15 +111,37 @@ logs/                       运行日志
 }
 ```
 
+上面每一项的取值都等于内置默认值，写全是为了在文件里直接看到有哪些系统级开关（`waf.mode: disabled` 等价于不启用，引擎不构建，零开销）。
+
+随包的 `config/conf.d/default.json` 是开箱即用的默认站点，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 `./httpdoc/root`：
+
+```json
+{
+  "listen": [80, "443 ssl h2"],
+  "server_name": "localhost",
+  "ssl_certificate": "./config/cert/localhost.pem",
+  "ssl_certificate_key": "./config/cert/localhost-key.pem",
+  "location": [
+    {
+      "url": "/",
+      "type": "local",
+      "root": "./httpdoc/root",
+      "index": ["index.html", "index.htm"]
+    }
+  ]
+}
+```
+
 逐项说明：
 
+- `listen: [80, "443 ssl h2"]`：一个站点文件可以写多个监听，加载时按每个监听展开成独立的运行期 server 块，`server_name`、`location` 与证书共用；只想留一个端口就从数组里删掉另一个。写成单个值时也可以直接写 `"listen": 80`。
 - `listen: 80`：HTTP 默认端口，绑定它需要 root；普通用户手工运行时改成 `8080` 之类的高位端口。写成字符串 `"80"` 等价。
 - `listen: "443 ssl h2"`：HTTPS + HTTP/2，`ssl` 开 TLS，`h2` 才向客户端通告 HTTP/2。
 - `ssl_certificate` / `ssl_certificate_key`：文件不存在时，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`，可以直接 `curl -k https://127.0.0.1/` 验证；浏览器会提示不受信任。正式环境换成权威 CA 的 PEM，或者打开 7.1 的 ACME 自动签发。
-- 不需要 HTTPS 时把第二个 server 块整段删掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或删掉这一块。
+- 不需要 HTTPS 时把 `"443 ssl h2"` 从 `listen` 里去掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或去掉这一项。
 - `server_name`：按请求的 `Host` 头匹配。没命中任何 `server_name` 时回落到该端口的第一个 server 块（相当于 nginx 的 `default_server`），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。
 - `root: ./httpdoc/root`：站点根目录，相对路径以安装目录为基准。
-- `include: ["./config/conf.d"]`：该目录下每个 `*.json` 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。
+- `http.include: ["./config/conf.d"]`：该目录下每个 `*.json` 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。主配置可以完全不写 `http.server`，只要 include 里至少有一个站点文件；`fast-https site` 的子命令就是按这个约定增删站点文件的。
 - `acme.enabled: false`：ACME 自动签发默认关闭，行为与老版本一致。需要受信任证书时按 7.1 手工配置，或直接运行 `fast-https acme` 向导。
 
 配置本身允许 `//`、`/* */` 注释与末尾多余逗号（见第 5 节），需要给自己留备注时随时加。随包默认文件不带注释，是为了让「用脚本或向导改配置」这件事不用处理注释：文档负责解释字段，文件保持最小可读 JSON。

@@ -106,23 +106,40 @@ The two are aimed at different jobs: a general-purpose web server covers more pr
 go build -o fast-https . && ./fast-https start
 ```
 
-The shipped `config/fast-https.json` already serves `./httpdoc/root` on port 80 and on `443 ssl h2` (a ready-to-run default site). The 443 certificate is generated on first start by the local CA into `config/cert/localhost.pem` and `localhost-key.pem`; change `listen` to `8080` or another high port when running as a non-root user.
+The shipped config has two layers: `config/fast-https.json` keeps system-level settings only (`http.include`, `acme`, logging, WAF), and every site lives as one file under `config/conf.d/`.
 
 ```json
 {
+  "log_root": "./logs",
+  "security": {
+    "host_check": "off",
+    "headers": { "nosniff": true, "hsts": "", "x_frame_options": "",
+                 "referrer_policy": "", "content_security_policy": "" }
+  },
+  "waf": { "mode": "disabled" },
   "http": {
-    "server": [
-      { "listen": 80, "server_name": "localhost", "location": [
-        { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ] },
-      { "listen": "443 ssl h2", "server_name": "localhost",
-        "ssl_certificate": "./config/cert/localhost.pem",
-        "ssl_certificate_key": "./config/cert/localhost-key.pem",
-        "location": [
-          { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ] }
-    ],
-    "include": ["./config/conf.d"]
+    "include": ["./config/conf.d"],
+    "default_type": "application/octet-stream",
+    "servers_limit": { "max_header_size": 4096, "max_body_size": 524288, "limit": 0, "burst": 0 },
+    "blaklist": [],
+    "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
   },
   "acme": { "enabled": false, "email": "" }
+}
+```
+
+Every value above equals its built-in default; they are spelled out so the file itself shows which system-wide switches exist. Field reference: [docs/usage.md](docs/usage.md).
+
+The shipped `config/conf.d/default.json` is the ready-to-run default site: `./httpdoc/root` on port 80 and on `443 ssl h2`. The 443 certificate is generated on first start by the local CA into `config/cert/localhost.pem` and `localhost-key.pem`; change `listen` to `8080` or another high port when running as a non-root user.
+
+```json
+{
+  "listen": [80, "443 ssl h2"],
+  "server_name": "localhost",
+  "ssl_certificate": "./config/cert/localhost.pem",
+  "ssl_certificate_key": "./config/cert/localhost-key.pem",
+  "location": [
+    { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ]
 }
 ```
 

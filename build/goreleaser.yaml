@@ -78,6 +78,7 @@ archives:
       - config/cert/.keep
       - config/cert/acme/.keep
       - config/conf.d/.keep
+      - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
       - docs/usage.html
@@ -101,6 +102,7 @@ archives:
       - config/cert/.keep
       - config/cert/acme/.keep
       - config/conf.d/.keep
+      - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
       - docs/usage.html
@@ -126,6 +128,7 @@ archives:
       - config/cert/.keep
       - config/cert/acme/.keep
       - config/conf.d/.keep
+      - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
       - docs/usage.html
@@ -178,6 +181,9 @@ nfpms:
         type: dir
       - dst: /usr/share/fast-https/config/conf.d
         type: dir
+      - src: config/conf.d/default.json
+        dst: /usr/share/fast-https/config/conf.d/default.json
+        type: config|noreplace
       - dst: /usr/share/fast-https/logs
         type: dir
       # 与 Windows 归档一样用 .keep 占住这三个目录：只留空目录时，

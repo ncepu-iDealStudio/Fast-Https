@@ -92,61 +92,74 @@ docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .</code></
 <p>镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 80 与 443，与随包默认配置一致。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 <code>listen</code>。</p>
 <h2 id="sec-7">3. 目录布局</h2>
 <pre><code class="language-text">fast-https                  主程序（Windows 下另有 monitor.exe 托盘程序）
-config/fast-https.json      唯一配置真源
-config/conf.d/              拆分出来的站点配置（由 http.include 指向）
+config/fast-https.json      系统级配置（include、acme、日志、WAF…）
+config/conf.d/              站点配置，一个文件一个站点（由 http.include 指向）
 config/mime.json            扩展名 → Content-Type 映射
 config/cert/                TLS 证书，*.pem 不入库，首次启动自动生成
 httpdoc/root/               默认站点根目录
 logs/                       运行日志</code></pre>
 <h2 id="sec-8">4. 快速开始</h2>
 <h3 id="sec-9">4.1 默认配置</h3>
-<p>随包的 <code>config/fast-https.json</code> 已经能直接服务，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 <code>./httpdoc/root</code>，站点多了就拆到 <code>config/conf.d/</code>。文件刻意不带注释：</p>
+<p>配置分成两层：<code>config/fast-https.json</code> 只放系统级设置（<code>http.include</code>、<code>acme</code>、日志、WAF、安全响应头），站点一律写在 <code>config/conf.d/</code> 下，一个文件一个站点。两个文件都刻意不带注释。</p>
+<p><code>config/fast-https.json</code>：</p>
 <pre><code class="language-json">{
+  &#34;log_root&#34;: &#34;./logs&#34;,
+  &#34;security&#34;: {
+    &#34;host_check&#34;: &#34;off&#34;,
+    &#34;headers&#34;: {
+      &#34;nosniff&#34;: true,
+      &#34;hsts&#34;: &#34;&#34;,
+      &#34;x_frame_options&#34;: &#34;&#34;,
+      &#34;referrer_policy&#34;: &#34;&#34;,
+      &#34;content_security_policy&#34;: &#34;&#34;
+    }
+  },
+  &#34;waf&#34;: {
+    &#34;mode&#34;: &#34;disabled&#34;
+  },
   &#34;http&#34;: {
-    &#34;server&#34;: [
-      {
-        &#34;listen&#34;: 80,
-        &#34;server_name&#34;: &#34;localhost&#34;,
-        &#34;location&#34;: [
-          {
-            &#34;url&#34;: &#34;/&#34;,
-            &#34;type&#34;: &#34;local&#34;,
-            &#34;root&#34;: &#34;./httpdoc/root&#34;,
-            &#34;index&#34;: [&#34;index.html&#34;, &#34;index.htm&#34;]
-          }
-        ]
-      },
-      {
-        &#34;listen&#34;: &#34;443 ssl h2&#34;,
-        &#34;server_name&#34;: &#34;localhost&#34;,
-        &#34;ssl_certificate&#34;: &#34;./config/cert/localhost.pem&#34;,
-        &#34;ssl_certificate_key&#34;: &#34;./config/cert/localhost-key.pem&#34;,
-        &#34;location&#34;: [
-          {
-            &#34;url&#34;: &#34;/&#34;,
-            &#34;type&#34;: &#34;local&#34;,
-            &#34;root&#34;: &#34;./httpdoc/root&#34;,
-            &#34;index&#34;: [&#34;index.html&#34;, &#34;index.htm&#34;]
-          }
-        ]
-      }
-    ],
-    &#34;include&#34;: [&#34;./config/conf.d&#34;]
+    &#34;include&#34;: [&#34;./config/conf.d&#34;],
+    &#34;default_type&#34;: &#34;application/octet-stream&#34;,
+    &#34;servers_limit&#34;: {
+      &#34;max_header_size&#34;: 4096,
+      &#34;max_body_size&#34;: 524288,
+      &#34;limit&#34;: 0,
+      &#34;burst&#34;: 0
+    },
+    &#34;blaklist&#34;: [],
+    &#34;log_format&#34;: [&#34;ip_port&#34;, &#34;time&#34;, &#34;type&#34;, &#34;method&#34;, &#34;path&#34;, &#34;host&#34;, &#34;status&#34;, &#34;size&#34;, &#34;user_agent&#34;]
   },
   &#34;acme&#34;: {
     &#34;enabled&#34;: false,
     &#34;email&#34;: &#34;&#34;
   }
 }</code></pre>
+<p>上面每一项的取值都等于内置默认值，写全是为了在文件里直接看到有哪些系统级开关（<code>waf.mode: disabled</code> 等价于不启用，引擎不构建，零开销）。</p>
+<p>随包的 <code>config/conf.d/default.json</code> 是开箱即用的默认站点，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 <code>./httpdoc/root</code>：</p>
+<pre><code class="language-json">{
+  &#34;listen&#34;: [80, &#34;443 ssl h2&#34;],
+  &#34;server_name&#34;: &#34;localhost&#34;,
+  &#34;ssl_certificate&#34;: &#34;./config/cert/localhost.pem&#34;,
+  &#34;ssl_certificate_key&#34;: &#34;./config/cert/localhost-key.pem&#34;,
+  &#34;location&#34;: [
+    {
+      &#34;url&#34;: &#34;/&#34;,
+      &#34;type&#34;: &#34;local&#34;,
+      &#34;root&#34;: &#34;./httpdoc/root&#34;,
+      &#34;index&#34;: [&#34;index.html&#34;, &#34;index.htm&#34;]
+    }
+  ]
+}</code></pre>
 <p>逐项说明：</p>
 <ul>
+<li><code>listen: [80, &#34;443 ssl h2&#34;]</code>：一个站点文件可以写多个监听，加载时按每个监听展开成独立的运行期 server 块，<code>server_name</code>、<code>location</code> 与证书共用；只想留一个端口就从数组里删掉另一个。写成单个值时也可以直接写 <code>&#34;listen&#34;: 80</code>。</li>
 <li><code>listen: 80</code>：HTTP 默认端口，绑定它需要 root；普通用户手工运行时改成 <code>8080</code> 之类的高位端口。写成字符串 <code>&#34;80&#34;</code> 等价。</li>
 <li><code>listen: &#34;443 ssl h2&#34;</code>：HTTPS + HTTP/2，<code>ssl</code> 开 TLS，<code>h2</code> 才向客户端通告 HTTP/2。</li>
 <li><code>ssl_certificate</code> / <code>ssl_certificate_key</code>：文件不存在时，首次 <code>start</code> 会用本地 CA 生成 <code>config/cert/localhost.pem</code> 与 <code>localhost-key.pem</code>，可以直接 <code>curl -k https://127.0.0.1/</code> 验证；浏览器会提示不受信任。正式环境换成权威 CA 的 PEM，或者打开 7.1 的 ACME 自动签发。</li>
-<li>不需要 HTTPS 时把第二个 server 块整段删掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或删掉这一块。</li>
+<li>不需要 HTTPS 时把 <code>&#34;443 ssl h2&#34;</code> 从 <code>listen</code> 里去掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或去掉这一项。</li>
 <li><code>server_name</code>：按请求的 <code>Host</code> 头匹配。没命中任何 <code>server_name</code> 时回落到该端口的第一个 server 块（相当于 nginx 的 <code>default_server</code>），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。</li>
 <li><code>root: ./httpdoc/root</code>：站点根目录，相对路径以安装目录为基准。</li>
-<li><code>include: [&#34;./config/conf.d&#34;]</code>：该目录下每个 <code>*.json</code> 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。</li>
+<li><code>http.include: [&#34;./config/conf.d&#34;]</code>：该目录下每个 <code>*.json</code> 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。主配置可以完全不写 <code>http.server</code>，只要 include 里至少有一个站点文件；<code>fast-https site</code> 的子命令就是按这个约定增删站点文件的。</li>
 <li><code>acme.enabled: false</code>：ACME 自动签发默认关闭，行为与老版本一致。需要受信任证书时按 7.1 手工配置，或直接运行 <code>fast-https acme</code> 向导。</li>
 </ul>
 <p>配置本身允许 <code>//</code>、<code>/* */</code> 注释与末尾多余逗号（见第 5 节），需要给自己留备注时随时加。随包默认文件不带注释，是为了让「用脚本或向导改配置」这件事不用处理注释：文档负责解释字段，文件保持最小可读 JSON。</p>

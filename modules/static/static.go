@@ -429,30 +429,52 @@ func staticPathInRoot(root, rooted string) (string, bool) {
 }
 
 // get this endpoint's content type
-// user can define mime.types in confgure
+// user can define mime in config/mime.json
 func getContentType(path string) string {
-	path_type := strings.Split(path, ".")
+	ext, ok := contentTypeExt(path)
+	if !ok {
+		return defaultContentType()
+	}
+	if contentType := mimeType(ext); contentType != "" {
+		return contentType
+	}
+	return defaultContentType()
+}
 
-	if path_type == nil {
-		return config.HTTP_DEFAULT_CONTENT_TYPE
+// contentTypeExt 取路径最后一段扩展名，并剥掉 ?query。
+// 返回 ok=false 表示没有扩展名（无点、以点结尾或点后为空）。
+func contentTypeExt(path string) (string, bool) {
+	dot := strings.LastIndexByte(path, '.')
+	if dot < 0 || dot == len(path)-1 {
+		return "", false
 	}
-	pointAfter := path_type[len(path_type)-1]
-	row := config.MIME()[pointAfter]
-	if row == "" {
-		sep := "?"
-		index := strings.Index(pointAfter, sep)
-		if index != -1 { // if "?" exists
-			// delete chars from "?" to the end of string
-			pointAfter = pointAfter[:index]
-		}
-		secondFind := config.MIME()[pointAfter]
-		if secondFind != "" {
-			return secondFind
-		} else {
-			return config.HTTP_DEFAULT_CONTENT_TYPE
-		}
+	ext := path[dot+1:]
+	if q := strings.IndexByte(ext, '?'); q >= 0 {
+		ext = ext[:q]
 	}
-	return row
+	return ext, ext != ""
+}
+
+// mimeType 查表：先按原样查，查不到再按小写查一次。
+// 表里的键全是小写，IMG.PNG 不该因为大小写落到默认类型。
+func mimeType(ext string) string {
+	if contentType := config.MIME()[ext]; contentType != "" {
+		return contentType
+	}
+	lower := strings.ToLower(ext)
+	if lower == ext {
+		return ""
+	}
+	return config.MIME()[lower]
+}
+
+// defaultContentType 返回 http.default_type：配置未加载或没写这一项时
+// 用内置常量。快照在 reload 后整体替换，这里每次重新读即可。
+func defaultContentType() string {
+	if contentType := config.Current().DefaultType; contentType != "" {
+		return contentType
+	}
+	return config.HTTP_DEFAULT_CONTENT_TYPE
 }
 
 /*

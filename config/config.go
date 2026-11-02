@@ -348,7 +348,7 @@ func LoadFile(path string) error {
 	if err != nil {
 		return err
 	}
-	mime, err := loadContentTypes()
+	mime, err := loadContentTypes(path)
 	if err != nil {
 		return err
 	}
@@ -391,9 +391,6 @@ func ValidateConfigFile(configPath string) error {
 	}
 
 	baseDir := filepath.Dir(configPath)
-	if len(root.HTTP.Servers) == 0 {
-		return errors.New("http.server must contain at least one server")
-	}
 
 	if root.WAF != nil {
 		switch root.WAF.Mode {
@@ -412,6 +409,7 @@ func ValidateConfigFile(configPath string) error {
 	// http-01 需要对外暴露 80 端口，但也可能由前置反代转发，因此只告警不阻断。
 	root.Acme.warnHTTP01WithoutPort80(root.HTTP.Servers)
 
+	serverCount := len(root.HTTP.Servers)
 	for i := range root.HTTP.Servers {
 		if err := validateServer(&root.HTTP.Servers[i], baseDir, baseDir,
 			fmt.Sprintf("http.server[%d]", i), true); err != nil {
@@ -419,13 +417,24 @@ func ValidateConfigFile(configPath string) error {
 		}
 	}
 
-	return validateIncludes(root.HTTP.Include, baseDir)
+	includeServers, err := validateIncludes(root.HTTP.Include, baseDir)
+	if err != nil {
+		return err
+	}
+	// 站点允许只写在 include 目录里，主配置不出现 http.server；
+	// 但整体一个站点都没有就等于没配服务。
+	if serverCount+includeServers == 0 {
+		return errors.New("no server configured: add http.server or a server file under http.include")
+	}
+	return nil
 }
 
-func validateIncludes(includes []string, rootBaseDir string) error {
+// validateIncludes 校验 include 目录/文件，返回其中有效的 server 块数量。
+func validateIncludes(includes []string, rootBaseDir string) (int, error) {
+	count := 0
 	for _, includePath := range includes {
 		if strings.TrimSpace(includePath) == "" {
-			return errors.New("http.include must contain non-empty paths")
+			return 0, errors.New("http.include must contain non-empty paths")
 		}
 
 		fullPath := includePath
@@ -439,7 +448,7 @@ func validateIncludes(includes []string, rootBaseDir string) error {
 
 		info, err := os.Stat(fullPath)
 		if err != nil {
-			return fmt.Errorf("include path not found: %s", fullPath)
+			return 0, fmt.Errorf("include path not found: %s", fullPath)
 		}
 
 		if info.IsDir() {
@@ -450,24 +459,29 @@ func validateIncludes(includes []string, rootBaseDir string) error {
 				if info.IsDir() || filepath.Ext(path) != ".json" {
 					return nil
 				}
-				return validateIncludeServerFile(path, rootBaseDir)
+				if err := validateIncludeServerFile(path, rootBaseDir); err != nil {
+					return err
+				}
+				count++
+				return nil
 			})
 			if err != nil {
-				return err
+				return 0, err
 			}
 			continue
 		}
 
 		if filepath.Ext(fullPath) != ".json" {
-			return fmt.Errorf("include file must be .json: %s", fullPath)
+			return 0, fmt.Errorf("include file must be .json: %s", fullPath)
 		}
 
 		if err := validateIncludeServerFile(fullPath, rootBaseDir); err != nil {
-			return err
+			return 0, err
 		}
+		count++
 	}
 
-	return nil
+	return count, nil
 }
 
 func validateIncludeServerFile(includeFilePath, rootBaseDir string) error {
@@ -612,19 +626,38 @@ func pathExists(path, baseDir, rootBaseDir string) bool {
 // content types of server
 // mime 文件缺失或非法返回错误：启动时由组合根决定是否退出，
 // reload 时保留旧配置继续服务。
-func loadContentTypes() (map[string]string, error) {
-	confBytes, err := os.ReadFile(MIME_FILE_PATH)
+func loadContentTypes(configPath string) (map[string]string, error) {
+	path := resolveMIMEPath(configPath)
+	confBytes, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("can't open mime.types file: %w", err)
+		return nil, fmt.Errorf("can't open mime file %s: %w", path, err)
 	}
 
 	mime := make(map[string]string)
 	err = json.Unmarshal(confBytes, &mime)
 	if err != nil {
-		return nil, fmt.Errorf("can't unmarshal mime.json file: %w", err)
+		return nil, fmt.Errorf("can't unmarshal mime file %s: %w", path, err)
 	}
 
 	return mime, nil
+}
+
+// resolveMIMEPath 找 mime.json：先用主配置同目录的那份，这样 --config 指到
+// 别的目录时 MIME 表跟着配置文件走，不受进程工作目录影响；没有再用安装
+// 基准目录下的 config/mime.json（包安装后是 /usr/share/fast-https/config/）。
+func resolveMIMEPath(configPath string) string {
+	candidates := []string{
+		filepath.Join(filepath.Dir(configPath), "mime.json"),
+		MIME_FILE_PATH,
+		absConfigPath(MIME_FILE_PATH),
+	}
+	for _, candidate := range candidates {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	// 都不存在时按第一项报错，错误信息里带上实际尝试的路径。
+	return candidates[0]
 }
 
 func processRoot(configPath string) (Fast_Https, error) {

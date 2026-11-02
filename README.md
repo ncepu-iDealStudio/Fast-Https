@@ -106,23 +106,40 @@
 go build -o fast-https . && ./fast-https start
 ```
 
-随包的 `config/fast-https.json` 已经是一份可直接服务的默认配置（开箱即用的默认站点）：80 提供 HTTP，`443 ssl h2` 提供 HTTPS + HTTP/2，两者都指向 `./httpdoc/root`。443 的证书不用预置，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`；非 root 运行时把 `listen` 改成 `8080` 之类的高位端口。
+随包的配置分成两层：`config/fast-https.json` 只放系统级设置（`http.include`、`acme`、日志、WAF 等），站点一律写在 `config/conf.d/` 下，一个文件一个站点。
 
 ```json
 {
+  "log_root": "./logs",
+  "security": {
+    "host_check": "off",
+    "headers": { "nosniff": true, "hsts": "", "x_frame_options": "",
+                 "referrer_policy": "", "content_security_policy": "" }
+  },
+  "waf": { "mode": "disabled" },
   "http": {
-    "server": [
-      { "listen": 80, "server_name": "localhost", "location": [
-        { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ] },
-      { "listen": "443 ssl h2", "server_name": "localhost",
-        "ssl_certificate": "./config/cert/localhost.pem",
-        "ssl_certificate_key": "./config/cert/localhost-key.pem",
-        "location": [
-          { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ] }
-    ],
-    "include": ["./config/conf.d"]
+    "include": ["./config/conf.d"],
+    "default_type": "application/octet-stream",
+    "servers_limit": { "max_header_size": 4096, "max_body_size": 524288, "limit": 0, "burst": 0 },
+    "blaklist": [],
+    "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
   },
   "acme": { "enabled": false, "email": "" }
+}
+```
+
+以上每一项都取内置默认值，写出来只是为了让人在文件里就能看到有哪些系统级开关；字段含义见 [docs/usage.md](docs/usage.md)。
+
+随包的 `config/conf.d/default.json` 就是开箱即用的默认站点：80 提供 HTTP，`443 ssl h2` 提供 HTTPS + HTTP/2，两者都指向 `./httpdoc/root`。443 的证书不用预置，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`；非 root 运行时把 `listen` 改成 `8080` 之类的高位端口。
+
+```json
+{
+  "listen": [80, "443 ssl h2"],
+  "server_name": "localhost",
+  "ssl_certificate": "./config/cert/localhost.pem",
+  "ssl_certificate_key": "./config/cert/localhost-key.pem",
+  "location": [
+    { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ]
 }
 ```
 
