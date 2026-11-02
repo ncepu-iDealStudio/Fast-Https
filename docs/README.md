@@ -26,9 +26,10 @@ docs/
 | 新增配置项 | [develop/3-config-development.md](develop/3-config-development.md) |
 | 排查线上问题 | [develop/4-debugging.md](develop/4-debugging.md) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
-| 了解历史决策与演进 | [develop/plans/](develop/README.md) |
+| 了解历史决策与演进 | [develop/README.md](develop/README.md)（`plans/` 未实施，`archive/` 已归档） |
 
 ## 维护约定
 
-- 功能变化 → `feature/` 对应篇章；迭代状态 → `develop/plans/iteration-plan.md`；结构变化 → `architecture-map.md`。
+- 功能变化 → `feature/` 对应篇章；迭代状态 → `develop/archive/iteration-plan.md`；结构变化 → `architecture-map.md`。
+- 方案落地后从 `develop/plans/` 移到 `develop/archive/`，正文不改写。
 - 计划中的功能在 `feature/` 里有占位文档（编号 20 起），落地后转正。

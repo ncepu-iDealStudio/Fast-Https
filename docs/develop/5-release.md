@@ -104,6 +104,6 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 2. `go test -race ./...` 全绿（29 包）
 3. 三个 E2E：`FASTHTTPS_E2E_RELOAD=1` reload、proxy、h2
 4. 根 README 依赖表与 `go.mod` 一致
-5. `docs/feature/` 与 `develop/plans/iteration-plan.md` 状态同步
+5. `docs/feature/` 与 `develop/archive/iteration-plan.md` 状态同步
 6. 快照产物冒烟：安装目录跑 `check`/`start`/`status`/`reload`/`stop`
 7. Windows 与 Linux 各自编译验证（不以单平台代替）；Windows 再跑一次安装包：安装 → 托盘启动 → 卸载，确认 `dist` 里只剩产物

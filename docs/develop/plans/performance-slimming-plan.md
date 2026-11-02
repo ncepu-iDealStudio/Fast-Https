@@ -2,7 +2,7 @@
 
 修订日期：2026-10-24。
 
-本文是 [architecture-convergence-plan.md](architecture-convergence-plan.md) 的**补充计划**，不重复其已完成的结构收敛工作，聚焦三件事：**技术栈/死代码精简**、**请求热路径性能**、**稳定性缺陷**。本文只做规划，不含代码改动；每项单独评审、提交和验证，前一项未达验收不进入下一项。
+本文是 [architecture-convergence-plan.md](../archive/architecture-convergence-plan.md) 的**补充计划**，不重复其已完成的结构收敛工作，聚焦三件事：**技术栈/死代码精简**、**请求热路径性能**、**稳定性缺陷**。本文只做规划，不含代码改动；每项单独评审、提交和验证，前一项未达验收不进入下一项。
 
 不做 2.0 智能体（见 [agent-refactor-plan.md](agent-refactor-plan.md)），不新增协议或产品能力，不重写 HTTP/1.1、HTTP/2、HPACK 与连接池实现。
 
