@@ -23,6 +23,7 @@
 - **目录重定向**：请求指向真实目录但缺结尾斜杠（`/about`）时回 `301` 到 `/about/`，与 nginx 的
   `try_files $uri/` 一致；否则会直接 404，页面内相对链接也会失效。末段带 `.` 的路径按文件请求处理，不做这一步 Stat。
 - **安全**：打开前 `staticPathInRoot` 对拼接结果 Clean 并校验仍在 `StaticRoot` 内，`/../` 逃逸一律 404；服务不做 URL 解码，`%2e%2e` 天然不生效。文件句柄全路径关闭（目录请求、客户端中断均不泄漏）。
+- **隐藏路径**：`hiddenPathSegment` 按请求路径拒绝以 `.` 开头的路径段（`.git/config`、`.env`、`.htaccess`），一律 404 且不读文件；只放行 `/.well-known/` 一层，保证 ACME http-01 的 webroot 挑战文件可取。判定用请求路径而非拼好的文件路径，站点根落在 `.local` 这类带点目录时不受影响。
 - **条件请求**：200/206 带 `Last-Modified`（RFC 7231 格式）；`If-Modified-Since` 不早于修改时间回 304 无正文。
 - **Range**：仅 GET、单段 `bytes=`；命中回 206 + `Content-Range`（Seek + `io.CopyN`）；畸形/越界回 416 + `bytes */size`；多段范围回 200 全量；带 Range 时跳过压缩。
 - **压缩**：`encodingWanted` 内容协商（见 [12-compress.md](12-compress.md)）；压缩路径全量读入内存，Range 优先于压缩。
@@ -31,7 +32,8 @@
 
 ## 测试
 
-`modules/static/`：body/压缩协商/条件请求/Range/穿越/目录索引（traversal_test、negotiation_test、conditional_test）。
+`modules/static/`：body/压缩协商/条件请求/Range/穿越/目录索引/隐藏路径（traversal_test、hidden_path_test、negotiation_test、conditional_test）。
+`tests/scripts/static-regression.sh`：真实进程 + curl 的静态资源回归（Content-Type、带哈希文件名、目录 301、不列目录、404、敏感路径）。
 
 ## 已知限制
 

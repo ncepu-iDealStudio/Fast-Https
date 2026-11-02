@@ -21,10 +21,10 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [v1.5.0-plan.md](plans/v1.5.0-plan.md) | 1.5.0 数据面功能收口：ACME、site 命令组、安全加固、测试与性能（当前迭代） |
 | [agent-refactor-plan.md](plans/agent-refactor-plan.md) | Agent 化改造方案（2.0，尚未开始） |
 | [performance-slimming-plan.md](plans/performance-slimming-plan.md) | 精简与性能优化计划（精简部分已落地，性能与稳定性分期未完成） |
 | [fhs-layout-plan.md](plans/fhs-layout-plan.md) | 运行期目录改成 FHS 分离布局（待实施，仅规划） |
-| [acme-certmagic-plan.md](plans/acme-certmagic-plan.md) | 用 certmagic 自签 ACME 证书，取代 shell/.acme.sh（待实施，仅规划） |
 | [upstream-failover-plan.md](plans/upstream-failover-plan.md) | 代理上游故障转移：多地址、健康检查、负载均衡（R8，未排期） |
 | [config-autoreload-plan.md](plans/config-autoreload-plan.md) | 配置文件自动重载：watch + 防抖 + 复用 reload 链路（R7，暂缓） |
 
@@ -37,6 +37,7 @@
 | [architecture-convergence-plan.md](archive/architecture-convergence-plan.md) | 架构收敛计划（阶段 0-4 已完成，4b 快照化已做，阶段 5 按需） |
 | [iteration-plan.md](archive/iteration-plan.md) | 迭代计划与回归项（R1-R6、R9 已落地；R7 暂缓，R8 未做） |
 | [guardianwaf-adoption.md](archive/guardianwaf-adoption.md) | GuardianWAF 接入方案（2026-10-25 已实施，v1.0.0） |
+| [acme-certmagic-plan.md](archive/acme-certmagic-plan.md) | 用 certmagic 取代 shell/.acme.sh 的 ACME 方案（1.5.0 已实施：`modules/certmanager`） |
 
 ## 参考文档（docs 根目录）
 
