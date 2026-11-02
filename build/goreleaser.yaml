@@ -76,6 +76,7 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - config/cert/.keep
+      - config/cert/acme/.keep
       - config/conf.d/.keep
       - config/fast-https.json
       - config/mime.json
@@ -98,6 +99,7 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - config/cert/.keep
+      - config/cert/acme/.keep
       - config/conf.d/.keep
       - config/fast-https.json
       - config/mime.json
@@ -122,6 +124,7 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - config/cert/.keep
+      - config/cert/acme/.keep
       - config/conf.d/.keep
       - config/fast-https.json
       - config/mime.json
@@ -169,6 +172,10 @@ nfpms:
         dst: /usr/lib/systemd/system/fast-https.service
       - dst: /usr/share/fast-https/config/cert
         type: dir
+      # ACME 的账户与证书缓存目录：包安装后由 root 运行，目录必须预先存在，
+      # 否则非 systemd 手工启动时要先手工建目录才能写账户私钥。
+      - dst: /usr/share/fast-https/config/cert/acme
+        type: dir
       - dst: /usr/share/fast-https/config/conf.d
         type: dir
       - dst: /usr/share/fast-https/logs
@@ -177,6 +184,8 @@ nfpms:
       # 打包工具或解包工具容易把它们当成空壳丢掉。
       - src: config/cert/.keep
         dst: /usr/share/fast-https/config/cert/.keep
+      - src: config/cert/acme/.keep
+        dst: /usr/share/fast-https/config/cert/acme/.keep
       - src: config/conf.d/.keep
         dst: /usr/share/fast-https/config/conf.d/.keep
       - src: logs/.keep
@@ -190,7 +199,7 @@ checksum:
   name_template: checksums.txt
 
 snapshot:
-  version_template: "1.4.0-next"
+  version_template: "1.5.0-next"
 
 changelog:
   sort: asc

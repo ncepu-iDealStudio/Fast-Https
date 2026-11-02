@@ -4,7 +4,7 @@
   and leave only the final artifacts in dist.
 
 .DESCRIPTION
-  Snapshot build by default (version 1.4.0-next). Tag first, then use
+  Snapshot build by default (version 1.5.0-next). Tag first, then use
   -Release for a real release. One installer is built per Windows zip
   found in dist (amd64 / arm64).
 

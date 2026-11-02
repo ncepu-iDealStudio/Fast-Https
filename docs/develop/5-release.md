@@ -2,7 +2,7 @@
 
 ## 版本号
 
-`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.4.0`）；GoReleaser 快照版本号 `1.4.0-next`。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。
+`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.5.0`）；GoReleaser 快照版本号 `1.5.0-next`（`build/goreleaser.yaml` 的 `version_template`）。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。三处版本号（`consts.go`、`version_template`、Windows NSIS 的 `APP_VERSION` 默认值）要一起改，否则安装包文件名与徽章会各说各的。
 
 ## 本地快照构建
 
@@ -59,9 +59,9 @@ checksums.txt
 手工编译（makensis 的下载安装与路径探测见 [0-environment-and-build.md](0-environment-and-build.md) 的「NSIS（Windows 安装包）」）：
 
 ```powershell
-makensis /DAPP_VERSION=1.4.0 /DAPP_VERSION4=1.4.0.0 /DAPP_ARCH=amd64 `
+makensis /DAPP_VERSION=1.5.0 /DAPP_VERSION4=1.5.0.0 /DAPP_ARCH=amd64 `
          /DSTAGE_DIR=dist\.stage\amd64 `
-         /DOUT_FILE=dist\fast-https-1.4.0-windows-amd64-setup.exe `
+         /DOUT_FILE=dist\fast-https-1.5.0-windows-amd64-setup.exe `
          build\installer\windows\fast-https.nsi
 ```
 
@@ -107,3 +107,6 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 5. `docs/feature/` 与 `develop/archive/iteration-plan.md` 状态同步
 6. 快照产物冒烟：安装目录跑 `check`/`start`/`status`/`reload`/`stop`
 7. Windows 与 Linux 各自编译验证（不以单平台代替）；Windows 再跑一次安装包：安装 → 托盘启动 → 卸载，确认 `dist` 里只剩产物
+8. 二进制体积对比：`go build -trimpath -o /tmp/fast-https .` 记录本次改动前后的大小差。1.5.0 实测（Windows/amd64）：基线 15,084,544 → 引入 certmagic 18,152,448（+3.07MB）→ 再引入 huh 配置向导 20,212,224（+2.06MB），累计 +5.13MB（+34%）。`go tool nm` 里没有 `go-acme/lego` 符号：`certmagic/dnsprovider.go` 只在启用 DNS-01 时可达，未启用时被链接器裁掉。huh 带来 17 个传递依赖（bubbletea、lipgloss、x/ansi 等），它们只在 `acme` 向导里可达，若后续嫌大可换回手写提示层
+9. ACME 联调冒烟：`acme.staging=true` + `email` 填真实地址，公网域名跑一次 `start`，确认日志出现 `cert_obtained`、`config/cert/<name>.pem` 被替换、`curl https://<name>` 不再告警；再把域名解析指向无效地址，确认回落自签且只有一条告警
+10. 发行包内确认存在 `config/cert/acme/`（`.keep` 占位）：非 systemd 手工启动时账户与证书缓存需要有可写目录
