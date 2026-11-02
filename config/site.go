@@ -123,14 +123,6 @@ func validateSiteFile(path string, requireCerts bool) error {
 	return validateServer(&server, baseDir, baseDir, path, requireCerts)
 }
 
-// SiteDirs 返回运行期快照里 include 目录的绝对路径。
-func SiteDirs(cfg *Fast_Https) []string {
-	if cfg == nil {
-		return nil
-	}
-	return siteDirsFromInclude(cfg.Include)
-}
-
 // SiteDirsFromFile 从指定配置文件读取 include 目录，不替换运行期快照。
 // site 命令的 --config 走它，才能既支持自定义路径又不污染进程状态。
 func SiteDirsFromFile(path string) ([]string, error) {

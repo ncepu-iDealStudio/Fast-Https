@@ -42,11 +42,6 @@ const (
 // ---------- 配置类型 ----------
 // json 标签即配置文件键名；历史拼写（如 http.blaklist）原样保留以兼容存量配置。
 
-type ErrorPath struct {
-	Path404 string `json:"path404"`
-	Path500 string `json:"path500"`
-}
-
 type Header struct {
 	HeaderKey   string `json:"HeaderKey"`
 	HeaderValue string `json:"HeaderValue"`
@@ -132,33 +127,23 @@ type WAFConfig struct {
 	Mode string `json:"mode"`
 }
 
+// Fast_Https 是运行期配置快照。schema 里的预留字段（pid、engine）保留以
+// 兼容存量配置；nginx 风格的调优字段（autoindex、sendfile、tcp_nopush 等）
+// 从未被任何模块读取，已删除。
 type Fast_Https struct {
-	ErrorPage ErrorPath
-	Error_log string
-	Pid       string
-	LogRoot   string
+	Pid     string
+	LogRoot string
 
-	Servers                   []Server
-	ServerEngine              Engine
-	Limit                     ServerLimit
-	BlackList                 []string
-	LogFormat                 []string
-	Include                   []string
-	DefaultType               string
-	Waf                       *WAFConfig
-	Acme                      *AcmeConfig
-	Security                  *SecurityConfig
-	ServerNamesHashBucketSize uint16
-	ClientHeaderBufferSize    uint16
-	LargeClientHeaderBuffers  uint8
-	ClientMaxBodySize         uint8
-	KeepaliveTimeout          uint8
-	AutoIndex                 string
-	AutoIndexExactSize        string
-	AutoIndexLocaltime        string
-	Sendfile                  string
-	TcpNopush                 string
-	TcpNodelay                string
+	Servers      []Server
+	ServerEngine Engine
+	Limit        ServerLimit
+	BlackList    []string
+	LogFormat    []string
+	Include      []string
+	DefaultType  string
+	Waf          *WAFConfig
+	Acme         *AcmeConfig
+	Security     *SecurityConfig
 }
 
 // ---------- 配置文件 JSON schema ----------
@@ -433,57 +418,57 @@ func ValidateConfigFile(configPath string) error {
 
 // validateIncludes 校验 include 目录/文件，返回其中有效的 server 块数量。
 func validateIncludes(includes []string, rootBaseDir string) (int, error) {
-	count := 0
+	files, err := includeFiles(includes)
+	if err != nil {
+		return 0, err
+	}
+	for _, path := range files {
+		if err := validateIncludeServerFile(path, rootBaseDir); err != nil {
+			return 0, err
+		}
+	}
+	return len(files), nil
+}
+
+// includeFiles 把 http.include 展开成具体的 .json 文件列表：目录递归收集，
+// 单个文件必须带 .json 后缀。路径统一按 FAST_HTTPS_BASE_DIR 解析，
+// 校验与加载因此用同一个基准，不再依赖进程工作目录。
+func includeFiles(includes []string) ([]string, error) {
+	var files []string
 	for _, includePath := range includes {
 		if strings.TrimSpace(includePath) == "" {
-			return 0, errors.New("http.include must contain non-empty paths")
+			return nil, errors.New("http.include must contain non-empty paths")
 		}
 
-		fullPath := includePath
-		if !filepath.IsAbs(includePath) {
-			if _, err := os.Stat(includePath); err != nil {
-				// 与 processIncludeCfg 用同一个基准，包安装后 include 才指向
-				// /usr/share/fast-https/config/conf.d 而不是配置目录下的 config/。
-				fullPath = absConfigPath(includePath)
-			}
-		}
-
+		fullPath := absConfigPath(includePath)
 		info, err := os.Stat(fullPath)
 		if err != nil {
-			return 0, fmt.Errorf("include path not found: %s", fullPath)
+			return nil, fmt.Errorf("include path not found: %s", fullPath)
 		}
 
-		if info.IsDir() {
-			err = filepath.Walk(fullPath, func(path string, info os.FileInfo, walkErr error) error {
-				if walkErr != nil {
-					return walkErr
-				}
-				if info.IsDir() || filepath.Ext(path) != ".json" {
-					return nil
-				}
-				if err := validateIncludeServerFile(path, rootBaseDir); err != nil {
-					return err
-				}
-				count++
-				return nil
-			})
-			if err != nil {
-				return 0, err
+		if !info.IsDir() {
+			if filepath.Ext(fullPath) != ".json" {
+				return nil, fmt.Errorf("include file must be .json: %s", fullPath)
 			}
+			files = append(files, fullPath)
 			continue
 		}
 
-		if filepath.Ext(fullPath) != ".json" {
-			return 0, fmt.Errorf("include file must be .json: %s", fullPath)
+		err = filepath.Walk(fullPath, func(path string, info os.FileInfo, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if info.IsDir() || filepath.Ext(path) != ".json" {
+				return nil
+			}
+			files = append(files, path)
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
-
-		if err := validateIncludeServerFile(fullPath, rootBaseDir); err != nil {
-			return 0, err
-		}
-		count++
 	}
-
-	return count, nil
+	return files, nil
 }
 
 func validateIncludeServerFile(includeFilePath, rootBaseDir string) error {
@@ -737,37 +722,28 @@ func processHttp(cfg *Fast_Https, http jsonHTTP) error {
 // server 块，与 http.server 数组元素同构。任何 include 文件读不了、
 // 解不开都返回错误：reload 路径上不能因为 Fatal 把整个进程带走。
 func processIncludeCfg(cfg *Fast_Https) error {
+	// 先把 include 路径按 FAST_HTTPS_BASE_DIR 展开并写回快照：否则相对路径
+	// 会跟着启动目录走，装好包后在别的目录执行就找不到 conf.d。
 	for i := range cfg.Include {
-		// 先按 FAST_HTTPS_BASE_DIR 展开，再遍历。否则相对路径会跟着
-		// 启动目录走：装好包后在别的目录执行就找不到 conf.d。
-		item := absConfigPath(cfg.Include[i])
-		cfg.Include[i] = item
+		cfg.Include[i] = absConfigPath(cfg.Include[i])
+	}
 
-		err := filepath.Walk(item, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-			// 跳过目录 "." 和 ".."
-			if info.IsDir() || filepath.Ext(path) != ".json" {
-				return nil
-			}
-
-			logging.ConsoleLog.Info().Msgf("Include config dir: %s", path)
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return fmt.Errorf("error reading include config file %s: %w", path, err)
-			}
-			var js jsonServer
-			if err := unmarshalConfig(content, &js); err != nil {
-				return fmt.Errorf("error unmarshaling include config %s: %w", path, err)
-			}
-
-			cfg.Servers = append(cfg.Servers, convertServers(js)...)
-			return nil
-		})
+	files, err := includeFiles(cfg.Include)
+	if err != nil {
+		return fmt.Errorf("process include config failed: %w", err)
+	}
+	for _, path := range files {
+		logging.ConsoleLog.Info().Msgf("Include config dir: %s", path)
+		content, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("process include config failed: %w", err)
+			return fmt.Errorf("error reading include config file %s: %w", path, err)
 		}
+		var js jsonServer
+		if err := unmarshalConfig(content, &js); err != nil {
+			return fmt.Errorf("error unmarshaling include config %s: %w", path, err)
+		}
+
+		cfg.Servers = append(cfg.Servers, convertServers(js)...)
 	}
 
 	return nil

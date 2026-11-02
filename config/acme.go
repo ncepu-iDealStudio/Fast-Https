@@ -30,8 +30,8 @@ const (
 type ACMECA struct {
 	Name       string `json:"name"`
 	Directory  string `json:"directory"`
-	EABKid     string `json:"eab_kid"`
-	EABHmacKey string `json:"eab_hmac_key"`
+	EABKid     string `json:"eab_kid,omitempty"`
+	EABHmacKey string `json:"eab_hmac_key,omitempty"`
 }
 
 // AcmeConfig 是顶层 acme 段。缺省时 enabled=false，行为与 1.4.0 一致。

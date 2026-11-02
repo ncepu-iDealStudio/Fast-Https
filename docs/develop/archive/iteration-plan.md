@@ -22,7 +22,7 @@
 - `SIGINT` 在守护进程模式下重载配置；`dev` 前台模式优雅停机（2026-10-25）。停止走 `stop`、`SIGTERM` 或 `SIGQUIT`
 - 未知 HTTP/2 帧会被丢掉并继续读；非法 HPACK 索引关闭该流；对端窗口不够时停止写出 DATA 并关闭连接
 - `xss` 会清洗 JSON 对象和 JSON 数组里的 script 标签
-- 运行时只读 `config/fast-https.json` 和 `http.include`。`config/dev.yaml` 不加载
+- 运行时只读 `config/fast-https.json` 和 `http.include`
 - 空日志目录、`.`、`./` 落到 `./logs`。DEBUG、TRACE 走 stderr，其余级别走 stdout
 - `ServerInit` 在监听前调用 `core.MissingHandlers`。已配置的 location 类型没有处理函数时直接退出，不会 `Accept`
 - `check` 只校验配置，不监听、不写 pid。`HEAD` 不写正文。`Transfer-Encoding: chunked` 按块读取。静态 gzip/brotli 按客户端 Accept-Encoding 协商压缩正文，两种都配置时优先 br，配置了压缩的响应带 Vary: Accept-Encoding。`error_page.not_found` 和 `error_page.proxy` 可选，文件不可读时仍用默认响应

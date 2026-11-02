@@ -50,11 +50,11 @@ func WriteACMESection(path string, c *AcmeConfig) error {
 	return files.WriteAtomic(path, patched, mode)
 }
 
-// marshalACMESection 生成缩进与文件一致的 acme 值。
+// marshalACMESection 生成 acme 段的值：string 字段统一过 json.Marshal，
+// 邮箱与目录 URL 里的特殊字符照常转义。
 //
-// 手写而不是 json.MarshalIndent：默认的缩进会把 challenge 与 cas 拆成
-// 一列一行的长条，和仓库里其它配置的写法不一致。字符串统一过 json.Marshal，
-// 邮箱、目录 URL 里的特殊字符照常转义。
+// 缩进用 json.MarshalIndent：数组会被拆成一列一行，不如手写紧凑，但换来的是
+// 字段由结构体定义决定——给 AcmeConfig 加一个字段，这里不用再同步改一遍。
 //
 // fallback_self_signed 在结构体里是指针：写配置时补成显式 true，
 // 让人看文件就知道当前行为，不用回查默认值。
@@ -74,55 +74,7 @@ func marshalACMESection(c *AcmeConfig, indent string) ([]byte, error) {
 		value.CAs = DefaultACMECAs()
 	}
 
-	quoted := func(s string) string {
-		data, err := json.Marshal(s)
-		if err != nil {
-			return `""`
-		}
-		return string(data)
-	}
-
-	var b strings.Builder
-	line := func(format string, args ...any) {
-		b.WriteString(indent)
-		fmt.Fprintf(&b, format, args...)
-		b.WriteString("\n")
-	}
-
-	b.WriteString("{\n")
-	line("  \"enabled\": %t,", value.Enabled)
-	line("  \"email\": %s,", quoted(value.Email))
-	line("  \"staging\": %t,", value.Staging)
-
-	challenges := make([]string, 0, len(value.Challenge))
-	for _, v := range value.Challenge {
-		challenges = append(challenges, quoted(v))
-	}
-	line("  \"challenge\": [%s],", strings.Join(challenges, ", "))
-	line("  \"renew_before_days\": %d,", value.RenewBeforeDays)
-	line("  \"fallback_self_signed\": %t,", *value.FallbackSelfSigned)
-	line("  \"storage\": %s,", quoted(value.Storage))
-
-	b.WriteString(indent + "  \"cas\": [\n")
-	for i, ca := range value.CAs {
-		var fields []string
-		fields = append(fields, `"name": `+quoted(ca.Name), `"directory": `+quoted(ca.Directory))
-		if ca.EABKid != "" {
-			fields = append(fields, `"eab_kid": `+quoted(ca.EABKid))
-		}
-		if ca.EABHmacKey != "" {
-			fields = append(fields, `"eab_hmac_key": `+quoted(ca.EABHmacKey))
-		}
-		comma := ","
-		if i == len(value.CAs)-1 {
-			comma = ""
-		}
-		b.WriteString(indent + "    { " + strings.Join(fields, ", ") + " }" + comma + "\n")
-	}
-	b.WriteString(indent + "  ]\n")
-	b.WriteString(indent + "}")
-
-	return []byte(b.String()), nil
+	return json.MarshalIndent(value, indent, "  ")
 }
 
 // patchACMESection 在原文上替换或插入 acme 段。

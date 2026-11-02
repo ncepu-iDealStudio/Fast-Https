@@ -354,9 +354,7 @@ go run fast-https.go dev
 #### 配置说明
 
 开发模式与普通模式都使用 `config/fast-https.json` 作为运行时配置文件。
-`config/dev.yaml` 仅作为开发参数示例，不会被运行时自动加载。
-
-`go run fast-https.go dev` 与 `start` 读取同一份 JSON。`config/dev.yaml` 里的端口、日志和代理片段不会进入运行时。
+`go run fast-https.go dev` 与 `start` 读取同一份 JSON，区别只在日志级别与 pprof 端口。
 
 ### 2.3 调试指南
 
