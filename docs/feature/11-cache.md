@@ -30,7 +30,8 @@
 
 ## 测试
 
-`modules/cache/`：cache_test（写入回放/续期/过期/max_size/磁盘一致性）、hot_lru_test（热层/LRU/字节上限/过期同步）。
+`modules/cache/`：cache_test（写入回放/续期/过期/max_size/磁盘一致性）、hot_lru_test（热层/LRU/字节上限/过期同步）、concurrent_test（并发写读清理无丢索引、同键覆盖写记账一致）。
+`modules/proxy/`：cache_key_test（`$host$request_uri` / `$request_uri` 键生成、空配置、Host 大小写与端口差异、稳定性）。
 
 ## 已知限制
 
