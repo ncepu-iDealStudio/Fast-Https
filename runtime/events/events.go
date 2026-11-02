@@ -5,12 +5,12 @@ import (
 	"context"
 	"fast-https/config"
 	"fast-https/core"
+	"fast-https/infra/color"
+	"fast-https/infra/logging"
 	"fast-https/runtime/filters"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
-	"fast-https/infra/color"
-	"fast-https/infra/logging"
 	"net"
 	"time"
 )
@@ -71,6 +71,20 @@ func watchClose(ctx context.Context, ev *core.Event) func() {
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
 
+	// 保留路径（如 ACME http-01 挑战）在 location 匹配之前应答：
+	// 挑战响应不能依赖站点根目录里是否恰好有那个文件。
+	if core.RequestHandled(ev) {
+		return
+	}
+
+	// Host 校验先于路由：enforce 模式下未命中任何 server_name 直接 421，
+	// 不落到默认 server（默认 off，保持既有回落行为）。
+	if filters.HostCheckRejects(ev) {
+		ev.RR.Res = response.DefaultMisdirected()
+		ev.WriteResponseClose(nil)
+		return
+	}
+
 	cfg, ok := fif.Fif.RequestFilter(ev)
 	if !ok {
 		// dynlog.Log(&ev.Log, ev, "")
@@ -81,6 +95,14 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 	// found specific "servername && url"
 
 	if core.LocationRejected(cfg, ev) {
+		return
+	}
+
+	// 方法限制在认证/防火墙之前：允许的方法列表是路由契约，
+	// 不该因为缺凭据而先返回 401。
+	if !filters.MethodAllowed(cfg, ev.RR.Req.Method) {
+		ev.RR.Res = response.DefaultMethodNotAllowed(cfg.AllowMethods)
+		ev.WriteResponseClose(nil)
 		return
 	}
 

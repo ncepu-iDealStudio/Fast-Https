@@ -102,7 +102,10 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ev.RR.Res = response.ResponseInit()
 	ev.RR.ReqBuf = make([]byte, core.READ_BODY_BUF_LEN)
 
-	fillRequest(ev.RR.Req, r)
+	if !fillRequest(ev.RR.Req, r) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	out := &h2ResponseWriter{w: w, req: r}
 	ev.EventWrite = func(ev *core.Event, _ []byte) error { return out.write(ev) }
@@ -118,9 +121,14 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // fillRequest 将 net/http 的请求映射为 runtime/request.Request。
-func fillRequest(req *request.Request, r *http.Request) {
+// 返回 false 表示请求目标不合法（与 HTTP/1.1 的 400 保持一致）。
+func fillRequest(req *request.Request, r *http.Request) bool {
+	path, ok := request.NormalizePath(r.URL.RequestURI())
+	if !ok {
+		return false
+	}
 	req.Method = r.Method
-	req.Path = r.URL.RequestURI()
+	req.Path = path
 	req.Protocol = "HTTP/2"
 	req.Headers["Host"] = r.Host
 
@@ -136,7 +144,7 @@ func fillRequest(req *request.Request, r *http.Request) {
 	}
 
 	if r.Body == nil {
-		return
+		return true
 	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -145,6 +153,7 @@ func fillRequest(req *request.Request, r *http.Request) {
 	req.Body.Write(body)
 	req.BodyLen = len(body)
 	_ = r.Body.Close()
+	return true
 }
 
 // h2ResponseWriter 把 response.Response 写出为 HTTP/2 响应。

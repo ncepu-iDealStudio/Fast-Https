@@ -104,6 +104,14 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	path_type := strings.Split(path, "?")
 
 	realPath := path_type[0]
+	// 隐藏路径（.git/config、.env、.htaccess 等）按未找到处理。
+	// 判定用请求路径而不是拼好的文件路径：站点根本身可能落在 .local 这类
+	// 带点目录下，拿文件路径判会把整个站点误杀。
+	if hiddenPathSegment(rr.Req.Path) {
+		log.Status(404)
+		log.Size(50)
+		return -1
+	}
 	// /../ 之类的逃逸路径按未找到处理，不读任何文件
 	realPath, inRoot := staticPathInRoot(lisdata.StaticRoot, realPath)
 	if !inRoot {
@@ -380,6 +388,31 @@ func directoryRedirect(root, reqPath, filePath string) (string, bool) {
 		target += "?" + query
 	}
 	return target, true
+}
+
+// wellKnownPrefix 是 ACME http-01 约定的公开目录（RFC 8555 §8.3）。
+// 站点根下自托管的挑战文件就在它下面，不能跟着隐藏文件一起拦掉。
+const wellKnownPrefix = "/.well-known/"
+
+// hiddenPathSegment 报告请求路径里是否存在以 "." 开头的路径段。
+//
+// .git、.env、.htaccess 这类文件是部署残留或凭据，nginx 用户要靠
+// `location ~ /\.` 自己拦，漏配就是源码与密钥被直接下载。这里默认不提供，
+// 只放行 /.well-known/ 一层；".." 交给 staticPathInRoot 的逃逸检查处理。
+func hiddenPathSegment(target string) bool {
+	path, _, _ := strings.Cut(target, "?")
+	if rest, ok := strings.CutPrefix(path, wellKnownPrefix); ok {
+		path = "/" + rest
+	}
+	for _, seg := range strings.Split(path, "/") {
+		if seg == "." || seg == ".." {
+			continue
+		}
+		if strings.HasPrefix(seg, ".") {
+			return true
+		}
+	}
+	return false
 }
 
 // staticPathInRoot 清洗拼接后的文件路径并校验没有逃出站点根目录。

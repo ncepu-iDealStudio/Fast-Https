@@ -155,6 +155,8 @@ func (ev *Event) WriteResponse(data []byte) error {
 // ResponseBytes is the bytes written for this response.
 // HEAD keeps the headers, including Content-Length, and omits the body.
 func (ev *Event) ResponseBytes() []byte {
+	// 安全响应头在唯一出口统一补齐，各模块不必各写一遍。
+	response.ApplySecurityHeaders(ev.RR.Res)
 	if ev.RR.Req != nil && ev.RR.Req.Method == "HEAD" {
 		return ev.RR.Res.GenerateHeaderBytes()
 	}

@@ -382,7 +382,13 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 	if len(path) == 0 {
 		return PathInvalid
 	}
-	r.Path = string(path)
+	// 规范化（解一层 %xx、合并 //、拒绝二次编码与控制字符）后再进入管线：
+	// location 匹配、静态文件解析与日志统一使用规范化后的路径。
+	normalized, ok := NormalizePath(string(path))
+	if !ok {
+		return PathInvalid
+	}
+	r.Path = normalized
 
 	if p, ok := protocolSet[string(protocol)]; ok {
 		r.Protocol = p
