@@ -256,7 +256,7 @@ fast-https site remove blog --yes</code></pre>
 <tr><td><code>proxy_cache</code></td><td>代理缓存，见 6.5</td></tr>
 <tr><td><code>zip</code></td><td>响应压缩，取值 <code>gzip</code>、<code>br</code>，可同时配置</td></tr>
 <tr><td><code>limit</code></td><td><code>mem</code>、<code>rate</code>、<code>burst</code>、<code>nodelay</code></td></tr>
-<tr><td><code>auth</code></td><td><code>{&#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;...&#34;, &#34;pswd&#34;: &#34;...&#34;}</code></td></tr>
+<tr><td><code>auth</code></td><td><code>{&#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;...&#34;, &#34;pswd&#34;: &#34;...&#34;, &#34;realm&#34;: &#34;...&#34;}</code>。只支持 <code>basic</code>，写了 <code>type</code> 就必须同时写 <code>user</code> 与 <code>pswd</code>（缺任何一项 <code>check</code> 报错）；<code>realm</code> 可选，留空时用站点名</td></tr>
 <tr><td><code>appfirewall</code></td><td>应用防火墙开关，例如 <code>[&#34;xss&#34;, &#34;sqli&#34;]</code></td></tr>
 <tr><td><code>error_page</code></td><td><code>{&#34;not_found&#34;: &#34;./httpdoc/404.html&#34;, &#34;proxy&#34;: &#34;./httpdoc/502.html&#34;}</code></td></tr>
 <tr><td><code>allow_methods</code></td><td>只允许列出的方法，例如 <code>[&#34;GET&#34;, &#34;HEAD&#34;]</code>；越界返回 405 并带 <code>Allow</code> 头。缺省不限制，<code>HEAD</code> 随 <code>GET</code> 自动放行</td></tr>

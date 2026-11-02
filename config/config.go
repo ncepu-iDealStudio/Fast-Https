@@ -64,6 +64,8 @@ type PathAuth struct {
 	AuthType string `json:"type"`
 	User     string `json:"user"`
 	Pswd     string `json:"pswd"`
+	// Realm 是 401 响应里 WWW-Authenticate 的 realm，留空时用站点名。
+	Realm string `json:"realm"`
 }
 
 type PathLimit struct {
@@ -566,6 +568,10 @@ func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string, requi
 			return fmt.Errorf("%s: location[%d].type is invalid: %s", where, i, typeStr)
 		}
 
+		if err := validateLocationAuth(&loc.Auth, where, i); err != nil {
+			return err
+		}
+
 		for j, method := range loc.AllowMethods {
 			if strings.TrimSpace(method) == "" {
 				return fmt.Errorf("%s: location[%d].allow_methods[%d] is empty", where, i, j)
@@ -576,6 +582,30 @@ func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string, requi
 		}
 	}
 
+	return nil
+}
+
+// validateLocationAuth 校验 location 的 auth 段：只支持 basic，凭据必须写全。
+// 早先只写 type 而漏掉 user/pswd 时，"Basic Og=="（即 ":"）就能通过，
+// 等于开了个空口令的门。
+func validateLocationAuth(auth *PathAuth, where string, index int) error {
+	authType := strings.TrimSpace(auth.AuthType)
+	if authType == "" {
+		return nil
+	}
+	if !strings.EqualFold(authType, "basic") {
+		return fmt.Errorf("%s: location[%d].auth.type must be basic: %q", where, index, auth.AuthType)
+	}
+	if strings.TrimSpace(auth.User) == "" {
+		return fmt.Errorf("%s: location[%d].auth.user is required when auth.type is set", where, index)
+	}
+	if auth.Pswd == "" {
+		return fmt.Errorf("%s: location[%d].auth.pswd is required when auth.type is set", where, index)
+	}
+	// realm 会原样写进响应头，引号与换行会把头拆坏。
+	if strings.ContainsAny(auth.Realm, "\"\r\n") {
+		return fmt.Errorf("%s: location[%d].auth.realm must not contain quotes or line breaks", where, index)
+	}
 	return nil
 }
 

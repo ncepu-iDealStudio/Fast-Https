@@ -259,7 +259,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `proxy_cache` | 代理缓存，见 6.5 |
 | `zip` | 响应压缩，取值 `gzip`、`br`，可同时配置 |
 | `limit` | `mem`、`rate`、`burst`、`nodelay` |
-| `auth` | `{"type": "basic", "user": "...", "pswd": "..."}` |
+| `auth` | `{"type": "basic", "user": "...", "pswd": "...", "realm": "..."}`。只支持 `basic`，写了 `type` 就必须同时写 `user` 与 `pswd`（缺任何一项 `check` 报错）；`realm` 可选，留空时用站点名 |
 | `appfirewall` | 应用防火墙开关，例如 `["xss", "sqli"]` |
 | `error_page` | `{"not_found": "./httpdoc/404.html", "proxy": "./httpdoc/502.html"}` |
 | `allow_methods` | 只允许列出的方法，例如 `["GET", "HEAD"]`；越界返回 405 并带 `Allow` 头。缺省不限制，`HEAD` 随 `GET` 自动放行 |
