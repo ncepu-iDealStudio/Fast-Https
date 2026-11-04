@@ -33,6 +33,12 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 连接 → 限流 / IP 黑名单 → location 路由 → 应用防火墙 → 静态文件 / 反向代理 / TCP / WebSocket → 响应
 ```
 
+## 项目架构
+
+![Fast-Https 项目架构](docs/images/architecture.png)
+
+蓝色是请求主链，虚线是装配注入与外部依赖；分层规则与依赖约束见 [架构地图](docs/architecture-map.md)。另有可切换深色的 [交互式 HTML](docs/architecture.html) 和 [深色 PNG](docs/images/architecture-dark.png)。
+
 ## 核心能力
 
 | 能力 | 说明 |
@@ -215,6 +221,7 @@ Fast-Https 自己解析 HTTP/1.1、每个连接一个协程，没有 C 扩展或
 | [docs/usage.md](docs/usage.md) | 仓库内使用文档源文件，生成 `docs/usage.html` 随发行包分发 |
 | [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案 |
 | [docs/develop/](docs/develop/README.md) | 环境构建、测试体系、代码规范、新增配置项、调试、发布 |
+| [docs/architecture.html](docs/architecture.html) | 项目架构图（[PNG](docs/images/architecture.png) / [深色 PNG](docs/images/architecture-dark.png)），分层与请求链 |
 | [docs/architecture-map.md](docs/architecture-map.md) | package 盘点与依赖方向 |
 
 文档总索引见 [docs/README.md](docs/README.md)。

@@ -8,6 +8,8 @@ docs/
   test/              测试专项（覆盖率评估/边界用例集/压测计划）
   usage.md               面向部署运维的使用文档（源），生成 usage.html 随发行包分发
   usage.html             由 usage.md 生成，不改源文件就不要手改它
+  architecture.html      项目架构图（自包含 HTML，可切换深色）
+  images/                架构图 PNG（亮色 / 深色）
   architecture-map.md    当前 package 盘点与依赖方向
   about.md               启动与运行逻辑（含流程图）
   nginx-core-gap.md      与 Nginx 核心功能对比
@@ -25,6 +27,7 @@ docs/
 | 看覆盖率、补边界用例、跑压测 | [test/README.md](test/README.md) |
 | 新增配置项 | [develop/3-config-development.md](develop/3-config-development.md) |
 | 排查线上问题 | [develop/4-debugging.md](develop/4-debugging.md) |
+| 看整体架构图（分层与请求链） | [architecture.html](architecture.html)、[images/architecture.png](images/architecture.png) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
 | 了解历史决策与演进 | [develop/README.md](develop/README.md)（`plans/` 未实施，`archive/` 已归档） |
 
