@@ -1,6 +1,6 @@
 <h1 align="center">Fast-Https</h1>
 
-<p align="center"><strong>A lightweight web server and reverse proxy written in Go: single binary, JSON config, HTTP/2 and TLS.</strong><br />
+<p align="center"><strong>A lightweight web server and reverse proxy written in Go: single binary, JSON config, HTTP/2 and automatic HTTPS.</strong><br />
 One JSON file describes listen ports and locations, covering common site and reverse-proxy scenarios.</p>
 
 <p align="center">
@@ -23,6 +23,8 @@ One JSON file describes listen ports and locations, covering common site and rev
 
 **Fast-Https is an open-source web server and reverse proxy written in Go.** It accepts connections, parses HTTP/1.1, and writes responses itself instead of wrapping an existing server. HTTP/2 framing and HPACK are delegated to `golang.org/x/net/http2`; TLS comes from the Go standard library.
 
+HTTPS configures itself: put `443 ssl h2` in `listen` and TLS is on — no certificates to prepare up front. A self-signed certificate is generated at first start; for a publicly trusted certificate, the `fast-https acme` wizard connects Let's Encrypt or another ACME CA, and both issuance and renewal are automatic. If ACME issuance fails, the server falls back to self-signed so the site stays reachable.
+
 Everything compiles into a single executable with no extra shared libraries or runtime scripts. Configuration is one JSON file that accepts comments, with routing organized in `location` blocks. It runs on Linux, macOS, and Windows, and can install itself as a system service.
 
 How a request travels:
@@ -37,7 +39,7 @@ connection → rate limit / IP blacklist → location routing → application fi
 | --- | --- |
 | Static sites | `root` / `index` / `try` resolve files; `Last-Modified` conditional requests return 304, a single `Range` returns 206 / 416; gzip and brotli are negotiated from `Accept-Encoding`; a directory requested without a trailing slash gets a 301; no directory listing |
 | Reverse proxy | One `proxy_pass` per location, `http://` and `https://` upstreams, pooled connections, `proxy_set_header`, a disk-backed response cache, WebSocket upgrade, and bidirectional TCP forwarding |
-| TLS certificates | Per-`server_name` certificates; `reload` swaps certificates on the same SSL port without rebinding the socket; a self-signed certificate is generated at startup when the PEM files are missing |
+| TLS certificates | Per-`server_name` certificates; `reload` swaps certificates on the same SSL port without rebinding the socket; certificates are provisioned automatically — a self-signed one is generated at startup when the PEM files are missing, and with ACME configured a publicly trusted certificate is issued and renewed for you (Let's Encrypt and others, via the `fast-https acme` wizard) |
 | HTTP/2 | Adding `h2` to `listen` enables it — ALPN, HPACK, stream state machine, and flow control come from `golang.org/x/net/http2`, and reloads send GOAWAY for a graceful close |
 | Security | Global plus per-location, per-IP token-bucket rate limiting; IP and IPv6 range blacklists; Basic auth; GuardianWAF (sqli / xss / lfi / cmdi / xxe / ssrf, log-only mode available) |
 | Operations | `start` / `stop` / `reload` / `status` / `check` / `dev`; config reload without dropping connections; `check` validates without listening |
@@ -81,7 +83,7 @@ The two are aimed at different jobs: a general-purpose web server covers more pr
 **Good fit:**
 
 - single-machine static sites, documentation sites, and internal dashboards;
-- TLS termination and HTTP/2 without maintaining a large configuration tree;
+- TLS termination and HTTP/2 without maintaining a large configuration tree, or no certificate at hand and HTTPS with zero preparation;
 - forwarding HTTP or WebSocket traffic to local or internal services;
 - shipping one binary, one JSON file, and one log directory;
 - lightweight servers on Windows that need tray or service mode.

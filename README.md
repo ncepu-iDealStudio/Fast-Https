@@ -1,6 +1,6 @@
 <h1 align="center">Fast-Https</h1>
 
-<p align="center"><strong>Go 编写的轻量级 Web 服务器与反向代理：单二进制、JSON 配置、HTTP/2 与 TLS。</strong><br />
+<p align="center"><strong>Go 编写的轻量级 Web 服务器与反向代理：单二进制、JSON 配置、HTTP/2 与自动 HTTPS。</strong><br />
 一份 JSON 描述监听端口与 location，覆盖常见的站点与反向代理场景。</p>
 
 <p align="center">
@@ -23,6 +23,8 @@
 
 **Fast-Https 是一个用 Go 编写的开源 Web 服务器与反向代理。** 它自己完成端口监听、HTTP/1.1 解析和响应写出，不套用现成服务器的外壳；HTTP/2 的分帧与 HPACK 交给 `golang.org/x/net/http2`，TLS 使用 Go 标准库。
 
+HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用提前准备任何证书——首次启动自动生成自签名证书；要受信任的正式证书时，运行 `fast-https acme` 向导接入 Let's Encrypt 等 CA，签发与到期续期全自动，签发失败回落自签名，站点始终可访问。
+
 全部功能编译进一个可执行文件，运行时不需要额外的动态库或脚本。配置是一份允许注释的 JSON，路由按 `location` 组织，可以在 Linux、macOS 和 Windows 上运行，也可以安装为系统服务。
 
 一条请求的处理链路：
@@ -37,7 +39,7 @@
 | --- | --- |
 | 静态站点 | `root` / `index` / `try` 定位文件；`Last-Modified` 条件请求返回 304，单段 `Range` 返回 206 / 416；按 `Accept-Encoding` 协商 gzip 与 brotli；目录缺结尾斜杠时 301 到带斜杠地址；不生成目录列表 |
 | 反向代理 | 每个 location 一个 `proxy_pass`，支持 `http://` 与 `https://` 上游、连接池复用、`proxy_set_header`、响应缓存、WebSocket 升级与 TCP 双向转发 |
-| TLS 证书 | 每个 `server_name` 独立证书；同一 SSL 端口 `reload` 时热替换证书、不重新绑定端口；缺少证书文件时启动前生成自签名证书 |
+| TLS 证书 | 每个 `server_name` 独立证书；同一 SSL 端口 `reload` 时热替换证书、不重新绑定端口；证书自动配置：缺少证书文件时启动前生成自签名证书，配置 ACME 后自动申请并续期受信任证书（Let's Encrypt 等，`fast-https acme` 向导） |
 | HTTP/2 | `listen` 含 `h2` 时启用，ALPN 协商、HPACK、流状态机与流量控制由 `golang.org/x/net/http2` 处理，重载时发 GOAWAY 优雅关闭 |
 | 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
 | 运维 | `start` / `stop` / `reload` / `status` / `check` / `dev`；热重载不断开已有连接；`check` 只校验配置不监听端口 |
@@ -81,7 +83,7 @@
 **适合：**
 
 - 单机部署的静态站点、文档站、内部管理后台；
-- 需要 TLS 终止与 HTTP/2、又不想维护庞大配置文件树的场景；
+- 需要 TLS 终止与 HTTP/2、又不想维护庞大配置文件树，或没有现成证书、希望 HTTPS 零准备上线的场景；
 - 把 HTTP 或 WebSocket 请求转发到本机或内网服务；
 - 交付物要尽量小：一个二进制、一份 JSON、一个日志目录；
 - Windows 上需要托盘或系统服务形态的轻量服务器。
