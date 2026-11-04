@@ -4,7 +4,7 @@
 
 2026-10-24 数据面重构要点：`utils/*` 上移为 `infra/*`；`modules/core` 拆分为契约层 `core` 与数据面运行时 `runtime`；处理器注册表由定长数组改为 map；`core.Services` 补齐停机钩子；日志统一为 zerolog 单出口 JSON。
 
-相关文档：[架构收敛计划](develop/archive/architecture-convergence-plan.md)、[启动与运行逻辑](about.md)、[Agent 化改造方案](develop/plans/agent-refactor-plan.md)。
+相关文档：[项目架构图](architecture.html)（[PNG](images/architecture.png) / [深色 PNG](images/architecture-dark.png)）、[架构收敛计划](develop/archive/architecture-convergence-plan.md)、[启动与运行逻辑](about.md)、[Agent 化改造方案](develop/plans/agent-refactor-plan.md)。
 
 ## 1. 分层结构与依赖方向
 

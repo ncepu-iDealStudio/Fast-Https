@@ -33,6 +33,12 @@ How a request travels:
 connection → rate limit / IP blacklist → location routing → application firewall → static file / reverse proxy / TCP / WebSocket → response
 ```
 
+## Architecture
+
+![Fast-Https architecture](docs/images/architecture.png)
+
+Blue is the primary request path; dashed lines are wiring injection and external dependencies. See the [architecture map](docs/architecture-map.md) for layering rules, the [interactive HTML](docs/architecture.html) for the dark theme, or the [dark PNG](docs/images/architecture-dark.png).
+
 ## Core capabilities
 
 | Capability | What it does |
@@ -215,6 +221,7 @@ No. The config is static JSON. `$variable` occurrences in `proxy_cache.key` and 
 | [docs/usage.md](docs/usage.md) | In-repo source of the usage guide; `docs/usage.html` is generated from it and ships with releases |
 | [docs/feature/](docs/feature/README.md) | One page per feature, with config samples and implementation notes |
 | [docs/develop/](docs/develop/README.md) | Build environment, tests, code standards, adding config keys, debugging, release |
+| [docs/architecture.html](docs/architecture.html) | Architecture diagram ([PNG](docs/images/architecture.png) / [dark PNG](docs/images/architecture-dark.png)): layers and the request path |
 | [docs/architecture-map.md](docs/architecture-map.md) | Package inventory and dependency direction |
 
 The full index is [docs/README.md](docs/README.md).
