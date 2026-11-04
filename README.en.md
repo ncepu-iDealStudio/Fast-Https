@@ -1,10 +1,10 @@
 <h1 align="center">Fast-Https</h1>
 
-<p align="center"><strong>A lightweight web server and reverse proxy written in Go: single binary, JSON config, HTTP/2 and TLS.</strong><br />
+<p align="center"><strong>A lightweight web server and reverse proxy written in Go: single binary, JSON config, HTTP/2 and automatic HTTPS.</strong><br />
 One JSON file describes listen ports and locations, covering common site and reverse-proxy scenarios.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.5.0-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
@@ -23,6 +23,8 @@ One JSON file describes listen ports and locations, covering common site and rev
 
 **Fast-Https is an open-source web server and reverse proxy written in Go.** It accepts connections, parses HTTP/1.1, and writes responses itself instead of wrapping an existing server. HTTP/2 framing and HPACK are delegated to `golang.org/x/net/http2`; TLS comes from the Go standard library.
 
+HTTPS configures itself: put `443 ssl h2` in `listen` and TLS is on — no certificates to prepare up front. A self-signed certificate is generated at first start; for a publicly trusted certificate, the `fast-https acme` wizard connects Let's Encrypt or another ACME CA, and both issuance and renewal are automatic. If ACME issuance fails, the server falls back to self-signed so the site stays reachable.
+
 Everything compiles into a single executable with no extra shared libraries or runtime scripts. Configuration is one JSON file that accepts comments, with routing organized in `location` blocks. It runs on Linux, macOS, and Windows, and can install itself as a system service.
 
 How a request travels:
@@ -37,10 +39,10 @@ connection → rate limit / IP blacklist → location routing → application fi
 | --- | --- |
 | Static sites | `root` / `index` / `try` resolve files; `Last-Modified` conditional requests return 304, a single `Range` returns 206 / 416; gzip and brotli are negotiated from `Accept-Encoding`; a directory requested without a trailing slash gets a 301; no directory listing |
 | Reverse proxy | One `proxy_pass` per location, `http://` and `https://` upstreams, pooled connections, `proxy_set_header`, a disk-backed response cache, WebSocket upgrade, and bidirectional TCP forwarding |
-| TLS certificates | Per-`server_name` certificates; `reload` swaps certificates on the same SSL port without rebinding the socket; a self-signed certificate is generated at startup when the PEM files are missing |
+| TLS certificates | Per-`server_name` certificates; `reload` swaps certificates on the same SSL port without rebinding the socket; certificates are provisioned automatically — a self-signed one is generated at startup when the PEM files are missing, and with ACME configured a publicly trusted certificate is issued and renewed for you (Let's Encrypt and others, via the `fast-https acme` wizard) |
 | HTTP/2 | Adding `h2` to `listen` enables it — ALPN, HPACK, stream state machine, and flow control come from `golang.org/x/net/http2`, and reloads send GOAWAY for a graceful close |
 | Security | Global plus per-location, per-IP token-bucket rate limiting; IP and IPv6 range blacklists; Basic auth; GuardianWAF (sqli / xss / lfi / cmdi / xxe / ssrf, log-only mode available) |
-| Operations | `start` / `stop` / `reload` / `status` / `check` / `dev` / `install`; config reload without dropping connections; `check` validates without listening |
+| Operations | `start` / `stop` / `reload` / `status` / `check` / `dev`; config reload without dropping connections; `check` validates without listening |
 | Logging | Four JSON logs in `logs/` — system, access, error, security — each line tagged with `kind` and an RFC3339 timestamp; files are reopened after a reload |
 | Packaging | Installers for Linux / macOS / Windows, an RPM spec, three Docker base images, and a Windows tray program |
 
@@ -53,7 +55,9 @@ Core dependencies (versions live in `go.mod`; everything else is the standard li
 | `golang.org/x/net` | HTTP/2 stack |
 | `guardianwaf/guardianwaf` | Application firewall engine |
 | `klauspost/compress`, `andybalholm/brotli` | gzip and brotli compression |
-| `kardianos/service`, `fyne.io/systray` | System service install, Windows tray |
+| `caddyserver/certmagic`, `mholt/acmez/v3` | ACME issuance and renewal (accounts, orders, renewal scheduling) |
+| `charmbracelet/huh` | Interactive form for `fast-https acme` |
+| `fyne.io/systray` | Windows tray |
 
 ## How it differs from general-purpose web servers
 
@@ -79,7 +83,7 @@ The two are aimed at different jobs: a general-purpose web server covers more pr
 **Good fit:**
 
 - single-machine static sites, documentation sites, and internal dashboards;
-- TLS termination and HTTP/2 without maintaining a large configuration tree;
+- TLS termination and HTTP/2 without maintaining a large configuration tree, or no certificate at hand and HTTPS with zero preparation;
 - forwarding HTTP or WebSocket traffic to local or internal services;
 - shipping one binary, one JSON file, and one log directory;
 - lightweight servers on Windows that need tray or service mode.
@@ -104,30 +108,50 @@ The two are aimed at different jobs: a general-purpose web server covers more pr
 go build -o fast-https . && ./fast-https start
 ```
 
-The shipped `config/fast-https.json` already serves `./httpdoc/root` on port 80 (a ready-to-run default site). Change `listen` to `8080` or another high port when running as a non-root user.
+The shipped config has two layers: `config/fast-https.json` keeps system-level settings only (`http.include`, `acme`, logging, WAF), and every site lives as one file under `config/conf.d/`.
 
 ```json
 {
+  "log_root": "./logs",
+  "security": {
+    "host_check": "off",
+    "headers": { "nosniff": true, "hsts": "", "x_frame_options": "",
+                 "referrer_policy": "", "content_security_policy": "" }
+  },
+  "waf": { "mode": "disabled" },
   "http": {
-    "server": [
-      {
-        "listen": 80,
-        "server_name": "localhost",
-        "location": [
-          { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] }
-        ]
-      }
-    ],
-    "include": ["./config/conf.d"]
-  }
+    "include": ["./config/conf.d"],
+    "default_type": "application/octet-stream",
+    "servers_limit": { "max_header_size": 4096, "max_body_size": 524288, "limit": 0, "burst": 0 },
+    "blaklist": [],
+    "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
+  },
+  "acme": { "enabled": false, "email": "" }
+}
+```
+
+Every value above equals its built-in default; they are spelled out so the file itself shows which system-wide switches exist. Field reference: [docs/usage.md](docs/usage.md).
+
+The shipped `config/conf.d/default.json` is the ready-to-run default site: `./httpdoc/root` on port 80 and on `443 ssl h2`. The 443 certificate is generated on first start by the local CA into `config/cert/localhost.pem` and `localhost-key.pem`; change `listen` to `8080` or another high port when running as a non-root user.
+
+```json
+{
+  "listen": [80, "443 ssl h2"],
+  "server_name": "localhost",
+  "ssl_certificate": "./config/cert/localhost.pem",
+  "ssl_certificate_key": "./config/cert/localhost-key.pem",
+  "location": [
+    { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ]
 }
 ```
 
 ```bash
-curl -I http://127.0.0.1/    # expect 200 and Server: Fast-Https
+curl -I http://127.0.0.1/        # expect 200 and Server: Fast-Https
+curl -kI https://127.0.0.1/      # self-signed, hence -k
+./fast-https acme                # interactive ACME setup for trusted certificates
 ```
 
-The shipped config comments every block, so it doubles as a reference for the available fields.
+The shipped config carries no comments on purpose: every field is documented in [docs/usage.md](docs/usage.md), and keeping the file minimal means scripts and the `acme` wizard can rewrite it without dealing with comments. Your own `//` comments and trailing commas are still accepted.
 
 ## Commands
 
@@ -139,7 +163,10 @@ The shipped config comments every block, so it doubles as a reference for the av
 | `./fast-https reload` | Validate the new config, then reload; a failed validation keeps the old config |
 | `./fast-https status` | Read the pid file and report whether the server is running |
 | `./fast-https check` | Validate the config only — no listening, no pid file |
-| `./fast-https install` | Install as a system service |
+| `./fast-https acme` | Interactive ACME setup, rewrites the `acme` section (restart required) |
+| `./fast-https acme show` | Show the effective ACME settings and the domains that will be requested |
+| `./fast-https site init blog` | Create a site file under `config/conf.d/` (wizard, or flags to skip prompts) |
+| `./fast-https site list/check/show/remove` | List, validate, inspect and delete site files |
 
 ## FAQ
 
@@ -157,7 +184,7 @@ No. `reload` swaps the certificate on the same listening socket — the next han
 
 ### Does Fast-Https request trusted certificates automatically?
 
-No. When the PEM files are missing it generates a self-signed certificate at startup. Trusted certificates are issued by an external ACME client and written as PEM, then picked up with `reload`.
+Yes. When the PEM files are missing it generates a self-signed certificate first and starts normally. With an `acme` section configured (`enabled` plus `email`), the process requests trusted certificates from Let's Encrypt / ZeroSSL, renews them before expiry, and hot-swaps them on the same listening socket. Failures (intranet, unresolvable names, rate limits) fall back to the self-signed certificate with a log warning and never take the service down. Only `http-01` and `tls-alpn-01` are supported; wildcards need `dns-01` and still require an external client. See "7.1 ACME 自动签发" in [docs/usage.md](docs/usage.md).
 
 ### What happens if the config is invalid?
 

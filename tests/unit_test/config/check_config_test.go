@@ -55,6 +55,10 @@ func TestValidateConfigFile_ValidMainAndInclude(t *testing.T) {
   ]
 }`)
 
+	// include 的相对路径和运行期一样按 FAST_HTTPS_BASE_DIR（进程工作目录）解析，
+	// 不是按主配置文件所在目录，所以要把工作目录切到临时目录。
+	t.Chdir(tmp)
+
 	if err := config.ValidateConfigFile(mainPath); err != nil {
 		t.Fatalf("expected valid config, got error: %v", err)
 	}
@@ -158,6 +162,9 @@ func TestValidateConfigFile_InvalidIncludeServer(t *testing.T) {
   "listen": "8082",
   "server_name": "broken.local"
 }`)
+
+	// 同上：include 相对路径按进程工作目录解析。
+	t.Chdir(tmp)
 
 	err := config.ValidateConfigFile(mainPath)
 	if err == nil || !strings.Contains(err.Error(), "location must contain at least one rule") {

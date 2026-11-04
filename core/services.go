@@ -6,6 +6,10 @@ import "fast-https/runtime/listener"
 // before the server listens. A nil function allows the event or does nothing,
 // so tests can run the core without the feature packages.
 type Services struct {
+	// HandleEarlyRequest handles reserved paths (ACME http-01 challenges, for
+	// example) before location matching. The function writes the response
+	// itself. Return true when the request must not enter routing.
+	HandleEarlyRequest func(*Event) bool
 	// RejectConn refuses a new connection, for example by blacklist or rate limit.
 	RejectConn func(*Event) bool
 	// HandleListen fully handles a connection outside HTTP, such as TCP proxy
@@ -35,6 +39,16 @@ var services Services
 // SetServices replaces the process hooks. Call it before ServerInit.
 func SetServices(next Services) {
 	services = next
+}
+
+// RequestHandled reports whether the composed early-request hook consumed ev.
+// It runs before location matching, so reserved paths do not depend on the
+// site root or on a location rule that happens to cover them.
+func RequestHandled(ev *Event) bool {
+	if services.HandleEarlyRequest == nil {
+		return false
+	}
+	return services.HandleEarlyRequest(ev)
 }
 
 // ConnRejected reports whether the composed connection hook refuses ev.

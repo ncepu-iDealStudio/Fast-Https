@@ -42,8 +42,8 @@ install -m 0755 %{name} %{buildroot}/%{_bindir}/%{name}
 
 # Installing additional files config
 install -m 0644 config/fast-https.json %{buildroot}/%{_datadir}/%{name}/config/fast-https.json
-install -m 0644 config/fastcgi.conf %{buildroot}/%{_datadir}/%{name}/config/fastcgi.conf
 install -m 0644 config/mime.json %{buildroot}/%{_datadir}/%{name}/config/mime.json
+install -m 0644 config/conf.d/default.json %{buildroot}/%{_datadir}/%{name}/config/conf.d/default.json
 
 
 # Installing additional files httpdoc
@@ -56,8 +56,8 @@ install -m 0644 httpdoc/root/index.html %{buildroot}/%{_datadir}/%{name}/httpdoc
 %files
 %{_bindir}/%{name}
 %{_datadir}/%{name}/config/fast-https.json
-%{_datadir}/%{name}/config/fastcgi.conf
 %{_datadir}/%{name}/config/mime.json
+%{_datadir}/%{name}/config/conf.d/default.json
 %{_datadir}/%{name}/httpdoc/root/favicon.ico
 %{_datadir}/%{name}/httpdoc/root/index.html
 %dir %{_datadir}/%{name}/config/conf.d

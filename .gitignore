@@ -15,7 +15,14 @@ go.mod
 go.sum
 config/cert/*.pem
 config/cert/*.key
-conifg/conf.d/*.json
+# ACME 账户与证书缓存是运行期状态，只保留占位文件
+config/cert/acme/*
+!config/cert/acme/.keep
+# 站点文件属于部署配置；随包的默认站点要跟着版本走
+config/conf.d/*.json
+!config/conf.d/default.json
+# 本地工具数据
+.codebuddy/
 httpdoc/root/root.crt
 httpdoc/root/root.key
 httpdoc/theme/*

@@ -3,8 +3,8 @@
 ```
 docs/
   README.md          ← 本文件
-  feature/           产品功能（23 篇，按编号排列，含计划占位）
-  develop/           开发文档（环境/测试/规范/配置/调试/发布 + plans 过程规划）
+  feature/           产品功能（20 篇，按编号排列，只放已实现的能力）
+  develop/           开发文档（环境/测试/规范/配置/调试/发布 + plans 未实施方案 + archive 已归档方案）
   test/              测试专项（覆盖率评估/边界用例集/压测计划）
   usage.md               面向部署运维的使用文档（源），生成 usage.html 随发行包分发
   usage.html             由 usage.md 生成，不改源文件就不要手改它
@@ -26,9 +26,10 @@ docs/
 | 新增配置项 | [develop/3-config-development.md](develop/3-config-development.md) |
 | 排查线上问题 | [develop/4-debugging.md](develop/4-debugging.md) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
-| 了解历史决策与演进 | [develop/plans/](develop/README.md) |
+| 了解历史决策与演进 | [develop/README.md](develop/README.md)（`plans/` 未实施，`archive/` 已归档） |
 
 ## 维护约定
 
-- 功能变化 → `feature/` 对应篇章；迭代状态 → `develop/plans/iteration-plan.md`；结构变化 → `architecture-map.md`。
-- 计划中的功能在 `feature/` 里有占位文档（编号 20 起），落地后转正。
+- 功能变化 → `feature/` 对应篇章；迭代状态 → `develop/archive/iteration-plan.md`；结构变化 → `architecture-map.md`。
+- 方案落地后从 `develop/plans/` 移到 `develop/archive/`，正文不改写。
+- 未实现的方案写在 `develop/plans/`；落地后写成 `feature/` 的功能文档，方案本身移入 `develop/archive/`。

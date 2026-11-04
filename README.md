@@ -1,10 +1,10 @@
 <h1 align="center">Fast-Https</h1>
 
-<p align="center"><strong>Go 编写的轻量级 Web 服务器与反向代理：单二进制、JSON 配置、HTTP/2 与 TLS。</strong><br />
+<p align="center"><strong>Go 编写的轻量级 Web 服务器与反向代理：单二进制、JSON 配置、HTTP/2 与自动 HTTPS。</strong><br />
 一份 JSON 描述监听端口与 location，覆盖常见的站点与反向代理场景。</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.4.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.5.0-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
@@ -23,6 +23,8 @@
 
 **Fast-Https 是一个用 Go 编写的开源 Web 服务器与反向代理。** 它自己完成端口监听、HTTP/1.1 解析和响应写出，不套用现成服务器的外壳；HTTP/2 的分帧与 HPACK 交给 `golang.org/x/net/http2`，TLS 使用 Go 标准库。
 
+HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用提前准备任何证书——首次启动自动生成自签名证书；要受信任的正式证书时，运行 `fast-https acme` 向导接入 Let's Encrypt 等 CA，签发与到期续期全自动，签发失败回落自签名，站点始终可访问。
+
 全部功能编译进一个可执行文件，运行时不需要额外的动态库或脚本。配置是一份允许注释的 JSON，路由按 `location` 组织，可以在 Linux、macOS 和 Windows 上运行，也可以安装为系统服务。
 
 一条请求的处理链路：
@@ -37,10 +39,10 @@
 | --- | --- |
 | 静态站点 | `root` / `index` / `try` 定位文件；`Last-Modified` 条件请求返回 304，单段 `Range` 返回 206 / 416；按 `Accept-Encoding` 协商 gzip 与 brotli；目录缺结尾斜杠时 301 到带斜杠地址；不生成目录列表 |
 | 反向代理 | 每个 location 一个 `proxy_pass`，支持 `http://` 与 `https://` 上游、连接池复用、`proxy_set_header`、响应缓存、WebSocket 升级与 TCP 双向转发 |
-| TLS 证书 | 每个 `server_name` 独立证书；同一 SSL 端口 `reload` 时热替换证书、不重新绑定端口；缺少证书文件时启动前生成自签名证书 |
+| TLS 证书 | 每个 `server_name` 独立证书；同一 SSL 端口 `reload` 时热替换证书、不重新绑定端口；证书自动配置：缺少证书文件时启动前生成自签名证书，配置 ACME 后自动申请并续期受信任证书（Let's Encrypt 等，`fast-https acme` 向导） |
 | HTTP/2 | `listen` 含 `h2` 时启用，ALPN 协商、HPACK、流状态机与流量控制由 `golang.org/x/net/http2` 处理，重载时发 GOAWAY 优雅关闭 |
 | 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
-| 运维 | `start` / `stop` / `reload` / `status` / `check` / `dev` / `install`；热重载不断开已有连接；`check` 只校验配置不监听端口 |
+| 运维 | `start` / `stop` / `reload` / `status` / `check` / `dev`；热重载不断开已有连接；`check` 只校验配置不监听端口 |
 | 日志 | `logs/` 下 system、access、error、safe 四路 JSON 日志，每条带 `kind` 与 RFC3339 时间，重载后重新打开文件 |
 | 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；Windows 附带托盘程序 |
 
@@ -53,7 +55,9 @@
 | `golang.org/x/net` | HTTP/2 协议栈 |
 | `guardianwaf/guardianwaf` | 应用防火墙引擎 |
 | `klauspost/compress`、`andybalholm/brotli` | gzip 与 brotli 压缩 |
-| `kardianos/service`、`fyne.io/systray` | 系统服务安装、Windows 托盘 |
+| `caddyserver/certmagic`、`mholt/acmez/v3` | ACME 证书申请与续期（账户、订单、续期调度） |
+| `charmbracelet/huh` | `fast-https acme` 的交互式配置表单 |
+| `fyne.io/systray` | Windows 托盘 |
 
 ## 与通用 Web 服务器的差异
 
@@ -79,7 +83,7 @@
 **适合：**
 
 - 单机部署的静态站点、文档站、内部管理后台；
-- 需要 TLS 终止与 HTTP/2、又不想维护庞大配置文件树的场景；
+- 需要 TLS 终止与 HTTP/2、又不想维护庞大配置文件树，或没有现成证书、希望 HTTPS 零准备上线的场景；
 - 把 HTTP 或 WebSocket 请求转发到本机或内网服务；
 - 交付物要尽量小：一个二进制、一份 JSON、一个日志目录；
 - Windows 上需要托盘或系统服务形态的轻量服务器。
@@ -104,30 +108,50 @@
 go build -o fast-https . && ./fast-https start
 ```
 
-随包的 `config/fast-https.json` 已经是一份可直接服务的默认配置（开箱即用的默认站点）：80 端口对外提供 `./httpdoc/root`，非 root 运行时把它改成 `8080` 之类的高位端口。
+随包的配置分成两层：`config/fast-https.json` 只放系统级设置（`http.include`、`acme`、日志、WAF 等），站点一律写在 `config/conf.d/` 下，一个文件一个站点。
 
 ```json
 {
+  "log_root": "./logs",
+  "security": {
+    "host_check": "off",
+    "headers": { "nosniff": true, "hsts": "", "x_frame_options": "",
+                 "referrer_policy": "", "content_security_policy": "" }
+  },
+  "waf": { "mode": "disabled" },
   "http": {
-    "server": [
-      {
-        "listen": 80,
-        "server_name": "localhost",
-        "location": [
-          { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] }
-        ]
-      }
-    ],
-    "include": ["./config/conf.d"]
-  }
+    "include": ["./config/conf.d"],
+    "default_type": "application/octet-stream",
+    "servers_limit": { "max_header_size": 4096, "max_body_size": 524288, "limit": 0, "burst": 0 },
+    "blaklist": [],
+    "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
+  },
+  "acme": { "enabled": false, "email": "" }
+}
+```
+
+以上每一项都取内置默认值，写出来只是为了让人在文件里就能看到有哪些系统级开关；字段含义见 [docs/usage.md](docs/usage.md)。
+
+随包的 `config/conf.d/default.json` 就是开箱即用的默认站点：80 提供 HTTP，`443 ssl h2` 提供 HTTPS + HTTP/2，两者都指向 `./httpdoc/root`。443 的证书不用预置，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`；非 root 运行时把 `listen` 改成 `8080` 之类的高位端口。
+
+```json
+{
+  "listen": [80, "443 ssl h2"],
+  "server_name": "localhost",
+  "ssl_certificate": "./config/cert/localhost.pem",
+  "ssl_certificate_key": "./config/cert/localhost-key.pem",
+  "location": [
+    { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ]
 }
 ```
 
 ```bash
-curl -I http://127.0.0.1/    # 期望 200 与 Server: Fast-Https
+curl -I http://127.0.0.1/          # 期望 200 与 Server: Fast-Https
+curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
+./fast-https acme                  # 需要受信任证书时，交互式打开 ACME 自动签发
 ```
 
-随包配置文件里每段都带注释说明，可直接对照修改。
+默认配置刻意不带注释：字段含义与可选值都在 [docs/usage.md](docs/usage.md)，配置文件保持最小可读 JSON，脚本或 `acme` 向导改它时不用处理注释。需要给自己留备注时，可以照常写 `//` 注释与尾随逗号。
 
 ## 常用命令
 
@@ -139,7 +163,10 @@ curl -I http://127.0.0.1/    # 期望 200 与 Server: Fast-Https
 | `./fast-https reload` | 校验配置后热重载，失败保留旧配置 |
 | `./fast-https status` | 读 pid 文件判断是否在运行 |
 | `./fast-https check` | 只校验配置，不监听端口、不写 pid |
-| `./fast-https install` | 安装为系统服务 |
+| `./fast-https acme` | 交互式配置 ACME 自动签发证书，写回 `acme` 段（改完需重启） |
+| `./fast-https acme show` | 查看当前 ACME 配置与会申请证书的域名 |
+| `./fast-https site init blog` | 在 `config/conf.d/` 下生成一个站点文件（向导，或用参数跳过提问） |
+| `./fast-https site list/check/show/remove` | 站点文件的列表、校验、查看与删除 |
 
 ## 常见问题
 
@@ -157,7 +184,7 @@ curl -I http://127.0.0.1/    # 期望 200 与 Server: Fast-Https
 
 ### Fast-Https 会自动申请受信任证书吗？
 
-不会自动申请。缺少证书文件时启动前会生成自签名证书；受信任证书需要由外部 ACME 客户端签发并写出 PEM，再执行 `reload` 热替换。
+会。缺少证书文件时启动前先生成自签名证书，服务随后照常启动；配置 `acme` 段（`enabled` 与 `email`）后，进程会向 Let's Encrypt / ZeroSSL 申请受信任证书并在到期前自动续期，签发成功即在原监听 socket 上热替换。申请失败（内网、域名未解析、限速）回落自签证书并在日志告警，服务不中断。挑战只支持 `http-01` 与 `tls-alpn-01`，通配符需要 `dns-01`，仍需外部客户端。详见 [docs/usage.md](docs/usage.md) 的「7.1 ACME 自动签发」。
 
 ### 配置写错了会怎样？
 

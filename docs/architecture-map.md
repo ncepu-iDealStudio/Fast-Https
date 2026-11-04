@@ -4,16 +4,16 @@
 
 2026-10-24 数据面重构要点：`utils/*` 上移为 `infra/*`；`modules/core` 拆分为契约层 `core` 与数据面运行时 `runtime`；处理器注册表由定长数组改为 map；`core.Services` 补齐停机钩子；日志统一为 zerolog 单出口 JSON。
 
-相关文档：[架构收敛计划](develop/plans/architecture-convergence-plan.md)、[启动与运行逻辑](about.md)、[Agent 化改造方案](develop/plans/agent-refactor-plan.md)。
+相关文档：[架构收敛计划](develop/archive/architecture-convergence-plan.md)、[启动与运行逻辑](about.md)、[Agent 化改造方案](develop/plans/agent-refactor-plan.md)。
 
 ## 1. 分层结构与依赖方向
 
-`go list ./...` 当前枚举 50 个 package。分层与允许的依赖方向如下，任何反向边都会被 `tests/arch/layering_test.go` 拦下：
+`go list ./...` 当前枚举 49 个 package。分层与允许的依赖方向如下，任何反向边都会被 `tests/arch/layering_test.go` 拦下：
 
 | 层 | 包 | 允许依赖 | 说明 |
 | --- | --- | --- | --- |
-| 基础设施 | `infra/{logging,files,color,timeutil}` | 仅 `infra/*` 与标准库、zerolog | 不依赖 `config`，日志常量由本层定义、配置层引用 |
-| 配置 | `config` | `infra/*` | 唯一持有 viper 的包，`TestNoViperLeak` 保证不外泄 |
+| 基础设施 | `infra/{logging,files,color,timeutil,jsonc}` | 仅 `infra/*` 与标准库、zerolog | 不依赖 `config`，日志常量由本层定义、配置层引用；`jsonc` 是 JSONC 编解码工具、`files` 是原子写文件工具，都不认任何配置字段 |
+| 配置 | `config` | `infra/*` | 配置 schema、校验、快照与站点文件；JSONC 解析交给 `infra/jsonc`。`TestNoViperLeak` 保证配置库不外泄 |
 | 契约 | `core` | `infra/*`、`config`、`runtime/{listener,request,response}` | 只放 `Event`、处理器注册表与生命周期钩子；后三个是 `Event` 内嵌的数据模型，属登记例外 |
 | 数据面运行时 | `runtime/*` | `infra/*`、`config`、`core`、`runtime/*` | 不允许依赖 `modules` |
 | 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters}` |
@@ -24,12 +24,14 @@
 | Package / 路径 | 职责和主要入口 | 默认服务器路径 |
 | --- | --- | --- |
 | 根 `fast-https` | 主服务器 `main`，调用 `cmd.RootCmd()` | 是 |
-| `cmd` | Cobra 命令、start/dev/stop/reload/check/status、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点 | 是 |
+| `cmd` | Cobra 命令、start/dev/stop/reload/check/status、`acme` 配置向导（`huh` 表单 + 参数模式）、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点 | 是 |
 | `config` | 配置模型、JSON/include 读取、验证、路径和全局运行配置 | 是 |
 | `init` | 配置、日志、证书、缓存初始化 | 是 |
 | `infra/banner` | 彩色横幅、版本号与初始化阶段提示（版本由组合根注入） | 由组合根调用 |
 | `infra/logging` | 进程唯一日志出口：控制台一路 + 文件四路，全部 JSON | 是 |
 | `infra/color`、`timeutil` | 终端着色（唯一入口，后端为 `fatih/color`）、nginx 风格时长解析 | 是 |
+| `infra/jsonc` | JSONC 编解码与原文级改写：`StripComments`/`Unmarshal`（等长掩码）+ `ScanObject`/`PatchMember`（保留注释与字段顺序地替换或追加成员），`acme` 段写回靠它 | 是 |
+| `infra/files` | 原子写文件：先写 `.tmp` 再 rename，配置回写与 ACME PEM 落盘共用 | 是 |
 | `core` | `Event`、处理器注册表、默认命令变量、`Services` 生命周期钩子 | 是 |
 | `runtime/server` | 启停、信号、连接跟踪、listener 生命周期和 reload | 是 |
 | `runtime/listener` | 配置转 Listener/ListenCfg、虚拟主机表、TCP/TLS socket、端口 reload | 是 |
@@ -41,6 +43,8 @@
 | `modules/static`、`proxy`、`rewrite`、`dev_mod` | local、HTTP/HTTPS proxy、rewrite 和开发 location handler | 由 `cmd.RegisterHandlers` 在启动时装配 |
 | `modules/proxy_tcp`、`websocket` | TCP 字节代理和 WebSocket upgrade | 通过监听钩子分流 |
 | `modules/auth`、`safe`、`appfirewall`、`cache`、`compress` | 认证、安全检查/限流、防火墙、代理缓存和静态压缩 | 配置或请求路径启用时 |
+| `modules/certmanager` | ACME 证书编排（certmagic + acmez）：账户、订单、续期调度、PEM 落盘与热替换；挑战应答通过 `core.Services.HandleEarlyRequest` 与 `listener.RegisterTLSALPNProvider` 注入数据面 | `acme.enabled` 为真时 |
+| `modules/site` | 站点文件（`conf.d/<name>.json`）的命名校验、原子落盘与目录扫描；合并与校验复用 `config`，不碰运行期对象 | `site` 命令组 |
 | `monitor` | Windows/amd64 托盘程序，独立 `main` | 独立可执行程序 |
 | `tests`、`tests/client_test`、`tests/unit_test/...`、`tests/arch` | 根测试入口、子进程 E2E、集中式单测、分层约束 | 测试专用 |
 
@@ -52,7 +56,7 @@
 - `ServerInit()` 调用 `core.MissingHandlers()`，确认配置中非 TCP 的 location type 已有 handler，再创建监听器。
 - `runtime/events.EventHandler()` 根据匹配到的 location type 从 `core.Handler` 取得处理函数；缺失时返回 500，不再空指针崩溃。
 - TCP proxy 和 WebSocket 不走 location 表。`cmd.RegisterServices` 把它们放进 `core.Services.HandleListen`，`filters` 只调用这个钩子。
-- `core.Services` 的钩子覆盖完整生命周期：`RejectConn`、`HandleListen`、`RejectLocation`、`RejectAuth`、`AfterListen`（reload 会再次触发，实现需幂等）、`BeforeStop`、`AfterStop`。`config.Reload` 成功后 `dynlog.LogRegister` 会先清空再重建字段表。
+- `core.Services` 的钩子覆盖完整生命周期：`HandleEarlyRequest`（location 匹配之前处理保留路径，如 ACME 挑战）、`RejectConn`、`HandleListen`、`RejectLocation`、`RejectAuth`、`AfterListen`（reload 会再次触发，实现需幂等）、`BeforeStop`、`AfterStop`。`config.Reload` 成功后 `dynlog.LogRegister` 会先清空再重建字段表。
 
 ## 4. 日志子系统
 
@@ -95,13 +99,13 @@
 | RPM | `build/spec` 文件执行 `go build -tags=rpm .`，安装程序及 `config/`、`httpdoc/root/` 等运行资源 |
 | Linux 包（deb/rpm/apk） | `build/goreleaser.yaml` 的 `nfpms` 段，安装单元 `build/packaging/systemd/`、安装脚本 `build/packaging/linux/` |
 | Go CI | `.workflow/go-test.yml` 使用 Go 1.27.1，执行 `go test ./...` |
-| Windows 测试脚本 | `_run_tests.bat` 选取部分 package，使用 `go test -p 1` |
+| Windows 本地测试 | 直接 `go test -p 1 ./...`（并行测试 exe 在 Windows 上会偶发 `Access is denied`） |
 
-运行配置和默认资源仍按安装包布局提供；配置路径由工作目录和 `config` 常量共同决定。架构迁移不能只移动 Go package，还必须同步检查 Docker、GoReleaser、RPM 和工作目录相关契约。
+运行配置和默认资源仍按安装包布局提供；配置路径由工作目录和 `config` 常量共同决定。架构迁移不能只移动 Go package，还必须同步检查 Docker、GoReleaser、RPM 和工作目录相关契约。`httpdoc/`、`config/*.json`、`config/cert/` 是随包发布的运行资源（FHS 计划见 [fhs-layout-plan.md](develop/plans/fhs-layout-plan.md)），不放进 `build/`；`build/` 只放构建脚本、打包配方与 Dockerfile。
 
 ## 7. 测试组织
 
-- 源码邻近的 `*_test.go`：`cmd/`、`config/`、`init/`、`core/`、`runtime/*`、`modules/*`。
+- 源码邻近的 `*_test.go`：`cmd/`、`config/`、`infra/*`、`init/`、`core/`、`runtime/*`、`modules/*`。
 - 集中单测：`tests/unit_test/`，只保留存量，新单测写在被测包旁。
 - 分层约束：`tests/arch/layering_test.go` 校验 `infra`↔`config`、`core`、`runtime`、`modules` 的依赖方向，并禁止 viper 泄漏与生产代码依赖 `tests/`。
 - 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`。

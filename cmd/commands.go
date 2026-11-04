@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/kardianos/service"
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
@@ -23,25 +22,16 @@ import (
 // Command Structure Definition
 // 命令结构体定义
 type command struct {
-	name        string       // 命令名称
-	description string       // 命令描述
-	handler     func() error // 命令处理函数
+	name        string                 // 命令名称
+	description string                 // 命令描述
+	handler     func() error           // 命令处理函数
+	register    func() *cobra.Command  // 需要子命令或 flags 时使用，与 handler 二选一
 }
 
 var (
 	// Command structure initialization
 	// 命令结构体初始化
 	commands = []command{
-		{
-			name:        "install",
-			description: "to install fast-https service", // 安装fast-https服务
-			handler:     ServiceInstallHandler,
-		},
-		{
-			name:        "uninstall",
-			description: "to uninstall fast-https service", // 卸载fast-https服务
-			handler:     ServiceUnInstallHandler,
-		},
 		{
 			name:        "start",
 			description: "to start web server", // 启动Web服务器
@@ -72,28 +62,18 @@ var (
 			description: "to validate config without listening",
 			handler:     checkHandler,
 		},
+		{
+			name:        "acme",
+			description: "configure ACME certificate issuance",
+			register:    newAcmeCmd,
+		},
+		{
+			name:        "site",
+			description: "manage site files under http.include",
+			register:    newSiteCmd,
+		},
 	}
-
-	srvConfig = &service.Config{
-		Name:        "fast-https",
-		DisplayName: "Fast-https Web Server",
-		Description: "A high preformance web server and proxy server",
-	}
-
-	prg = &program{}
 )
-
-type program struct{}
-
-func (p *program) Start(s service.Service) error {
-	logging.ConsoleLog.Info().Msg("fast https (p *program) Start ...")
-	return nil
-}
-
-func (p *program) Stop(s service.Service) error {
-	logging.ConsoleLog.Info().Msg("fast https (p *program) Stop ...")
-	return nil
-}
 
 // RootCmd 返回根命令对象，处理命令行参数和标志
 func RootCmd() *cobra.Command {
@@ -111,6 +91,11 @@ func RootCmd() *cobra.Command {
 	// 把 commands 注册为 cobra 子命令，使 -h/--help 能列出全部命令及说明
 	for i := range commands {
 		sub := commands[i]
+		if sub.register != nil {
+			// 带子命令或 flags 的命令自己构造完整命令树（acme、site）。
+			cmd.AddCommand(sub.register())
+			continue
+		}
 		cmd.AddCommand(&cobra.Command{
 			Use:          sub.name,
 			Short:        sub.description,
@@ -141,64 +126,20 @@ func runCommand(args []string) error {
 		if args[0] != c.name {
 			continue
 		}
+		if c.register != nil {
+			// 子命令组由 cobra 解析，这里只处理传进来的剩余参数。
+			sub := c.register()
+			sub.SetArgs(args[1:])
+			return sub.Execute()
+		}
 		if err := c.handler(); err != nil {
 			return err
-		} else {
-			return nil
 		}
+		return nil
 	}
 
 	// 没有匹配到任何命令，输出帮助信息
 	usage()
-	return nil
-}
-
-// ServiceInstallHandler 处理服务安装
-// 获取当前工作目录并安装系统服务
-func ServiceInstallHandler() error {
-
-	directory, err := os.Getwd() //get the current directory using the built-in function
-	if err != nil {
-		logging.ConsoleLog.Warn().Msgf("%v", err) //print the error if obtained
-		return err
-	}
-
-	srvConfig.WorkingDirectory = directory
-
-	s, err := service.New(prg, srvConfig)
-	if err != nil {
-		logging.ConsoleLog.Warn().Msgf("%v", err)
-		return err
-	}
-
-	err = s.Install()
-	if err != nil {
-		logging.ConsoleLog.Warn().Msgf("service install failed: %s", err.Error())
-		return err
-	} else {
-		logging.ConsoleLog.Info().Msgf("fast-https service installed at %s", directory)
-	}
-
-	return nil
-}
-
-// ServiceUnInstallHandler 处理服务卸载
-func ServiceUnInstallHandler() error {
-
-	s, err := service.New(prg, srvConfig)
-	if err != nil {
-		logging.ConsoleLog.Warn().Msgf("%v", err)
-		return err
-	}
-
-	err = s.Uninstall()
-	if err != nil {
-		logging.ConsoleLog.Warn().Msgf("service uninstall failed: %s", err.Error())
-		return err
-	} else {
-		logging.ConsoleLog.Info().Msg("fast-https uninstalled")
-	}
-
 	return nil
 }
 

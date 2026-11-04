@@ -1,0 +1,11 @@
+# GitHub 语言统计（Linguist）：只统计产品代码。
+# 文档、生成站点、打包脚本不是这个项目的语言构成，标成不可检测后
+# 侧边栏语言占比按 Go 计算；二进制与生成物本来就不参与统计，这里显式写死，
+# 免得将来换图标/加 .syso 时又冒出来。
+docs/**    linguist-detectable=false
+*.md       linguist-detectable=false
+httpdoc/** linguist-detectable=false
+build/**   linguist-detectable=false
+
+*.ico      linguist-detectable=false
+*.syso     linguist-detectable=false

@@ -42,7 +42,6 @@ flowchart TD
 | `dev` | 提高日志级别、尝试启动 `:10000` 的 HTTP 服务，然后走相同的预检查和服务器初始化；不执行 `StartHandler` 中的 daemon 步骤 |
 | `stop` | 读取 PID 文件并对进程调用 `os.Kill` |
 | `reload` | 读取 PID 并发送平台对应的重载信号 |
-| `install` / `uninstall` | 使用 `kardianos/service` 安装或卸载系统服务 |
 | `status` | 读取 `fast-https.pid`。进程在运行时打印 pid 并以 0 退出；没有 pid 文件，或文件里的 pid 已经没有对应进程时，以非 0 退出 |
 | `check` | 调用 `config.CheckConfig()`。不监听，不写 pid。通过时打印 `config ok` 并以 0 退出；失败时打印原因并以非 0 退出 |
 
@@ -69,6 +68,8 @@ flowchart TD
 3. `CertInit()` 初始化本地 CA；对于启用 SSL 的 server，如果默认证书文件不存在则尝试生成证书。
 4. 从磁盘加载代理缓存，并启动定期过期清理 goroutine。
 安全模块不在这里初始化。`cmd.RegisterServices` 把 `safe.Init` 交给 `core.Services.AfterListen`。`ServerInit()` 创建监听器之后调用它，重载成功后会再调用一次，按当前 location 重建限流计数。
+
+ACME 证书管理器同样挂在 `AfterListen`（`certmanager.Start`）：必须等监听建立、自签证书就位之后再开始后台申请，否则首次握手会被证书申请阻塞。`RegisterServices` 里的 `certmanager.Wire` 只做钩子注入——`HandleEarlyRequest` 用于 `http-01` 应答，`listener.RegisterTLSALPNProvider` 用于 `tls-alpn-01` 握手；`acme.enabled` 为假时两者都不挂。
 
 ### 3.3 配置来源和路径
 

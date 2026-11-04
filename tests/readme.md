@@ -29,9 +29,10 @@
 tests/
 ├── readme.md
 ├── fast-https_test.go               # 启动初始化步骤（有副作用，见 1.0）
-├── scripts/                         # 开发模式启动脚本，不进入 go test
+├── scripts/                         # 手工脚本，不进入 go test
 │   ├── dev-test.sh
-│   └── dev-test.ps1
+│   ├── dev-test.ps1
+│   └── static-regression.sh         # 静态资源 curl 回归，见 1.3
 ├── single/                          # 手工样例，不进入 go test
 │   ├── workloop.go
 │   └── httpclient/main.go           # 手工 HTTP/HTTPS 客户端
@@ -139,6 +140,21 @@ Remove-Item Env:FASTHTTPS_E2E_RELOAD
 ```bash
 go test ./tests/client_test -run TestProxyHTTPIntegration -v
 ```
+
+#### 静态资源 curl 回归
+
+`tests/scripts/static-regression.sh` 自己起一个临时实例（临时 base 目录 + 临时站点根，
+不碰仓库配置与 `httpdoc/`），用 curl 断言文件访问、`Content-Type`、带哈希文件名、
+目录 301、不列目录、404 与敏感路径。失败以非 0 退出，可直接放进 CI。
+
+```bash
+bash tests/scripts/static-regression.sh                          # 自建实例，默认 127.0.0.1:18080
+BASE_URL=http://127.0.0.1:8080 bash tests/scripts/static-regression.sh
+BIN=./fast-https bash tests/scripts/static-regression.sh         # 复用已构建二进制
+SKIP_SERVER=1 BASE_URL=http://127.0.0.1:8080 bash tests/scripts/static-regression.sh  # 只测已有实例
+```
+
+`SKIP_SERVER=1` 时目标实例需要已按脚本头部的 fixture 布局提供文件，否则相关断言会失败。
 
 #### 测试覆盖率
 
@@ -338,9 +354,7 @@ go run fast-https.go dev
 #### 配置说明
 
 开发模式与普通模式都使用 `config/fast-https.json` 作为运行时配置文件。
-`config/dev.yaml` 仅作为开发参数示例，不会被运行时自动加载。
-
-`go run fast-https.go dev` 与 `start` 读取同一份 JSON。`config/dev.yaml` 里的端口、日志和代理片段不会进入运行时。
+`go run fast-https.go dev` 与 `start` 读取同一份 JSON，区别只在日志级别与 pprof 端口。
 
 ### 2.3 调试指南
 

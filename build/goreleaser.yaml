@@ -76,7 +76,9 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - config/cert/.keep
+      - config/cert/acme/.keep
       - config/conf.d/.keep
+      - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
       - docs/usage.html
@@ -98,7 +100,9 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - config/cert/.keep
+      - config/cert/acme/.keep
       - config/conf.d/.keep
+      - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
       - docs/usage.html
@@ -122,7 +126,9 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     files:
       - config/cert/.keep
+      - config/cert/acme/.keep
       - config/conf.d/.keep
+      - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
       - docs/usage.html
@@ -169,14 +175,23 @@ nfpms:
         dst: /usr/lib/systemd/system/fast-https.service
       - dst: /usr/share/fast-https/config/cert
         type: dir
+      # ACME 的账户与证书缓存目录：包安装后由 root 运行，目录必须预先存在，
+      # 否则非 systemd 手工启动时要先手工建目录才能写账户私钥。
+      - dst: /usr/share/fast-https/config/cert/acme
+        type: dir
       - dst: /usr/share/fast-https/config/conf.d
         type: dir
+      - src: config/conf.d/default.json
+        dst: /usr/share/fast-https/config/conf.d/default.json
+        type: config|noreplace
       - dst: /usr/share/fast-https/logs
         type: dir
       # 与 Windows 归档一样用 .keep 占住这三个目录：只留空目录时，
       # 打包工具或解包工具容易把它们当成空壳丢掉。
       - src: config/cert/.keep
         dst: /usr/share/fast-https/config/cert/.keep
+      - src: config/cert/acme/.keep
+        dst: /usr/share/fast-https/config/cert/acme/.keep
       - src: config/conf.d/.keep
         dst: /usr/share/fast-https/config/conf.d/.keep
       - src: logs/.keep
@@ -190,7 +205,7 @@ checksum:
   name_template: checksums.txt
 
 snapshot:
-  version_template: "1.4.0-next"
+  version_template: "1.5.0-next"
 
 changelog:
   sort: asc

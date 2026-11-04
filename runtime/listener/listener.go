@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -52,6 +53,9 @@ type ListenCfg struct {
 	Zip           uint16
 	ErrorNotFound string
 	ErrorProxy    string
+
+	// AllowMethods 非空时限定该 location 允许的 HTTP 方法，越界返回 405。
+	AllowMethods []string
 }
 
 // listenerSnapshot 是请求路径读取的配置快照。
@@ -120,7 +124,26 @@ func (l *Listener) DefaultHosts() []ListenCfg {
 	return l.Hosts()[cfgs[0].ServerName]
 }
 
-var GLisinfos []*Listener
+// GLisinfos 是当前进程的监听器表。启动与 reload 写入，请求路径与
+// 证书热替换（控制面签发证书后）读取，所以读写都走 lisMu：
+// 读方拿一份快照，避免在 reload 替换切片时读到半截状态。
+var (
+	GLisinfos []*Listener
+	lisMu     sync.RWMutex
+)
+
+// SnapshotListeners 返回当前监听器表的副本。
+func SnapshotListeners() []*Listener {
+	lisMu.RLock()
+	defer lisMu.RUnlock()
+	return append([]*Listener(nil), GLisinfos...)
+}
+
+func setListeners(list []*Listener) {
+	lisMu.Lock()
+	GLisinfos = list
+	lisMu.Unlock()
+}
 
 func FindPorts() []string {
 	var Ports []string
@@ -240,6 +263,7 @@ func processListenData(lisInfos *[]*Listener) {
 				data.Zip = paths.Zip
 				data.ReWrite = paths.Rewrite
 				data.ProxyCache = paths.ProxyCache
+				data.AllowMethods = paths.AllowMethods
 				eachlisten.Cfg = append(eachlisten.Cfg, data)
 				Id = Id + 1
 			}
@@ -296,7 +320,7 @@ func ListenWithCfg() []*Listener {
 		each.publish()
 	}
 
-	GLisinfos = CurrLisinfos
+	setListeners(CurrLisinfos)
 	return CurrLisinfos
 }
 
@@ -410,6 +434,11 @@ func listenSsl(laddr string, certs *certSet, lisdata []ListenCfg, h2 bool, reuse
 	}
 	if h2 {
 		tlsConfig.NextProtos = []string{"h2", "http/1.1"}
+	}
+	// 只有控制面注册了 TLS-ALPN-01 挑战证书来源时才通告 acme-tls/1，
+	// 未启用 ACME 的进程握手表与之前完全一致。
+	if TLSALPNEnabled() {
+		tlsConfig.NextProtos = append(tlsConfig.NextProtos, ACMEALPNProto)
 	}
 
 	tcpListener := listenTcp(laddr, reuse)

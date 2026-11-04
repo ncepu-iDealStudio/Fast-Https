@@ -104,10 +104,10 @@ var httparseCases = []struct {
 		wantMethod: "GET", wantPath: "/",
 	},
 	{
-		// 原向量为 LF 分行（我们按策略拒绝原样版，此处保留其意图：
-		// 反斜杠在 path/query 中合法），转成 CRLF 分行验证
+		// 原向量为 LF 分行（策略上拒绝原样版），这里转成 CRLF 验证另一条策略：
+		// 反斜杠在 path 中一律 400 —— 部分后端会把 \ 当 / 处理，是绕过检测的老路子。
 		name: "test_request_path_backslash_crlf_variant", raw: "GET /\\?wayne\\=5 HTTP/1.1\r\n\r\n",
-		wantMethod: "GET", wantPath: "/\\?wayne\\=5",
+		want: verdictReject, wantErr: request.PathInvalid,
 	},
 
 	// ---- httparse: Ok(Status::Partial) 向量：分片/未读全 ----

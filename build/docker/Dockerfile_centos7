@@ -22,7 +22,8 @@ RUN mkdir -p /usr/local/fast-https/config/cert \
 WORKDIR /usr/local/fast-https
 
 COPY --from=builder /app/fast-https .
-COPY config/fast-https.json config/mime.json config/fastcgi.conf ./config/
+COPY config/fast-https.json config/mime.json ./config/
+COPY config/conf.d/default.json ./config/conf.d/
 COPY httpdoc/root/index.html httpdoc/root/favicon.ico ./httpdoc/root/
 
 ENV Fast-Https_VERSION=1.4.0

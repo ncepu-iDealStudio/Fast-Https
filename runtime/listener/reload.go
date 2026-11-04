@@ -86,6 +86,37 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 	return
 }
 
+// ReloadCerts 重新读取所有 ssl 监听器当前配置里的证书文件，监听 socket
+// 保持不变。控制面签发或续期证书后覆盖 PEM，再调用它完成热替换；
+// 任一端口读取失败都保留该端口原来的证书，不让半截 PEM 上生产。
+func ReloadCerts() error {
+	// 拿快照而不是直接遍历 GLisinfos：本函数由控制面的证书协程调用，
+	// 与 reload 协程替换监听器表并发。
+	listeners := SnapshotListeners()
+	var firstErr error
+	for _, lis := range listeners {
+		if lis == nil || lis.certs == nil {
+			continue
+		}
+		if lis.LisType != 1 && lis.LisType != 10 {
+			continue
+		}
+		cfgs := lis.Cfgs()
+		if len(cfgs) == 0 {
+			continue
+		}
+		if err := lis.certs.replace(cfgs); err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
+			logging.ConsoleLog.Error().Msgf("reload certificates on port %s kept previous certificate: %s", lis.Port, err.Error())
+			continue
+		}
+		logging.ConsoleLog.Info().Msgf("certificates reloaded on port %s", lis.Port)
+	}
+	return firstErr
+}
+
 func ReloadListenCfg() ([]*Listener, []*Listener, []string) {
 	var NewLisinfosAll []*Listener
 	// new listen ports
@@ -101,6 +132,6 @@ func ReloadListenCfg() ([]*Listener, []*Listener, []string) {
 		removed = append(removed, lis.Port)
 	}
 
-	GLisinfos = NewLisinfosAll
+	setListeners(NewLisinfosAll)
 	return NewLisinfosAll, ListeninfoAdded, removed
 }

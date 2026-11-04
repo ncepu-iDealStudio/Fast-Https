@@ -49,7 +49,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | 代理超时和缓冲 | `proxy_connect_timeout`、`proxy_read_timeout`、缓冲开关 | 连接建立后有固定 20 秒读写 deadline，不能按 location 配置；拨号本身没有超时，上游不响应时受操作系统 TCP 超时约束 | 完整配置暂缓；拨号超时应单独补 |
 | 可信代理和真实 IP | `real_ip`、`set_real_ip_from` | 限流和黑名单使用连接上的地址，前面挂 CDN 或负载均衡时所有客户端会被认成同一个 IP | 有反代层时必须做，纯直连可等 |
 | 代理缓存 | `proxy_cache`、过期、陈旧响应、清理 | 按 key 落盘的缓存，已支持状态码到有效期的匹配、命中回放、`methods` 方法过滤、`Set-Cookie` 剥离与 `max_size` 软上限。仍缺 `proxy_cache_lock` 请求合并和 purge 接口 | 按需补缺项，不整体重写 |
-| 证书自动申请 | 常配合外部 ACME 客户端 | `shell/.acme.sh` 在仓库里，启动流程不调用 | 暂缓。继续用外部客户端写出 pem |
+| 证书自动申请 | 常配合外部 ACME 客户端 | `acme` 配置段内置 ACME：后台申请与续期、签发成功热替换、失败回落自签。只实现 `http-01` 与 `tls-alpn-01` | 已落地。`dns-01`（通配符）仍用外部客户端 |
 | HTTP/3 | `http3` / QUIC | 没有 | 暂缓 |
 | 二进制热升级 | 新可执行文件接手监听，旧进程退出 | 能热更新配置和同一端口的证书，不能热替换二进制 | 暂缓 |
 | 自动重载 | 有人用外部工具监视文件 | `watchConfigChanges` 没有调用方 | 已决定不做。继续手工重载 |
@@ -92,6 +92,6 @@ FastCGI、uWSGI、SCGI 和 gRPC 是另一类后端协议。应用可以自己听
 
 ## 7. 和现有计划的关系
 
-[iteration-plan.md](develop/plans/iteration-plan.md) 里 R1 到 R6 已落地，R7 暂缓，R8 未做。第 4 节的六项已落地，不改那张状态表。
+[iteration-plan.md](develop/archive/iteration-plan.md) 里 R1 到 R6 已落地，R7 暂缓，R8 未做。第 4 节的六项已落地，不改那张状态表。
 
 启动和请求路径以 [about.md](about.md) 为准。2.0 的对话式运维以 [product-design-2.0.md](product-design-2.0.md) 为准，那里的运行计数仍留在 2.0。

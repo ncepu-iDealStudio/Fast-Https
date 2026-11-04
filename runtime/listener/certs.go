@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"slices"
 	"sync"
 )
 
@@ -21,6 +22,13 @@ func newCertSet() *certSet {
 func (c *certSet) get(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	if c == nil {
 		return nil, errors.New("no certificate")
+	}
+	// TLS-ALPN-01 挑战：客户端在 ALPN 里点名 acme-tls/1，此时必须返回
+	// 控制面生成的临时证书，而不是站点证书。未命中就继续正常的选证书逻辑。
+	if hello != nil && slices.Contains(hello.SupportedProtos, ACMEALPNProto) {
+		if cert, ok := tlsALPNChallengeCert(hello); ok {
+			return cert, nil
+		}
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
