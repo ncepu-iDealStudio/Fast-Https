@@ -11,7 +11,7 @@
 ```
 fast-https start|dev|stop|reload|status|check
 fast-https acme [setup|show]     # 交互向导 / 参数式配置 / 查看当前生效值
-fast-https site init|list|check|show|remove   # 管理 conf.d 下的站点文件
+fast-https site init|update|list|check|show|remove   # 管理 conf.d 下的站点文件
 ```
 
 安装与卸载不通过二进制完成：发行版包（deb / rpm / apk）负责文件落位，systemd 负责常驻，`uninstall` 由包管理器执行。

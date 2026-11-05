@@ -122,7 +122,13 @@ sudo tail -n 50 /var/log/fast-https/system.log | grep acme
 如果"将申请的域名"是 `(无)`，说明 ACME 根本没发出请求，不是签发失败。原因只有一个：
 **只有 `listen` 里带 `ssl` 的 server 块才会被申请证书**。只写 `"listen": 80` 的站点不会触发申请；如果唯一带 ssl 的站点是默认的 `server_name: localhost`，它会被当作非公网域名跳过（`acme show` 会打印 `跳过 localhost：not a public domain name`）。
 
-给站点加 443（`fast-https site show <站点名>` 先看现状，改 `conf.d/<站点名>.json`）：
+一条命令就能加 443（只改监听与证书路径，`server_name`、`root` 和手写的其它 location 都不动）：
+
+```bash
+fast-https site update <站点名> --tls
+```
+
+等价于手改 `conf.d/<站点名>.json`（`fast-https site show <站点名>` 先看现状）：
 
 ```json
 {

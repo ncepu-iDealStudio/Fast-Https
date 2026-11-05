@@ -142,7 +142,7 @@ logs/                       运行日志
 - `ssl_certificate` / `ssl_certificate_key`：文件不存在时，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`，可以直接 `curl -k https://127.0.0.1/` 验证；浏览器会提示不受信任。正式环境换成权威 CA 的 PEM，或者打开 7.1 的 ACME 自动签发。
 - 不需要 HTTPS 时把 `"443 ssl h2"` 从 `listen` 里去掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或去掉这一项。
 - `server_name`：按请求的 `Host` 头匹配。没命中任何 `server_name` 时回落到该端口的第一个 server 块（相当于 nginx 的 `default_server`），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。
-- `root: ./httpdoc/root`：站点根目录，相对路径以安装目录为基准。
+- `root: ./httpdoc/root`：站点根目录，相对路径按站点根基址解析（包布局是 `/usr/share/fast-https`，归档布局是当前目录），与二进制所在目录无关。
 - `http.include: ["./config/conf.d"]`：该目录下每个 `*.json` 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。主配置可以完全不写 `http.server`，只要 include 里至少有一个站点文件；`fast-https site` 的子命令就是按这个约定增删站点文件的。
 - `acme.enabled: false`：ACME 自动签发默认关闭，行为与老版本一致。需要受信任证书时按 7.1 手工配置，或直接运行 `fast-https acme` 向导。
 
@@ -184,11 +184,13 @@ fast-https site list
 fast-https site show blog            # 站点文件原文
 fast-https site show blog --merged   # 合并后的完整 server 块（含默认值）
 fast-https site check blog           # 只校验这个文件；不带名字时校验主配置（含 conf.d）
+fast-https site update blog --tls    # 只改显式传的字段：加 443 ssl h2 与证书路径
 fast-https site remove blog --yes
 ```
 
 - **交互式**：`fast-https site init` 省略名字（或参数不齐）时进向导，一题一屏依次问站点名、监听端口、`server_name`、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。标准输入不是终端时自动要求用参数，不会挂起。站点名带不带 `.json` 都行（`blog` 与 `blog.json` 等价，不会生成 `blog.json.json`）。
 - **反代站点**：`--type proxy --proxy-pass http://127.0.0.1:8080`。
+- **改已有站点**：`site update <name>`，只覆盖显式传进来的 flag，没传的字段保持原值。例如 `--tls` 把现有监听升级成 `443 ssl h2` 并补默认证书路径；`--server-name`、`--listen`、`--root`、`--type`、`--proxy-pass` 用法与 `init` 相同。手写的其它 `location` 块原样保留；文件会按纯 JSON 重写，里面的注释不保留。站点不存在时报错并提示用 `init`，不会隐式新建。
 - **多端口**：`--listen` 可重复，一个文件就能同时监听多个端口，站点文件里写成数组。
 
   ```bash
@@ -415,13 +417,13 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `challenge` | `["auto"]` | 可选 `auto`、`http-01`、`tls-alpn-01`。`auto` 同时启用后两者，由 ACME 客户端按成功率自动选择 |
 | `renew_before_days` | `30` | 到期前的续期提前量，按 90 天有效期换算成续期窗口比例 |
 | `fallback_self_signed` | `true` | 签发失败时是否继续用自签证书提供服务 |
-| `storage` | `config/cert/acme` | 账户与订单缓存目录，相对路径以安装目录为基准 |
+| `storage` | `config/cert/acme` | 账户与订单缓存目录，相对路径按配置基址解析（包布局落在 `/etc/fast-https/cert/acme`）；只有真正发起过申请才有内容 |
 | `cas` | Let's Encrypt、ZeroSSL | CA 降级链，按顺序尝试；ZeroSSL 必须提供 `eab_kid` 与 `eab_hmac_key`，否则该 CA 被跳过 |
 
 行为：
 
 - **启动不被阻塞**：监听建立后才会在后台申请，申请期间继续用自签证书，首次握手不会卡住。
-- **两种挑战**：`http-01` 由数据面在 `/.well-known/acme-challenge/<token>` 上应答（不依赖站点根目录），`tls-alpn-01` 在同一个 443 端口上用临时证书应答（ALPN 通告 `acme-tls/1`）。两者都不额外占用端口。
+- **两种挑战**：`http-01` 由数据面在 `/.well-known/acme-challenge/<token>` 上应答（不依赖站点根目录，token 只存在内存里、不落盘），`tls-alpn-01` 在同一个 443 端口上用临时证书应答（ALPN 通告 `acme-tls/1`）。两者都不额外占用端口。
 - **落盘位置不变**：签发成功后写回该 server 块配置的 `ssl_certificate` / `ssl_certificate_key`（默认 `config/cert/<server_name>.pem`），写盘用临时文件 + rename，随后热替换证书，监听 socket 不变。
 - **失败回落**：内网、域名未解析、速率限制等情况下继续使用自签证书，日志里每个域名一条告警，按退避重试，不会刷屏。
 - **申请范围**：只有 `listen` 里带 `ssl` 的 server 块会被申请证书。只监听 80 的站点不会触发任何申请——先给它加 `"443 ssl h2"` 与 `ssl_certificate` / `ssl_certificate_key`，再用 `fast-https acme show` 确认"将申请的域名"里出现了它。
@@ -482,6 +484,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型 |
 | `site check [name]` | 校验主配置（含 conf.d），带名字时只校验该文件 |
+| `site update <name>` | 改已有站点：只应用显式传入的 flag，其余字段与手写的 location 保持不变 |
 | `site show <name>` | 打印站点文件原文；`--merged` 打印合并后的完整字段 |
 | `site remove <name>` | 删除站点文件，需要 `--yes` |
 | `acme` | 交互式配置 ACME：问邮箱、CA、挑战方式，写回 `acme` 段 |
