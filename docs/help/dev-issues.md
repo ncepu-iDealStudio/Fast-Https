@@ -77,6 +77,26 @@
 
   两个易误判的点：官方 ubuntu 镜像带 `path-exclude=/usr/share/man/*`，man 页不会落盘但包内登记正常；`dnf install ... curl` 会与预装的 `curl-minimal` 冲突，验证脚本因此只在没有 `curl` 时才装。
 
+## 003 http-01 端口告警漏算 include 站点，acme 没有域名时不提示
+
+- 发现：2026-11-05，生产机（Ubuntu）上按 `site init` → `acme` → `start` 走完流程后仍然访问不了
+- 症状：
+  - 每次 `start` 都告警 `acme: http-01 is enabled but no http.server listens on port 80`，但 `conf.d/default.json` 明确写了 `listen: [80, "443 ssl h2"]`
+  - `acme show` 的「将申请的域名」是 `(无)`，只列出一条 `跳过 localhost：not a public domain name`，用户看不出"还要给站点加 443"
+  - 控制台只有"acme 配置已写入"，没有任何"这次配置不会申请证书"的信号
+- 根因：
+  - `warnHTTP01WithoutPort80` 只拿到 `root.HTTP.Servers`（主配置 `http.server`），`http.include` 展开的 conf.d 站点没算进去。站点通常只写在 conf.d，这条告警于是必然误报，还把真正的问题盖住
+  - `certmanager.Plan` 只收 `listen` 含 `ssl` 的 server；`site init` 默认 `listen=80`，向导里没勾 TLS 时生成的站点永远进不了申请列表
+  - `acme setup` 结束时只打"配置已写入"，不检查"有没有可申请的域名"
+- 修复：
+  - `validateIncludes` 改为返回解析后的 server 块，http-01 端口判断合并主配置与 include 的站点
+  - `printACMENextSteps` 在 `Plan.Managed` 为空时直接说明原因、列出被跳过的域名、给出加 `443 ssl h2` 的具体写法
+  - `ssl_certificate not found` 的错误信息补一句"首次 start 会用本地 CA 生成，先跑一次 start"
+- 防回归：
+  - `config/acme_warn_test.go`：include 站点监听 80 时不得告警，没有 80 时必须告警
+  - `cmd/acme_test.go`：无 ssl 站点时 `acme setup` 输出必须包含"不会发出任何证书请求"与 443 写法；有 ssl 站点时不得出现该提示
+- 教训：站点的主战场是 `conf.d`，任何"扫描所有 server"的判断都必须基于 include 展开后的结果，不能只看主配置。
+
 ## 待跟进（尚未修复）
 
 | 项 | 说明 |

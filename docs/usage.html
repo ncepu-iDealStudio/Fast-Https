@@ -386,6 +386,7 @@ fast-https site remove blog --yes</code></pre>
 <li><strong>两种挑战</strong>：<code>http-01</code> 由数据面在 <code>/.well-known/acme-challenge/&lt;token&gt;</code> 上应答（不依赖站点根目录），<code>tls-alpn-01</code> 在同一个 443 端口上用临时证书应答（ALPN 通告 <code>acme-tls/1</code>）。两者都不额外占用端口。</li>
 <li><strong>落盘位置不变</strong>：签发成功后写回该 server 块配置的 <code>ssl_certificate</code> / <code>ssl_certificate_key</code>（默认 <code>config/cert/&lt;server_name&gt;.pem</code>），写盘用临时文件 + rename，随后热替换证书，监听 socket 不变。</li>
 <li><strong>失败回落</strong>：内网、域名未解析、速率限制等情况下继续使用自签证书，日志里每个域名一条告警，按退避重试，不会刷屏。</li>
+<li><strong>申请范围</strong>：只有 <code>listen</code> 里带 <code>ssl</code> 的 server 块会被申请证书。只监听 80 的站点不会触发任何申请——先给它加 <code>&#34;443 ssl h2&#34;</code> 与 <code>ssl_certificate</code> / <code>ssl_certificate_key</code>，再用 <code>fast-https acme show</code> 确认&#34;将申请的域名&#34;里出现了它。</li>
 <li><strong>跳过不可用的名字</strong>：IP、<code>localhost</code>、不含点的名字与通配符（只能 <code>dns-01</code>）不会发起申请，启动时各留一条告警。</li>
 <li><strong>续期</strong>：由后台任务在到期前完成，续期成功后同样热替换；不需要 <code>reload</code>，也不需要重启。</li>
 </ul>

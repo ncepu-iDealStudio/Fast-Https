@@ -424,6 +424,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 - **两种挑战**：`http-01` 由数据面在 `/.well-known/acme-challenge/<token>` 上应答（不依赖站点根目录），`tls-alpn-01` 在同一个 443 端口上用临时证书应答（ALPN 通告 `acme-tls/1`）。两者都不额外占用端口。
 - **落盘位置不变**：签发成功后写回该 server 块配置的 `ssl_certificate` / `ssl_certificate_key`（默认 `config/cert/<server_name>.pem`），写盘用临时文件 + rename，随后热替换证书，监听 socket 不变。
 - **失败回落**：内网、域名未解析、速率限制等情况下继续使用自签证书，日志里每个域名一条告警，按退避重试，不会刷屏。
+- **申请范围**：只有 `listen` 里带 `ssl` 的 server 块会被申请证书。只监听 80 的站点不会触发任何申请——先给它加 `"443 ssl h2"` 与 `ssl_certificate` / `ssl_certificate_key`，再用 `fast-https acme show` 确认"将申请的域名"里出现了它。
 - **跳过不可用的名字**：IP、`localhost`、不含点的名字与通配符（只能 `dns-01`）不会发起申请，启动时各留一条告警。
 - **续期**：由后台任务在到期前完成，续期成功后同样热替换；不需要 `reload`，也不需要重启。
 

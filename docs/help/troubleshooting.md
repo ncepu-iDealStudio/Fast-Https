@@ -110,6 +110,40 @@ systemctl list-timers logrotate.timer --no-pager 2>/dev/null || ls /etc/cron.dai
 
 ## 证书阶段
 
+### 配好了 acme，但一个证书都没申请
+
+先看这两处：
+
+```bash
+fast-https acme show          # "将申请的域名"是 (无) 还是你的域名
+sudo tail -n 50 /var/log/fast-https/system.log | grep acme
+```
+
+如果"将申请的域名"是 `(无)`，说明 ACME 根本没发出请求，不是签发失败。原因只有一个：
+**只有 `listen` 里带 `ssl` 的 server 块才会被申请证书**。只写 `"listen": 80` 的站点不会触发申请；如果唯一带 ssl 的站点是默认的 `server_name: localhost`，它会被当作非公网域名跳过（`acme show` 会打印 `跳过 localhost：not a public domain name`）。
+
+给站点加 443（`fast-https site show <站点名>` 先看现状，改 `conf.d/<站点名>.json`）：
+
+```json
+{
+  "listen": [80, "443 ssl h2"],
+  "server_name": "test.jfeng.asia",
+  "ssl_certificate": "./cert/test.jfeng.asia.pem",
+  "ssl_certificate_key": "./cert/test.jfeng.asia-key.pem",
+  "location": [{ "url": "/", "type": "local", "root": "/var/www/jfeng.com", "index": ["index.html"] }]
+}
+```
+
+`./cert/...` 相对于 `/etc/fast-https`；文件不存在时首次 `start` 先出自签，ACME 签发成功后覆盖同一路径并热替换。改完：
+
+```bash
+fast-https check            # 应输出 config ok
+fast-https stop && fast-https start   # acme 段只在启动时读取，reload 不够
+fast-https acme show        # 现在应列出 test.jfeng.asia
+```
+
+`fallback_self_signed` 建议保持默认 `true`：签发失败时还能用自签证书继续服务，改完再收紧。
+
 ### ACME 签发失败，回落自签
 
 看日志里的 `cert_obtained` 与失败原因：

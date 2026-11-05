@@ -41,6 +41,10 @@
 3. **落盘与热替换**：`cert_obtained` 事件里从 certmagic 存储读回 PEM，校验私钥配对，写临时文件后 `rename` 到该 server 块配置的 `ssl_certificate` / `ssl_certificate_key`，再调用 `listener.ReloadCerts()` 就地换证，监听 socket 不变。
 4. **回落**：申请失败只记日志，自签证书继续服务；`CertInit` 只在文件缺失时生成，不会覆盖 ACME 写入的 PEM。
 
+### 申请范围
+
+只有 `listen` 里带 `ssl` 的 server 块才会被申请证书（`certmanager.Plan`）。只写 `"listen": 80` 的站点不会触发任何证书请求，`acme show` 的"将申请的域名"会是空的；IP、`localhost`、不含点的名字与通配符会被跳过并给出原因。配置写完后若"将申请的域名"为空，`fast-https acme` 会直接提示这一点并给出加 443 的写法。
+
 ## 已知限制
 
 - 证书路径在主配置中相对工作目录解析，include 文件中相对该文件或主配置（`pathExists` 多候选）。
