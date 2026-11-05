@@ -371,6 +371,46 @@ func TestAcmeCmdTreeIsWired(t *testing.T) {
 	}
 }
 
+// TestAcmeSetupWarnsWhenNoSSLServer 守住这条提示：只有 listen 带 ssl 的站点
+// 才会被 ACME 申请证书。一个这样的站点都没有时，重启也不会有任何证书请求，
+// 提示必须直说并给出改法——否则用户只看到"配置已写入"，以为已经配好了。
+func TestAcmeSetupWarnsWhenNoSSLServer(t *testing.T) {
+	path := tempACMEConfig(t)
+	defer withServers(t, []config.Server{{Listen: "80", ServerName: "example.com"}})()
+
+	var out bytes.Buffer
+	if err := setupACME(defaultAcmeAnswers(), acmeOptions{Path: path, NonInteractive: true, Out: &out}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if !strings.Contains(out.String(), "不会发出任何证书请求") {
+		t.Fatalf("output 应说明没有可申请的域名：%q", out.String())
+	}
+	if !strings.Contains(out.String(), "443 ssl h2") {
+		t.Fatalf("output 应给出加 443 的具体写法：%q", out.String())
+	}
+}
+
+func TestAcmeSetupQuietWhenSSLServerExists(t *testing.T) {
+	path := tempACMEConfig(t)
+	defer withServers(t, []config.Server{{Listen: "443 ssl h2", ServerName: "example.com"}})()
+
+	var out bytes.Buffer
+	if err := setupACME(defaultAcmeAnswers(), acmeOptions{Path: path, NonInteractive: true, Out: &out}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if strings.Contains(out.String(), "不会发出任何证书请求") {
+		t.Fatalf("有 ssl 站点时不应提示无域名：%q", out.String())
+	}
+}
+
+// withServers 临时替换配置快照，返回恢复函数。
+func withServers(t *testing.T, servers []config.Server) func() {
+	t.Helper()
+	old := config.Current()
+	config.Store(&config.Fast_Https{Servers: servers}, nil)
+	return func() { config.Store(old, nil) }
+}
+
 func boolPtr(v bool) *bool { return &v }
 
 func contains(list []string, want string) bool {

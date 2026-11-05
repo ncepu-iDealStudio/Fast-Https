@@ -470,6 +470,22 @@ func printACMENextSteps(out io.Writer, cfg *config.AcmeConfig, a acmeAnswers) {
 	if a.CA == acmeCAStaging {
 		fmt.Fprintln(out, "注意：当前使用 Let's Encrypt 测试环境，签发的证书不受浏览器信任。")
 	}
+	// 没有可申请的域名时，重启也不会有任何证书请求。必须把原因说清，
+	// 否则用户只看到"acme 配置已写入"，会以为已经配好了。
+	if current := config.Current(); current != nil && len(current.Servers) > 0 {
+		plan := certmanager.Plan(current)
+		if len(plan.Managed) == 0 {
+			fmt.Fprintln(out, "注意：当前没有可申请的域名，重启后 ACME 不会发出任何证书请求。")
+			fmt.Fprintln(out, "  只有 listen 里带 ssl 的站点才会被申请证书。给站点加 443，例如编辑 conf.d/<站点>.json：")
+			fmt.Fprintln(out, `    "listen": [80, "443 ssl h2"],`)
+			fmt.Fprintln(out, `    "ssl_certificate": "./cert/<域名>.pem",`)
+			fmt.Fprintln(out, `    "ssl_certificate_key": "./cert/<域名>-key.pem"`)
+			fmt.Fprintln(out, `  （或重建站点：fast-https site init <站点> --listen 80 --listen "443 ssl h2" --tls --force）`)
+			for _, skip := range plan.Skipped {
+				fmt.Fprintf(out, "  跳过 %s：%s\n", skip.Name, skip.Reason)
+			}
+		}
+	}
 	fmt.Fprintln(out, "acme 段只在启动时读取，reload 不会重建 ACME 管理器，请重启服务：")
 	fmt.Fprintln(out, "  fast-https stop && fast-https start    # 或 systemctl restart fast-https")
 	fmt.Fprintln(out, "启动后日志里应出现 acme: requesting certificate，签发成功后证书会热替换。")
