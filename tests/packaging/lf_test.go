@@ -18,8 +18,10 @@ func TestPackagingScriptsUseLF(t *testing.T) {
 	patterns := []string{
 		filepath.Join(root, "build", "packaging", "linux", "*.sh"),
 		filepath.Join(root, "build", "packaging", "systemd", "*"),
+		filepath.Join(root, "build", "packaging", "logrotate", "*"),
 		filepath.Join(root, "build", "packaging", "repo", "*.sh"),
 		filepath.Join(root, "build", "packaging", "repo", "*", "*.sh"),
+		filepath.Join(root, "tests", "packaging", "distro", "*.sh"),
 		filepath.Join(root, "build", "spec"),
 		filepath.Join(root, "build", "Dockerfile"),
 		filepath.Join(root, "build", "docker", "*"),
