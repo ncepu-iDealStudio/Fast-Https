@@ -221,6 +221,7 @@ Fast-Https 自己解析 HTTP/1.1、每个连接一个协程，没有 C 扩展或
 | [docs/usage.md](docs/usage.md) | 仓库内使用文档源文件，生成 `docs/usage.html` 随发行包分发 |
 | [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案 |
 | [docs/develop/](docs/develop/README.md) | 环境构建、测试体系、代码规范、新增配置项、调试、发布 |
+| [docs/help/](docs/help/README.md) | 构建与安装、装完的目录布局、常见问题排查、开发问题日志 |
 | [docs/architecture.html](docs/architecture.html) | 项目架构图（[PNG](docs/images/architecture.png) / [深色 PNG](docs/images/architecture-dark.png)），分层与请求链 |
 | [docs/architecture-map.md](docs/architecture-map.md) | package 盘点与依赖方向 |
 
