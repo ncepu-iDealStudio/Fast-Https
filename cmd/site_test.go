@@ -364,3 +364,121 @@ func TestSiteCheckWholeConfig(t *testing.T) {
 		t.Fatalf("output = %q", out.String())
 	}
 }
+
+// siteUpdateHelper 造一个站点文件，然后以子命令方式跑一次 site update，返回输出。
+func siteUpdateHelper(t *testing.T, mainPath, includeDir string, args ...string) string {
+	t.Helper()
+
+	initOpts := siteOptions{
+		ConfigPath:     mainPath,
+		Name:           "blog",
+		Listens:        []string{"80"},
+		ServerName:     "blog.example",
+		Root:           "./httpdoc/root",
+		LocationType:   "local",
+		NonInteractive: true,
+		Out:            &bytes.Buffer{},
+	}
+	if err := runSiteInit(initOpts); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	// 手写一个额外 location，update 必须原样保留它。
+	path := filepath.Join(includeDir, "blog.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read site: %v", err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		t.Fatalf("parse site: %v", err)
+	}
+	in.Locations = append(in.Locations, config.SiteLocation{
+		URL: "/api", Type: "proxy", ProxyPass: "http://127.0.0.1:9000",
+	})
+	data, err := in.MarshalJSONFile()
+	if err != nil {
+		t.Fatalf("marshal site: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write site: %v", err)
+	}
+
+	cmd := newSiteCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(append(args, "--config", mainPath))
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("site %v: %v\n%s", args, err, out.String())
+	}
+	return out.String()
+}
+
+func TestSiteUpdateAddsTLSAndKeepsOtherFields(t *testing.T) {
+	mainPath, includeDir := siteTestEnv(t)
+	out := siteUpdateHelper(t, mainPath, includeDir, "update", "blog", "--tls")
+
+	if !strings.Contains(out, "站点已更新") {
+		t.Fatalf("output = %q", out)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(includeDir, "blog.json"))
+	if err != nil {
+		t.Fatalf("read updated site: %v", err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		t.Fatalf("parse updated site: %v", err)
+	}
+
+	if len(in.Listens) != 2 || !strings.Contains(in.ListenSummary(), "ssl") {
+		t.Fatalf("listen 应升级为 80 + 443 ssl h2，实际 %v", in.Listens)
+	}
+	if in.ServerName != "blog.example" {
+		t.Fatalf("未传 --server-name 时不应改 server_name，实际 %q", in.ServerName)
+	}
+	if in.SSLCertificate == "" || in.SSLCertificateKey == "" {
+		t.Fatalf("加了 ssl 就该补默认证书路径，实际 %q / %q", in.SSLCertificate, in.SSLCertificateKey)
+	}
+	if len(in.Locations) != 2 {
+		t.Fatalf("手写的 /api location 被删了：%+v", in.Locations)
+	}
+	if in.Locations[1].ProxyPass != "http://127.0.0.1:9000" {
+		t.Fatalf("手写 location 被改动：%+v", in.Locations[1])
+	}
+}
+
+func TestSiteUpdateServerNameOnly(t *testing.T) {
+	mainPath, includeDir := siteTestEnv(t)
+	siteUpdateHelper(t, mainPath, includeDir, "update", "blog", "--server-name", "new.example")
+
+	raw, err := os.ReadFile(filepath.Join(includeDir, "blog.json"))
+	if err != nil {
+		t.Fatalf("read updated site: %v", err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		t.Fatalf("parse updated site: %v", err)
+	}
+	if in.ServerName != "new.example" {
+		t.Fatalf("server_name = %q", in.ServerName)
+	}
+	if len(in.Listens) != 1 || in.Listens[0] != "80" {
+		t.Fatalf("没传 --listen/--tls 时监听不应变化，实际 %v", in.Listens)
+	}
+}
+
+func TestSiteUpdateUnknownSiteFails(t *testing.T) {
+	mainPath, _ := siteTestEnv(t)
+	var out bytes.Buffer
+	cmd := newSiteCmd()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"update", "nosuch", "--tls", "--config", mainPath})
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("update 不存在的站点应该失败：%s", out.String())
+	}
+	if !strings.Contains(out.String(), "site init") {
+		t.Fatalf("错误信息应指向 init：%q", out.String())
+	}
+}

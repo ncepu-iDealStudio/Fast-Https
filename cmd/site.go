@@ -87,22 +87,38 @@ func newSiteCmd() *cobra.Command {
 		},
 	}
 
-	for _, sub := range []*cobra.Command{initCmd, listCmd, checkCmd, showCmd, removeCmd} {
+	updateCmd := &cobra.Command{
+		Use:   "update <name>",
+		Short: "modify an existing site file (only the flags you pass)",
+		Long: "modify an existing site file. Only the flags you pass are applied;\n" +
+			"every other field — including extra location blocks you wrote by hand — is kept as is.\n" +
+			"The file is rewritten as plain JSON, so comments inside it are not preserved.",
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runSiteUpdate(cmd, args)
+		},
+	}
+
+	for _, sub := range []*cobra.Command{initCmd, listCmd, checkCmd, showCmd, removeCmd, updateCmd} {
 		sub.Flags().String("config", config.CONFIG_FILE_PATH, "main config file")
 	}
-	initCmd.Flags().StringArray("listen", nil,
-		`listen value, repeatable: --listen 80 --listen "443 ssl h2"`)
-	initCmd.Flags().String("server-name", "", "server_name of the site (defaults to the site name)")
-	initCmd.Flags().String("root", "./httpdoc/root", "document root for a local site")
-	initCmd.Flags().String("proxy-pass", "", "upstream for a proxy site, e.g. http://127.0.0.1:8080")
-	initCmd.Flags().String("type", "local", "location type: local or proxy")
-	initCmd.Flags().Bool("tls", false, "enable TLS on this site (adds ssl h2 and cert paths)")
+	// init 与 update 共用同一组"站点内容"开关：init 是初始值，update 只覆盖显式传入的项。
+	for _, sub := range []*cobra.Command{initCmd, updateCmd} {
+		sub.Flags().StringArray("listen", nil,
+			`listen value, repeatable: --listen 80 --listen "443 ssl h2"`)
+		sub.Flags().String("server-name", "", "server_name of the site (defaults to the site name)")
+		sub.Flags().String("root", "./httpdoc/root", "document root for a local site")
+		sub.Flags().String("proxy-pass", "", "upstream for a proxy site, e.g. http://127.0.0.1:8080")
+		sub.Flags().String("type", "local", "location type: local or proxy")
+		sub.Flags().Bool("tls", false, "enable TLS on this site (adds ssl h2 and cert paths)")
+	}
 	initCmd.Flags().Bool("force", false, "overwrite an existing site file")
 	initCmd.Flags().Bool("non-interactive", false, "take every value from flags, never prompt")
 	showCmd.Flags().Bool("merged", false, "print the merged server block with every effective field")
 	removeCmd.Flags().Bool("yes", false, "confirm deletion")
 
-	root.AddCommand(initCmd, listCmd, checkCmd, showCmd, removeCmd)
+	root.AddCommand(initCmd, listCmd, checkCmd, showCmd, removeCmd, updateCmd)
 	return root
 }
 
@@ -190,6 +206,144 @@ func runSiteInit(opts siteOptions) error {
 	}
 	fmt.Fprintln(opts.Out, "下一步：fast-https check 校验，fast-https reload 生效（reload 不中断在途连接）。")
 	return nil
+}
+
+// runSiteUpdate 只应用用户显式传入的 flag，其余字段保持原样。
+// 站点不存在时报错并指向 init：update 不做隐式新建，拼错名字就会多出一个站点。
+func runSiteUpdate(cmd *cobra.Command, args []string) error {
+	opts := siteOptionsFrom(cmd, args)
+	if strings.TrimSpace(opts.Name) == "" {
+		return errors.New("用法：fast-https site update <站点名> [--listen ...] [--tls]")
+	}
+	dirs, err := siteDirs(opts)
+	if err != nil {
+		return err
+	}
+
+	flags := cmd.Flags()
+	changed := func(name string) bool { return flags.Changed(name) }
+
+	var updated config.SiteInput
+	apply := func(in *config.SiteInput) error {
+		if changed("server-name") {
+			name := strings.TrimSpace(opts.ServerName)
+			if name == "" {
+				return errors.New("--server-name 不能为空")
+			}
+			in.ServerName = name
+		}
+		if changed("listen") {
+			if len(cleanListens(opts.Listens)) == 0 {
+				return errors.New("--listen 至少要给一个值")
+			}
+			in.Listens = cleanListens(opts.Listens)
+		}
+		// --tls 的语义是"把现有监听升级成 TLS"，不会移除已经写好的 ssl。
+		if changed("listen") || changed("tls") {
+			in.Listens = resolveListens(opts, in.Listens)
+		}
+		if err := applySiteLocation(in, opts, changed); err != nil {
+			return err
+		}
+		fillSiteCerts(in)
+		updated = *in
+		return nil
+	}
+
+	path, err := site.Update(dirs, opts.Name, apply)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(opts.Out, "站点已更新：%s\n", path)
+	fmt.Fprintf(opts.Out, "  listen=%s server_name=%s location=%s\n",
+		updated.ListenSummary(), updated.ServerName, describeSiteInput(updated))
+	if listensHaveSSL(updated.Listens) {
+		fmt.Fprintf(opts.Out, "  证书路径：%s / %s（不存在时首次 start 会用本地 CA 生成）\n",
+			updated.SSLCertificate, updated.SSLCertificateKey)
+	}
+	fmt.Fprintln(opts.Out, "下一步：fast-https check 校验，fast-https reload 生效（新的证书路径需要 reload 才会重新读取）。")
+	return nil
+}
+
+// applySiteLocation 只改 URL 为 "/" 的那个 location（没有就补一个），
+// 用户手写的其它 location 原样保留。
+func applySiteLocation(in *config.SiteInput, opts siteOptions, changed func(string) bool) error {
+	typeChanged := changed("type")
+	rootChanged := changed("root")
+	proxyChanged := changed("proxy-pass")
+	if !typeChanged && !rootChanged && !proxyChanged {
+		return nil
+	}
+
+	kind := strings.TrimSpace(opts.LocationType)
+	if typeChanged && kind != "local" && kind != "proxy" {
+		return fmt.Errorf("location 类型只支持 local 或 proxy：%q", kind)
+	}
+
+	loc := primaryLocation(in)
+	if loc == nil {
+		in.Locations = append(in.Locations, config.SiteLocation{URL: "/"})
+		loc = &in.Locations[len(in.Locations)-1]
+	}
+	if !typeChanged {
+		kind = strings.TrimSpace(loc.Type)
+		if kind == "" {
+			kind = "local"
+		}
+	}
+
+	switch kind {
+	case "proxy":
+		upstream := strings.TrimSpace(opts.ProxyPass)
+		if !proxyChanged {
+			upstream = loc.ProxyPass
+		}
+		if upstream == "" {
+			return errors.New("反代站点需要 --proxy-pass，例如 http://127.0.0.1:8080")
+		}
+		loc.Type = "proxy"
+		loc.ProxyPass = upstream
+		loc.Root = ""
+		loc.Index = nil
+	default:
+		loc.Type = "local"
+		loc.ProxyPass = ""
+		if rootChanged || strings.TrimSpace(loc.Root) == "" {
+			root := strings.TrimSpace(opts.Root)
+			if root == "" {
+				root = "./httpdoc/root"
+			}
+			loc.Root = root
+		}
+		if len(loc.Index) == 0 {
+			loc.Index = []string{"index.html", "index.htm"}
+		}
+	}
+	return nil
+}
+
+func primaryLocation(in *config.SiteInput) *config.SiteLocation {
+	for i := range in.Locations {
+		if url := strings.TrimSpace(in.Locations[i].URL); url == "/" || url == "" {
+			return &in.Locations[i]
+		}
+	}
+	return nil
+}
+
+// fillSiteCerts 在监听带 ssl 时补默认证书路径，与 init 的规则保持一致。
+func fillSiteCerts(in *config.SiteInput) {
+	if !listensHaveSSL(in.Listens) {
+		return
+	}
+	name := strings.TrimSpace(in.ServerName)
+	if in.SSLCertificate == "" {
+		in.SSLCertificate = filepath.Join(config.CERT_DIR, name+".pem")
+	}
+	if in.SSLCertificateKey == "" {
+		in.SSLCertificateKey = filepath.Join(config.CERT_DIR, name+"-key.pem")
+	}
 }
 
 // siteInputFrom 先用参数拼装；参数不齐且能交互时走向导补齐。
