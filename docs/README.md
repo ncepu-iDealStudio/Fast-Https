@@ -28,6 +28,7 @@ docs/
 | 打包、安装、卸载、服务起不来 | [help/README.md](help/README.md) |
 | 看覆盖率、补边界用例、跑压测 | [test/README.md](test/README.md) |
 | 装包后行为是否符合预期、要不要重跑实机验证 | [test/3-distro-verification.md](test/3-distro-verification.md) |
+| 配证书、让 ACME 签发成功 | [help/tls-certificates.md](help/tls-certificates.md) |
 | 新增配置项 | [develop/3-config-development.md](develop/3-config-development.md) |
 | 排查线上问题 | [develop/4-debugging.md](develop/4-debugging.md) |
 | 看整体架构图（分层与请求链） | [architecture.html](architecture.html)、[images/architecture.png](images/architecture.png) |

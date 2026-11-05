@@ -45,6 +45,8 @@
 
 只有 `listen` 里带 `ssl` 的 server 块才会被申请证书（`certmanager.Plan`）。只写 `"listen": 80` 的站点不会触发任何证书请求，`acme show` 的"将申请的域名"会是空的；IP、`localhost`、不含点的名字与通配符会被跳过并给出原因。配置写完后若"将申请的域名"为空，`fast-https acme` 会直接提示这一点并给出加 443 的写法。
 
+运维侧的完整操作与排错见 [../help/tls-certificates.md](../help/tls-certificates.md)。
+
 ## 已知限制
 
 - 证书路径在主配置中相对工作目录解析，include 文件中相对该文件或主配置（`pathExists` 多候选）。

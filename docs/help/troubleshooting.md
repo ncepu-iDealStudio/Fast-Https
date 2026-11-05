@@ -112,6 +112,8 @@ systemctl list-timers logrotate.timer --no-pager 2>/dev/null || ls /etc/cron.dai
 
 ### 配好了 acme，但一个证书都没申请
 
+从零配证书的完整流程见 [tls-certificates.md](tls-certificates.md)，这里只讲排查。
+
 先看这两处：
 
 ```bash

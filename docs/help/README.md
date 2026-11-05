@@ -8,6 +8,7 @@
 | --- | --- |
 | 从源码构建、打 deb/rpm/apk、安装、卸载 | [build-and-install.md](build-and-install.md) |
 | 搞清楚装完之后文件都在哪、为什么分两套布局 | [package-layout.md](package-layout.md) |
+| 配 HTTPS 证书、让 ACME 挑战走通 | [tls-certificates.md](tls-certificates.md) |
 | 装包失败、卸载不掉、服务起不来 | [troubleshooting.md](troubleshooting.md) |
 | 想知道别人踩过哪些坑（含已修复的历史问题） | [dev-issues.md](dev-issues.md) |
 
