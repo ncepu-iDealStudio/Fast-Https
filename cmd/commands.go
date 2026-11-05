@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -472,7 +473,14 @@ func WritePid(filepath string) error {
 
 // writePidTo 把指定进程的 pid 写进文件。后台化时由父进程写子进程的 pid，
 // 这样 stop / reload / status 才能找到真正在服务的进程。
-func writePidTo(filepath string, pid int) error {
+// 父目录缺失时先创建：包布局的 pid 在 /run/fast-https 下，/run 是 tmpfs，
+// 重启后目录不存在，靠 systemd 的 RuntimeDirectory 或这里兜住手工启动。
+func writePidTo(path string, pid int) error {
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("error creating pid directory %s: %v", dir, err)
+		}
+	}
 	// Create a map to hold PID and GID
 	pidGidMap := map[string]int{
 		"pid": pid,
@@ -485,7 +493,7 @@ func writePidTo(filepath string, pid int) error {
 	}
 
 	// Write JSON data to the specified file
-	if err := os.WriteFile(filepath, jsonData, 0644); err != nil {
+	if err := os.WriteFile(path, jsonData, 0644); err != nil {
 		return fmt.Errorf("error writing JSON data to file: %v", err)
 	}
 
