@@ -357,7 +357,7 @@ fast-https site remove blog --yes</code></pre>
 <li><strong>外部签发</strong>：仍可用 certbot 等外部工具签发，把 <code>fullchain.pem</code> 与私钥路径填进 <code>ssl_certificate</code> / <code>ssl_certificate_key</code>。</li>
 </ul>
 <h3 id="sec-28">7.1 ACME 自动签发</h3>
-<p>不想手写这段 JSON 时，跑 <code>fast-https acme</code> 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 <code>acme</code> 段，其余配置与注释原样保留。不喜欢全屏表单就加 <code>--plain</code> 改成逐行问答；脚本里则用 <code>fast-https acme setup --email you@example.com --non-interactive</code> 全走参数。改完需要重启进程，<code>reload</code> 不会重建 ACME 管理器。</p>
+<p>不想手写这段 JSON 时，跑 <code>fast-https acme</code> 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 <code>acme</code> 段，其余配置与注释原样保留。向导的默认值取自当前配置（邮箱、CA、挑战方式、续期天数、缓存目录、回落开关），回车即保留原值，不会退回出厂默认；确认页的摘要也是答完题之后才生成，显示的是这次要写入的内容。不喜欢全屏表单就加 <code>--plain</code> 改成逐行问答；脚本里则用 <code>fast-https acme setup --email you@example.com --non-interactive</code> 全走参数。改完需要重启进程，<code>reload</code> 不会重建 ACME 管理器。</p>
 <pre><code class="language-json">&#34;acme&#34;: {
   &#34;enabled&#34;: true,
   &#34;email&#34;: &#34;ops@example.com&#34;,

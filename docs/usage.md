@@ -393,7 +393,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 
 ### 7.1 ACME 自动签发
 
-不想手写这段 JSON 时，跑 `fast-https acme` 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 `acme` 段，其余配置与注释原样保留。不喜欢全屏表单就加 `--plain` 改成逐行问答；脚本里则用 `fast-https acme setup --email you@example.com --non-interactive` 全走参数。改完需要重启进程，`reload` 不会重建 ACME 管理器。
+不想手写这段 JSON 时，跑 `fast-https acme` 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 `acme` 段，其余配置与注释原样保留。向导的默认值取自当前配置（邮箱、CA、挑战方式、续期天数、缓存目录、回落开关），回车即保留原值，不会退回出厂默认；确认页的摘要也是答完题之后才生成，显示的是这次要写入的内容。不喜欢全屏表单就加 `--plain` 改成逐行问答；脚本里则用 `fast-https acme setup --email you@example.com --non-interactive` 全走参数。改完需要重启进程，`reload` 不会重建 ACME 管理器。
 
 ```json
 "acme": {
