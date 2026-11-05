@@ -37,7 +37,7 @@ rpm -ivh fast-https-*.rpm                    # RHEL / openEuler / CentOS
 apk add --allow-untrusted fast-https_*.apk   # Alpine
 ```
 
-包装好后的位置按 FHS 分开放：程序 `/usr/bin/fast-https`，配置与证书 `/etc/fast-https/`，站点 `/usr/share/fast-https/httpdoc/`，日志 `/var/log/fast-https/`，pid `/run/fast-https/`，服务单元 `/usr/lib/systemd/system/fast-https.service`，手册页 `/usr/share/man/man1/fast-https.1`。启动与查手册：
+包装好后的位置按 FHS 分开放：程序 `/usr/bin/fast-https`，配置与证书 `/etc/fast-https/`，站点 `/usr/share/fast-https/httpdoc/`，日志 `/var/log/fast-https/`，pid `/run/fast-https/`，服务单元 `/usr/lib/systemd/system/fast-https.service`，手册页 `/usr/share/man/man1/fast-https.1`，日志轮转 `/etc/logrotate.d/fast-https`。启动与查手册：
 
 ```bash
 systemctl enable --now fast-https
@@ -465,6 +465,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `user_agent` | User-Agent |
 
 修改 `log_root` 后执行 `reload` 会重新打开日志文件；新目录打不开时继续写原文件。
+
+Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份、单个文件超过 100MB 也提前轮转、gzip 压缩。四个日志文件在进程里常开 fd，所以用 `copytruncate`——先复制再截断，不需要重启或 `reload`。该文件是包管理器登记的配置文件（deb conffile、rpm `%config(noreplace)`），本地修改在升级时保留。归档与 Docker 部署的日志在 `./logs`，不在这个配置管辖范围，需要自己接 logrotate 或按天清理。
 
 ## 10. 命令行
 

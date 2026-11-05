@@ -74,6 +74,20 @@ sudo ss -ltnp | grep -E ':(80|443)'
 
 首次启动会用本地 CA 生成证书；在那之前 `fast-https check` 报 `ssl_certificate not found` 是正常的，先跑一次 `start` 即可。
 
+## 日志轮转
+
+包会装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份、单文件超过 100MB 也提前轮转、gzip 压缩。`logrotate` 是包的硬依赖，装包时一并装上。
+
+为什么用 `copytruncate`：四个日志文件在进程里常开 fd 并以 `O_APPEND` 追加。`create` 会改名当前文件、新建同名文件，进程却继续写改名后的旧 inode，新文件永远是空的——除非同时让进程重新打开文件。`copytruncate` 先复制再截断，不用重启、也不用 `reload`，代价是复制与截断之间几毫秒的写入会丢。
+
+```bash
+sudo logrotate -d /etc/logrotate.d/fast-https   # 干跑：只打印会做什么
+sudo logrotate -f /etc/logrotate.d/fast-https   # 立刻轮转一次
+ls -l /var/log/fast-https                        # access.log.1 / .2.gz ...
+```
+
+该文件是包管理器登记的配置文件（deb conffile、rpm `%config(noreplace)`），本地修改在升级时保留。归档与 Docker 布局的日志在 `./logs`，不在这个配置管辖范围，需要自己接 logrotate。
+
 ## 卸载
 
 三档语义，选你需要的：
@@ -109,7 +123,13 @@ purge 删的是本程序生成的东西：
 sudo rm -rf /usr/share/fast-https
 ```
 
-apk 是个例外：Alpine 的 `post-deinstall` 拿不到参数，无法区分"升级"与"卸载"，所以 apk 卸载时一律保留配置与证书。
+apk 是另一套语义：它没有 purge，`post-deinstall` 也拿不到参数（分不清升级与卸载），所以
+
+- 包内的默认配置随包删除：`/etc/fast-https/fast-https.json`、`mime.json`、`conf.d/default.json`、`/etc/logrotate.d/fast-https`
+- 运行期生成的东西保留：`/etc/fast-https/cert/`（含 `localhost.pem` 与 ACME 账户）、`/var/log/fast-https/`
+- 想要彻底清干净，卸载后手工 `sudo rm -rf /etc/fast-https /var/log/fast-https`
+
+实测记录见 `docs/help/dev-issues.md` 的 002。
 
 ## 从 1.5.0 或更早升级
 
@@ -131,3 +151,21 @@ sudo rm -rf /usr/share/fast-https/config /usr/share/fast-https/logs
 ## 生成发行源
 
 把 `dist/` 里的包组装成可直接托管的 apt/yum/apk 仓库树，见 [../develop/5-release.md](../develop/5-release.md) 的「仓库发布」一节，脚本是 `build/packaging/repo/publish-repo.sh`。
+
+## 实机验证
+
+装包这件事没法只靠单测守，`tests/packaging/distro/` 会在容器里真装一遍：
+
+```bash
+goreleaser release -f build/goreleaser.yaml --snapshot --clean --skip=archive,publish,announce
+sh tests/packaging/distro/run.sh all      # deb → upgrade → rpm → apk
+```
+
+| 目标 | 镜像 | 覆盖 |
+| --- | --- | --- |
+| `deb` | `ubuntu:24.04` | 文件树、conffile 登记、logrotate、启动监听 80/443、轮转、`remove` 保留、`purge` 清理 |
+| `upgrade` | `ubuntu:24.04` | 旧版 `/usr/share/fast-https/config` 迁移到 `/etc/fast-https`、不覆盖现场文件、迁移后服务可用 |
+| `rpm` | `almalinux:9` | 同 deb，另加 `%config(noreplace)` 重装保留与 `rpm -e` 清理 |
+| `apk` | `alpine:3.21` | 无 systemd 时的目录兜底、logrotate 依赖、卸载语义 |
+
+脚本依赖容器内的 `fast-https start` 自己转后台（容器里 `runInForeground()` 为真，`start` 不 daemonize），退出时统一 `stop`，否则后台进程会一直占着 80/443。1.5.0-next 的四个场景已在本地跑通，结论记在 [dev-issues.md](dev-issues.md) 的 002。

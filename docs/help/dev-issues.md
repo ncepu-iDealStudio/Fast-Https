@@ -46,10 +46,40 @@
 
 - 教训：**打包产物的字节级正确性要靠测试守，不能靠"在 Linux 上试一次"**。这类问题在 Windows 开发机上完全看不出来，一到 Linux 装包才暴露，且报错信息指向的路径是存在的，容易误判为 dpkg 数据库损坏。
 
+## 002 日志没有轮转，卸载语义只在文档里
+
+- 发现：2026-11-05，Ubuntu 24.04 / AlmaLinux 9 / Alpine 3.21 容器实装
+- 影响：deb / rpm / apk；归档与 Docker 布局仍无自动轮转
+- 症状：
+  - `/var/log/fast-https` 四个文件只增不减，长期跑高流量站点会把 `/var` 写满
+  - 文档写"apk 卸载一律保留配置与证书"，与 apk 实际行为不符：包内默认配置会被删掉
+- 根因：
+  - 日志目录 1.5.0 才搬到 `/var/log`，当时只改了路径，没有配套 logrotate 配置
+  - 进程用 `O_APPEND` 常开四个 fd。标准的 `create` + `postrotate` 会把当前文件改名、新建同名文件，进程仍写旧 inode，新文件永远是空的，所以轮转策略必须用 `copytruncate`
+  - apk 没有 purge 概念，卸载时删除包内文件（含默认配置与空目录），只有运行期生成的文件留下
+- 修复：
+  - 新增 `build/packaging/logrotate/fast-https`，装到 `/etc/logrotate.d/fast-https`，登记为配置文件（deb conffile、rpm `%config(noreplace)`）
+  - `nfpms.dependencies` 增加 `logrotate`：没装它这条配置不会被执行，属硬依赖
+  - 策略 `daily / rotate 14 / maxsize 100M / compress / delaycompress / copytruncate`
+  - 修正 apk 卸载的文档与断言：包内默认配置随包删除，证书、ACME 账户与日志保留
+- 防回归：
+  - `tests/packaging/logrotate_test.go`：轮转规则必须覆盖 `infra/logging` 的四个文件名（改名即失败）、必须含 `copytruncate`、`goreleaser.yaml` 必须安装并以依赖形式声明 `logrotate`
+  - `tests/packaging/distro/*.sh`：在真容器里装包、启动、`logrotate -f` 后验证"截断仍继续写当前文件"、再走卸载
+  - `tests/packaging/distro_test.go`：每个验证脚本必须 source `common.sh`（里面 `trap stop_service EXIT`），`run.sh` 必须 `docker run --rm`
+- 实机结论（1.5.0-next，均为 `ALL-PASS`）：
+
+  | 场景 | 镜像 | 关键结论 |
+  | --- | --- | --- |
+  | deb | `ubuntu:24.04` | 文件树、conffile、启动 80/443、轮转、`remove` 保留、`purge` 清理全部符合预期，`dpkg --audit` 干净 |
+  | 升级迁移 | `ubuntu:24.04` | 旧 `config/` 下的证书与站点片段被复制到 `/etc/fast-https`，旧文件保留，重装不覆盖现场文件，迁移后服务可启动 |
+  | rpm | `almalinux:9` | 装/启/轮转正常；`%config(noreplace)` 重装保留本地修改（留 `.rpmsave`）；`rpm -e` 清掉证书、日志与 `conf.d` |
+  | apk | `alpine:3.21` | 无 systemd 时目录由 postinstall 兜底；`logrotate` 随依赖装上；卸载删包内默认配置、留证书与日志 |
+
+  两个易误判的点：官方 ubuntu 镜像带 `path-exclude=/usr/share/man/*`，man 页不会落盘但包内登记正常；`dnf install ... curl` 会与预装的 `curl-minimal` 冲突，验证脚本因此只在没有 `curl` 时才装。
+
 ## 待跟进（尚未修复）
 
 | 项 | 说明 |
 | --- | --- |
-| 日志轮转 | `runtime/dynlog` 没有大小上限，日志已进 `/var/log/fast-https`，应补 `/etc/logrotate.d/fast-https`，否则会无限增长 |
-| rpm 实机验证 | deb 已在 Ubuntu 上完整跑通安装/启动/卸载；rpm 只验证了包内文件树，尚未在 RHEL/openEuler 上实装 |
-| 升级迁移实测 | postinstall 的迁移逻辑已随包发布，但尚未做一次"旧版 → 新版"的真实升级验证（需要先装 1.5.0 之前的包） |
+| 归档 / Docker 布局的日志轮转 | 包布局已随包装 logrotate 配置；归档与 Docker 的日志在 `./logs`，目前要部署方自己接轮转或定期清理 |
+| 真实旧版升级 | 容器里用"构造旧布局 + 装新版"覆盖了迁移逻辑，尚未用真实的 1.5.0 包做一次跨版本升级 |

@@ -92,6 +92,22 @@ sudo chown root:root /var/log/fast-https
 
 systemd 托管的服务会通过 `LogsDirectory=` 自动建；手工启动时 `mkdirLogDir` 也会补建，两者都失败才是权限问题。
 
+### 日志把磁盘占满
+
+先看轮转有没有在跑：
+
+```bash
+ls -l /var/log/fast-https                 # 有没有 .1 / .2.gz
+sudo logrotate -d /etc/logrotate.d/fast-https   # 干跑，看它认不认这个日志目录
+systemctl list-timers logrotate.timer --no-pager 2>/dev/null || ls /etc/cron.daily/logrotate
+```
+
+- 归档 / Docker 布局没有这条配置，日志就在 `./logs` 里无限长，需要自己接 logrotate 或定期清理
+- 包布局下没有 `/etc/logrotate.d/fast-https`：重装一次包即可恢复（它是包内 conffile，被手工删掉后 dpkg 不会自动补回，重装才会）
+- 有配置但没轮转：`logrotate` 没装（包依赖被 `--no-install-recommends` 之类绕过），或文件一直为空被 `notifempty` 跳过
+
+确有需要就改 `/etc/logrotate.d/fast-https` 里的 `rotate`（保留份数）与 `maxsize`（单文件上限）。改动属于 conffile 本地修改，升级不会被覆盖。
+
 ## 证书阶段
 
 ### ACME 签发失败，回落自签

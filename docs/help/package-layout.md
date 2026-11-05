@@ -18,6 +18,7 @@
 | systemd 单元 | — | `/usr/lib/systemd/system/fast-https.service` |
 | 使用文档 | `docs/usage.html` | `/usr/share/doc/fast-https/usage.html` |
 | man 页 | — | `/usr/share/man/man1/fast-https.1` |
+| 日志轮转 | — | `/etc/logrotate.d/fast-https` |
 
 ## 为什么这样分
 
@@ -38,6 +39,8 @@ FHS 的核心是"按内容性质分区"，不是"按项目分区"：
 | `/etc/fast-https/cert` 权限 | postinstall `chmod 0700` |
 | `/var/log/fast-https` | 包内 `type: dir`；运行时 `mkdirLogDir` 也会补建 |
 | `/run/fast-https` | systemd `RuntimeDirectory=`；手工启动时 `writePidTo` 自建父目录 |
+
+`/etc/logrotate.d/fast-https` 由包安装并登记为配置文件，轮转动作由 logrotate 自己的定时器（Debian/RHEL 的 `logrotate.timer` 或 cron）驱动，程序不参与。
 
 `/run` 下的内容**不写进包**——rpm 不接受包内 `/run` 文件，且重启后会被清空。
 

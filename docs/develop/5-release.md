@@ -84,6 +84,7 @@ go run ./tools/docgen
 - 程序装到 `/usr/bin/fast-https`；配置与证书 `/etc/fast-https/`、站点 `/usr/share/fast-https/httpdoc/`、日志 `/var/log/fast-https/`、pid `/run/fast-https/`
 - 单元文件 `build/packaging/systemd/fast-https.service` 装到 `/usr/lib/systemd/system/`
 - 手册页 `build/packaging/man/fast-https.1` 装到 `/usr/share/man/man1/`；内容由 `go run ./tools/manpage` 从 `cmd.RootCmd()` 的命令树生成，改子命令后必须重新生成
+- 日志轮转 `build/packaging/logrotate/fast-https` 装到 `/etc/logrotate.d/fast-https`，登记为配置文件（deb conffile、rpm `%config(noreplace)`）。四个日志文件在进程里常开 fd 且 `O_APPEND` 追加，所以配置用 `copytruncate`，不走 `create` + `postrotate`；`nfpms.dependencies` 因此包含 `logrotate`，没有它日志会无上限增长
 - 安装/卸载脚本在 `build/packaging/linux/`：安装后 `systemctl daemon-reload` 并打印启动提示，不自动 `enable`（容器与 CI 里没有 systemd）；卸载分两档——`remove` 保留配置与证书，`purge` 清掉 `/etc/fast-https` 下的证书、`conf.d` 与 `/var/log/fast-https`，升级两档都不触发
 - 装完执行 `systemctl enable --now fast-https` 即可常驻；`Type=simple` 配合 `FASTHTTPS_FOREGROUND=1`，服务不会自行转后台
 
@@ -152,7 +153,7 @@ repo-out/
 
 ## 发布前清单
 
-0. `go run ./tools/docgen && go run ./tools/manpage` 重新生成使用文档与手册页（`go test ./tools/docgen ./tools/manpage` 校验生成物是否与源一致）；`go test ./tests/packaging` 确认打包脚本是 LF 行尾——Windows 上 `core.autocrlf` 会把 `preremove.sh` 变成 CRLF，装进包里就是"能装上、卸载不掉、报 prerm ENOENT"
+0. `go run ./tools/docgen && go run ./tools/manpage` 重新生成使用文档与手册页（`go test ./tools/docgen ./tools/manpage` 校验生成物是否与源一致）；`go test ./tests/packaging` 确认打包脚本是 LF 行尾——Windows 上 `core.autocrlf` 会把 `preremove.sh` 变成 CRLF，装进包里就是"能装上、卸载不掉、报 prerm ENOENT"；`sh tests/packaging/distro/run.sh all` 在 ubuntu / almalinux / alpine 容器里实装一遍（装、启动、轮转、卸载），需要 docker
 1. `go build ./... && go vet ./...` 干净
 2. `go test -race ./...` 全绿（29 包）
 3. 三个 E2E：`FASTHTTPS_E2E_RELOAD=1` reload、proxy、h2

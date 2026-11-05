@@ -81,7 +81,7 @@ footer{max-width:1180px;margin:0 auto;padding:16px 24px 40px;color:var(--muted);
 <pre><code class="language-bash">dpkg -i fast-https_*.deb                     # Debian / Ubuntu
 rpm -ivh fast-https-*.rpm                    # RHEL / openEuler / CentOS
 apk add --allow-untrusted fast-https_*.apk   # Alpine</code></pre>
-<p>包装好后的位置按 FHS 分开放：程序 <code>/usr/bin/fast-https</code>，配置与证书 <code>/etc/fast-https/</code>，站点 <code>/usr/share/fast-https/httpdoc/</code>，日志 <code>/var/log/fast-https/</code>，pid <code>/run/fast-https/</code>，服务单元 <code>/usr/lib/systemd/system/fast-https.service</code>，手册页 <code>/usr/share/man/man1/fast-https.1</code>。启动与查手册：</p>
+<p>包装好后的位置按 FHS 分开放：程序 <code>/usr/bin/fast-https</code>，配置与证书 <code>/etc/fast-https/</code>，站点 <code>/usr/share/fast-https/httpdoc/</code>，日志 <code>/var/log/fast-https/</code>，pid <code>/run/fast-https/</code>，服务单元 <code>/usr/lib/systemd/system/fast-https.service</code>，手册页 <code>/usr/share/man/man1/fast-https.1</code>，日志轮转 <code>/etc/logrotate.d/fast-https</code>。启动与查手册：</p>
 <pre><code class="language-bash">systemctl enable --now fast-https
 man fast-https</code></pre>
 <p>随包默认配置同时监听 80 与 <code>443 ssl h2</code>，装完 <code>systemctl enable --now fast-https</code> 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 <code>start</code> 会用本地 CA 生成 <code>/etc/fast-https/cert/&lt;server_name&gt;.pem</code>，在那之前执行 <code>fast-https check</code> 会报 <code>ssl_certificate not found</code>，先跑一次 <code>start</code> 即可。<code>/etc/fast-https/</code>、<code>/var/log/fast-https/</code> 归 root 所有，手工执行 <code>start</code> / <code>check</code> 要用 <code>sudo</code>，普通用户会因为写不了日志而失败。运行期路径由编译期基址决定，可以从任意工作目录执行 <code>fast-https</code>；外部控制面若要知道实际路径，用 <code>fast-https config path --json</code> 读取，不要自己判断装法。</p>
@@ -425,6 +425,7 @@ fast-https site remove blog --yes</code></pre>
 </tbody>
 </table>
 <p>修改 <code>log_root</code> 后执行 <code>reload</code> 会重新打开日志文件；新目录打不开时继续写原文件。</p>
+<p>Linux 包会安装 <code>/etc/logrotate.d/fast-https</code>：每天轮转、保留 14 份、单个文件超过 100MB 也提前轮转、gzip 压缩。四个日志文件在进程里常开 fd，所以用 <code>copytruncate</code>——先复制再截断，不需要重启或 <code>reload</code>。该文件是包管理器登记的配置文件（deb conffile、rpm <code>%config(noreplace)</code>），本地修改在升级时保留。归档与 Docker 部署的日志在 <code>./logs</code>，不在这个配置管辖范围，需要自己接 logrotate 或按天清理。</p>
 <h2 id="sec-31">10. 命令行</h2>
 <table>
 <thead><tr><th>命令</th><th>作用</th></tr></thead>

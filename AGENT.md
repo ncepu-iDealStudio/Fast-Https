@@ -50,7 +50,8 @@ go build ./... && go vet ./...            # 两种布局都要过
 go vet -tags=rpm ./...
 go test ./...                              # 全量单元与 E2E
 go test -race ./...                        # 提交前
-go test ./tests/packaging                  # 行尾守卫
+go test ./tests/packaging                  # 行尾、打包清单、轮转配置守卫
+sh tests/packaging/distro/run.sh all        # 容器里真装一遍（deb/upgrade/rpm/apk，需要 docker）
 go run . check                             # 归档布局下校验配置
 go run . config path --json                # 打印运行期四个绝对路径
 
@@ -74,14 +75,14 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 | `init/` | 启动编排：证书初始化、自签 CA |
 | `build/packaging/` | 打包资源：systemd 单元、安装脚本、man 页、仓库脚本 |
 | `build/goreleaser.yaml` | 产物定义：构建、归档、nfpms |
-| `tests/packaging/` | 打包产物守卫（行尾等） |
+| `tests/packaging/` | 打包产物守卫：行尾、logrotate 覆盖、卸载语义、distro 容器脚本结构 |
 
 ## 提交前自检
 
 1. `go build ./... && go vet ./...` 干净（两种 tag）
 2. `go test ./...` 全绿
 3. 改了命令树/usage.md → 重新生成对应产物
-4. 改了打包脚本 → `go test ./tests/packaging`
+4. 改了打包脚本或安装布局 → `go test ./tests/packaging`，再 `sh tests/packaging/distro/run.sh all` 确认真能装上
 5. 改了运行期路径 → 两种布局各自 `check` 一遍
 6. 行为变化同步 `docs/feature/`，结构变化同步 `docs/architecture-map.md`
 
