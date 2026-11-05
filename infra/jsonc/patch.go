@@ -29,8 +29,16 @@ func ScanObject(masked []byte) (Object, error) {
 	if pos >= len(masked) || masked[pos] != '{' {
 		return Object{}, fmt.Errorf("root must be a JSON object")
 	}
-	open := pos
-	pos = skipSpace(masked, open+1)
+	return scanObjectAt(masked, pos)
+}
+
+// scanObjectAt 从 open（必须指向 '{'）开始扫描一个对象，
+// 成员偏移量都是相对整个 masked 的绝对位置。
+func scanObjectAt(masked []byte, open int) (Object, error) {
+	if open >= len(masked) || masked[open] != '{' {
+		return Object{}, fmt.Errorf("expected object at offset %d", open)
+	}
+	pos := skipSpace(masked, open+1)
 	var members []Member
 
 	for {
@@ -66,6 +74,41 @@ func ScanObject(masked []byte) (Object, error) {
 		}
 		members = append(members, Member{Key: key, KeyStart: keyStart, ValueStart: valueStart, ValueEnd: valueEnd})
 		pos = skipSpace(masked, valueEnd)
+	}
+}
+
+// Array 是数组结构：左右方括号位置与每个元素的区间。
+type Array struct {
+	Open  int
+	Close int
+	Elems []Span
+}
+
+// scanArrayAt 从 open（必须指向 '['）开始扫描一个数组。
+func scanArrayAt(masked []byte, open int) (Array, error) {
+	if open >= len(masked) || masked[open] != '[' {
+		return Array{}, fmt.Errorf("expected array at offset %d", open)
+	}
+	pos := skipSpace(masked, open+1)
+	var elems []Span
+
+	for {
+		if pos >= len(masked) {
+			return Array{}, fmt.Errorf("unterminated array at offset %d", open)
+		}
+		switch masked[pos] {
+		case ']':
+			return Array{Open: open, Close: pos, Elems: elems}, nil
+		case ',':
+			pos = skipSpace(masked, pos+1)
+			continue
+		}
+		end, err := scanValue(masked, pos)
+		if err != nil {
+			return Array{}, err
+		}
+		elems = append(elems, Span{Start: pos, End: end})
+		pos = skipSpace(masked, end)
 	}
 }
 

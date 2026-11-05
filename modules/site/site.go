@@ -93,11 +93,33 @@ func Create(dirs []string, name string, in config.SiteInput, force bool) (string
 	return target, nil
 }
 
-// Update 就地改写一个已存在的站点文件：apply 只改它关心的字段，
-// 其余字段（包括手写的额外 location）原样保留。
+// LoadExisting 读取一个已存在的站点文件。不存在时返回 found=false 而不是错误：
+// site init 靠它区分"新建"与"同名即更新"。
+func LoadExisting(dirs []string, name string) (string, config.SiteInput, bool, error) {
+	if strings.TrimSpace(name) == "" {
+		return "", config.SiteInput{}, false, nil
+	}
+	path, ok := Find(dirs, name)
+	if !ok {
+		return "", config.SiteInput{}, false, nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", config.SiteInput{}, false, fmt.Errorf("read %s: %w", path, err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		return "", config.SiteInput{}, false, fmt.Errorf("解析 %s 失败：%w", path, err)
+	}
+	return path, in, true, nil
+}
+
+// Update 就地改写一个已存在的站点文件：apply 只改它关心的字段。
 //
-// 写回格式与 Create 一致：纯 JSON、两个空格缩进，因此文件里的注释不会保留——
-// 站点文件本来就不该承载注释，需要说明写在文档或站点名里。
+// 写回不是"把结构体序列化回去"，而是把 apply 前后的差异翻译成 JSON 路径，
+// 用 infra/jsonc 就地替换。因此文件里 site 这一层没有建模的字段
+// （auth、proxy_cache、appfirewall、limit、zip、try、error_page……）
+// 以及注释、缩进、字段顺序都原样保留。
 func Update(dirs []string, name string, apply func(*config.SiteInput) error) (string, error) {
 	if err := ValidateName(name); err != nil {
 		return "", err
@@ -110,6 +132,12 @@ func Update(dirs []string, name string, apply func(*config.SiteInput) error) (st
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", path, err)
 	}
+	// 解析两次：一份当 diff 基线，一份交给 apply。共享 slice 会让 apply 的
+	// 就地修改同时改到基线，diff 就变成"什么都没变"。
+	existing, err := config.ParseSiteInput(raw)
+	if err != nil {
+		return "", fmt.Errorf("解析 %s 失败：%w", path, err)
+	}
 	in, err := config.ParseSiteInput(raw)
 	if err != nil {
 		return "", fmt.Errorf("解析 %s 失败：%w", path, err)
@@ -119,9 +147,9 @@ func Update(dirs []string, name string, apply func(*config.SiteInput) error) (st
 		return "", err
 	}
 
-	data, err := in.MarshalJSONFile()
+	data, err := config.PatchSiteFile(raw, existing, in)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("改写 %s 失败：%w", path, err)
 	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {

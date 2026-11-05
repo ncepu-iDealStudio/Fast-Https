@@ -80,7 +80,8 @@ func normalizeListens(listens []string) []string {
 }
 
 // ParseSiteInput 读取站点文件的可编辑子集。未列出的字段不会出现在结果里，
-// 因此这个函数只用于摘要与向导预填，不能拿来整体回写。
+// 因此这个结果只能用于摘要、向导预填和差异比对；回写走 PatchSiteFile，
+// 它只改真正变化的路径，不会把未建模的字段写没。
 func ParseSiteInput(raw []byte) (SiteInput, error) {
 	var payload siteFileJSON
 	if err := unmarshalConfig(raw, &payload); err != nil {
