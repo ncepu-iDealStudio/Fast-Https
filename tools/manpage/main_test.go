@@ -34,7 +34,8 @@ func TestRenderHasRequiredSections(t *testing.T) {
 		".SH COMMANDS",
 		".SH FILES",
 		".SH EXAMPLES",
-		`/usr/share/fast\-https/config/fast\-https.json`,
+		`/etc/fast\-https/fast\-https.json`,
+		`/var/log/fast\-https/`,
 		`/usr/lib/systemd/system/fast\-https.service`,
 	} {
 		if !strings.Contains(got, want) {

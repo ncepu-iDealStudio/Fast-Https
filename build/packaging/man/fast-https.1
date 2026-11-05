@@ -17,6 +17,9 @@ configure ACME certificate issuance interactively
 .B check
 to validate config without listening
 .TP
+.B config
+inspect resolved runtime paths
+.TP
 .B dev
 to start web server in dev mode
 .TP
@@ -36,23 +39,26 @@ to check web server status
 to Stop web server
 .SH FILES
 .TP
-.I /usr/share/fast\-https/config/fast\-https.json
+.I /etc/fast\-https/fast\-https.json
 main configuration file
 .TP
-.I /usr/share/fast\-https/config/mime.json
+.I /etc/fast\-https/mime.json
 MIME type table
 .TP
-.I /usr/share/fast\-https/config/conf.d/
+.I /etc/fast\-https/conf.d/
 extra server definitions referenced by http.include
 .TP
-.I /usr/share/fast\-https/config/cert/
-certificate and key files
+.I /etc/fast\-https/cert/
+certificate, key files and ACME storage
 .TP
 .I /usr/share/fast\-https/httpdoc/root/
 default site root
 .TP
-.I /usr/share/fast\-https/logs/
+.I /var/log/fast\-https/
 log output directory
+.TP
+.I /run/fast\-https/fast\-https.pid
+pid file written after start
 .TP
 .I /usr/lib/systemd/system/fast\-https.service
 systemd unit

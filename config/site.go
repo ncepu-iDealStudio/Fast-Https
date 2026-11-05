@@ -148,7 +148,7 @@ func siteDirsFromInclude(includes []string) []string {
 		fullPath := includePath
 		if !filepath.IsAbs(fullPath) {
 			if _, err := os.Stat(fullPath); err != nil {
-				fullPath = absConfigPath(includePath)
+				fullPath = absETCPath(includePath)
 			}
 		}
 		info, err := os.Stat(fullPath)

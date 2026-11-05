@@ -15,6 +15,7 @@ build/**   linguist-detectable=false
 # "#!/bin/sh\r"，内核找不到 /bin/sh\r，卸载时报 ENOENT、退出码 2。
 # 这些文件必须强制 LF，tests/packaging/lf_test.go 会盯着。
 *.sh                text eol=lf
+*.service           text eol=lf
 build/spec          text eol=lf
 build/Dockerfile    text eol=lf
 build/docker/*      text eol=lf

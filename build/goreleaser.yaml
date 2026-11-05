@@ -154,12 +154,29 @@ nfpms:
       - apk
     bindir: /usr/bin
     umask: 0o022
+    # 仓库元数据：apt / dnf 解析依赖与分类时读这些字段。
+    section: web
+    priority: optional
+    # ACME 校验与 HTTPS 上游都要系统 CA 证书；最小化容器里没有这个包。
+    dependencies:
+      - ca-certificates
+    # Debian revision：仓库里同一 upstream 版本的多次打包靠它区分。
+    release: "1"
+    deb:
+      compression: xz
+    rpm:
+      group: Applications/Internet
+      summary: Go web server and reverse proxy with automatic HTTPS
+      packager: JFeng2048 <JFeng2048@outlook.com>
+    # 按 FHS 分离：配置与证书进 /etc，站点进 /usr/share，日志进 /var/log。
+    # /run/fast-https 不打包（rpm 不接受包内 /run 内容），由 systemd 的
+    # RuntimeDirectory 与 postinstall 脚本创建。
     contents:
       - src: config/fast-https.json
-        dst: /usr/share/fast-https/config/fast-https.json
+        dst: /etc/fast-https/fast-https.json
         type: config|noreplace
       - src: config/mime.json
-        dst: /usr/share/fast-https/config/mime.json
+        dst: /etc/fast-https/mime.json
         type: config|noreplace
       - src: httpdoc/root/index.html
         dst: /usr/share/fast-https/httpdoc/root/index.html
@@ -173,29 +190,29 @@ nfpms:
         dst: /usr/share/licenses/fast-https/LICENSE
       - src: build/packaging/systemd/fast-https.service
         dst: /usr/lib/systemd/system/fast-https.service
-      - dst: /usr/share/fast-https/config/cert
+      - dst: /etc/fast-https/cert
         type: dir
       # ACME 的账户与证书缓存目录：包安装后由 root 运行，目录必须预先存在，
       # 否则非 systemd 手工启动时要先手工建目录才能写账户私钥。
-      - dst: /usr/share/fast-https/config/cert/acme
+      - dst: /etc/fast-https/cert/acme
         type: dir
-      - dst: /usr/share/fast-https/config/conf.d
+      - dst: /etc/fast-https/conf.d
         type: dir
       - src: config/conf.d/default.json
-        dst: /usr/share/fast-https/config/conf.d/default.json
+        dst: /etc/fast-https/conf.d/default.json
         type: config|noreplace
-      - dst: /usr/share/fast-https/logs
+      - dst: /var/log/fast-https
         type: dir
       # 与 Windows 归档一样用 .keep 占住这三个目录：只留空目录时，
       # 打包工具或解包工具容易把它们当成空壳丢掉。
       - src: config/cert/.keep
-        dst: /usr/share/fast-https/config/cert/.keep
+        dst: /etc/fast-https/cert/.keep
       - src: config/cert/acme/.keep
-        dst: /usr/share/fast-https/config/cert/acme/.keep
+        dst: /etc/fast-https/cert/acme/.keep
       - src: config/conf.d/.keep
-        dst: /usr/share/fast-https/config/conf.d/.keep
+        dst: /etc/fast-https/conf.d/.keep
       - src: logs/.keep
-        dst: /usr/share/fast-https/logs/.keep
+        dst: /var/log/fast-https/.keep
     scripts:
       postinstall: build/packaging/linux/postinstall.sh
       preremove: build/packaging/linux/preremove.sh

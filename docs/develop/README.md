@@ -24,7 +24,7 @@
 | [v1.5.0-plan.md](plans/v1.5.0-plan.md) | 1.5.0 数据面功能收口：ACME、site 命令组、安全加固、测试与性能（当前迭代） |
 | [agent-refactor-plan.md](plans/agent-refactor-plan.md) | Agent 化改造方案（2.0，尚未开始） |
 | [performance-slimming-plan.md](plans/performance-slimming-plan.md) | 精简与性能优化计划（精简部分已落地，性能与稳定性分期未完成） |
-| [fhs-layout-plan.md](plans/fhs-layout-plan.md) | 运行期目录改成 FHS 分离布局（待实施，仅规划） |
+| [fhs-layout-plan.md](plans/fhs-layout-plan.md) | 运行期目录改成 FHS 分离布局（阶段 0、1 已实施：常量拆分 + deb/rpm/apk 走 `/etc`、`/var/log`、`/run`；升级迁移待实测） |
 | [upstream-failover-plan.md](plans/upstream-failover-plan.md) | 代理上游故障转移：多地址、健康检查、负载均衡（R8，未排期） |
 | [config-autoreload-plan.md](plans/config-autoreload-plan.md) | 配置文件自动重载：watch + 防抖 + 复用 reload 链路（R7，暂缓） |
 

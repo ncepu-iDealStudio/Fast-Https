@@ -37,14 +37,16 @@ rpm -ivh fast-https-*.rpm                    # RHEL / openEuler / CentOS
 apk add --allow-untrusted fast-https_*.apk   # Alpine
 ```
 
-包装好后的位置：程序 `/usr/bin/fast-https`，配置、站点与日志 `/usr/share/fast-https/`，服务单元 `/usr/lib/systemd/system/fast-https.service`，手册页 `/usr/share/man/man1/fast-https.1`。启动与查手册：
+包装好后的位置按 FHS 分开放：程序 `/usr/bin/fast-https`，配置与证书 `/etc/fast-https/`，站点 `/usr/share/fast-https/httpdoc/`，日志 `/var/log/fast-https/`，pid `/run/fast-https/`，服务单元 `/usr/lib/systemd/system/fast-https.service`，手册页 `/usr/share/man/man1/fast-https.1`。启动与查手册：
 
 ```bash
 systemctl enable --now fast-https
 man fast-https
 ```
 
-随包默认配置同时监听 80 与 `443 ssl h2`，装完 `systemctl enable --now fast-https` 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 `start` 会用本地 CA 生成 `config/cert/<server_name>.pem`，在那之前执行 `fast-https check` 会报 `ssl_certificate not found`，先跑一次 `start` 即可。`/usr/share/fast-https/` 下的目录归 root 所有，手工执行 `start` / `check` 要用 `sudo`，普通用户会因为写不了日志而失败。运行期路径都以安装目录为基准，可以从任意工作目录执行 `fast-https`。
+随包默认配置同时监听 80 与 `443 ssl h2`，装完 `systemctl enable --now fast-https` 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 `start` 会用本地 CA 生成 `/etc/fast-https/cert/<server_name>.pem`，在那之前执行 `fast-https check` 会报 `ssl_certificate not found`，先跑一次 `start` 即可。`/etc/fast-https/`、`/var/log/fast-https/` 归 root 所有，手工执行 `start` / `check` 要用 `sudo`，普通用户会因为写不了日志而失败。运行期路径由编译期基址决定，可以从任意工作目录执行 `fast-https`；外部控制面若要知道实际路径，用 `fast-https config path --json` 读取，不要自己判断装法。
+
+从 1.5.0 或更早的包升级时，安装脚本会把 `/usr/share/fast-https/config/` 下已有的配置与证书复制到 `/etc/fast-https/`（目标已存在则跳过，旧文件保留不动），确认无误后可手工删除旧目录。
 
 ### 容器
 

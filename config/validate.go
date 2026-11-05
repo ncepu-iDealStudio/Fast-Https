@@ -83,7 +83,7 @@ func validateIncludes(includes []string, rootBaseDir string) (int, error) {
 }
 
 // includeFiles 把 http.include 展开成具体的 .json 文件列表：目录递归收集，
-// 单个文件必须带 .json 后缀。路径统一按 FAST_HTTPS_BASE_DIR 解析，
+// 单个文件必须带 .json 后缀。路径统一按 ETC 基址解析，
 // 校验与加载因此用同一个基准，不再依赖进程工作目录。
 func includeFiles(includes []string) ([]string, error) {
 	var files []string
@@ -92,7 +92,7 @@ func includeFiles(includes []string) ([]string, error) {
 			return nil, errors.New("http.include must contain non-empty paths")
 		}
 
-		fullPath := absConfigPath(includePath)
+		fullPath := absETCPath(includePath)
 		info, err := os.Stat(fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("include path not found: %s", fullPath)
@@ -265,12 +265,11 @@ func pathExists(path, baseDir, rootBaseDir string) bool {
 	if strings.TrimSpace(path) == "" {
 		return false
 	}
-	// Certificate paths in the main config are relative to FAST_HTTPS_BASE_DIR
-	// (the process working directory for non-package builds, /usr/share/fast-https
-	// for packages), which is also how tls.LoadX509KeyPair resolves them after
-	// ResolveRuntimePaths. Paths inside an included file may instead be relative
-	// to that file or the main config.
-	candidates := []string{path, absConfigPath(path)}
+	// Certificate paths in the main config are relative to the ETC base
+	// (./config for archives, /etc/fast-https for packages), which is also how
+	// tls.LoadX509KeyPair resolves them after ResolveRuntimePaths. Paths inside
+	// an included file may instead be relative to that file or the main config.
+	candidates := []string{path, absETCPath(path), absDataPath(path)}
 	if !filepath.IsAbs(path) {
 		candidates = append(candidates,
 			filepath.Join(baseDir, path),

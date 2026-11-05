@@ -1,5 +1,4 @@
 {
-  "log_root": "./logs",
   "security": {
     "host_check": "off",
     "headers": {
@@ -14,7 +13,7 @@
     "mode": "disabled"
   },
   "http": {
-    "include": ["./config/conf.d"],
+    "include": ["./conf.d"],
     "default_type": "application/octet-stream",
     "servers_limit": {
       "max_header_size": 4096,

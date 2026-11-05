@@ -39,15 +39,16 @@ func main() {
 	}
 }
 
-// files 是发行版包安装后的路径约定，与 config/base_dir_rpm.go 的
-// FAST_HTTPS_BASE_DIR（/usr/share/fast-https/）保持一致。
+// files 是发行版包安装后的路径约定，与 config/base_dir_rpm.go 的四个基址
+// （/etc、/usr/share、/var/log、/run 下的 fast-https 目录）保持一致。
 var files = [][2]string{
-	{"/usr/share/fast-https/config/fast-https.json", "main configuration file"},
-	{"/usr/share/fast-https/config/mime.json", "MIME type table"},
-	{"/usr/share/fast-https/config/conf.d/", "extra server definitions referenced by http.include"},
-	{"/usr/share/fast-https/config/cert/", "certificate and key files"},
+	{"/etc/fast-https/fast-https.json", "main configuration file"},
+	{"/etc/fast-https/mime.json", "MIME type table"},
+	{"/etc/fast-https/conf.d/", "extra server definitions referenced by http.include"},
+	{"/etc/fast-https/cert/", "certificate, key files and ACME storage"},
 	{"/usr/share/fast-https/httpdoc/root/", "default site root"},
-	{"/usr/share/fast-https/logs/", "log output directory"},
+	{"/var/log/fast-https/", "log output directory"},
+	{"/run/fast-https/fast-https.pid", "pid file written after start"},
 	{"/usr/lib/systemd/system/fast-https.service", "systemd unit"},
 	{"/usr/share/doc/fast-https/usage.html", "full usage document"},
 }

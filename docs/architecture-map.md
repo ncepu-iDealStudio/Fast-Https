@@ -96,7 +96,7 @@
 | Docker | `build/Dockerfile` 使用 Go 1.27 Alpine，在 `/app` 执行 `go build -o fast-https .`；运行镜像复制配置、MIME 和默认静态文件 |
 | GoReleaser | `build/goreleaser.yaml` 的主程序 `main` 为 `./fast-https.go`，构建 Linux/Darwin amd64/arm64 和 Windows amd64 |
 | Windows monitor | 独立 package `./monitor`，源码 build tag 为 `windows && amd64` |
-| RPM | `build/spec` 文件执行 `go build -tags=rpm .`，安装程序及 `config/`、`httpdoc/root/` 等运行资源 |
+| RPM | `build/spec` 文件执行 `go build -tags=rpm .`，按 FHS 安装：配置到 `%{_sysconfdir}/fast-https`、站点到 `%{_datadir}/fast-https`、日志目录 `%{_localstatedir}/log/fast-https` |
 | Linux 包（deb/rpm/apk） | `build/goreleaser.yaml` 的 `nfpms` 段，安装单元 `build/packaging/systemd/`、安装脚本 `build/packaging/linux/` |
 | Go CI | `.workflow/go-test.yml` 使用 Go 1.27.1，执行 `go test ./...` |
 | Windows 本地测试 | 直接 `go test -p 1 ./...`（并行测试 exe 在 Windows 上会偶发 `Access is denied`） |

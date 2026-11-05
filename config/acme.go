@@ -21,8 +21,10 @@ const (
 
 	DefaultACMERenewBeforeDays = 30
 
-	// ACMECertStorageDir 相对 FAST_HTTPS_BASE_DIR，与 CERT_DIR 同层但不冲突。
-	ACMECertStorageDir = "config/cert/acme"
+	// ACMECertStorageDir 相对 ETC 基址，落在证书目录下的 acme 子目录：
+	// 归档是 ./config/cert/acme，包是 /etc/fast-https/cert/acme。账户私钥与
+	// 证书缓存同处一棵树，整目录拷走就能在另一台机器继续签发与续期。
+	ACMECertStorageDir = "./cert/acme"
 )
 
 // ACMECA 是降级链中的一个 CA。ZeroSSL 这类 CA 要求账户绑定 EAB，
@@ -132,7 +134,7 @@ func (c *AcmeConfig) applyDefaults() {
 	if strings.TrimSpace(c.Storage) == "" {
 		c.Storage = ACMECertStorageDir
 	}
-	c.Storage = absConfigPath(c.Storage)
+	c.Storage = absETCPath(c.Storage)
 	if len(c.CAs) == 0 {
 		c.CAs = DefaultACMECAs()
 	}
