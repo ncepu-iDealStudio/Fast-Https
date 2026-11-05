@@ -4,14 +4,14 @@
 
 ## 功能
 
-`start`（后台服务）、`stop`、`reload`、`status`、`check`（只校验配置），以及 `acme`（交互式配置 ACME 自动签发）、`site`（管理 conf.d 下的站点文件）。
+`start`（后台服务）、`stop`、`reload`、`status`、`version`，以及 `acme`（交互式配置 ACME 自动签发）、`site`（管理 conf.d 下的站点文件）。`start` 与 `reload` 都先校验配置，失败即停并说明原因。
 
 帮助文本有中英两版：默认中文，`--lang en` 或 `FAST_HTTPS_LANG=en` 切英文。
 
 ## 使用
 
 ```
-fast-https start|stop|reload|status|check
+fast-https start|stop|reload|status|version
 fast-https acme [setup|show]     # 交互向导 / 参数式配置 / 查看当前生效值
 fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
 ```

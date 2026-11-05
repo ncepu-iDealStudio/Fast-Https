@@ -17,8 +17,7 @@
 
 ```bash
 go build -o fast-https .
-./fast-https check      # 校验配置，不监听
-./fast-https start      # 前台/后台取决于环境
+./fast-https start      # 会先校验配置，失败直接报原因；前台/后台取决于环境
 ```
 
 源码构建走 `!rpm` 布局：配置在 `./config`，日志在 `./logs`，站点在 `./httpdoc/root`。
@@ -72,7 +71,7 @@ sudo ss -ltnp | grep -E ':(80|443)'
 
 期望：配置在 `/etc/fast-https`、日志目录 `/var/log/fast-https`、pid 在 `/run/fast-https`、服务 `active (running)`、80 与 443 都在听。
 
-首次启动会用本地 CA 生成证书；在那之前 `fast-https check` 报 `ssl_certificate not found` 是正常的，先跑一次 `start` 即可。
+首次启动会用本地 CA 生成证书；在那之前 `fast-https reload` 报 `ssl_certificate not found` 是正常的，先跑一次 `start` 即可。
 
 ## 日志轮转
 

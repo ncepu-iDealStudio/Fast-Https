@@ -48,7 +48,7 @@ Blue is the primary request path; dashed lines are wiring injection and external
 | TLS certificates | Per-`server_name` certificates; `reload` swaps certificates on the same SSL port without rebinding the socket; certificates are provisioned automatically — a self-signed one is generated at startup when the PEM files are missing, and with ACME configured a publicly trusted certificate is issued and renewed for you (Let's Encrypt and others, via the `fast-https acme` wizard) |
 | HTTP/2 | Adding `h2` to `listen` enables it — ALPN, HPACK, stream state machine, and flow control come from `golang.org/x/net/http2`, and reloads send GOAWAY for a graceful close |
 | Security | Global plus per-location, per-IP token-bucket rate limiting; IP and IPv6 range blacklists; Basic auth; GuardianWAF (sqli / xss / lfi / cmdi / xxe / ssrf, log-only mode available) |
-| Operations | `start` / `stop` / `reload` / `status` / `check`; config reload without dropping connections; `check` validates without listening |
+| Operations | `start` / `stop` / `reload` / `status`; config reload without dropping connections; both `start` and `reload` validate the config first |
 | Logging | Four JSON logs in `logs/` — system, access, error, security — each line tagged with `kind` and an RFC3339 timestamp; files are reopened after a reload |
 | Packaging | Installers for Linux / macOS / Windows, an RPM spec, three Docker base images, and a Windows tray program |
 
@@ -76,7 +76,7 @@ The two are aimed at different jobs: a general-purpose web server covers more pr
 | Static sites | `root` / `index` / `try` style config | `root` / `index` / `try` fields, including 304, 206/416, and the trailing-slash 301 |
 | Reverse proxy | Multiple upstreams, full timeout and buffer directives | One upstream per location, with connection pooling, response cache, and WebSocket |
 | HTTP/2 | Depends on version and compiled modules | Add `h2` to `listen` |
-| Config preflight | Dedicated validation entry point | `check` subcommand — no listening, no pid file |
+| Config preflight | Dedicated validation entry point | No separate subcommand: `start`'s preflight and `reload` before signalling share the same validation, and a failure is reported right away |
 | Graceful stop | Stop accepting, drain in-flight requests | `SIGTERM` / `SIGQUIT`, up to 5 seconds |
 | Certificate swap | Takes effect after a config reload | `reload` swaps on the same port without rebinding |
 | Extensibility | Module and third-party plugin ecosystem | Fixed built-in feature set, no dynamic modules |
@@ -167,7 +167,6 @@ The shipped config carries no comments on purpose: every field is documented in 
 | `./fast-https stop` | Stop. Sends `SIGTERM` on Unix for a graceful shutdown; running it again is a no-op |
 | `./fast-https reload` | Validate the new config, then reload; a failed validation keeps the old config |
 | `./fast-https status` | Read the pid file and report whether the server is running |
-| `./fast-https check` | Validate the config only — no listening, no pid file |
 | `./fast-https version` | Print the version as a single line, `fast-https <version>` |
 | `./fast-https acme` | Interactive ACME setup, rewrites the `acme` section (restart required) |
 | `./fast-https acme show` | Show the effective ACME settings and the domains that will be requested |
@@ -194,7 +193,7 @@ Yes. When the PEM files are missing it generates a self-signed certificate first
 
 ### What happens if the config is invalid?
 
-Both `start` and `reload` validate first. A failed `reload` keeps the old config and the old listeners; `check` validates without listening or writing a pid file.
+Both `start` and `reload` validate first. A failed `reload` returns the reason and keeps the old config and the old listeners.
 
 ### Does it run on Windows?
 

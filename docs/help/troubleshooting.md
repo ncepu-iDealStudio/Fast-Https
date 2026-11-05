@@ -60,9 +60,9 @@ sudo systemctl enable --now fast-https
 
 错误信息里会明确写出哪个路径写不了。
 
-### `check` 报 `ssl_certificate not found`
+### `reload` 报 `ssl_certificate not found`
 
-默认配置引用了 `./cert/localhost.pem`，首次启动才会生成。先跑一次 `start`，之后 `check` 就过了。
+默认配置引用了 `./cert/localhost.pem`，首次启动才会生成。先跑一次 `start`，之后 `reload` 就过了。
 
 ### 服务起不来
 
@@ -73,7 +73,7 @@ sudo ls -l /var/log/fast-https
 sudo tail -n 50 /var/log/fast-https/system.log
 ```
 
-常见原因：配置语法错（先 `sudo fast-https check`）、证书路径不存在、端口被占。
+常见原因：配置语法错（`fast-https reload` 或 `start` 会先校验并直接报出字段）、证书路径不存在、端口被占。
 
 ### 端口被占用
 
@@ -145,7 +145,6 @@ fast-https site update <站点名> --tls
 `./cert/...` 相对于 `/etc/fast-https`；文件不存在时首次 `start` 先出自签，ACME 签发成功后覆盖同一路径并热替换。改完：
 
 ```bash
-fast-https check            # 应输出 config ok
 fast-https stop && fast-https start   # acme 段只在启动时读取，reload 不够
 fast-https acme show        # 现在应列出 test.jfeng.asia
 ```
@@ -190,6 +189,6 @@ nfpm 的依赖字段在 goreleaser 里叫 `dependencies`，不是 `depends`。�
 
 ```bash
 fast-https config path --json
-sudo fast-https check
+sudo fast-https reload          # 失败时会直接打印配置错误
 sudo journalctl -u fast-https -n 100 --no-pager
 ```

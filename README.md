@@ -48,7 +48,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 | TLS 证书 | 每个 `server_name` 独立证书；同一 SSL 端口 `reload` 时热替换证书、不重新绑定端口；证书自动配置：缺少证书文件时启动前生成自签名证书，配置 ACME 后自动申请并续期受信任证书（Let's Encrypt 等，`fast-https acme` 向导） |
 | HTTP/2 | `listen` 含 `h2` 时启用，ALPN 协商、HPACK、流状态机与流量控制由 `golang.org/x/net/http2` 处理，重载时发 GOAWAY 优雅关闭 |
 | 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
-| 运维 | `start` / `stop` / `reload` / `status` / `check`；热重载不断开已有连接；`check` 只校验配置不监听端口 |
+| 运维 | `start` / `stop` / `reload` / `status`；热重载不断开已有连接；`start` 与 `reload` 都先校验配置 |
 | 日志 | `logs/` 下 system、access、error、safe 四路 JSON 日志，每条带 `kind` 与 RFC3339 时间，重载后重新打开文件 |
 | 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；Windows 附带托盘程序 |
 
@@ -76,7 +76,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 | 静态站点 | `root` / `index` / `try` 类配置 | `root` / `index` / `try` 字段，含 304、206/416 与斜杠 301 |
 | 反向代理 | 多上游、超时与缓冲指令齐全 | 每个 location 一个上游，含连接池、响应缓存与 WebSocket |
 | HTTP/2 | 取决于版本与编译模块 | `listen` 加 `h2` 即启用 |
-| 配置预检 | 有独立校验入口 | `check` 子命令，不监听端口、不写 pid |
+| 配置预检 | 有独立校验入口 | 不设独立子命令：`start` 预检与 `reload` 发信号前都走同一套校验，失败直接报原因 |
 | 优雅停止 | 停止接受并等待在途请求 | `SIGTERM` / `SIGQUIT`，最多等 5 秒 |
 | 证书热替换 | 重载配置后生效 | `reload` 在同一端口换证，不重新绑定 |
 | 扩展方式 | 模块与第三方插件生态 | 内置固定功能集，不加载动态模块 |
@@ -167,7 +167,6 @@ curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
 | `./fast-https stop` | 停止。Unix 发 `SIGTERM` 优雅停机，重复执行视为已停止 |
 | `./fast-https reload` | 校验配置后热重载，失败保留旧配置 |
 | `./fast-https status` | 读 pid 文件判断是否在运行 |
-| `./fast-https check` | 只校验配置，不监听端口、不写 pid |
 | `./fast-https version` | 打印版本号，输出一行 `fast-https <版本>` |
 | `./fast-https acme` | 交互式配置 ACME 自动签发证书，写回 `acme` 段（改完需重启） |
 | `./fast-https acme show` | 查看当前 ACME 配置与会申请证书的域名 |
@@ -194,7 +193,7 @@ curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
 
 ### 配置写错了会怎样？
 
-`start` 与 `reload` 都会先校验配置。校验失败时 `reload` 保留旧配置与旧监听，`check` 只校验不监听、不写 pid 文件。
+`start` 与 `reload` 都会先校验配置。校验失败时 `reload` 直接返回原因，并保留旧配置与旧监听，终端上能看到具体是哪一行坏了。
 
 ### 支持 Windows 吗？
 

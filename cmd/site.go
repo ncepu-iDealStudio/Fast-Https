@@ -295,7 +295,7 @@ func printSiteWritten(opts siteOptions, path string, in config.SiteInput, headli
 		fmt.Fprintf(opts.Out, "  证书路径：%s / %s（不存在时首次 start 会用本地 CA 生成）\n",
 			in.SSLCertificate, in.SSLCertificateKey)
 	}
-	fmt.Fprintln(opts.Out, "下一步：fast-https check 校验，fast-https reload 生效（reload 中断不了在途连接）。")
+	fmt.Fprintln(opts.Out, "下一步：fast-https reload 生效（会先校验配置，不中断在途连接；校验失败则保留运行中的配置）。")
 }
 
 // applySiteLocation 只改 URL 为 "/" 的那个 location（没有就补一个），

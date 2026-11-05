@@ -44,7 +44,7 @@ systemctl enable --now fast-https
 man fast-https
 ```
 
-随包默认配置同时监听 80 与 `443 ssl h2`，装完 `systemctl enable --now fast-https` 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 `start` 会用本地 CA 生成 `/etc/fast-https/cert/<server_name>.pem`，在那之前执行 `fast-https check` 会报 `ssl_certificate not found`，先跑一次 `start` 即可。`/etc/fast-https/`、`/var/log/fast-https/` 归 root 所有，手工执行 `start` / `check` 要用 `sudo`，普通用户会因为写不了日志而失败。运行期路径由编译期基址决定，可以从任意工作目录执行 `fast-https`；外部控制面若要知道实际路径，用 `fast-https config path --json` 读取，不要自己判断装法。
+随包默认配置同时监听 80 与 `443 ssl h2`，装完 `systemctl enable --now fast-https` 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 `start` 会用本地 CA 生成 `/etc/fast-https/cert/<server_name>.pem`；在那之前 `reload` 的预检会报 `ssl_certificate not found`，先跑一次 `start` 即可。`/etc/fast-https/`、`/var/log/fast-https/` 归 root 所有，手工执行 `start` / `reload` 要用 `sudo`，普通用户会因为写不了日志而失败。运行期路径由编译期基址决定，可以从任意工作目录执行 `fast-https`；外部控制面若要知道实际路径，用 `fast-https config path --json` 读取，不要自己判断装法。
 
 从 1.5.0 或更早的包升级时，安装脚本会把 `/usr/share/fast-https/config/` 下已有的配置与证书复制到 `/etc/fast-https/`（目标已存在则跳过，旧文件保留不动），确认无误后可手工删除旧目录。
 
@@ -169,7 +169,7 @@ curl -I --http2 -k https://127.0.0.1/  # 确认协商到 HTTP/2
 要点：
 
 - `ssl` 必须配 `ssl_certificate` 与 `ssl_certificate_key`，缺一个启动期就报错。
-- 证书文件不存在时，`start` 的预检阶段会用本地 CA 生成自签证书（`config/cert/<server_name>.pem`）；`check` 不生成证书，所以在第一次 `start` 之前校验会报 `ssl_certificate not found`。
+- 证书文件不存在时，`start` 的预检阶段会用本地 CA 生成自签证书（`config/cert/<server_name>.pem`）；`reload` 的预检不生成证书，所以在第一次 `start` 之前会报 `ssl_certificate not found`。
 - 只有 `listen` 里写了 `h2` 的端口才通告 HTTP/2，纯 `ssl` 端口只走 HTTP/1.1。
 - 换权威证书有两种方式：把这两个路径改成自己签发的 PEM 后 `reload`；或者用 7.1 的 ACME 自动签发，签发成功后证书会就地热替换。
 - 端口冲突时（例如 Windows 上 443 被 IIS 占用）改 `listen` 里的端口号，或整段删掉这个 server 块。
@@ -183,8 +183,7 @@ fast-https site init blog --server-name blog.example --non-interactive
 fast-https site list
 fast-https site show blog            # 站点文件原文
 fast-https site show blog --merged   # 合并后的完整 server 块（含默认值）
-fast-https site check blog           # 只校验这个文件；不带名字时校验主配置（含 conf.d）
-fast-https site update blog --tls    # 只改显式传的字段：加 443 ssl h2 与证书路径
+fast-https site init blog --tls      # 同名即更新：只改显式传的字段，加 443 ssl h2 与证书路径
 fast-https site remove blog --yes
 ```
 
@@ -199,9 +198,9 @@ fast-https site remove blog --yes
   ```
 
   加载时这个块会展开成"一块一个端口"的两个 server 块，`server_name`、location 与证书共用；`site list` 的 LISTEN 列显示为 `80, 443 ssl h2`。
-- **TLS 站点**：`--tls` 保证至少有一个 TLS 监听，且不会把 `ssl` 贴到 80 上。不给 `--listen` 时生成 `["80", "443 ssl h2"]`；给了 `--listen` 时写什么用什么，只把非 80 的那条补成 `ssl h2`（`--listen 80 --tls` 仍是 `80` + `443 ssl h2`）。证书默认路径是 `config/cert/<server_name>.pem` 与 `-key.pem`，由首次 `start` 生成；在那之前 `site check` 会报 `ssl_certificate not found`（与主配置一致）。
+- **TLS 站点**：`--tls` 保证至少有一个 TLS 监听，且不会把 `ssl` 贴到 80 上。不给 `--listen` 时生成 `["80", "443 ssl h2"]`；给了 `--listen` 时写什么用什么，只把非 80 的那条补成 `ssl h2`（`--listen 80 --tls` 仍是 `80` + `443 ssl h2`）。证书默认路径是 `config/cert/<server_name>.pem` 与 `-key.pem`，由首次 `start` 生成；在那之前 `reload` 的预检会报 `ssl_certificate not found`（与主配置一致）。
 - **写入安全**：先生成 `.tmp`，用主配置同一套 schema 校验通过后才 rename；同名文件已存在时要求 `--force`。
-- **生效方式**：命令只写文件并提示 `fast-https check` → `fast-https reload`，不自动重载。
+- **生效方式**：命令只写文件并提示 `fast-https reload`（reload 会先校验配置），不自动重载。
 
 ### 4.5 停止
 
@@ -263,7 +262,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `proxy_cache` | 代理缓存，见 6.5 |
 | `zip` | 响应压缩，取值 `gzip`、`br`，可同时配置 |
 | `limit` | `mem`、`rate`、`burst`、`nodelay` |
-| `auth` | `{"type": "basic", "user": "...", "pswd": "...", "realm": "..."}`。只支持 `basic`，写了 `type` 就必须同时写 `user` 与 `pswd`（缺任何一项 `check` 报错）；`realm` 可选，留空时用站点名 |
+| `auth` | `{"type": "basic", "user": "...", "pswd": "...", "realm": "..."}`。只支持 `basic`，写了 `type` 就必须同时写 `user` 与 `pswd`（缺任何一项校验就报错）；`realm` 可选，留空时用站点名 |
 | `appfirewall` | 应用防火墙开关，例如 `["xss", "sqli"]` |
 | `error_page` | `{"not_found": "./httpdoc/404.html", "proxy": "./httpdoc/502.html"}` |
 | `allow_methods` | 只允许列出的方法，例如 `["GET", "HEAD"]`；越界返回 405 并带 `Allow` 头。缺省不限制，`HEAD` 随 `GET` 自动放行 |
@@ -477,16 +476,13 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | --- | --- |
 | `start` | 以守护进程方式启动（无参数等同此命令）；容器与 systemd 托管、或设了 `FASTHTTPS_FOREGROUND=1` 时保持前台 |
 | `stop` | 停止服务 |
-| `reload` | 校验配置后热重载，失败时保留旧配置 |
+| `reload` | 先校验配置，通过才发信号热重载；校验失败直接返回原因，运行中的配置保持不动 |
 | `status` | 读 pid 文件，进程存在返回 0，否则非 0 |
-| `check` | 只校验配置，不监听端口、不写 pid |
 | `version` | 打印版本号，输出一行 `fast-https <版本>` |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型 |
-| `site check [name]` | 校验主配置（含 conf.d），带名字时只校验该文件 |
-| `site update <name>` | 改已有站点：只应用显式传入的 flag，其余字段与手写的 location 保持不变 |
-| `site show <name>` | 打印站点文件原文；`--merged` 打印合并后的完整字段 |
-| `site remove <name>` | 删除站点文件，需要 `--yes` |
+| `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块 |
+| `site remove <name>` | 删除站点文件（需要 `--yes`） |
 | `acme` | 交互式配置 ACME：问邮箱、CA、挑战方式，写回 `acme` 段 |
 | `acme setup` | 同 `acme`，可用 `--email`、`--ca`、`--challenge` 等 flags 非交互执行 |
 | `acme show` | 打印生效的 ACME 配置（EAB 私钥脱敏）与会申请证书的域名 |
@@ -494,7 +490,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 三点行为需要留意：
 
 - `SIGINT`（`Ctrl+C`）在各平台都是**重载配置**，前台运行也一样；停止用 `SIGTERM`、`SIGQUIT` 或 `stop` 命令。
-- `check` 通过时打印 `config ok` 并以 0 退出；`start` 的预检会做同一项校验。
+- `start` 与 `reload` 都会先校验配置：失败直接停下并说明原因，`reload` 此时不动运行中的配置。
 - 安装与卸载不走二进制：deb / rpm / apk 负责文件落位，`systemctl enable --now fast-https` 负责常驻。1.5.0 起不再提供 `install` / `uninstall` 子命令，老用户改用包管理器即可。
 
 ### 10.1 帮助信息的语言
@@ -521,7 +517,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 
 | 现象 | 原因与处理 |
 | --- | --- |
-| 启动或 `check` 报 `ssl_certificate not found` | `listen` 含 `ssl` 时证书文件必须存在。`start` 会用本地 CA 自动生成 `config/cert/<server_name>.pem`，`check` 不生成，所以新装的目录先跑一次 `start`；路径与 `server_name` 不一致时改成实际路径或绝对路径 |
+| 启动或 `reload` 报 `ssl_certificate not found` | `listen` 含 `ssl` 时证书文件必须存在。`start` 会用本地 CA 自动生成 `config/cert/<server_name>.pem`，`reload` 不生成，所以新装的目录先跑一次 `start`；路径与 `server_name` 不一致时改成实际路径或绝对路径 |
 | 启动报 `listen: port already in use` | 端口被占用，换端口或先释放 |
 | 配置校验通过但访问 404 | 检查 `root` 是相对路径时的实际解析位置，确认 `server_name` 与请求 `Host` 一致 |
 | 反向代理返回 404 或落到静态分支 | `proxy_pass` 缺少 `http://` / `https://` 前缀，被当作 `local` 处理 |

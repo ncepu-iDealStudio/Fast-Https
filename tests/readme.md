@@ -184,7 +184,7 @@ HTTP/2：协议栈由 `golang.org/x/net/http2` 承担，`tests/client_test` 的 
 
 依赖边界：`core/deps_test.go` 的 `TestCoreDoesNotImportFeaturePackages` 检查 `core/...` 不导入 `modules` 下的功能包，现有例外列在 `coreImportAllowlist` 中，只能删减。
 
-`check`：`TestCheckFileAcceptsValidConfig` 和 `TestCheckFileRejectsInvalidConfig` 只校验临时配置，不监听。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `runtime/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
+配置校验：`TestValidateConfigAcceptsValidConfig` 和 `TestValidateConfigRejectsInvalidConfig` 只校验临时配置，不监听；`TestReloadStopsOnInvalidConfig` 保证 `reload` 在配置写坏时不发信号。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `runtime/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
 
 示例：
 

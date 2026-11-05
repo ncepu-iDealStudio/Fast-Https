@@ -60,17 +60,8 @@ fi
 
 echo "=== 迁移后配置可用 ==="
 if fast-https config path --json >/tmp/paths.log 2>&1; then pass "config path"; else bad "config path"; cat /tmp/paths.log; fi
-if fast-https check >/tmp/check.log 2>&1; then
-    pass "check 通过（迁移后的配置可加载）"
-else
-    echo "INFO  check 输出：$(tail -3 /tmp/check.log | tr '\n' ' ')"
-    if grep -q 'ssl_certificate' /tmp/check.log; then
-        pass "check 仅缺首次启动才会生成的自签证书（预期）"
-    else
-        bad "check 失败且与证书无关"
-    fi
-fi
-if start_server; then pass "迁移后服务可启动并监听 443"; else bad "迁移后服务启动失败"; fi
+# 不再单独校验：start 的预检就是同一项检查，能起来说明迁移后的配置可加载。
+if start_server; then pass "迁移后服务可启动并监听 443（启动预检已校验配置）"; else bad "迁移后服务启动失败"; fi
 hit
 if [ -s /var/log/fast-https/access.log ]; then pass "迁移后服务可正常写日志"; else bad "迁移后无访问日志"; fi
 

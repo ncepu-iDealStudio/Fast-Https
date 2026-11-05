@@ -52,11 +52,6 @@ func commandList() []command {
 			handler:     statusHandler,
 		},
 		{
-			name:        "check",
-			description: t("校验配置但不监听端口", "to validate config without listening"),
-			handler:     checkHandler,
-		},
-		{
 			name:        "version",
 			description: t("打印版本号", "print the version"),
 			register:    newVersionCmd,
@@ -321,11 +316,23 @@ func waitProcessGone(pid int, timeout time.Duration) bool {
 // 返回:
 // - error: 如果发生错误，则返回错误信息；否则返回 nil。
 func ReloadHandler() error {
+	return reload(config.CONFIG_FILE_PATH, config.PID_FILE)
+}
 
-	pid, err := readPid(config.PID_FILE)
+// reload 先校验配置再发信号。
+//
+// 校验放在客户端做有两点好处：配置写坏时不去惊动正在服务的进程，以及把原因
+// 直接说到终端上——否则只有 daemon.log 里一行「reload kept previous config」，
+// 用户看到的是 reload 成功退出却什么都没变。
+func reload(configPath, pidPath string) error {
+	if err := validateConfig(configPath); err != nil {
+		return fmt.Errorf("配置未通过校验，已保留运行中的配置：%w", err)
+	}
+
+	pid, err := readPid(pidPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			logging.ConsoleLog.Info().Msg("fast-https is not running, nothing to reload")
+			logging.ConsoleLog.Info().Msg("fast-https is not running, nothing to reload (config ok)")
 		} else {
 			logging.ConsoleLog.Warn().Msgf("read pid file failed: %v", err)
 		}
@@ -334,8 +341,8 @@ func ReloadHandler() error {
 
 	// 残留 pid 文件（进程已退出）时提示「没在跑」并清理，不要对着死 pid 发信号。
 	if !processRunning(pid) {
-		_ = os.Remove(config.PID_FILE)
-		logging.ConsoleLog.Info().Msgf("fast-https is not running, nothing to reload (stale pid %d)", pid)
+		_ = os.Remove(pidPath)
+		logging.ConsoleLog.Info().Msgf("fast-https is not running, nothing to reload (stale pid %d, config ok)", pid)
 		return nil
 	}
 
@@ -352,17 +359,10 @@ func ReloadHandler() error {
 	return nil
 }
 
-// CheckFile validates one config file and its includes. It does not listen or write a pid file.
-func CheckFile(path string) error {
-	if err := config.ValidateConfigFile(path); err != nil {
-		return err
-	}
-	fmt.Println("config ok")
-	return nil
-}
-
-func checkHandler() error {
-	return CheckFile(config.CONFIG_FILE_PATH)
+// validateConfig 用主配置同一套 schema 校验一个配置文件及其 include，
+// 不监听端口、不写 pid，也不打印任何东西。
+func validateConfig(path string) error {
+	return config.ValidateConfigFile(path)
 }
 
 func statusHandler() error {

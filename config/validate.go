@@ -167,7 +167,7 @@ func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string, requi
 			return fmt.Errorf("%s: ssl listen requires ssl_certificate and ssl_certificate_key", where)
 		}
 		// 新建站点时证书由首次 start 生成，落盘那一步不要求文件已经存在。
-		// 报错里补一句怎么办：装完包先跑 check 是新用户最常见的卡点。
+		// 报错里补一句怎么办：装完包直接 start 是新用户最常见的卡点。
 		if requireCerts && !pathExists(s.SSLCertificate, certBaseDir, rootBaseDir) {
 			return fmt.Errorf("%s: ssl_certificate not found: %s "+
 				"(首次 start 会用本地 CA 生成自签证书，先跑一次 fast-https start；或用 acme 申请后指向生成的证书)",

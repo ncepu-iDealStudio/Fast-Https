@@ -84,7 +84,7 @@ apk add --allow-untrusted fast-https_*.apk   # Alpine</code></pre>
 <p>包装好后的位置按 FHS 分开放：程序 <code>/usr/bin/fast-https</code>，配置与证书 <code>/etc/fast-https/</code>，站点 <code>/usr/share/fast-https/httpdoc/</code>，日志 <code>/var/log/fast-https/</code>，pid <code>/run/fast-https/</code>，服务单元 <code>/usr/lib/systemd/system/fast-https.service</code>，手册页 <code>/usr/share/man/man1/fast-https.1</code>，日志轮转 <code>/etc/logrotate.d/fast-https</code>。启动与查手册：</p>
 <pre><code class="language-bash">systemctl enable --now fast-https
 man fast-https</code></pre>
-<p>随包默认配置同时监听 80 与 <code>443 ssl h2</code>，装完 <code>systemctl enable --now fast-https</code> 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 <code>start</code> 会用本地 CA 生成 <code>/etc/fast-https/cert/&lt;server_name&gt;.pem</code>，在那之前执行 <code>fast-https check</code> 会报 <code>ssl_certificate not found</code>，先跑一次 <code>start</code> 即可。<code>/etc/fast-https/</code>、<code>/var/log/fast-https/</code> 归 root 所有，手工执行 <code>start</code> / <code>check</code> 要用 <code>sudo</code>，普通用户会因为写不了日志而失败。运行期路径由编译期基址决定，可以从任意工作目录执行 <code>fast-https</code>；外部控制面若要知道实际路径，用 <code>fast-https config path --json</code> 读取，不要自己判断装法。</p>
+<p>随包默认配置同时监听 80 与 <code>443 ssl h2</code>，装完 <code>systemctl enable --now fast-https</code> 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 <code>start</code> 会用本地 CA 生成 <code>/etc/fast-https/cert/&lt;server_name&gt;.pem</code>；在那之前 <code>reload</code> 的预检会报 <code>ssl_certificate not found</code>，先跑一次 <code>start</code> 即可。<code>/etc/fast-https/</code>、<code>/var/log/fast-https/</code> 归 root 所有，手工执行 <code>start</code> / <code>reload</code> 要用 <code>sudo</code>，普通用户会因为写不了日志而失败。运行期路径由编译期基址决定，可以从任意工作目录执行 <code>fast-https</code>；外部控制面若要知道实际路径，用 <code>fast-https config path --json</code> 读取，不要自己判断装法。</p>
 <p>从 1.5.0 或更早的包升级时，安装脚本会把 <code>/usr/share/fast-https/config/</code> 下已有的配置与证书复制到 <code>/etc/fast-https/</code>（目标已存在则跳过，旧文件保留不动），确认无误后可手工删除旧目录。</p>
 <h3 id="sec-6">容器</h3>
 <pre><code class="language-bash">docker build -f build/Dockerfile -t fast-https .
@@ -175,7 +175,7 @@ curl -I --http2 -k https://127.0.0.1/  # 确认协商到 HTTP/2</code></pre>
 <p>要点：</p>
 <ul>
 <li><code>ssl</code> 必须配 <code>ssl_certificate</code> 与 <code>ssl_certificate_key</code>，缺一个启动期就报错。</li>
-<li>证书文件不存在时，<code>start</code> 的预检阶段会用本地 CA 生成自签证书（<code>config/cert/&lt;server_name&gt;.pem</code>）；<code>check</code> 不生成证书，所以在第一次 <code>start</code> 之前校验会报 <code>ssl_certificate not found</code>。</li>
+<li>证书文件不存在时，<code>start</code> 的预检阶段会用本地 CA 生成自签证书（<code>config/cert/&lt;server_name&gt;.pem</code>）；<code>reload</code> 的预检不生成证书，所以在第一次 <code>start</code> 之前会报 <code>ssl_certificate not found</code>。</li>
 <li>只有 <code>listen</code> 里写了 <code>h2</code> 的端口才通告 HTTP/2，纯 <code>ssl</code> 端口只走 HTTP/1.1。</li>
 <li>换权威证书有两种方式：把这两个路径改成自己签发的 PEM 后 <code>reload</code>；或者用 7.1 的 ACME 自动签发，签发成功后证书会就地热替换。</li>
 <li>端口冲突时（例如 Windows 上 443 被 IIS 占用）改 <code>listen</code> 里的端口号，或整段删掉这个 server 块。</li>
@@ -186,8 +186,7 @@ curl -I --http2 -k https://127.0.0.1/  # 确认协商到 HTTP/2</code></pre>
 fast-https site list
 fast-https site show blog            # 站点文件原文
 fast-https site show blog --merged   # 合并后的完整 server 块（含默认值）
-fast-https site check blog           # 只校验这个文件；不带名字时校验主配置（含 conf.d）
-fast-https site update blog --tls    # 只改显式传的字段：加 443 ssl h2 与证书路径
+fast-https site init blog --tls      # 同名即更新：只改显式传的字段，加 443 ssl h2 与证书路径
 fast-https site remove blog --yes</code></pre>
 <ul>
 <li><strong>交互式</strong>：<code>fast-https site init</code> 省略名字（或参数不齐）时进向导，一题一屏依次问站点名、监听端口、<code>server_name</code>、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（<code>http://127.0.0.1:8080</code>）；加 <code>--plain</code> 改成逐行问答。标准输入不是终端时自动要求用参数，不会挂起。站点名带不带 <code>.json</code> 都行（<code>blog</code> 与 <code>blog.json</code> 等价，不会生成 <code>blog.json.json</code>）。</li>
@@ -199,9 +198,9 @@ fast-https site remove blog --yes</code></pre>
       --listen 80 --listen &#34;443 ssl h2&#34; --non-interactive</code></pre>
 <p>加载时这个块会展开成&#34;一块一个端口&#34;的两个 server 块，<code>server_name</code>、location 与证书共用；<code>site list</code> 的 LISTEN 列显示为 <code>80, 443 ssl h2</code>。</p>
 <ul>
-<li><strong>TLS 站点</strong>：<code>--tls</code> 保证至少有一个 TLS 监听，且不会把 <code>ssl</code> 贴到 80 上。不给 <code>--listen</code> 时生成 <code>[&#34;80&#34;, &#34;443 ssl h2&#34;]</code>；给了 <code>--listen</code> 时写什么用什么，只把非 80 的那条补成 <code>ssl h2</code>（<code>--listen 80 --tls</code> 仍是 <code>80</code> + <code>443 ssl h2</code>）。证书默认路径是 <code>config/cert/&lt;server_name&gt;.pem</code> 与 <code>-key.pem</code>，由首次 <code>start</code> 生成；在那之前 <code>site check</code> 会报 <code>ssl_certificate not found</code>（与主配置一致）。</li>
+<li><strong>TLS 站点</strong>：<code>--tls</code> 保证至少有一个 TLS 监听，且不会把 <code>ssl</code> 贴到 80 上。不给 <code>--listen</code> 时生成 <code>[&#34;80&#34;, &#34;443 ssl h2&#34;]</code>；给了 <code>--listen</code> 时写什么用什么，只把非 80 的那条补成 <code>ssl h2</code>（<code>--listen 80 --tls</code> 仍是 <code>80</code> + <code>443 ssl h2</code>）。证书默认路径是 <code>config/cert/&lt;server_name&gt;.pem</code> 与 <code>-key.pem</code>，由首次 <code>start</code> 生成；在那之前 <code>reload</code> 的预检会报 <code>ssl_certificate not found</code>（与主配置一致）。</li>
 <li><strong>写入安全</strong>：先生成 <code>.tmp</code>，用主配置同一套 schema 校验通过后才 rename；同名文件已存在时要求 <code>--force</code>。</li>
-<li><strong>生效方式</strong>：命令只写文件并提示 <code>fast-https check</code> → <code>fast-https reload</code>，不自动重载。</li>
+<li><strong>生效方式</strong>：命令只写文件并提示 <code>fast-https reload</code>（reload 会先校验配置），不自动重载。</li>
 </ul>
 <h3 id="sec-13">4.5 停止</h3>
 <pre><code class="language-bash">./fast-https stop</code></pre>
@@ -259,7 +258,7 @@ fast-https site remove blog --yes</code></pre>
 <tr><td><code>proxy_cache</code></td><td>代理缓存，见 6.5</td></tr>
 <tr><td><code>zip</code></td><td>响应压缩，取值 <code>gzip</code>、<code>br</code>，可同时配置</td></tr>
 <tr><td><code>limit</code></td><td><code>mem</code>、<code>rate</code>、<code>burst</code>、<code>nodelay</code></td></tr>
-<tr><td><code>auth</code></td><td><code>{&#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;...&#34;, &#34;pswd&#34;: &#34;...&#34;, &#34;realm&#34;: &#34;...&#34;}</code>。只支持 <code>basic</code>，写了 <code>type</code> 就必须同时写 <code>user</code> 与 <code>pswd</code>（缺任何一项 <code>check</code> 报错）；<code>realm</code> 可选，留空时用站点名</td></tr>
+<tr><td><code>auth</code></td><td><code>{&#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;...&#34;, &#34;pswd&#34;: &#34;...&#34;, &#34;realm&#34;: &#34;...&#34;}</code>。只支持 <code>basic</code>，写了 <code>type</code> 就必须同时写 <code>user</code> 与 <code>pswd</code>（缺任何一项校验就报错）；<code>realm</code> 可选，留空时用站点名</td></tr>
 <tr><td><code>appfirewall</code></td><td>应用防火墙开关，例如 <code>[&#34;xss&#34;, &#34;sqli&#34;]</code></td></tr>
 <tr><td><code>error_page</code></td><td><code>{&#34;not_found&#34;: &#34;./httpdoc/404.html&#34;, &#34;proxy&#34;: &#34;./httpdoc/502.html&#34;}</code></td></tr>
 <tr><td><code>allow_methods</code></td><td>只允许列出的方法，例如 <code>[&#34;GET&#34;, &#34;HEAD&#34;]</code>；越界返回 405 并带 <code>Allow</code> 头。缺省不限制，<code>HEAD</code> 随 <code>GET</code> 自动放行</td></tr>
@@ -435,16 +434,13 @@ fast-https site remove blog --yes</code></pre>
 <tbody>
 <tr><td><code>start</code></td><td>以守护进程方式启动（无参数等同此命令）；容器与 systemd 托管、或设了 <code>FASTHTTPS_FOREGROUND=1</code> 时保持前台</td></tr>
 <tr><td><code>stop</code></td><td>停止服务</td></tr>
-<tr><td><code>reload</code></td><td>校验配置后热重载，失败时保留旧配置</td></tr>
+<tr><td><code>reload</code></td><td>先校验配置，通过才发信号热重载；校验失败直接返回原因，运行中的配置保持不动</td></tr>
 <tr><td><code>status</code></td><td>读 pid 文件，进程存在返回 0，否则非 0</td></tr>
-<tr><td><code>check</code></td><td>只校验配置，不监听端口、不写 pid</td></tr>
 <tr><td><code>version</code></td><td>打印版本号，输出一行 <code>fast-https &lt;版本&gt;</code></td></tr>
 <tr><td><code>site init [name]</code></td><td>在 <code>http.include</code> 目录下生成 <code>&lt;name&gt;.json</code>（交互向导或 <code>--listen/--server-name/--type/--proxy-pass/--tls</code>；<code>--listen</code> 可重复以生成多端口站点）</td></tr>
 <tr><td><code>site list</code></td><td>列出站点文件、监听、<code>server_name</code> 与 location 类型</td></tr>
-<tr><td><code>site check [name]</code></td><td>校验主配置（含 conf.d），带名字时只校验该文件</td></tr>
-<tr><td><code>site update &lt;name&gt;</code></td><td>改已有站点：只应用显式传入的 flag，其余字段与手写的 location 保持不变</td></tr>
-<tr><td><code>site show &lt;name&gt;</code></td><td>打印站点文件原文；<code>--merged</code> 打印合并后的完整字段</td></tr>
-<tr><td><code>site remove &lt;name&gt;</code></td><td>删除站点文件，需要 <code>--yes</code></td></tr>
+<tr><td><code>site show &lt;name&gt;</code></td><td>打印站点文件原文；加 <code>--merged</code> 输出合并后的完整 server 块</td></tr>
+<tr><td><code>site remove &lt;name&gt;</code></td><td>删除站点文件（需要 <code>--yes</code>）</td></tr>
 <tr><td><code>acme</code></td><td>交互式配置 ACME：问邮箱、CA、挑战方式，写回 <code>acme</code> 段</td></tr>
 <tr><td><code>acme setup</code></td><td>同 <code>acme</code>，可用 <code>--email</code>、<code>--ca</code>、<code>--challenge</code> 等 flags 非交互执行</td></tr>
 <tr><td><code>acme show</code></td><td>打印生效的 ACME 配置（EAB 私钥脱敏）与会申请证书的域名</td></tr>
@@ -453,7 +449,7 @@ fast-https site remove blog --yes</code></pre>
 <p>三点行为需要留意：</p>
 <ul>
 <li><code>SIGINT</code>（<code>Ctrl+C</code>）在各平台都是<strong>重载配置</strong>，前台运行也一样；停止用 <code>SIGTERM</code>、<code>SIGQUIT</code> 或 <code>stop</code> 命令。</li>
-<li><code>check</code> 通过时打印 <code>config ok</code> 并以 0 退出；<code>start</code> 的预检会做同一项校验。</li>
+<li><code>start</code> 与 <code>reload</code> 都会先校验配置：失败直接停下并说明原因，<code>reload</code> 此时不动运行中的配置。</li>
 <li>安装与卸载不走二进制：deb / rpm / apk 负责文件落位，<code>systemctl enable --now fast-https</code> 负责常驻。1.5.0 起不再提供 <code>install</code> / <code>uninstall</code> 子命令，老用户改用包管理器即可。</li>
 </ul>
 <h3 id="sec-32">10.1 帮助信息的语言</h3>
@@ -470,7 +466,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <table>
 <thead><tr><th>现象</th><th>原因与处理</th></tr></thead>
 <tbody>
-<tr><td>启动或 <code>check</code> 报 <code>ssl_certificate not found</code></td><td><code>listen</code> 含 <code>ssl</code> 时证书文件必须存在。<code>start</code> 会用本地 CA 自动生成 <code>config/cert/&lt;server_name&gt;.pem</code>，<code>check</code> 不生成，所以新装的目录先跑一次 <code>start</code>；路径与 <code>server_name</code> 不一致时改成实际路径或绝对路径</td></tr>
+<tr><td>启动或 <code>reload</code> 报 <code>ssl_certificate not found</code></td><td><code>listen</code> 含 <code>ssl</code> 时证书文件必须存在。<code>start</code> 会用本地 CA 自动生成 <code>config/cert/&lt;server_name&gt;.pem</code>，<code>reload</code> 不生成，所以新装的目录先跑一次 <code>start</code>；路径与 <code>server_name</code> 不一致时改成实际路径或绝对路径</td></tr>
 <tr><td>启动报 <code>listen: port already in use</code></td><td>端口被占用，换端口或先释放</td></tr>
 <tr><td>配置校验通过但访问 404</td><td>检查 <code>root</code> 是相对路径时的实际解析位置，确认 <code>server_name</code> 与请求 <code>Host</code> 一致</td></tr>
 <tr><td>反向代理返回 404 或落到静态分支</td><td><code>proxy_pass</code> 缺少 <code>http://</code> / <code>https://</code> 前缀，被当作 <code>local</code> 处理</td></tr>
