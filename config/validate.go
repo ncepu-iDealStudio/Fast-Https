@@ -45,8 +45,6 @@ func ValidateConfigFile(configPath string) error {
 	if err := root.Security.validate(); err != nil {
 		return err
 	}
-	// http-01 需要对外暴露 80 端口，但也可能由前置反代转发，因此只告警不阻断。
-	root.Acme.warnHTTP01WithoutPort80(root.HTTP.Servers)
 
 	serverCount := len(root.HTTP.Servers)
 	for i := range root.HTTP.Servers {
@@ -62,24 +60,45 @@ func ValidateConfigFile(configPath string) error {
 	}
 	// 站点允许只写在 include 目录里，主配置不出现 http.server；
 	// 但整体一个站点都没有就等于没配服务。
-	if serverCount+includeServers == 0 {
+	if serverCount+len(includeServers) == 0 {
 		return errors.New("no server configured: add http.server or a server file under http.include")
 	}
+
+	// http-01 需要对外暴露 80 端口，但也可能由前置反代转发，因此只告警不阻断。
+	// 判断范围必须包含 include 里的站点：站点通常只写在 conf.d，只看 http.server
+	// 会对"80 明明在听"的配置误报，反而把真正的配置问题盖掉。
+	allServers := make([]jsonServer, 0, serverCount+len(includeServers))
+	allServers = append(allServers, root.HTTP.Servers...)
+	allServers = append(allServers, includeServers...)
+	root.Acme.warnHTTP01WithoutPort80(allServers)
 	return nil
 }
 
-// validateIncludes 校验 include 目录/文件，返回其中有效的 server 块数量。
-func validateIncludes(includes []string, rootBaseDir string) (int, error) {
+// validateIncludes 校验 include 目录/文件，返回解析后的 server 块。
+// 返回值给 http-01 端口判断用：只看主配置会漏掉写在 conf.d 里的站点。
+func validateIncludes(includes []string, rootBaseDir string) ([]jsonServer, error) {
 	files, err := includeFiles(includes)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
+	servers := make([]jsonServer, 0, len(files))
 	for _, path := range files {
-		if err := validateIncludeServerFile(path, rootBaseDir); err != nil {
-			return 0, err
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read include file failed: %w", err)
 		}
+
+		var s jsonServer
+		if err := unmarshalConfig(content, &s); err != nil {
+			return nil, fmt.Errorf("parse include json failed (%s): %w", path, err)
+		}
+
+		if err := validateServer(&s, filepath.Dir(path), rootBaseDir, path, true); err != nil {
+			return nil, err
+		}
+		servers = append(servers, s)
 	}
-	return len(files), nil
+	return servers, nil
 }
 
 // includeFiles 把 http.include 展开成具体的 .json 文件列表：目录递归收集，
@@ -123,21 +142,6 @@ func includeFiles(includes []string) ([]string, error) {
 	return files, nil
 }
 
-func validateIncludeServerFile(includeFilePath, rootBaseDir string) error {
-	content, err := os.ReadFile(includeFilePath)
-	if err != nil {
-		return fmt.Errorf("read include file failed: %w", err)
-	}
-
-	var s jsonServer
-	if err := unmarshalConfig(content, &s); err != nil {
-		return fmt.Errorf("parse include json failed (%s): %w", includeFilePath, err)
-	}
-
-	fileBaseDir := filepath.Dir(includeFilePath)
-	return validateServer(&s, fileBaseDir, rootBaseDir, includeFilePath, true)
-}
-
 // validateServer 校验一个 server 块（主配置数组元素或 include 文件）。
 func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string, requireCerts bool) error {
 	if len(s.Listen) == 0 {
@@ -163,11 +167,15 @@ func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string, requi
 			return fmt.Errorf("%s: ssl listen requires ssl_certificate and ssl_certificate_key", where)
 		}
 		// 新建站点时证书由首次 start 生成，落盘那一步不要求文件已经存在。
+		// 报错里补一句怎么办：装完包先跑 check 是新用户最常见的卡点。
 		if requireCerts && !pathExists(s.SSLCertificate, certBaseDir, rootBaseDir) {
-			return fmt.Errorf("%s: ssl_certificate not found: %s", where, s.SSLCertificate)
+			return fmt.Errorf("%s: ssl_certificate not found: %s "+
+				"(首次 start 会用本地 CA 生成自签证书，先跑一次 fast-https start；或用 acme 申请后指向生成的证书)",
+				where, s.SSLCertificate)
 		}
 		if requireCerts && !pathExists(s.SSLCertificateKey, certBaseDir, rootBaseDir) {
-			return fmt.Errorf("%s: ssl_certificate_key not found: %s", where, s.SSLCertificateKey)
+			return fmt.Errorf("%s: ssl_certificate_key not found: %s "+
+				"(首次 start 会用本地 CA 生成自签证书，先跑一次 fast-https start)", where, s.SSLCertificateKey)
 		}
 	}
 
