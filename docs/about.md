@@ -65,7 +65,9 @@ flowchart TD
 4. 从磁盘加载代理缓存，并启动定期过期清理 goroutine。
 安全模块不在这里初始化。`cmd.RegisterServices` 把 `safe.Init` 交给 `core.Services.AfterListen`。`ServerInit()` 创建监听器之后调用它，重载成功后会再调用一次，按当前 location 重建限流计数。
 
-ACME 证书管理器同样挂在 `AfterListen`（`certmanager.Start`）：必须等监听建立、自签证书就位之后再开始后台申请，否则首次握手会被证书申请阻塞。`RegisterServices` 里的 `certmanager.Wire` 只做钩子注入——`HandleEarlyRequest` 用于 `http-01` 应答，`listener.RegisterTLSALPNProvider` 用于 `tls-alpn-01` 握手；`acme.enabled` 为假时两者都不挂。
+ACME 证书管理器同样挂在 `AfterListen`（`certmanager.Reconcile`）：必须等监听建立、自签证书就位之后再开始后台申请，否则首次握手会被证书申请阻塞。启动与 reload 走同一个入口——reload 时按 `acme` 段差异决定是否停旧起新，配置没变就不打断 certmagic 的续期调度。
+
+挑战应答靠两个数据面钩子：`core.Services.HandleEarlyRequest` 负责 `http-01`，`listener.RegisterTLSALPNProvider` 负责 `tls-alpn-01` 握手；`acme.enabled` 为假时两者都不挂。它们在 `core.Services.BeforeListenReload`（`certmanager.ReconcileHooks`）里按新配置重新对齐，必须早于监听器重载——`listenSsl` 构造 `tls.Config` 时读 `TLSALPNEnabled()`，晚了新建的监听器就不会通告 `acme-tls/1`。
 
 ### 3.3 配置来源和路径
 

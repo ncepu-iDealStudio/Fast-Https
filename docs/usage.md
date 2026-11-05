@@ -392,7 +392,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 
 ### 7.1 ACME 自动签发
 
-不想手写这段 JSON 时，跑 `fast-https acme` 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 `acme` 段，其余配置与注释原样保留。向导的默认值取自当前配置（邮箱、CA、挑战方式、续期天数、缓存目录、回落开关），回车即保留原值，不会退回出厂默认；确认页的摘要也是答完题之后才生成，显示的是这次要写入的内容。不喜欢全屏表单就加 `--plain` 改成逐行问答；脚本里则用 `fast-https acme setup --email you@example.com --non-interactive` 全走参数。改完需要重启进程，`reload` 不会重建 ACME 管理器。
+不想手写这段 JSON 时，跑 `fast-https acme` 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 `acme` 段，其余配置与注释原样保留。向导的默认值取自当前配置（邮箱、CA、挑战方式、续期天数、缓存目录、回落开关），回车即保留原值，不会退回出厂默认；确认页的摘要也是答完题之后才生成，显示的是这次要写入的内容。不喜欢全屏表单就加 `--plain` 改成逐行问答；脚本里则用 `fast-https acme setup --email you@example.com --non-interactive` 全走参数。改完执行 `fast-https reload` 即可生效，不需要重启进程。
 
 ```json
 "acme": {
@@ -525,7 +525,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 | 启用 ACME 后仍是自签证书 | 查日志里的 `acme:` 告警：域名是否解析到本机、80/443 是否可达、CA 是否限速。失败期间服务继续用自签证书，按退避自动重试 |
 | 访问返回 421 | `security.host_check` 是 `enforce`，且请求的 `Host` 没命中任何 `server_name`。核对 `server_name`，或改成 `warn` / `off` |
 | 访问返回 405 | 该 location 配了 `allow_methods`。响应的 `Allow` 头列出允许的方法；`HEAD` 只在允许 `GET` 时自动放行 |
-| 修改配置后不生效 | 执行 `reload`；`acme` 段只在启动时读取，改完必须重启 |
+| 修改配置后不生效 | 执行 `reload`；看日志里是 `acme: manager restarted (reason: ...)` 还是 `kept previous manager, new config is unusable` |
 | 日志没有写到新目录 | 新 `log_root` 打不开时程序继续写原文件，检查目录权限 |
 
 ## 13. 已知限制
@@ -533,7 +533,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 | 项 | 说明 |
 | --- | --- |
 | ACME 通配符与 IP 证书 | 只实现 `http-01` 与 `tls-alpn-01`，通配符需要 `dns-01`，这类 `server_name` 不会发起申请，继续用自签证书 |
-| ACME 配置热更新 | `reload` 后不会重建 ACME 管理器，改动 `acme` 段需要重启进程 |
+| ACME 管理器重建窗口 | 配置差异触发重建时，旧实例已停、新实例的挑战 token 还没写入，这个毫秒级空窗里恰好来验证会失败一次，由 certmagic 退避重试；配置没变的 `reload` 不重建，不受影响 |
 | `engine` 配置段 | 主从注册的预留字段，当前不参与运行逻辑 |
 | 上游故障转移 | 未实现，单个上游不可用时直接返回错误页 |
 | 配置文件自动重载 | 暂不支持，监听文件变化后自动 reload 仍未排期 |

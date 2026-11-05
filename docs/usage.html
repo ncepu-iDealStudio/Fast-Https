@@ -356,7 +356,7 @@ fast-https site remove blog --yes</code></pre>
 <li><strong>外部签发</strong>：仍可用 certbot 等外部工具签发，把 <code>fullchain.pem</code> 与私钥路径填进 <code>ssl_certificate</code> / <code>ssl_certificate_key</code>。</li>
 </ul>
 <h3 id="sec-28">7.1 ACME 自动签发</h3>
-<p>不想手写这段 JSON 时，跑 <code>fast-https acme</code> 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 <code>acme</code> 段，其余配置与注释原样保留。向导的默认值取自当前配置（邮箱、CA、挑战方式、续期天数、缓存目录、回落开关），回车即保留原值，不会退回出厂默认；确认页的摘要也是答完题之后才生成，显示的是这次要写入的内容。不喜欢全屏表单就加 <code>--plain</code> 改成逐行问答；脚本里则用 <code>fast-https acme setup --email you@example.com --non-interactive</code> 全走参数。改完需要重启进程，<code>reload</code> 不会重建 ACME 管理器。</p>
+<p>不想手写这段 JSON 时，跑 <code>fast-https acme</code> 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 <code>acme</code> 段，其余配置与注释原样保留。向导的默认值取自当前配置（邮箱、CA、挑战方式、续期天数、缓存目录、回落开关），回车即保留原值，不会退回出厂默认；确认页的摘要也是答完题之后才生成，显示的是这次要写入的内容。不喜欢全屏表单就加 <code>--plain</code> 改成逐行问答；脚本里则用 <code>fast-https acme setup --email you@example.com --non-interactive</code> 全走参数。改完执行 <code>fast-https reload</code> 即可生效，不需要重启进程。</p>
 <pre><code class="language-json">&#34;acme&#34;: {
   &#34;enabled&#34;: true,
   &#34;email&#34;: &#34;ops@example.com&#34;,
@@ -474,7 +474,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <tr><td>启用 ACME 后仍是自签证书</td><td>查日志里的 <code>acme:</code> 告警：域名是否解析到本机、80/443 是否可达、CA 是否限速。失败期间服务继续用自签证书，按退避自动重试</td></tr>
 <tr><td>访问返回 421</td><td><code>security.host_check</code> 是 <code>enforce</code>，且请求的 <code>Host</code> 没命中任何 <code>server_name</code>。核对 <code>server_name</code>，或改成 <code>warn</code> / <code>off</code></td></tr>
 <tr><td>访问返回 405</td><td>该 location 配了 <code>allow_methods</code>。响应的 <code>Allow</code> 头列出允许的方法；<code>HEAD</code> 只在允许 <code>GET</code> 时自动放行</td></tr>
-<tr><td>修改配置后不生效</td><td>执行 <code>reload</code>；<code>acme</code> 段只在启动时读取，改完必须重启</td></tr>
+<tr><td>修改配置后不生效</td><td>执行 <code>reload</code>；看日志里是 <code>acme: manager restarted (reason: ...)</code> 还是 <code>kept previous manager, new config is unusable</code></td></tr>
 <tr><td>日志没有写到新目录</td><td>新 <code>log_root</code> 打不开时程序继续写原文件，检查目录权限</td></tr>
 </tbody>
 </table>
@@ -483,7 +483,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <thead><tr><th>项</th><th>说明</th></tr></thead>
 <tbody>
 <tr><td>ACME 通配符与 IP 证书</td><td>只实现 <code>http-01</code> 与 <code>tls-alpn-01</code>，通配符需要 <code>dns-01</code>，这类 <code>server_name</code> 不会发起申请，继续用自签证书</td></tr>
-<tr><td>ACME 配置热更新</td><td><code>reload</code> 后不会重建 ACME 管理器，改动 <code>acme</code> 段需要重启进程</td></tr>
+<tr><td>ACME 管理器重建窗口</td><td>配置差异触发重建时，旧实例已停、新实例的挑战 token 还没写入，这个毫秒级空窗里恰好来验证会失败一次，由 certmagic 退避重试；配置没变的 <code>reload</code> 不重建，不受影响</td></tr>
 <tr><td><code>engine</code> 配置段</td><td>主从注册的预留字段，当前不参与运行逻辑</td></tr>
 <tr><td>上游故障转移</td><td>未实现，单个上游不可用时直接返回错误页</td></tr>
 <tr><td>配置文件自动重载</td><td>暂不支持，监听文件变化后自动 reload 仍未排期</td></tr>

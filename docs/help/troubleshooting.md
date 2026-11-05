@@ -145,7 +145,7 @@ fast-https site update <站点名> --tls
 `./cert/...` 相对于 `/etc/fast-https`；文件不存在时首次 `start` 先出自签，ACME 签发成功后覆盖同一路径并热替换。改完：
 
 ```bash
-fast-https stop && fast-https start   # acme 段只在启动时读取，reload 不够
+fast-https reload   # acme 段随 reload 生效，不需要重启
 fast-https acme show        # 现在应列出 test.jfeng.asia
 ```
 

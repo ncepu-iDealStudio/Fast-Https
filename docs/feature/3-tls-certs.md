@@ -32,7 +32,7 @@
 
 ## ACME 自动签发（modules/certmanager）
 
-配置 `acme.enabled`（手写 JSON，或跑 `fast-https acme` 向导写回）后，`cmd.afterListen` 在监听建立、自签证书就位之后启动管理器，按以下链路工作：
+配置 `acme.enabled`（手写 JSON，或跑 `fast-https acme` 向导写回）后，`cmd.afterListen` 在监听建立、自签证书就位之后对齐管理器（启动与每次 reload 共用 `certmanager.Reconcile`），按以下链路工作：
 
 1. **编排在控制面**：`modules/certmanager` 用 `certmagic` 管证书生命周期（私钥生成、CSR、存储、失败退避重试、到期前续期），签发动作实现为 `certmagic.Issuer`（`caIssuer`），内部用 `acmez` 走 ACME 订单。
 2. **挑战应答在数据面**：
@@ -51,4 +51,4 @@
 
 - 证书路径在主配置中相对工作目录解析，include 文件中相对该文件或主配置（`pathExists` 多候选）。
 - 无 OCSP stapling、无 session ticket 调优。
-- ACME 只支持 `http-01` 与 `tls-alpn-01`；通配符需要 `dns-01`，未实现。`reload` 不重建 ACME 管理器，改 `acme` 段需重启。
+- ACME 只支持 `http-01` 与 `tls-alpn-01`；通配符需要 `dns-01`，未实现。改 `acme` 段不再需要重启：`reload` 会按配置差异重建 ACME 管理器（见 [4-reload.md](4-reload.md)）。

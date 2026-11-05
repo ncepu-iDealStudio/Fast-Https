@@ -117,14 +117,16 @@ fast-https acme setup \
 
 `storage` 的相对路径按配置基址解析：包布局落在 `/etc/fast-https/cert/acme`，归档布局是 `./config/cert/acme`。**与二进制所在目录无关**，`acme show` 会打印实际路径。
 
-### 4.4 重启，不是 reload
+### 4.4 让新配置生效：reload 即可
 
-`acme` 段只在启动时读取，`reload` 不会重建 ACME 管理器：
+`acme` 段在 reload 时随配置快照一起对齐，不需要重启进程：
 
 ```bash
-fast-https stop && fast-https start
-# 或 systemctl restart fast-https
+fast-https reload
+# 或 systemctl reload fast-https
 ```
+
+只有配置真的变了才会重建 ACME 管理器，日志会写明原因（`acme: manager restarted ... (reason: renew_before_days)`）；配置没变时不打断正在进行的续期。
 
 ### 4.5 确认真的在申请
 
@@ -244,6 +246,6 @@ curl -v http://test.jfeng.asia/.well-known/acme-challenge/ping
 fast-https site update jfeng.com --tls                  # 1. 站点加 443 ssl
 fast-https acme setup --email you@example.com --non-interactive   # 2. 写 acme 段
 fast-https acme show                                    # 3. 域名进了列表？
-fast-https stop && fast-https start                     # 4. 重启（不能 reload）
+fast-https reload                                       # 4. 让 acme 段生效
 sudo tail -f /var/log/fast-https/system.log | grep -i acme        # 5. 等 requesting certificate
 ```
