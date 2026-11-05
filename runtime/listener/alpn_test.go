@@ -1,7 +1,9 @@
 package listener
 
 import (
+	"context"
 	"crypto/tls"
+	"fast-https/config"
 	"os"
 	"testing"
 )
@@ -126,6 +128,69 @@ func TestACMEProtoAdvertisedOnlyWhenProviderRegistered(t *testing.T) {
 
 	if got := negotiateProto(t, ln2.Addr().String(), []string{ACMEALPNProto}); got != ACMEALPNProto {
 		t.Fatalf("negotiated protocol = %q, want %q", got, ACMEALPNProto)
+	}
+}
+
+// TestNeedsRebuildWhenALPNAdvertisementFlips 覆盖 reload 的重建判定。
+// tls.Config 的 NextProtos 建好后改不了，所以 acme-tls/1 的通告位一变，
+// 这个端口就必须换监听器，而不是只热更新配置。
+func TestNeedsRebuildWhenALPNAdvertisementFlips(t *testing.T) {
+	t.Cleanup(func() { RegisterTLSALPNProvider(nil) })
+	RegisterTLSALPNProvider(nil)
+
+	before := &Listener{LisType: 1, Port: "18443", alpnACMESnapshot: TLSALPNEnabled()}
+	if before.needsRebuild(&Listener{LisType: 1, Port: "18443"}) {
+		t.Fatal("same listen type and same ALPN advertisement should reuse the listener")
+	}
+
+	// ACME 打开 tls-alpn-01：provider 就位，通告位从此不同。
+	RegisterTLSALPNProvider(func(*tls.ClientHelloInfo) (*tls.Certificate, bool) { return nil, false })
+	if !before.needsRebuild(&Listener{LisType: 1, Port: "18443"}) {
+		t.Fatal("flipped acme-tls/1 advertisement must rebuild the TLS listener")
+	}
+
+	// 纯 HTTP 端口没有 NextProtos 可换：ACME 打开 tls-alpn-01 不该牵连 80。
+	if (&Listener{LisType: 0}).needsRebuild(&Listener{LisType: 0}) {
+		t.Fatal("plain HTTP listener must not rebuild when acme-tls/1 is enabled")
+	}
+
+	// 监听类型变化一直都要重建。
+	if !(&Listener{LisType: 0}).needsRebuild(&Listener{LisType: 1}) {
+		t.Fatal("listen type change must rebuild the listener")
+	}
+}
+
+// TestReloadKeepsListenerWhenALPNUnchanged 确认通告位没变时沿用旧 *Listener：
+// reload 不该顺手重建 TLS 监听器（重建会让端口短暂不可用）。
+func TestReloadKeepsListenerWhenALPNUnchanged(t *testing.T) {
+	origServers := config.Current().Servers
+	t.Cleanup(func() { config.Current().Servers = origServers })
+	config.Current().Servers = []config.Server{{
+		Listen:     "18443 ssl",
+		ServerName: "a.example",
+		Path:       []config.Path{{PathName: "/", PathType: config.LOCAL, Root: "."}},
+	}}
+
+	origListeners := GLisinfos
+	t.Cleanup(func() { setListeners(origListeners) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	old := &Listener{
+		Port:             "18443",
+		LisType:          1,
+		Ctx:              ctx,
+		Cancel:           cancel,
+		alpnACMESnapshot: TLSALPNEnabled(),
+	}
+	setListeners([]*Listener{old})
+
+	all, added, removed := ReloadListenCfg()
+	if len(added) != 0 || len(removed) != 0 {
+		t.Fatalf("added=%d removed=%d, want 0/0", len(added), len(removed))
+	}
+	if len(all) != 1 || all[0] != old {
+		t.Fatal("unchanged ALPN advertisement should reuse the existing listener")
 	}
 }
 

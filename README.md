@@ -48,7 +48,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 | TLS 证书 | 每个 `server_name` 独立证书；同一 SSL 端口 `reload` 时热替换证书、不重新绑定端口；证书自动配置：缺少证书文件时启动前生成自签名证书，配置 ACME 后自动申请并续期受信任证书（Let's Encrypt 等，`fast-https acme` 向导） |
 | HTTP/2 | `listen` 含 `h2` 时启用，ALPN 协商、HPACK、流状态机与流量控制由 `golang.org/x/net/http2` 处理，重载时发 GOAWAY 优雅关闭 |
 | 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
-| 运维 | `start` / `stop` / `reload` / `status` / `check` / `dev`；热重载不断开已有连接；`check` 只校验配置不监听端口 |
+| 运维 | `start` / `stop` / `reload` / `status`；热重载不断开已有连接；`start` 与 `reload` 都先校验配置 |
 | 日志 | `logs/` 下 system、access、error、safe 四路 JSON 日志，每条带 `kind` 与 RFC3339 时间，重载后重新打开文件 |
 | 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；Windows 附带托盘程序 |
 
@@ -76,7 +76,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 | 静态站点 | `root` / `index` / `try` 类配置 | `root` / `index` / `try` 字段，含 304、206/416 与斜杠 301 |
 | 反向代理 | 多上游、超时与缓冲指令齐全 | 每个 location 一个上游，含连接池、响应缓存与 WebSocket |
 | HTTP/2 | 取决于版本与编译模块 | `listen` 加 `h2` 即启用 |
-| 配置预检 | 有独立校验入口 | `check` 子命令，不监听端口、不写 pid |
+| 配置预检 | 有独立校验入口 | 不设独立子命令：`start` 预检与 `reload` 发信号前都走同一套校验，失败直接报原因 |
 | 优雅停止 | 停止接受并等待在途请求 | `SIGTERM` / `SIGQUIT`，最多等 5 秒 |
 | 证书热替换 | 重载配置后生效 | `reload` 在同一端口换证，不重新绑定 |
 | 扩展方式 | 模块与第三方插件生态 | 内置固定功能集，不加载动态模块 |
@@ -164,11 +164,10 @@ curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
 | 命令 | 作用 |
 | --- | --- |
 | `./fast-https start` | 启动（无参数等同 `start`）。Linux / macOS 转后台，容器与 systemd 托管时保持前台 |
-| `./fast-https dev` | 前台启动，日志级别 6，并在 `0.0.0.0:10000` 打开 pprof |
 | `./fast-https stop` | 停止。Unix 发 `SIGTERM` 优雅停机，重复执行视为已停止 |
 | `./fast-https reload` | 校验配置后热重载，失败保留旧配置 |
 | `./fast-https status` | 读 pid 文件判断是否在运行 |
-| `./fast-https check` | 只校验配置，不监听端口、不写 pid |
+| `./fast-https version` | 打印版本号，输出一行 `fast-https <版本>` |
 | `./fast-https acme` | 交互式配置 ACME 自动签发证书，写回 `acme` 段（改完需重启） |
 | `./fast-https acme show` | 查看当前 ACME 配置与会申请证书的域名 |
 | `./fast-https site init blog` | 在 `config/conf.d/` 下生成一个站点文件（向导，或用参数跳过提问） |
@@ -186,7 +185,7 @@ curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
 
 ### 更新证书需要重启服务吗？
 
-不需要。`reload` 会在同一个监听 socket 上换证，下一次握手即使用新证书，端口不重新绑定，已有连接不受影响。
+不需要。`reload` 会在同一个监听 socket 上换证，下一次握手即使用新证书，端口不重新绑定，已有连接不受影响。改 `acme` 段（邮箱、CA、挑战方式、续期天数）同样只需 `reload`：进程按配置差异重建证书申请任务，只有差异存在时才打断续期，`stop` + `start` 不再是必需步骤。
 
 ### Fast-Https 会自动申请受信任证书吗？
 
@@ -194,7 +193,7 @@ curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
 
 ### 配置写错了会怎样？
 
-`start` 与 `reload` 都会先校验配置。校验失败时 `reload` 保留旧配置与旧监听，`check` 只校验不监听、不写 pid 文件。
+`start` 与 `reload` 都会先校验配置。校验失败时 `reload` 直接返回原因，并保留旧配置与旧监听，终端上能看到具体是哪一行坏了。
 
 ### 支持 Windows 吗？
 
@@ -221,6 +220,7 @@ Fast-Https 自己解析 HTTP/1.1、每个连接一个协程，没有 C 扩展或
 | [docs/usage.md](docs/usage.md) | 仓库内使用文档源文件，生成 `docs/usage.html` 随发行包分发 |
 | [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案 |
 | [docs/develop/](docs/develop/README.md) | 环境构建、测试体系、代码规范、新增配置项、调试、发布 |
+| [docs/help/](docs/help/README.md) | 构建与安装、装完的目录布局、常见问题排查、开发问题日志 |
 | [docs/architecture.html](docs/architecture.html) | 项目架构图（[PNG](docs/images/architecture.png) / [深色 PNG](docs/images/architecture-dark.png)），分层与请求链 |
 | [docs/architecture-map.md](docs/architecture-map.md) | package 盘点与依赖方向 |
 

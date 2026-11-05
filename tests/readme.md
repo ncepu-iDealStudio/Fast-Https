@@ -184,7 +184,7 @@ HTTP/2：协议栈由 `golang.org/x/net/http2` 承担，`tests/client_test` 的 
 
 依赖边界：`core/deps_test.go` 的 `TestCoreDoesNotImportFeaturePackages` 检查 `core/...` 不导入 `modules` 下的功能包，现有例外列在 `coreImportAllowlist` 中，只能删减。
 
-`check`：`TestCheckFileAcceptsValidConfig` 和 `TestCheckFileRejectsInvalidConfig` 只校验临时配置，不监听。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `runtime/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
+配置校验：`TestValidateConfigAcceptsValidConfig` 和 `TestValidateConfigRejectsInvalidConfig` 只校验临时配置，不监听；`TestReloadStopsOnInvalidConfig` 保证 `reload` 在配置写坏时不发信号。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `runtime/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
 
 示例：
 
@@ -311,11 +311,9 @@ go get github.com/stretchr/testify/assert
 
 ### 2.1 特性说明
 
-1. 日志级别设为 6
-2. 在 `0.0.0.0:10000` 打开 pprof
-3. 不进入 Linux 守护进程
-4. 与 `start` 相同，证书缺失时由 `init.CertInit` 生成自签名证书
-5. 配置变更通过 `reload` 子命令或 `SIGINT` 生效。前台 Ctrl+C 会重载，不会退出。启动流程不会监视配置文件
+1. 设了 `FASTHTTPS_FOREGROUND=1` 后不进入 Linux 守护进程，输出直接落在当前终端
+2. 与后台启动相同，证书缺失时由 `init.CertInit` 生成自签名证书
+3. 配置变更通过 `reload` 子命令或 `SIGINT` 生效。前台 Ctrl+C 会重载，不会退出。启动流程不会监视配置文件
 
 ### 2.2 使用方法
 
@@ -337,24 +335,25 @@ Linux/Mac:
 # 在仓库根目录使用开发测试脚本
 ./tests/scripts/dev-test.sh
 
-# 或直接运行
-go run fast-https.go dev
+# 或直接前台运行
+FASTHTTPS_FOREGROUND=1 go run fast-https.go start
 ```
 
 Windows:
 
 ```powershell
 # 使用开发测试脚本
-.\test\scripts\dev-test.ps1
+.\tests\scripts\dev-test.ps1
 
-# 或直接运行
-go run fast-https.go dev
+# 或直接前台运行
+$env:FASTHTTPS_FOREGROUND = "1"; go run fast-https.go start
 ```
 
 #### 配置说明
 
-开发模式与普通模式都使用 `config/fast-https.json` 作为运行时配置文件。
-`go run fast-https.go dev` 与 `start` 读取同一份 JSON，区别只在日志级别与 pprof 端口。
+前台运行与普通模式都使用 `config/fast-https.json` 作为运行时配置文件。
+`go run fast-https.go`（无参数等同 `start`）在仓库根目录直接跑会转后台，本地调试记得带上
+`FASTHTTPS_FOREGROUND=1`，进程才会留在当前终端。
 
 ### 2.3 调试指南
 
@@ -379,22 +378,12 @@ ps aux | grep fast-https
 
 #### 性能分析
 
-1. CPU 分析：
+进程不再暴露 pprof 端口，用基准测试产出 profile：
 
 ```bash
-go tool pprof http://localhost:10000/debug/pprof/profile
-```
-
-1. 内存分析：
-
-```bash
-go tool pprof http://localhost:10000/debug/pprof/heap
-```
-
-1. 协程分析：
-
-```bash
-go tool pprof http://localhost:10000/debug/pprof/goroutine
+go test -run '^$' -bench . -benchmem -cpuprofile cpu.out -memprofile mem.out ./runtime/...
+go tool pprof -top cpu.out
+go tool pprof -top mem.out
 ```
 
 ### 2.4 使用须知

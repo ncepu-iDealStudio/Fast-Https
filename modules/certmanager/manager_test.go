@@ -20,7 +20,7 @@ func TestACMEEnabledServersOnly(t *testing.T) {
 		},
 	}
 
-	got := managedDomains(cfg)
+	got := Plan(cfg).Managed
 	if len(got) != 1 || got[0] != "secure.example" {
 		t.Fatalf("managed domains = %v, want [secure.example]", got)
 	}

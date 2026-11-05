@@ -79,6 +79,11 @@ type Listener struct {
 	Ctx    context.Context
 	Cancel context.CancelFunc
 
+	// alpnACMESnapshot 记录建立这个 TLS 监听器时是否通告 acme-tls/1。
+	// tls.Config 建好后 NextProtos 改不了，reload 只能靠它判断要不要
+	// 重建这一个端口（ACME 开关 tls-alpn-01 时会翻转）。
+	alpnACMESnapshot bool
+
 	certs *certSet
 	cur   atomic.Pointer[listenerSnapshot]
 }
@@ -86,6 +91,34 @@ type Listener struct {
 // publish 把构造好的 Cfg/HostMap 发布为请求路径可见的快照。
 func (l *Listener) publish() {
 	l.cur.Store(&listenerSnapshot{HostMap: l.HostMap, Cfg: l.Cfg})
+}
+
+// openListener 建立该端口的 socket。ssl 端口同时记录建 tls.Config 时的
+// ALPN 通告位，reload 据此判断是否需要重建（NextProtos 建好后改不了）。
+func (l *Listener) openListener() {
+	if l.LisType == 1 || l.LisType == 10 {
+		l.certs = newCertSet()
+		l.alpnACMESnapshot = TLSALPNEnabled()
+		l.Lfd = listenSsl("0.0.0.0:"+l.Port, l.certs, l.Cfg, l.LisType == 10, true)
+		return
+	}
+	l.alpnACMESnapshot = false
+	l.Lfd = listenTcp("0.0.0.0:"+l.Port, true)
+}
+
+// needsRebuild 报告该端口是否必须换一个监听器，而不是只热更新配置。
+// 两种情况要换：监听类型变了；TLS 端口的 ALPN 通告位变了——
+// NextProtos 在建 tls.Config 时就固定，之后改不了。
+func (l *Listener) needsRebuild(next *Listener) bool {
+	if l.LisType != next.LisType {
+		return true
+	}
+	// 纯 HTTP/TCP 端口的 NextProtos 不受 acme-tls/1 影响，
+	// 不能因为 ACME 打开了 tls-alpn-01 就把 80 端口也重建一遍。
+	if l.LisType != 1 && l.LisType != 10 {
+		return false
+	}
+	return l.alpnACMESnapshot != TLSALPNEnabled()
 }
 
 // updateCfg 热更新监听器配置并发布给请求路径。
@@ -303,20 +336,10 @@ func ListenWithCfg() []*Listener {
 	processHostMap(&CurrLisinfos)
 
 	for _, each := range CurrLisinfos {
-		if each.LisType == 1 || each.LisType == 10 {
-			ctx, cancel := context.WithCancel(context.Background())
-			each.Ctx = ctx
-			each.Cancel = cancel
-			each.certs = newCertSet()
-
-			each.Lfd = listenSsl("0.0.0.0:"+each.Port, each.certs, each.Cfg, each.LisType == 10, true)
-		} else {
-			ctx, cancel := context.WithCancel(context.Background())
-			each.Ctx = ctx
-			each.Cancel = cancel
-
-			each.Lfd = listenTcp("0.0.0.0:"+each.Port, true)
-		}
+		ctx, cancel := context.WithCancel(context.Background())
+		each.Ctx = ctx
+		each.Cancel = cancel
+		each.openListener()
 		each.publish()
 	}
 

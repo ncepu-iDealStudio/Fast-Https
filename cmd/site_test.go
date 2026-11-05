@@ -164,15 +164,6 @@ func TestSiteListShowCheckRemove(t *testing.T) {
 		t.Fatalf("show output:\n%s", showOut.String())
 	}
 
-	var checkOut bytes.Buffer
-	opts = siteOptions{ConfigPath: mainPath, Name: "blog", Out: &checkOut}
-	if err := runSiteCheck(opts); err != nil {
-		t.Fatalf("check: %v", err)
-	}
-	if !strings.Contains(checkOut.String(), "ok") {
-		t.Fatalf("check output:\n%s", checkOut.String())
-	}
-
 	if err := runSiteRemove(siteOptions{ConfigPath: mainPath, Name: "blog", Out: &bytes.Buffer{}}); err == nil {
 		t.Fatal("remove without --yes should fail")
 	}
@@ -354,13 +345,205 @@ func TestSiteNameWithJSONSuffixIsNotDoubled(t *testing.T) {
 	}
 }
 
-func TestSiteCheckWholeConfig(t *testing.T) {
-	mainPath, _ := siteTestEnv(t)
-	var out bytes.Buffer
-	if err := runSiteCheck(siteOptions{ConfigPath: mainPath, Out: &out}); err != nil {
-		t.Fatalf("check main config: %v\n%s", err, out.String())
+// seedSite 建一个只监听 80 的站点，并手写一个额外 location：
+// 同名更新时必须保留它，--force 重建时才允许丢掉。
+func seedSite(t *testing.T, mainPath, includeDir string) string {
+	t.Helper()
+
+	initOpts := siteOptions{
+		ConfigPath:     mainPath,
+		Name:           "blog",
+		Listens:        []string{"80"},
+		ServerName:     "blog.example",
+		Root:           "./httpdoc/root",
+		LocationType:   "local",
+		NonInteractive: true,
+		Out:            &bytes.Buffer{},
 	}
-	if !strings.Contains(out.String(), "ok") {
-		t.Fatalf("output = %q", out.String())
+	if err := runSiteInit(initOpts); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+
+	path := filepath.Join(includeDir, "blog.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read site: %v", err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		t.Fatalf("parse site: %v", err)
+	}
+	in.Locations = append(in.Locations, config.SiteLocation{
+		URL: "/api", Type: "proxy", ProxyPass: "http://127.0.0.1:9000",
+	})
+	data, err := in.MarshalJSONFile()
+	if err != nil {
+		t.Fatalf("marshal site: %v", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatalf("write site: %v", err)
+	}
+	return path
+}
+
+func runSiteSubcmd(t *testing.T, mainPath string, args ...string) (string, error) {
+	t.Helper()
+	cmd := newSiteCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs(append(args, "--config", mainPath))
+	err := cmd.Execute()
+	return out.String(), err
+}
+
+// site init 同名即更新：只应用传入的项，手写的其它 location 原样保留。
+func TestSiteInitOnExistingFileUpdatesInPlace(t *testing.T) {
+	mainPath, includeDir := siteTestEnv(t)
+	seedSite(t, mainPath, includeDir)
+
+	out, err := runSiteSubcmd(t, mainPath, "init", "blog", "--tls")
+	if err != nil {
+		t.Fatalf("init update: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "站点已更新") {
+		t.Fatalf("output = %q", out)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(includeDir, "blog.json"))
+	if err != nil {
+		t.Fatalf("read updated site: %v", err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		t.Fatalf("parse updated site: %v", err)
+	}
+
+	if len(in.Listens) != 2 || !strings.Contains(in.ListenSummary(), "ssl") {
+		t.Fatalf("listen 应升级为 80 + 443 ssl h2，实际 %v", in.Listens)
+	}
+	if in.ServerName != "blog.example" {
+		t.Fatalf("未传 --server-name 时不应改 server_name，实际 %q", in.ServerName)
+	}
+	if in.SSLCertificate == "" || in.SSLCertificateKey == "" {
+		t.Fatalf("加了 ssl 就该补默认证书路径，实际 %q / %q", in.SSLCertificate, in.SSLCertificateKey)
+	}
+	if len(in.Locations) != 2 {
+		t.Fatalf("手写的 /api location 被删了：%+v", in.Locations)
+	}
+	if in.Locations[1].ProxyPass != "http://127.0.0.1:9000" {
+		t.Fatalf("手写 location 被改动：%+v", in.Locations[1])
+	}
+}
+
+func TestSiteInitUpdateServerNameOnly(t *testing.T) {
+	mainPath, includeDir := siteTestEnv(t)
+	seedSite(t, mainPath, includeDir)
+
+	if _, err := runSiteSubcmd(t, mainPath, "init", "blog", "--server-name", "new.example"); err != nil {
+		t.Fatalf("init update: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(includeDir, "blog.json"))
+	if err != nil {
+		t.Fatalf("read updated site: %v", err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		t.Fatalf("parse updated site: %v", err)
+	}
+	if in.ServerName != "new.example" {
+		t.Fatalf("server_name = %q", in.ServerName)
+	}
+	if len(in.Listens) != 1 || in.Listens[0] != "80" {
+		t.Fatalf("没传 --listen/--tls 时监听不应变化，实际 %v", in.Listens)
+	}
+}
+
+// 同名但一个修改项都没给：不能悄悄按默认值重写，要说清怎么办。
+func TestSiteInitOnExistingWithoutChangesFails(t *testing.T) {
+	mainPath, includeDir := siteTestEnv(t)
+	seedSite(t, mainPath, includeDir)
+
+	out, err := runSiteSubcmd(t, mainPath, "init", "blog")
+	if err == nil {
+		t.Fatalf("同名且无修改项应该失败：%s", out)
+	}
+	if !strings.Contains(out, "--force") || !strings.Contains(out, "--tls") {
+		t.Fatalf("错误信息应给出可选项：%q", out)
+	}
+}
+
+// --force 明确要求"按参数重建"，此时丢弃手写内容才是预期。
+func TestSiteInitForceRebuildsFromFlags(t *testing.T) {
+	mainPath, includeDir := siteTestEnv(t)
+	seedSite(t, mainPath, includeDir)
+
+	if _, err := runSiteSubcmd(t, mainPath, "init", "blog", "--force",
+		"--listen", "80", "--server-name", "blog.example", "--root", "/var/www/blog"); err != nil {
+		t.Fatalf("force rebuild: %v", err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(includeDir, "blog.json"))
+	if err != nil {
+		t.Fatalf("read rebuilt site: %v", err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		t.Fatalf("parse rebuilt site: %v", err)
+	}
+	if len(in.Locations) != 1 {
+		t.Fatalf("--force 应重建为单个 location，实际 %+v", in.Locations)
+	}
+	if in.Locations[0].Root != "/var/www/blog" {
+		t.Fatalf("root = %q", in.Locations[0].Root)
+	}
+}
+
+// 同名更新只改指定项，文件里 site 没有建模的字段（auth、appfirewall、
+// proxy_cache……）必须原样保留。以前整份回写会把这些字段静默吃掉。
+func TestSiteInitUpdateKeepsUnmodeledFields(t *testing.T) {
+	mainPath, includeDir := siteTestEnv(t)
+
+	path := filepath.Join(includeDir, "blog.json")
+	const seeded = `{
+  "listen": 80,
+  "server_name": "blog.example",
+  "location": [
+    {
+      "url": "/",
+      "type": "local",
+      "root": "/var/www/old",
+      "index": ["index.html"],
+      "auth": { "type": "basic", "user": "u", "pswd": "p" },
+      "proxy_cache": { "path": "/tmp/cache", "valid": ["200 1m"] },
+      "appfirewall": ["xss"],
+      "limit": { "mem": 1024, "rate": 10, "burst": 20 }
+    }
+  ]
+}`
+	if err := os.WriteFile(path, []byte(seeded), 0o644); err != nil {
+		t.Fatalf("write site: %v", err)
+	}
+
+	if _, err := runSiteSubcmd(t, mainPath, "init", "blog", "--root", "/var/www/new"); err != nil {
+		t.Fatalf("init update: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read updated site: %v", err)
+	}
+	got := string(raw)
+	for _, want := range []string{
+		`"auth"`, `"proxy_cache"`, `"appfirewall"`, `"limit"`,
+		`"root": "/var/www/new"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("更新后丢了 %q：\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "/var/www/old") {
+		t.Errorf("root 没改掉：\n%s", got)
 	}
 }

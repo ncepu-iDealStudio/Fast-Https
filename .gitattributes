@@ -9,3 +9,16 @@ build/**   linguist-detectable=false
 
 *.ico      linguist-detectable=false
 *.syso     linguist-detectable=false
+
+# 行尾：打包进 deb/rpm/apk 的脚本会被 dpkg/rpm 直接 exec。
+# Windows 上 core.autocrlf=true 会把工作区转成 CRLF，shebang 变成
+# "#!/bin/sh\r"，内核找不到 /bin/sh\r，卸载时报 ENOENT、退出码 2。
+# 这些文件必须强制 LF，tests/packaging/lf_test.go 会盯着。
+*.sh                text eol=lf
+*.service           text eol=lf
+build/spec          text eol=lf
+build/Dockerfile    text eol=lf
+build/docker/*      text eol=lf
+# logrotate 配置没有扩展名，不显式声明就会被 core.autocrlf 转成 CRLF；
+# 路径行带上 \r 后匹配不到 /var/log/fast-https/*.log，轮转静默失效。
+build/packaging/logrotate/*  text eol=lf

@@ -52,7 +52,7 @@
 
 - `core/registry.go` 定义 `RegisterHandler`、`Handler`、`HandlerReady` 和 `RegisteredTypes`。注册表是 `map[int]RRcircleHandler`，类型码由 `config` 定义，不再受定长数组长度限制。
 - `modules/static` 的 `Register` 登记 `LOCAL`；`modules/proxy` 登记 HTTP/HTTPS proxy；`modules/rewrite` 登记 rewrite；`modules/dev_mod` 登记 devmod。导入这些包本身不注册。
-- `cmd.RegisterHandlers` 在 `start`、`dev` 的 `ServerInit` 之前调用这四个函数。
+- `cmd.RegisterHandlers` 在 `start` 的 `ServerInit` 之前调用这四个函数。
 - `ServerInit()` 调用 `core.MissingHandlers()`，确认配置中非 TCP 的 location type 已有 handler，再创建监听器。
 - `runtime/events.EventHandler()` 根据匹配到的 location type 从 `core.Handler` 取得处理函数；缺失时返回 500，不再空指针崩溃。
 - TCP proxy 和 WebSocket 不走 location 表。`cmd.RegisterServices` 把它们放进 `core.Services.HandleListen`，`filters` 只调用这个钩子。
@@ -64,7 +64,7 @@
 
 | 输出 | 变量 | `kind` | 目的地 | 级别 |
 | --- | --- | --- | --- | --- |
-| 控制台 | `ConsoleLog` | `console` | stdout | 默认 `info`，`dev` 提到 `trace` |
+| 控制台 | `ConsoleLog` | `console` | stdout | 默认 `info` |
 | 系统 | `SystemLog` | `system` | `logs/system.log` + stdout | `debug` 及以上 |
 | 访问 | `AccessLog` | `access` | `logs/access.log` + stdout | `debug` 及以上 |
 | 错误 | `ErrorLog` | `error` | `logs/error.log` + stdout | `debug` 及以上 |
@@ -96,7 +96,7 @@
 | Docker | `build/Dockerfile` 使用 Go 1.27 Alpine，在 `/app` 执行 `go build -o fast-https .`；运行镜像复制配置、MIME 和默认静态文件 |
 | GoReleaser | `build/goreleaser.yaml` 的主程序 `main` 为 `./fast-https.go`，构建 Linux/Darwin amd64/arm64 和 Windows amd64 |
 | Windows monitor | 独立 package `./monitor`，源码 build tag 为 `windows && amd64` |
-| RPM | `build/spec` 文件执行 `go build -tags=rpm .`，安装程序及 `config/`、`httpdoc/root/` 等运行资源 |
+| RPM | `build/spec` 文件执行 `go build -tags=rpm .`，按 FHS 安装：配置到 `%{_sysconfdir}/fast-https`、站点到 `%{_datadir}/fast-https`、日志目录 `%{_localstatedir}/log/fast-https` |
 | Linux 包（deb/rpm/apk） | `build/goreleaser.yaml` 的 `nfpms` 段，安装单元 `build/packaging/systemd/`、安装脚本 `build/packaging/linux/` |
 | Go CI | `.workflow/go-test.yml` 使用 Go 1.27.1，执行 `go test ./...` |
 | Windows 本地测试 | 直接 `go test -p 1 ./...`（并行测试 exe 在 Windows 上会偶发 `Access is denied`） |
@@ -111,7 +111,7 @@
 - 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`。
 - 根目录 `tests/fast-https_test.go` 覆盖初始化路径。
 
-不进入 `go test` 的文件：`tests/scripts/dev-test.sh`、`dev-test.ps1`（手工拉起 `dev`），`tests/single/workloop.go`（独立 `main` 演示）。
+不进入 `go test` 的文件：`tests/scripts/dev-test.sh`、`dev-test.ps1`（手工前台拉起服务），`tests/single/workloop.go`（独立 `main` 演示）。
 
 ## 8. 历史验证基线（2026-10-13）
 

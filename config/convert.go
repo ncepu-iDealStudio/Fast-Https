@@ -57,10 +57,10 @@ func processHttp(cfg *Fast_Https, http jsonHTTP) error {
 // server 块，与 http.server 数组元素同构。任何 include 文件读不了、
 // 解不开都返回错误：reload 路径上不能因为 Fatal 把整个进程带走。
 func processIncludeCfg(cfg *Fast_Https) error {
-	// 先把 include 路径按 FAST_HTTPS_BASE_DIR 展开并写回快照：否则相对路径
+	// 先把 include 路径按 ETC 基址展开并写回快照：否则相对路径
 	// 会跟着启动目录走，装好包后在别的目录执行就找不到 conf.d。
 	for i := range cfg.Include {
-		cfg.Include[i] = absConfigPath(cfg.Include[i])
+		cfg.Include[i] = absETCPath(cfg.Include[i])
 	}
 
 	files, err := includeFiles(cfg.Include)

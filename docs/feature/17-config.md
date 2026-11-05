@@ -8,7 +8,7 @@ JSON 主配置 + `http.include`（目录/文件）展开站点配置；启动校
 
 ## 使用
 
-主配置 `config/fast-https.json`，include 见各功能文档；`fast-https check` 只校验不启动。
+主配置 `config/fast-https.json`，include 见各功能文档；`start` 与 `reload` 都会先用同一套 schema 校验，失败即停。
 
 ## 实现方案（config/config.go）
 

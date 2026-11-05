@@ -60,9 +60,9 @@ func TestReloadPortSwitchE2E(t *testing.T) {
 		t.Fatalf("write initial config failed: %v", err)
 	}
 
-	serverCmd, outBuf, err := startDevServer(repoRoot)
+	serverCmd, outBuf, err := startForegroundServer(repoRoot)
 	if err != nil {
-		t.Fatalf("start dev server failed: %v", err)
+		t.Fatalf("start foreground server failed: %v", err)
 	}
 	t.Cleanup(func() {
 		_ = stopServer(repoRoot)
@@ -122,15 +122,17 @@ func TestReloadPortSwitchE2E(t *testing.T) {
 	}
 }
 
-func startDevServer(repoRoot string) (*exec.Cmd, *bytes.Buffer, error) {
+func startForegroundServer(repoRoot string) (*exec.Cmd, *bytes.Buffer, error) {
 	bin := filepath.Join(os.TempDir(), "fast-https-reload-e2e.exe")
 	build := exec.Command("go", "build", "-o", bin, "fast-https.go")
 	build.Dir = repoRoot
 	if out, err := build.CombinedOutput(); err != nil {
 		return nil, nil, fmt.Errorf("build server: %w; %s", err, out)
 	}
-	cmd := exec.Command(bin, "dev")
+	// 前台模式：进程就是被测的那个，pid 文件指向它，reload 才能用 SIGINT 命中。
+	cmd := exec.Command(bin, "start")
 	cmd.Dir = repoRoot
+	cmd.Env = append(os.Environ(), "FASTHTTPS_FOREGROUND=1")
 	setReloadProcessGroup(cmd)
 	var out bytes.Buffer
 	cmd.Stdout = &out

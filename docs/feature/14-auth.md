@@ -12,8 +12,8 @@ location 级 HTTP Basic 认证：凭据错误回 401 + `WWW-Authenticate`。定�
 "auth": { "type": "basic", "user": "admin", "pswd": "secret", "realm": "Private area" }
 ```
 
-- `type` 只接受 `basic`（大小写不敏感），写别的值 `check` 直接报错。
-- 写了 `type` 就必须同时写 `user` 与 `pswd`，缺任何一项 `check` 报错。
+- `type` 只接受 `basic`（大小写不敏感），写别的值校验阶段直接报错。
+- 写了 `type` 就必须同时写 `user` 与 `pswd`，缺任何一项校验就报错。
 - `realm` 可选，写进 401 响应的 `WWW-Authenticate`；留空时用站点名（`server_name:port`），再兜底成 `Fast-Https`。
 
 ## 实现方案（modules/auth/auth.go）

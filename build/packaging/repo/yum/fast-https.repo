@@ -1,0 +1,13 @@
+# Fast-Https YUM/DNF 源（RHEL / CentOS / Fedora / Rocky / Alma）
+#
+# 安装：
+#   sudo cp fast-https.repo /etc/yum.repos.d/fast-https.repo
+#   sudo dnf makecache && sudo dnf install fast-https
+[fast-https]
+name=Fast-Https - Go web server and reverse proxy with automatic HTTPS
+baseurl=@BASE_URL@/yum/$basearch/
+enabled=1
+# 包本身未经 GPG 签名（rpm 签名需要 rpm 工具链），因此只校验仓库元数据。
+gpgcheck=0
+repo_gpgcheck=@REPO_GPGCHECK@
+gpgkey=@BASE_URL@/fast-https.asc

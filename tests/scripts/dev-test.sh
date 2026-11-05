@@ -15,6 +15,6 @@ fi
 echo "Building project..."
 go build -v
 
-# 运行开发模式
-echo "Starting in development mode..."
-./fast-https dev
+# 前台运行：本地调试时进程就在当前终端里，Ctrl+C 之后直接收尾
+echo "Starting in foreground..."
+FASTHTTPS_FOREGROUND=1 ./fast-https start

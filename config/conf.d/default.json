@@ -1,8 +1,8 @@
 {
   "listen": [80, "443 ssl h2"],
   "server_name": "localhost",
-  "ssl_certificate": "./config/cert/localhost.pem",
-  "ssl_certificate_key": "./config/cert/localhost-key.pem",
+  "ssl_certificate": "./cert/localhost.pem",
+  "ssl_certificate_key": "./cert/localhost-key.pem",
   "location": [
     {
       "url": "/",

@@ -1,6 +1,7 @@
 package site
 
 import (
+	"errors"
 	"fast-https/config"
 	"os"
 	"path/filepath"
@@ -136,5 +137,61 @@ func TestListReportsBrokenFile(t *testing.T) {
 func TestRemoveUnknownSite(t *testing.T) {
 	if _, err := Remove([]string{t.TempDir()}, "nope"); err == nil {
 		t.Fatal("removing an unknown site should fail")
+	}
+}
+
+// Update 必须"全部成功才落盘"：apply 之后校验不通过时，原文件一个字都不能变。
+func TestUpdateKeepsFileWhenResultIsInvalid(t *testing.T) {
+	dir := t.TempDir()
+	path, err := Create([]string{dir}, "blog", validInput("blog"), false)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read before: %v", err)
+	}
+
+	if _, err := Update([]string{dir}, "blog", func(in *config.SiteInput) error {
+		in.ServerName = ""
+		return nil
+	}); err == nil {
+		t.Fatal("空的 server_name 应该校验失败")
+	}
+
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read after: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("校验失败时不应改动原文件：\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Fatal("失败后临时文件应被清理")
+	}
+}
+
+func TestUpdateUnknownSite(t *testing.T) {
+	if _, err := Update([]string{t.TempDir()}, "nope", func(*config.SiteInput) error { return nil }); err == nil {
+		t.Fatal("updating an unknown site should fail")
+	}
+}
+
+// apply 返回错误时直接中止，不写盘。
+func TestUpdateStopsOnApplyError(t *testing.T) {
+	dir := t.TempDir()
+	path, err := Create([]string{dir}, "blog", validInput("blog"), false)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	before, _ := os.ReadFile(path)
+
+	want := errors.New("stop here")
+	if _, err := Update([]string{dir}, "blog", func(*config.SiteInput) error { return want }); !errors.Is(err, want) {
+		t.Fatalf("err = %v, want %v", err, want)
+	}
+	after, _ := os.ReadFile(path)
+	if string(after) != string(before) {
+		t.Fatal("apply 失败时不应写盘")
 	}
 }

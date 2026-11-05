@@ -93,6 +93,79 @@ func Create(dirs []string, name string, in config.SiteInput, force bool) (string
 	return target, nil
 }
 
+// LoadExisting 读取一个已存在的站点文件。不存在时返回 found=false 而不是错误：
+// site init 靠它区分"新建"与"同名即更新"。
+func LoadExisting(dirs []string, name string) (string, config.SiteInput, bool, error) {
+	if strings.TrimSpace(name) == "" {
+		return "", config.SiteInput{}, false, nil
+	}
+	path, ok := Find(dirs, name)
+	if !ok {
+		return "", config.SiteInput{}, false, nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", config.SiteInput{}, false, fmt.Errorf("read %s: %w", path, err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		return "", config.SiteInput{}, false, fmt.Errorf("解析 %s 失败：%w", path, err)
+	}
+	return path, in, true, nil
+}
+
+// Update 就地改写一个已存在的站点文件：apply 只改它关心的字段。
+//
+// 写回不是"把结构体序列化回去"，而是把 apply 前后的差异翻译成 JSON 路径，
+// 用 infra/jsonc 就地替换。因此文件里 site 这一层没有建模的字段
+// （auth、proxy_cache、appfirewall、limit、zip、try、error_page……）
+// 以及注释、缩进、字段顺序都原样保留。
+func Update(dirs []string, name string, apply func(*config.SiteInput) error) (string, error) {
+	if err := ValidateName(name); err != nil {
+		return "", err
+	}
+	path, ok := Find(dirs, name)
+	if !ok {
+		return "", fmt.Errorf("找不到站点文件：%s.json（新建请用 fast-https site init）", name)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", path, err)
+	}
+	// 解析两次：一份当 diff 基线，一份交给 apply。共享 slice 会让 apply 的
+	// 就地修改同时改到基线，diff 就变成"什么都没变"。
+	existing, err := config.ParseSiteInput(raw)
+	if err != nil {
+		return "", fmt.Errorf("解析 %s 失败：%w", path, err)
+	}
+	in, err := config.ParseSiteInput(raw)
+	if err != nil {
+		return "", fmt.Errorf("解析 %s 失败：%w", path, err)
+	}
+
+	if err := apply(&in); err != nil {
+		return "", err
+	}
+
+	data, err := config.PatchSiteFile(raw, existing, in)
+	if err != nil {
+		return "", fmt.Errorf("改写 %s 失败：%w", path, err)
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return "", fmt.Errorf("write %s: %w", tmp, err)
+	}
+	if err := config.ValidateNewSiteFile(tmp); err != nil {
+		_ = os.Remove(tmp)
+		return "", err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return "", fmt.Errorf("rename %s: %w", tmp, err)
+	}
+	return path, nil
+}
+
 // Remove 删除站点文件。删前先确认它确实能解析成 server 块，
 // 避免手滑删掉同名的其它文件（比如目录里的 README）。
 func Remove(dirs []string, name string) (string, error) {

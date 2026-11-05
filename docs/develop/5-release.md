@@ -81,17 +81,71 @@ go run ./tools/docgen
 
 `build/goreleaser.yaml` 的 `nfpms` 段用 `linux-pkg` 构建（带 `-tags=rpm`）产出三种包：
 
-- 程序装到 `/usr/bin/fast-https`；配置、站点、日志装到 `/usr/share/fast-https/`
+- 程序装到 `/usr/bin/fast-https`；配置与证书 `/etc/fast-https/`、站点 `/usr/share/fast-https/httpdoc/`、日志 `/var/log/fast-https/`、pid `/run/fast-https/`
 - 单元文件 `build/packaging/systemd/fast-https.service` 装到 `/usr/lib/systemd/system/`
-- 手册页 `build/packaging/man/fast-https.1` 装到 `/usr/share/man/man1/`；内容由 `go run ./tools/manpage` 从 `cmd.RootCmd()` 的命令树生成，改子命令后必须重新生成
-- 安装/卸载脚本在 `build/packaging/linux/`：安装后 `systemctl daemon-reload` 并打印启动提示，不自动 `enable`（容器与 CI 里没有 systemd）
+- 手册页中英各一份：`build/packaging/man/fast-https.1` 装到 `/usr/share/man/man1/`，`fast-https.en.1` 装到 `/usr/share/man/en/man1/`；两份都由 `go run ./tools/manpage` 从命令树生成，改子命令后必须重新生成
+- 日志轮转 `build/packaging/logrotate/fast-https` 装到 `/etc/logrotate.d/fast-https`，登记为配置文件（deb conffile、rpm `%config(noreplace)`）。四个日志文件在进程里常开 fd 且 `O_APPEND` 追加，所以配置用 `copytruncate`，不走 `create` + `postrotate`；`nfpms.dependencies` 因此包含 `logrotate`，没有它日志会无上限增长
+- 安装/卸载脚本在 `build/packaging/linux/`：安装后 `systemctl daemon-reload` 并打印启动提示，不自动 `enable`（容器与 CI 里没有 systemd）；卸载分两档——`remove` 保留配置与证书，`purge` 清掉 `/etc/fast-https` 下的证书、`conf.d` 与 `/var/log/fast-https`，升级两档都不触发
 - 装完执行 `systemctl enable --now fast-https` 即可常驻；`Type=simple` 配合 `FASTHTTPS_FOREGROUND=1`，服务不会自行转后台
 
-当前配置、站点、日志共用 `/usr/share/fast-https/` 一个前缀，日志与配置因此不在 FHS 推荐位置。拆成 `/etc/fast-https`、`/usr/share/fast-https`、`/var/log/fast-https`、`/run/fast-https` 的改造排在 [plans/fhs-layout-plan.md](plans/fhs-layout-plan.md)，尚未实施。
+`/var/log/fast-https` 在包里用 `type: dir` 声明（配 `.keep` 占位），`/run/fast-https` 不写进包——rpm 不接受包内 `/run` 内容，改由 systemd 的 `RuntimeDirectory=` 与 postinstall 脚本创建，程序写 pid 前也会自建父目录。细节与后续阶段见 [plans/fhs-layout-plan.md](plans/fhs-layout-plan.md)。
+
+归档（tar.gz / Docker / Windows）布局不受影响，始终相对工作目录（`./config`、`./logs`、`./httpdoc`），由 `!rpm` 构建的基址常量保证。两种布局由同一个二进制通过 build tag 区分，不做运行时判断。
+
+外部控制面读取运行期路径用 `fast-https config path --json`，输出 `config` / `cert` / `log` / `pid` 四个绝对路径。
 
 ```bash
 goreleaser release -f build/goreleaser.yaml --snapshot --clean
 ```
+
+### 包元数据
+
+仓库客户端解析依赖、分类、升级关系时读的是包元数据，改动 `nfpms` 段时别丢掉这些字段：
+
+| 字段 | 值 | 作用 |
+| --- | --- | --- |
+| `section` / `priority` | `web` / `optional` | apt 的软件分类与优先级，缺省会被算进 `unknown` |
+| `depends` | `ca-certificates` | ACME 校验与 HTTPS 上游都要系统 CA；精简容器里默认没有 |
+| `release` | `"1"` | Debian revision，同一上游版本重新打包时靠它区分 |
+| `deb.compression` | `xz` | 体积更小，`dpkg` 1.17+ 都支持 |
+| `rpm.group` / `rpm.summary` / `rpm.packager` | `Applications/Internet` 等 | 没有 `summary` 的 rpm 在 `dnf info` 里是空的 |
+
+## 仓库发布（apt / dnf / apk 源）
+
+`build/packaging/repo/publish-repo.sh` 把 `dist/` 里的包组装成可直接静态托管的仓库树：
+
+```bash
+# 在 Debian 系环境里跑（需要 dpkg-scanpackages、apt-ftparchive；yum 源另需 createrepo_c）
+bash build/packaging/repo/publish-repo.sh \
+     dist repo-out \
+     <GPG_KEY_ID> \
+     https://repo.example.com/fast-https
+```
+
+参数：`DIST_DIR OUT_DIR [GPG_KEY_ID] [BASE_URL]`。`GPG_KEY_ID` 留空则跳过签名（只够本地测试或配 `trusted=yes` / `repo_gpgcheck=0`），`BASE_URL` 决定生成的 `.list` / `.repo` 里的地址。
+
+产出结构：
+
+```text
+repo-out/
+├── apt/  pool/main/f/fast-https/*.deb
+│         dists/stable/main/binary-{amd64,arm64}/Packages(.gz)
+│         dists/stable/{Release,InRelease,Release.gpg}
+│         fast-https.list              # 下发给用户
+├── yum/  {x86_64,aarch64}/*.rpm + repodata/（含 repomd.xml.asc）
+│         fast-https.repo              # 下发给用户
+├── apk/  {x86_64,aarch64}/*.apk + APKINDEX.tar.gz
+├── fast-https.asc / fast-https.gpg    # 签名时导出的公钥（dnf / apt 各用一份）
+└── SHA256SUMS
+```
+
+要点：
+
+- 架构映射：Go 的 `amd64`/`arm64` 对应 rpm 与 apk 的 `x86_64`/`aarch64`，脚本用文件名里的 `_linux_<arch>` 判断，未知架构告警跳过
+- 签名：apt 用 `gpg --clearsign` 出 `InRelease`、`-abs` 出 `Release.gpg`；yum 用 `-abs` 签 `repodata/repomd.xml`；apk 用 `abuild-sign`（可选）
+- rpm 包本身没有 GPG 签名（需要 rpm 工具链），所以 `.repo` 模板里是 `gpgcheck=0` + `repo_gpgcheck=1`，只校验仓库元数据
+- 模板在 `build/packaging/repo/{apt,yum}/`，占位符 `@BASE_URL@`、`@SIGNED_BY@`、`@REPO_GPGCHECK@` 由脚本替换；换公钥路径或镜像地址改模板即可
+- 整棵树（含 `fast-https.asc`/`fast-https.gpg`）原样传到 `BASE_URL` 对应的静态目录，客户端按脚本末尾打印的步骤导入
 
 ## Docker
 
@@ -99,7 +153,7 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 
 ## 发布前清单
 
-0. `go run ./tools/docgen && go run ./tools/manpage` 重新生成使用文档与手册页（`go test ./tools/docgen ./tools/manpage` 校验生成物是否与源一致）
+0. `go run ./tools/docgen && go run ./tools/manpage` 重新生成使用文档与手册页（`go test ./tools/docgen ./tools/manpage` 校验生成物是否与源一致）；`go test ./tests/packaging` 确认打包脚本是 LF 行尾——Windows 上 `core.autocrlf` 会把 `preremove.sh` 变成 CRLF，装进包里就是"能装上、卸载不掉、报 prerm ENOENT"；`sh tests/packaging/distro/run.sh all` 在 ubuntu / almalinux / alpine 容器里实装一遍（装、启动、轮转、卸载），需要 docker
 1. `go build ./... && go vet ./...` 干净
 2. `go test -race ./...` 全绿（29 包）
 3. 三个 E2E：`FASTHTTPS_E2E_RELOAD=1` reload、proxy、h2

@@ -50,7 +50,7 @@
 
 - 压测：`wrk`（首选）或 `hey`；连接数压测：`wrk -c`/`--latency`
 - 监控：`vmstat 1`、`pidstat -p <pid> 1`（CPU/内存）、`ss -s`（连接）、`curl -w`（TTFB）
-- 服务端：dev 模式跑（pprof 在 10000 端口：`go tool pprof http://127.0.0.1:10000/debug/pprof/profile?seconds=30`）
+- 服务端：`FASTHTTPS_FOREGROUND=1` 前台跑，便于看 stdout；CPU profile 用 `go test -cpuprofile` 产出
 
 ## 2.2 测试用例
 

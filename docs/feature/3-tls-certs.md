@@ -32,7 +32,7 @@
 
 ## ACME 自动签发（modules/certmanager）
 
-配置 `acme.enabled`（手写 JSON，或跑 `fast-https acme` 向导写回）后，`cmd.afterListen` 在监听建立、自签证书就位之后启动管理器，按以下链路工作：
+配置 `acme.enabled`（手写 JSON，或跑 `fast-https acme` 向导写回）后，`cmd.afterListen` 在监听建立、自签证书就位之后对齐管理器（启动与每次 reload 共用 `certmanager.Reconcile`），按以下链路工作：
 
 1. **编排在控制面**：`modules/certmanager` 用 `certmagic` 管证书生命周期（私钥生成、CSR、存储、失败退避重试、到期前续期），签发动作实现为 `certmagic.Issuer`（`caIssuer`），内部用 `acmez` 走 ACME 订单。
 2. **挑战应答在数据面**：
@@ -41,8 +41,14 @@
 3. **落盘与热替换**：`cert_obtained` 事件里从 certmagic 存储读回 PEM，校验私钥配对，写临时文件后 `rename` 到该 server 块配置的 `ssl_certificate` / `ssl_certificate_key`，再调用 `listener.ReloadCerts()` 就地换证，监听 socket 不变。
 4. **回落**：申请失败只记日志，自签证书继续服务；`CertInit` 只在文件缺失时生成，不会覆盖 ACME 写入的 PEM。
 
+### 申请范围
+
+只有 `listen` 里带 `ssl` 的 server 块才会被申请证书（`certmanager.Plan`）。只写 `"listen": 80` 的站点不会触发任何证书请求，`acme show` 的"将申请的域名"会是空的；IP、`localhost`、不含点的名字与通配符会被跳过并给出原因。配置写完后若"将申请的域名"为空，`fast-https acme` 会直接提示这一点并给出加 443 的写法。
+
+运维侧的完整操作与排错见 [../help/tls-certificates.md](../help/tls-certificates.md)。
+
 ## 已知限制
 
 - 证书路径在主配置中相对工作目录解析，include 文件中相对该文件或主配置（`pathExists` 多候选）。
 - 无 OCSP stapling、无 session ticket 调优。
-- ACME 只支持 `http-01` 与 `tls-alpn-01`；通配符需要 `dns-01`，未实现。`reload` 不重建 ACME 管理器，改 `acme` 段需重启。
+- ACME 只支持 `http-01` 与 `tls-alpn-01`；通配符需要 `dns-01`，未实现。改 `acme` 段不再需要重启：`reload` 会按配置差异重建 ACME 管理器（见 [4-reload.md](4-reload.md)）。

@@ -148,7 +148,8 @@ EOF
 	fi
 	[ -x "$BIN" ] || die "BIN 不可执行：$BIN"
 
-	(cd "$WORK/base" && exec "$BIN" dev) >"$WORK/server.log" 2>&1 &
+	# 前台模式：进程就是脚本持有的那个，最后的 kill 才打得到服务本身。
+	(cd "$WORK/base" && FASTHTTPS_FOREGROUND=1 exec "$BIN" start) >"$WORK/server.log" 2>&1 &
 	SERVER_PID=$!
 
 	local i code

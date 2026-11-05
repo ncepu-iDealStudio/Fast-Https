@@ -28,22 +28,22 @@ export PATH=$PATH:`pwd`/go/bin
 go build -ldflags="-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n')" -tags=rpm .
 
 %install
-# //usr/bin
-# //share/fast-https
-install -d %{buildroot}/%{_bindir}
-install -d %{buildroot}/%{_datadir}/%{name}/config
-install -d %{buildroot}/%{_datadir}/%{name}/config/conf.d
-install -d %{buildroot}/%{_datadir}/%{name}/config/cert
-install -d %{buildroot}/%{_datadir}/%{name}/httpdoc/root
-install -d %{buildroot}/%{_datadir}/%{name}/logs
+# FHS 分离：配置与证书进 /etc，站点进 /usr/share，日志进 /var/log。
+# /run 下的 pid 由 systemd 的 RuntimeDirectory 创建，包内不安装。
+install -d %{buildroot}%{_bindir}
+install -d %{buildroot}%{_sysconfdir}/%{name}
+install -d %{buildroot}%{_sysconfdir}/%{name}/conf.d
+install -d %{buildroot}%{_sysconfdir}/%{name}/cert
+install -d %{buildroot}%{_datadir}/%{name}/httpdoc/root
+install -d %{buildroot}%{_localstatedir}/log/%{name}
 
 # Installing the binary
 install -m 0755 %{name} %{buildroot}/%{_bindir}/%{name}
 
 # Installing additional files config
-install -m 0644 config/fast-https.json %{buildroot}/%{_datadir}/%{name}/config/fast-https.json
-install -m 0644 config/mime.json %{buildroot}/%{_datadir}/%{name}/config/mime.json
-install -m 0644 config/conf.d/default.json %{buildroot}/%{_datadir}/%{name}/config/conf.d/default.json
+install -m 0644 config/fast-https.json %{buildroot}/%{_sysconfdir}/%{name}/fast-https.json
+install -m 0644 config/mime.json %{buildroot}/%{_sysconfdir}/%{name}/mime.json
+install -m 0644 config/conf.d/default.json %{buildroot}/%{_sysconfdir}/%{name}/conf.d/default.json
 
 
 # Installing additional files httpdoc
@@ -55,14 +55,15 @@ install -m 0644 httpdoc/root/index.html %{buildroot}/%{_datadir}/%{name}/httpdoc
 
 %files
 %{_bindir}/%{name}
-%{_datadir}/%{name}/config/fast-https.json
-%{_datadir}/%{name}/config/mime.json
-%{_datadir}/%{name}/config/conf.d/default.json
+%config(noreplace) %{_sysconfdir}/%{name}/fast-https.json
+%config(noreplace) %{_sysconfdir}/%{name}/mime.json
+%config(noreplace) %{_sysconfdir}/%{name}/conf.d/default.json
+%dir %{_sysconfdir}/%{name}
+%dir %{_sysconfdir}/%{name}/conf.d
+%dir %{_sysconfdir}/%{name}/cert
 %{_datadir}/%{name}/httpdoc/root/favicon.ico
 %{_datadir}/%{name}/httpdoc/root/index.html
-%dir %{_datadir}/%{name}/config/conf.d
-%dir %{_datadir}/%{name}/config/cert
-%dir %{_datadir}/%{name}/logs
+%dir %{_localstatedir}/log/%{name}
 
 
 %doc README.md
