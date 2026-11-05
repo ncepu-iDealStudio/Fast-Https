@@ -66,7 +66,7 @@
   - `tests/packaging/logrotate_test.go`：轮转规则必须覆盖 `infra/logging` 的四个文件名（改名即失败）、必须含 `copytruncate`、`goreleaser.yaml` 必须安装并以依赖形式声明 `logrotate`
   - `tests/packaging/distro/*.sh`：在真容器里装包、启动、`logrotate -f` 后验证"截断仍继续写当前文件"、再走卸载
   - `tests/packaging/distro_test.go`：每个验证脚本必须 source `common.sh`（里面 `trap stop_service EXIT`），`run.sh` 必须 `docker run --rm`
-- 实机结论（1.5.0-next，均为 `ALL-PASS`）：
+- 实机结论（1.5.0-next，均为 `ALL-PASS`；含产物校验和、镜像摘要与逐项结果的完整记录见 [../test/3-distro-verification.md](../test/3-distro-verification.md)）：
 
   | 场景 | 镜像 | 关键结论 |
   | --- | --- | --- |

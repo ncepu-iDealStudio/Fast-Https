@@ -94,4 +94,5 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 | 环境、测试、规范、发布 | [docs/develop/](docs/develop/README.md) |
 | 功能怎么用、怎么实现 | [docs/feature/](docs/feature/README.md) |
 | 历史踩坑记录 | [docs/help/dev-issues.md](docs/help/dev-issues.md) |
+| 装包实机验证的结果与是否要重跑 | [docs/test/3-distro-verification.md](docs/test/3-distro-verification.md) |
 | 文档总索引 | [docs/README.md](docs/README.md) |

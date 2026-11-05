@@ -168,4 +168,6 @@ sh tests/packaging/distro/run.sh all      # deb → upgrade → rpm → apk
 | `rpm` | `almalinux:9` | 同 deb，另加 `%config(noreplace)` 重装保留与 `rpm -e` 清理 |
 | `apk` | `alpine:3.21` | 无 systemd 时的目录兜底、logrotate 依赖、卸载语义 |
 
-脚本依赖容器内的 `fast-https start` 自己转后台（容器里 `runInForeground()` 为真，`start` 不 daemonize），退出时统一 `stop`，否则后台进程会一直占着 80/443。1.5.0-next 的四个场景已在本地跑通，结论记在 [dev-issues.md](dev-issues.md) 的 002。
+脚本依赖容器内的 `fast-https start` 自己转后台（容器里 `runInForeground()` 为真，`start` 不 daemonize），退出时统一 `stop`，否则后台进程会一直占着 80/443。
+
+上次实测的产物校验和、镜像摘要、逐项结论与环境差异记在 [../test/3-distro-verification.md](../test/3-distro-verification.md)——同一份产物不用重复跑；缺陷背景见 [dev-issues.md](dev-issues.md) 的 002。
