@@ -32,7 +32,7 @@ func RegisterHandlers() {
 // TCP proxy, WebSocket, and the post-listen security initialization.
 // A nil hook inside core allows the event, so this must run before ServerInit.
 func RegisterServices() {
-	services := core.Services{
+	core.SetServices(core.Services{
 		RejectConn:     rejectConn,
 		HandleListen:   handleListen,
 		RejectLocation: rejectLocation,
@@ -40,12 +40,15 @@ func RegisterServices() {
 		// Reject 钩子契约是"返回 true = 拒绝"，Allowed 是"返回 true = 放行"，
 		// 此处取反对齐
 		RejectWAF: rejectWAF,
-		AfterListen: afterListen,
-		AfterStop:   afterStop,
-	}
-	// ACME 未启用时 certmanager.Wire 不挂任何钩子，请求热路径保持不变。
-	certmanager.Wire(&services)
-	core.SetServices(services)
+		// ACME 的挑战应答钩子必须在监听器重载**之前**重新对齐：
+		// listenSsl 建 tls.Config 时读 TLSALPNEnabled()，晚一步就白重建。
+		BeforeListenReload: certmanager.ReconcileHooks,
+		AfterListen:        afterListen,
+		AfterStop:          afterStop,
+	})
+	// 按启动时的配置挂上 ACME 钩子。未启用时不挂任何钩子，
+	// 请求热路径保持不变。
+	certmanager.ReconcileHooks()
 }
 
 // rejectWAF 把防火墙的"放行"语义翻译成 Reject 钩子的"拒绝"语义。
@@ -60,9 +63,10 @@ func afterListen() {
 		// 构建失败已保留旧引擎（或空引擎），不阻断 reload
 		logging.ConsoleLog.Error().Msg("waf init kept previous engine")
 	}
-	// 监听已就绪，自签证书也已在位：此时才开始后台申请受信任证书。
-	// 申请期间继续用自签证书，成功后热替换，不阻塞首次握手。
-	certmanager.Start()
+	// 监听已就绪，自签证书也已在位：此时对齐后台申请任务。
+	// 启动与 reload 走同一条路径——reload 只重建运行期有差异的部分，
+	// 配置没变时不打断 certmagic 的续期调度。
+	certmanager.Reconcile()
 }
 
 func afterStop() {

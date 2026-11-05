@@ -61,11 +61,11 @@ func newAcmeCmd() *cobra.Command {
 		Long: t(
 			"配置 ACME（Let's Encrypt / ZeroSSL）证书签发。\n\n"+
 				"不带子命令运行进入交互向导：只改写配置文件顶层的 \"acme\" 段，注释原样保留。\n"+
-				"新配置在下次启动时生效，reload 不会重建 ACME 管理器。",
+				"新配置在下次 reload 或启动时生效。",
 			"Configure ACME (Let's Encrypt / ZeroSSL) certificate issuance.\n\n"+
 				"Running it without a subcommand starts the interactive wizard. It only rewrites\n"+
 				"the top-level \"acme\" section of the config file and keeps every comment intact.\n"+
-				"The new settings take effect on the next restart, not on reload."),
+				"The new settings take effect on the next reload or restart."),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return runAcmeSetup(cmd) },
 	}
@@ -498,9 +498,9 @@ func printACMENextSteps(out io.Writer, cfg *config.AcmeConfig, a acmeAnswers) {
 			}
 		}
 	}
-	fmt.Fprintln(out, "acme 段只在启动时读取，reload 不会重建 ACME 管理器，请重启服务：")
-	fmt.Fprintln(out, "  fast-https stop && fast-https start    # 或 systemctl restart fast-https")
-	fmt.Fprintln(out, "启动后日志里应出现 acme: requesting certificate，签发成功后证书会热替换。")
+	fmt.Fprintln(out, "acme 段在下次 reload 或启动时生效，不需要重启进程：")
+	fmt.Fprintln(out, "  fast-https reload    # 或 systemctl reload fast-https")
+	fmt.Fprintln(out, "reload 后日志里应出现 acme: requesting certificate，签发成功后证书会热替换。")
 }
 
 func runAcmeShow(out io.Writer) error {

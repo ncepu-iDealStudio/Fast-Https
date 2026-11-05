@@ -189,8 +189,8 @@ func TestAcmeSetupNonInteractiveWrites(t *testing.T) {
 	if !strings.Contains(out.String(), "acme 配置已写入") {
 		t.Fatalf("output = %q", out.String())
 	}
-	if !strings.Contains(out.String(), "reload 不会重建 ACME 管理器") {
-		t.Fatal("next steps should warn that reload is not enough")
+	if !strings.Contains(out.String(), "fast-https reload") {
+		t.Fatal("next steps should tell the user to reload instead of restarting")
 	}
 
 	cfg := readAcmeSection(t, path)

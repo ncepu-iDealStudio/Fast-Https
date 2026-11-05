@@ -13,12 +13,7 @@ func getReloadAddedListeninfo(ports []string, currli *[]*Listener) []*Listener {
 	processHostMap(&CurrLisinfosAdded)
 
 	for _, each := range CurrLisinfosAdded {
-		if each.LisType == 1 || each.LisType == 10 {
-			each.certs = newCertSet()
-			each.Lfd = listenSsl("0.0.0.0:"+each.Port, each.certs, each.Cfg, each.LisType == 10, true)
-		} else {
-			each.Lfd = listenTcp("0.0.0.0:"+each.Port, true)
-		}
+		each.openListener()
 		// added 端口需要新的 Ctx/Cancel
 		ctx, cancel := context.WithCancel(context.Background())
 		each.Ctx = ctx
@@ -37,6 +32,10 @@ func getReloadAddedListeninfo(ports []string, currli *[]*Listener) []*Listener {
 // 持有同一指针），通过 updateCfg 发布新配置快照；
 // 类型变化时关闭旧监听器（其 serveListener 以 ErrClosed 退出），
 // 新建的监听器返回给调用方，随新增端口一起启动。
+//
+// 另有一种必须重建的情况：tls.Config 的 NextProtos 建好后改不了，
+// 而它取决于建监听器时是否注册了 ACME 的 acme-tls/1 provider。开关
+// tls-alpn-01 后若继续复用旧 *Listener，新配置永远拿不到挑战证书。
 func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeChanged []*Listener) {
 	var CurrLisinfoCommon []*Listener
 
@@ -51,7 +50,8 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 			if old.Port != each.Port {
 				continue
 			}
-			if old.LisType == each.LisType {
+			switch {
+			case !old.needsRebuild(each):
 				// 复用旧的 Ctx/Cancel/Lfd/certs，配置整体热更新并发布
 				CurrLisinfoCommon[index] = old
 				old.updateCfg(each.Cfg, each.HostMap)
@@ -61,19 +61,21 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 						logging.ConsoleLog.Error().Msgf("reload kept previous certificate: %s", err.Error())
 					}
 				}
-			} else {
+			case old.LisType != each.LisType:
 				logging.ConsoleLog.Debug().Msgf("port %s listen type changed", each.Port)
 				old.Lfd.Close()
-				if each.LisType == 1 || each.LisType == 10 {
-					each.certs = newCertSet()
-					each.Lfd = listenSsl("0.0.0.0:"+each.Port, each.certs, each.Cfg, each.LisType == 10, true)
-				} else {
-					each.Lfd = listenTcp("0.0.0.0:"+each.Port, true)
-				}
-				ctx, cancel := context.WithCancel(context.Background())
-				each.Ctx = ctx
-				each.Cancel = cancel
-				each.publish()
+				each.openListener()
+				each.replaceCtx()
+				typeChanged = append(typeChanged, each)
+			default:
+				// 只有 acme-tls/1 的通告位变了。NextProtos 建好就改不了，
+				// 只能换一个 tls.Config，因此走与类型变化相同的顺序：
+				// 先关旧 socket 再绑新 socket——SO_REUSEPORT 只在 linux/amd64
+				// 的 ReuseCallBack 里设置，其余平台同时绑同一端口会失败。
+				logging.ConsoleLog.Info().Msgf("port %s rebuilds TLS config: acme-tls/1 advertisement changed", each.Port)
+				old.Lfd.Close()
+				each.openListener()
+				each.replaceCtx()
 				typeChanged = append(typeChanged, each)
 			}
 			logging.ConsoleLog.Debug().Msgf("update: %s", each.Port)
@@ -84,6 +86,15 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 	*newLis = append(*newLis, CurrLisinfoCommon...)
 
 	return
+}
+
+// replaceCtx 给重建出来的监听器换一套新的 Ctx/Cancel 并发布配置快照。
+// 旧监听器的 Cancel 由 server.Reload 按 removed 列表调用。
+func (l *Listener) replaceCtx() {
+	ctx, cancel := context.WithCancel(context.Background())
+	l.Ctx = ctx
+	l.Cancel = cancel
+	l.publish()
 }
 
 // ReloadCerts 重新读取所有 ssl 监听器当前配置里的证书文件，监听 socket

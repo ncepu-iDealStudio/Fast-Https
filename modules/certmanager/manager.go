@@ -37,7 +37,10 @@ const renewalCertLifetime = 90 * 24 * time.Hour
 
 // Manager 持有一次 ACME 运行期的全部状态。
 type Manager struct {
-	cfg   *config.AcmeConfig
+	cfg *config.AcmeConfig
+	// names 是这次运行托管的域名集合。保留它是为了 reload 时比较：
+	// 域名变了要重建管理器，配置没变就不该打断续期调度。
+	names []string
 	magic *certmagic.Config
 	cache *certmagic.Cache
 	http  *http01Solver
@@ -45,6 +48,9 @@ type Manager struct {
 
 	cancel context.CancelFunc
 	once   sync.Once
+	// stopped 记录这个实例是否已经停掉。给测试与排错用：
+	// reload 重建管理器时靠它断言旧实例确实被停了。
+	stopped atomic.Bool
 }
 
 var (
@@ -52,18 +58,29 @@ var (
 	startMu       sync.Mutex
 )
 
-// Wire 把数据面钩子接到核心服务上。未启用 ACME 时什么都不挂，
-// 热路径上只多一次判空。
-func Wire(services *core.Services) {
+// startBackground 是 m.run 的间接引用，测试把它换成空实现，
+// 避免 Reconcile 真的向 CA 发起申请。
+var startBackground = func(m *Manager) { m.run() }
+
+// ReconcileHooks 按当前配置快照挂上或撤销数据面钩子。幂等，可反复调用。
+//
+// 调用位置有约束：必须在监听器重载**之前**跑。listenSsl 在构造 tls.Config
+// 时读 listener.TLSALPNEnabled()，provider 晚一步注册，新建出来的监听器
+// 就不会通告 acme-tls/1，tls-alpn-01 必然失败。
+func ReconcileHooks() {
 	cfg := config.Current().Acme
 	if !cfg.Active() {
+		core.SetEarlyRequestHandler(nil)
+		listener.RegisterTLSALPNProvider(nil)
 		return
 	}
-	services.HandleEarlyRequest = handleEarlyRequest
+	core.SetEarlyRequestHandler(handleEarlyRequest)
 	// 只有配置里启用了 tls-alpn-01 才通告 acme-tls/1 并注入挑战证书来源。
 	if cfg.UsesChallenge(config.ACMEChallengeTLSALPN01) {
 		listener.RegisterTLSALPNProvider(tlsALPNChallengeCert)
+		return
 	}
+	listener.RegisterTLSALPNProvider(nil)
 }
 
 func handleEarlyRequest(ev *core.Event) bool {
@@ -82,35 +99,80 @@ func tlsALPNChallengeCert(hello *tls.ClientHelloInfo) (*tls.Certificate, bool) {
 	return m.alpn.certificate(hello)
 }
 
-// Start 在后台为每个 ssl server_name 申请证书。首次握手不会被阻塞：
-// 申请完成前继续使用自签证书。可重复调用（reload 后 AfterListen 会再进），
-// 只有第一次生效。
-func Start() {
-	cfg := config.Current().Acme
-	if !cfg.Active() {
-		return
-	}
+// Reconcile 按当前配置快照对齐后台任务：运行期没有差异时什么都不做，
+// 有差异时按新配置重新起一个管理器。启动与每次 reload 都走这里。
+//
+// 只在有差异时重建是有意的：无条件重建会取消 certmagic 的退避队列与
+// 进行中的订单，既丢进度也可能撞上 CA 的速率限制。
+func Reconcile() {
+	snapshot := config.Current()
+	cfg := snapshot.Acme
+	// 先算域名，但不打日志：没有差异时每次 reload 都刷一遍跳过原因太吵。
+	plan := Plan(snapshot)
 
 	startMu.Lock()
 	defer startMu.Unlock()
-	if activeManager.Load() != nil {
+
+	prev := activeManager.Load()
+
+	if !cfg.Active() {
+		if prev == nil {
+			return
+		}
+		activeManager.Store(nil)
+		prev.stop()
+		logging.ConsoleLog.Info().Msg("acme: manager stopped (reason: acme disabled)")
 		return
 	}
 
-	names := managedDomains(config.Current())
-	if len(names) == 0 {
+	reason := ""
+	if prev != nil {
+		switch diff := acmeDiff(prev.cfg, cfg); {
+		case diff != "":
+			reason = diff
+		case !sameNames(prev.names, plan.Managed):
+			reason = "domains"
+		default:
+			return
+		}
+	} else {
+		reason = "enabled"
+	}
+
+	if len(plan.Managed) == 0 {
+		if prev != nil {
+			activeManager.Store(nil)
+			prev.stop()
+			logging.ConsoleLog.Info().Msg("acme: manager stopped (reason: no domain can use ACME)")
+			return
+		}
+		logSkippedDomains(plan)
 		logging.ConsoleLog.Warn().Msg("acme: no server_name can use ACME, keeping self-signed certificates")
 		return
 	}
 
-	m, err := newManager(cfg, names)
+	m, err := newManager(cfg, plan.Managed)
 	if err != nil {
-		logging.ConsoleLog.Error().Msgf("acme: disabled, keeping self-signed certificates: %v", err)
+		// 构造失败不动旧的：宁可继续用旧配置续期，也不要因为一次写错就停掉证书链路。
+		logging.ConsoleLog.Error().Msgf("acme: kept previous manager, new config is unusable: %v", err)
 		return
 	}
+
+	// 先换指针再停旧实例：请求路径要么看到旧管理器（此时还没停），要么看到新的。
 	activeManager.Store(m)
-	m.run(names)
-	logging.ConsoleLog.Info().Msgf("acme: background issuance started for %s", strings.Join(names, ", "))
+	if prev != nil {
+		prev.stop()
+	}
+	logSkippedDomains(plan)
+	startBackground(m)
+
+	switch {
+	case prev == nil:
+		logging.ConsoleLog.Info().Msgf("acme: background issuance started for %s", strings.Join(plan.Managed, ", "))
+	default:
+		logging.ConsoleLog.Info().Msgf("acme: manager restarted, background issuance started for %s (reason: %s)",
+			strings.Join(plan.Managed, ", "), reason)
+	}
 }
 
 // Stop 停止后台申请与续期。
@@ -130,6 +192,93 @@ func (m *Manager) stop() {
 			m.cache.Stop()
 		}
 	})
+	m.stopped.Store(true)
+}
+
+// acmeDiff 报告两份 acme 配置在运行期是否有差异，返回差异字段名；
+// 空串表示运行期等价，不需要重建管理器。
+//
+// fallback_self_signed 不参与比较：它只在 CLI 摘要与配置校验里用，运行期不读。
+// ssl_certificate 路径也不参与：certPaths() 每次都读当前快照。
+func acmeDiff(old, next *config.AcmeConfig) string {
+	if old.Active() != next.Active() {
+		return "enabled"
+	}
+	if !old.Active() {
+		return ""
+	}
+	switch {
+	case old.Email != next.Email:
+		return "email"
+	case old.Staging != next.Staging:
+		return "staging"
+	case old.RenewBeforeDays != next.RenewBeforeDays:
+		return "renew_before_days"
+	case old.Storage != next.Storage:
+		return "storage"
+	case !sameChallenges(old, next):
+		return "challenge"
+	case !sameCAs(old.CAs, next.CAs):
+		return "cas"
+	}
+	return ""
+}
+
+// sameChallenges 按「实际启用的挑战集合」比较：
+// auto 等价于 http-01 + tls-alpn-01，写法的顺序与展开形式不影响语义。
+func sameChallenges(old, next *config.AcmeConfig) bool {
+	a := effectiveChallenges(old)
+	b := effectiveChallenges(next)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// effectiveChallenges 把 auto 展开成实际会用的挑战集合，顺序固定。
+func effectiveChallenges(cfg *config.AcmeConfig) []string {
+	var out []string
+	for _, name := range []string{config.ACMEChallengeHTTP01, config.ACMEChallengeTLSALPN01} {
+		if cfg.UsesChallenge(name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+// sameCAs 逐项比较降级链：顺序有意义（IssuerPolicy 用第一条可用 CA）。
+func sameCAs(a, b []config.ACMECA) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// sameNames 按集合比较域名：配置里 server 块的排列顺序变化不该重启管理器。
+func sameNames(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	seen := make(map[string]struct{}, len(a))
+	for _, name := range a {
+		seen[name] = struct{}{}
+	}
+	for _, name := range b {
+		if _, ok := seen[name]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func newManager(cfg *config.AcmeConfig, names []string) (*Manager, error) {
@@ -137,7 +286,7 @@ func newManager(cfg *config.AcmeConfig, names []string) (*Manager, error) {
 		return nil, fmt.Errorf("create acme storage %s: %w", cfg.Storage, err)
 	}
 
-	m := &Manager{cfg: cfg}
+	m := &Manager{cfg: cfg, names: append([]string(nil), names...)}
 	solvers := make(map[string]acmez.Solver, 2)
 	if cfg.UsesChallenge(config.ACMEChallengeHTTP01) {
 		m.http = newHTTP01Solver()
@@ -191,9 +340,10 @@ func newManager(cfg *config.AcmeConfig, names []string) (*Manager, error) {
 
 // run 先同步存储里已有的证书（进程重启后不必等续期），再交给
 // certmagic 的后台任务负责首次申请与到期前续期。
-func (m *Manager) run(names []string) {
+func (m *Manager) run() {
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
+	names := m.names
 
 	go func() {
 		m.syncStored(ctx, names)
@@ -336,13 +486,12 @@ func Plan(cfg *config.Fast_Https) DomainPlan {
 	return plan
 }
 
-// managedDomains 返回可以走 ACME 的 server_name，并把跳过的名字记进日志。
-func managedDomains(cfg *config.Fast_Https) []string {
-	plan := Plan(cfg)
+// logSkippedDomains 把不能走 ACME 的 server_name 与原因记进日志。
+// 只在真正（重）启动管理器时调用：没有差异的 reload 不该刷一串重复告警。
+func logSkippedDomains(plan DomainPlan) {
 	for _, skip := range plan.Skipped {
 		logging.ConsoleLog.Warn().Msgf("acme: skipping server_name %q: %s", skip.Name, skip.Reason)
 	}
-	return plan.Managed
 }
 
 func cmpOrName(original, normalized string) string {

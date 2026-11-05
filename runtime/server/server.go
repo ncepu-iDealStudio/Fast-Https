@@ -268,6 +268,10 @@ func (s *Server) Reload() {
 		logging.ConsoleLog.Error().Msgf("reload kept previous log files: %s", err.Error())
 	}
 
+	// 数据面钩子（ACME 的 acme-tls/1 provider 等）必须先按新配置就位：
+	// listenSsl 在构造 tls.Config 时读它们，晚一步这一次重建就白做。
+	core.RunBeforeListenReload()
+
 	lisAll, lisAdded, removed := listener.ReloadListenCfg()
 
 	removedSet := make(map[string]struct{}, len(removed))
