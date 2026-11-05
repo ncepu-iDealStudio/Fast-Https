@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -259,7 +260,8 @@ func promptACME(answers *acmeAnswers, opts acmeOptions) error {
 			Value(&answers.RenewBeforeDays)),
 		huh.NewGroup(huh.NewInput().
 			Title("账户与订单缓存目录").
-			Description("相对路径以安装目录为基准。").
+			Description(fmt.Sprintf("相对路径按 %s 解析，与二进制所在目录无关；包布局下实际是 %s。",
+				config.FAST_HTTPS_ETC_DIR, filepath.Join(config.FAST_HTTPS_ETC_DIR, "cert", "acme"))).
 			Placeholder(config.ACMECertStorageDir).
 			Value(&answers.Storage).
 			Validate(validateNotBlank)),
