@@ -57,54 +57,60 @@ type acmeOptions struct {
 func newAcmeCmd() *cobra.Command {
 	wizard := &cobra.Command{
 		Use:   "acme",
-		Short: "configure ACME certificate issuance interactively",
-		Long: "Configure ACME (Let's Encrypt / ZeroSSL) certificate issuance.\n\n" +
-			"Running it without a subcommand starts the interactive wizard. It only rewrites\n" +
-			"the top-level \"acme\" section of the config file and keeps every comment intact.\n" +
-			"The new settings take effect on the next restart, not on reload.",
+		Short: t("交互式配置 ACME 证书签发", "configure ACME certificate issuance interactively"),
+		Long: t(
+			"配置 ACME（Let's Encrypt / ZeroSSL）证书签发。\n\n"+
+				"不带子命令运行进入交互向导：只改写配置文件顶层的 \"acme\" 段，注释原样保留。\n"+
+				"新配置在下次启动时生效，reload 不会重建 ACME 管理器。",
+			"Configure ACME (Let's Encrypt / ZeroSSL) certificate issuance.\n\n"+
+				"Running it without a subcommand starts the interactive wizard. It only rewrites\n"+
+				"the top-level \"acme\" section of the config file and keeps every comment intact.\n"+
+				"The new settings take effect on the next restart, not on reload."),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return runAcmeSetup(cmd) },
 	}
 
 	setup := &cobra.Command{
 		Use:          "setup",
-		Short:        "write the acme section (interactive unless --non-interactive)",
+		Short:        t("写入 acme 段（不加 --non-interactive 时进入交互）", "write the acme section (interactive unless --non-interactive)"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return runAcmeSetup(cmd) },
 	}
 
 	show := &cobra.Command{
 		Use:          "show",
-		Short:        "print the effective acme settings and the domains that will be requested",
+		Short:        t("打印当前 acme 设置与将要申请的域名", "print the effective acme settings and the domains that will be requested"),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAcmeShow(cmd.OutOrStdout())
 		},
 	}
 
-	for _, c := range []*cobra.Command{wizard, setup} {
-		registerAcmeSetupFlags(c)
-		c.AddCommand(show)
-	}
-	wizard.AddCommand(setup)
+	// 交互向导只留 --config：CA、邮箱、挑战方式这些都在问答里逐项给出默认值，
+	// 把十几个 flag 摆在 `acme --help` 里只会让「跑一次向导」这件事看起来很难。
+	// 需要脚本化时再用 `acme setup`，那里的 flag 一个不少。
+	wizard.Flags().String("config", config.CONFIG_FILE_PATH, t("要改写的配置文件", "config file to patch"))
+	registerAcmeSetupFlags(setup)
+
+	wizard.AddCommand(setup, show)
 	return wizard
 }
 
 func registerAcmeSetupFlags(c *cobra.Command) {
 	f := c.Flags()
-	f.String("email", "", "account email, required when ACME is enabled")
-	f.String("ca", string(acmeCALetsEncrypt), "letsencrypt | staging | zerossl | custom")
-	f.String("directory", "", "ACME directory URL, used with --ca=custom")
-	f.String("eab-kid", "", "external account binding key id (ZeroSSL)")
-	f.String("eab-hmac-key", "", "external account binding HMAC key (ZeroSSL)")
-	f.String("challenge", config.ACMEChallengeAuto, "auto | http-01 | tls-alpn-01")
-	f.Int("renew-before-days", config.DefaultACMERenewBeforeDays, "renew this many days before expiry")
-	f.String("storage", config.ACMECertStorageDir, "directory for the ACME account and order cache")
-	f.Bool("fallback-self-signed", true, "keep serving the self-signed certificate when issuance fails")
-	f.Bool("non-interactive", false, "take every value from flags, never prompt")
-	f.Bool("plain", false, "plain line-by-line prompts instead of the full-screen form")
-	f.Bool("dry-run", false, "print the patched config instead of writing it")
-	f.String("config", config.CONFIG_FILE_PATH, "config file to patch")
+	f.String("email", "", t("账户邮箱，启用 ACME 时必填", "account email, required when ACME is enabled"))
+	f.String("ca", string(acmeCALetsEncrypt), t("letsencrypt | staging | zerossl | custom", "letsencrypt | staging | zerossl | custom"))
+	f.String("directory", "", t("ACME directory URL，配合 --ca=custom 使用", "ACME directory URL, used with --ca=custom"))
+	f.String("eab-kid", "", t("外部账户绑定 key id（ZeroSSL）", "external account binding key id (ZeroSSL)"))
+	f.String("eab-hmac-key", "", t("外部账户绑定 HMAC key（ZeroSSL）", "external account binding HMAC key (ZeroSSL)"))
+	f.String("challenge", config.ACMEChallengeAuto, t("auto | http-01 | tls-alpn-01", "auto | http-01 | tls-alpn-01"))
+	f.Int("renew-before-days", config.DefaultACMERenewBeforeDays, t("到期前多少天开始续期", "renew this many days before expiry"))
+	f.String("storage", config.ACMECertStorageDir, t("ACME 账户与订单缓存的目录", "directory for the ACME account and order cache"))
+	f.Bool("fallback-self-signed", true, t("签发失败时继续用自签证书", "keep serving the self-signed certificate when issuance fails"))
+	f.Bool("non-interactive", false, t("全部取值来自参数，不做任何提问", "take every value from flags, never prompt"))
+	f.Bool("plain", false, t("使用逐行问答代替全屏表单", "plain line-by-line prompts instead of the full-screen form"))
+	f.Bool("dry-run", false, t("打印将要写入的配置而不是写盘", "print the patched config instead of writing it"))
+	f.String("config", config.CONFIG_FILE_PATH, t("要改写的配置文件", "config file to patch"))
 }
 
 // runAcmeSetup 从 flags 组装答案，交互模式下再用向导补齐。

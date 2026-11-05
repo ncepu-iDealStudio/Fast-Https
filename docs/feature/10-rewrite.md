@@ -15,7 +15,7 @@
 ## 实现方案（modules/rewrite/rewrite.go）
 
 - `ReWriteEvent` 直接构造 301 响应：`Location` 头 + `Connection: close`，写出即关闭连接。
-- `devmod`（`modules/dev_mod`）：DEVMOD 类型注册的处理变体，行为近似本地静态服务，配合 `dev` 命令使用。
+- `devmod`（`modules/dev_mod`）：DEVMOD 类型注册的处理变体，固定回 `this is dev mod`，用于本地确认路由是否命中，不读站点目录。
 
 ## 测试
 

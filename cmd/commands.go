@@ -10,13 +10,11 @@ import (
 	initialization "fast-https/init"
 	"fast-https/runtime/server"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 )
 
@@ -24,99 +22,143 @@ import (
 // 命令结构体定义
 type command struct {
 	name        string                 // 命令名称
-	description string                 // 命令描述
+	description string                 // 命令描述（已按当前语言翻译）
 	handler     func() error           // 命令处理函数
 	register    func() *cobra.Command  // 需要子命令或 flags 时使用，与 handler 二选一
 }
 
-var (
-	// Command structure initialization
-	// 命令结构体初始化
-	commands = []command{
+// commandList 每次建树时按当前语言生成描述。
+// 不能做成包级变量：初始化发生在 -h 之前，那时还不知道要哪种语言。
+func commandList() []command {
+	return []command{
 		{
 			name:        "start",
-			description: "to start web server", // 启动Web服务器
+			description: t("启动 Web 服务器", "to start web server"),
 			handler:     StartHandler,
 		},
 		{
-			name:        "dev",
-			description: "to start web server in dev mode", // 以debug模式启动Web服务器
-			handler:     DevStartHandler,
-		},
-		{
 			name:        "stop",
-			description: "to Stop web server", // 停止Web服务器
+			description: t("停止 Web 服务器", "to stop web server"),
 			handler:     StopHandler,
 		},
 		{
 			name:        "reload",
-			description: "to reload config", // 重新加载配置
+			description: t("重新加载配置", "to reload config"),
 			handler:     ReloadHandler,
 		},
 		{
 			name:        "status",
-			description: "to check web server status", // 检查Web服务器状态
+			description: t("查看 Web 服务器运行状态", "to check web server status"),
 			handler:     statusHandler,
 		},
 		{
 			name:        "check",
-			description: "to validate config without listening",
+			description: t("校验配置但不监听端口", "to validate config without listening"),
 			handler:     checkHandler,
 		},
 		{
+			name:        "version",
+			description: t("打印版本号", "print the version"),
+			register:    newVersionCmd,
+		},
+		{
 			name:        "acme",
-			description: "configure ACME certificate issuance",
+			description: t("配置 ACME 证书签发", "configure ACME certificate issuance"),
 			register:    newAcmeCmd,
 		},
 		{
 			name:        "config",
-			description: "inspect resolved runtime paths",
+			description: t("查看解析后的运行时路径", "inspect resolved runtime paths"),
 			register:    newConfigCmd,
 		},
 		{
 			name:        "site",
-			description: "manage site files under http.include",
+			description: t("管理 http.include 目录下的站点文件", "manage site files under http.include"),
 			register:    newSiteCmd,
 		},
 	}
-)
+}
 
-// RootCmd 返回根命令对象，处理命令行参数和标志
+// newVersionCmd 打印版本号。版本是编译期常量，与启动横幅、错误页脚、
+// ACME 的 User-Agent 用的是同一个值，不另外维护一份。
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:          "version",
+		Short:        t("打印版本号", "print the version"),
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintf(cmd.OutOrStdout(), "fast-https %s\n", config.CURRENT_VERSION)
+			return nil
+		},
+	}
+}
+
+// RootCmd 返回根命令对象。语言先按命令行与环境变量定下来，再建整棵树：
+// cobra 的 Short/Long 是字符串字段，建树时给哪份就是哪份。
 func RootCmd() *cobra.Command {
+	return RootCmdForLang(resolveLang(os.Args[1:]))
+}
+
+// RootCmdForLang 按指定语言建树，供 --lang 之外的入口（测试、man 生成）使用。
+func RootCmdForLang(lang Lang) *cobra.Command {
+	if lang != LangEN {
+		lang = LangZH
+	}
+	currentLang = lang
+
 	cmd := &cobra.Command{
 		Use:   "fast-https",
-		Short: "Fast-https is a high performance web server and proxy server",
-		Long: "Fast-https is a high performance web server and proxy server.\n\n" +
-			"Run it without any command to start the server.",
+		Short: t("高性能 Web 服务器与反向代理服务器", "Fast-https is a high performance web server and proxy server"),
+		Long: t(
+			"Fast-https 是高性能 Web 服务器与反向代理服务器。\n\n不带子命令直接运行即启动服务。",
+			"Fast-https is a high performance web server and proxy server.\n\n"+
+				"Run it without any command to start the server."),
 		SilenceUsage: true, //用于在发生错误时静音使用情况。
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCommand(args)
 		},
 	}
+	// 语言在解析参数之前就要定下来，所以这个 flag 只作为显式入口记录在帮助里：
+	// 真正的取值发生在 RootCmd() 里扫 os.Args。默认值留空，避免 pflag 在
+	// 中文帮助里补一句英文的 (default "zh")。
+	cmd.PersistentFlags().String("lang", "",
+		t("帮助信息的语言：zh | en（默认取 FAST_HTTPS_LANG，未设置时为 zh）",
+			"language of the help output: zh | en (defaults to "+LangEnv+", zh when unset)"))
 
-	// 把 commands 注册为 cobra 子命令，使 -h/--help 能列出全部命令及说明
-	for i := range commands {
-		sub := commands[i]
+	// 把命令注册为 cobra 子命令，使 -h/--help 能列出全部命令及说明
+	for _, sub := range commandList() {
 		if sub.register != nil {
-			// 带子命令或 flags 的命令自己构造完整命令树（acme、site）。
+			// 带子命令或 flags 的命令自己构造完整命令树（acme、site、config）。
 			cmd.AddCommand(sub.register())
 			continue
 		}
+		handler := sub.handler
 		cmd.AddCommand(&cobra.Command{
 			Use:          sub.name,
 			Short:        sub.description,
 			SilenceUsage: true,
 			RunE: func(cmd *cobra.Command, args []string) error {
-				return sub.handler()
+				return handler()
 			},
 		})
 	}
 
+	// 不要 cobra 自带的 `completion` 子命令：它生成的是 shell 补全脚本，
+	// 与本项目无关（站点路径的 Tab 补全在 site init 的输入行里，是另一套实现）。
+	// 留着只会在 --help 里多一条看起来像是我们做的事。
+	cmd.CompletionOptions.DisableDefaultCmd = true
+
+	// help 平时由 cobra 在 Execute 时懒加载，这里提前建出来，
+	// 两种语言的命令树才是同一棵（man 页不会缺项）；英文版沿用 cobra 的默认文案。
+	cmd.InitDefaultHelpCmd()
+
+	localizeCobra(cmd)
 	return cmd
 }
 
 func usage() {
-	usageStr := `Unkown command, please check command.`
+	usageStr := t("未知命令，请检查命令拼写。", "Unknown command, please check the command.")
 	logging.ConsoleLog.Info().Msgf("%s\n", usageStr)
 }
 
@@ -128,7 +170,7 @@ func runCommand(args []string) error {
 		return nil
 	}
 
-	for _, c := range commands {
+	for _, c := range commandList() {
 		if args[0] != c.name {
 			continue
 		}
@@ -146,39 +188,6 @@ func runCommand(args []string) error {
 
 	// 没有匹配到任何命令，输出帮助信息
 	usage()
-	return nil
-}
-
-// DevStartHandler 仅用于开发模式的启动处理
-func DevStartHandler() error {
-
-	go func() {
-		logging.ConsoleLog.Info().Msgf("%v", http.ListenAndServe("0.0.0.0:10000", nil))
-	}()
-
-	logging.SetLevel(zerolog.TraceLevel)
-
-	// pre-check before server start
-	PreCheckHandler()
-
-	// output logo, make initialization and start server
-	banner.PrintLogo(config.CURRENT_VERSION)
-	// dev stays in the foreground on every platform, so the pid file is this process.
-	// reload reads that file and sends SIGINT.
-	WritePid(config.PID_FILE)
-
-	banner.PrintInitialStart()
-	initialization.InitSystem()
-	banner.PrintInitialEnd()
-
-	RegisterHandlers()
-	RegisterServices()
-	// dev 前台模式：SIGINT（Ctrl+C）优雅停机，而不是重载配置
-	server.SetForegroundDev(true)
-	server := server.ServerInit()
-	banner.PrintPortsListenerStart()
-	server.Run()
-
 	return nil
 }
 

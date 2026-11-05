@@ -187,8 +187,13 @@ nfpms:
         dst: /usr/share/fast-https/httpdoc/root/favicon.ico
       - src: docs/usage.html
         dst: /usr/share/doc/fast-https/usage.html
+      # 默认那份是中文页：与二进制的默认语言一致，装完 man fast-https 直接能看懂。
       - src: build/packaging/man/fast-https.1
         dst: /usr/share/man/man1/fast-https.1
+      # 英文页按 locale 目录装。LANG=en_US / en_GB 时 man 会先命中这一份，
+      # 其他语言仍回落到上面那份中文页。
+      - src: build/packaging/man/fast-https.en.1
+        dst: /usr/share/man/en/man1/fast-https.1
       - src: LICENSE
         dst: /usr/share/licenses/fast-https/LICENSE
       - src: build/packaging/systemd/fast-https.service

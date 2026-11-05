@@ -18,8 +18,8 @@ go vet ./...            # 静态检查，提交前必须干净
 ## 本地运行
 
 ```bash
-# 开发模式：前台运行 + trace 控制台 + pprof(0.0.0.0:10000)
-go run . dev
+# 前台运行：进程留在当前终端，日志直接打到 stdout
+FASTHTTPS_FOREGROUND=1 go run . start
 
 # 后台服务
 go run . start

@@ -32,21 +32,29 @@ type siteOptions struct {
 	Yes            bool
 	Merged         bool
 	NonInteractive bool
-	In             io.Reader
-	Out            io.Writer
+	// Changed 报告某个 flag 是否被显式传入。同名站点按"更新"处理时，
+	// 只有显式传入的项才覆盖现有值——全部按默认值写回会把上次的配置抹掉。
+	Changed func(string) bool
+	In      io.Reader
+	Out     io.Writer
+}
+
+// siteFlagChanged 是 Changed 的 nil 安全包装：测试里直接构造 siteOptions 时没有它。
+func siteFlagChanged(opts siteOptions, name string) bool {
+	return opts.Changed != nil && opts.Changed(name)
 }
 
 func newSiteCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "site",
-		Short:        "manage site files under http.include",
+		Short:        t("管理 http.include 目录下的站点文件", "manage site files under http.include"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 
 	initCmd := &cobra.Command{
 		Use:          "init [name]",
-		Short:        "create conf.d/<name>.json (interactive unless --non-interactive)",
+		Short:        t("创建 conf.d/<name>.json（不加 --non-interactive 时进入交互）", "create conf.d/<name>.json (interactive unless --non-interactive)"),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSiteInit(siteOptionsFrom(cmd, args))
@@ -54,23 +62,15 @@ func newSiteCmd() *cobra.Command {
 	}
 	listCmd := &cobra.Command{
 		Use:          "list",
-		Short:        "list site files with listen, server_name and location types",
+		Short:        t("列出站点文件的 listen、server_name 与 location 类型", "list site files with listen, server_name and location types"),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSiteList(siteOptionsFrom(cmd, args))
 		},
 	}
-	checkCmd := &cobra.Command{
-		Use:          "check [name]",
-		Short:        "validate the merged config, or one site file",
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSiteCheck(siteOptionsFrom(cmd, args))
-		},
-	}
 	showCmd := &cobra.Command{
 		Use:          "show <name>",
-		Short:        "print the effective server block of a site and its source file",
+		Short:        t("打印某站点最终生效的 server 块及其来源文件", "print the effective server block of a site and its source file"),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -79,7 +79,7 @@ func newSiteCmd() *cobra.Command {
 	}
 	removeCmd := &cobra.Command{
 		Use:          "remove <name>",
-		Short:        "delete a site file (requires --yes)",
+		Short:        t("删除站点文件（需要 --yes）", "delete a site file (requires --yes)"),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -87,38 +87,23 @@ func newSiteCmd() *cobra.Command {
 		},
 	}
 
-	updateCmd := &cobra.Command{
-		Use:   "update <name>",
-		Short: "modify an existing site file (only the flags you pass)",
-		Long: "modify an existing site file. Only the flags you pass are applied;\n" +
-			"every other field — including extra location blocks you wrote by hand — is kept as is.\n" +
-			"The file is rewritten as plain JSON, so comments inside it are not preserved.",
-		Args:         cobra.ExactArgs(1),
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSiteUpdate(cmd, args)
-		},
+	for _, sub := range []*cobra.Command{initCmd, listCmd, showCmd, removeCmd} {
+		sub.Flags().String("config", config.CONFIG_FILE_PATH, t("主配置文件", "main config file"))
 	}
+	initCmd.Flags().StringArray("listen", nil,
+		t(`监听值，可重复：--listen 80 --listen "443 ssl h2"`,
+			`listen value, repeatable: --listen 80 --listen "443 ssl h2"`))
+	initCmd.Flags().String("server-name", "", t("站点的 server_name（默认取站点名）", "server_name of the site (defaults to the site name)"))
+	initCmd.Flags().String("root", "./httpdoc/root", t("本地站点的文档根目录", "document root for a local site"))
+	initCmd.Flags().String("proxy-pass", "", t("代理站点的上游，例如 http://127.0.0.1:8080", "upstream for a proxy site, e.g. http://127.0.0.1:8080"))
+	initCmd.Flags().String("type", "local", t("location 类型：local 或 proxy", "location type: local or proxy"))
+	initCmd.Flags().Bool("tls", false, t("为站点启用 TLS（补上 ssl h2 与证书路径）", "enable TLS on this site (adds ssl h2 and cert paths)"))
+	initCmd.Flags().Bool("force", false, t("按参数重建文件，丢弃现有内容", "rebuild the file from flags, discarding the current content"))
+	initCmd.Flags().Bool("non-interactive", false, t("全部取值来自参数，不做任何提问", "take every value from flags, never prompt"))
+	showCmd.Flags().Bool("merged", false, t("打印合并后每个字段都生效的 server 块", "print the merged server block with every effective field"))
+	removeCmd.Flags().Bool("yes", false, t("确认删除", "confirm deletion"))
 
-	for _, sub := range []*cobra.Command{initCmd, listCmd, checkCmd, showCmd, removeCmd, updateCmd} {
-		sub.Flags().String("config", config.CONFIG_FILE_PATH, "main config file")
-	}
-	// init 与 update 共用同一组"站点内容"开关：init 是初始值，update 只覆盖显式传入的项。
-	for _, sub := range []*cobra.Command{initCmd, updateCmd} {
-		sub.Flags().StringArray("listen", nil,
-			`listen value, repeatable: --listen 80 --listen "443 ssl h2"`)
-		sub.Flags().String("server-name", "", "server_name of the site (defaults to the site name)")
-		sub.Flags().String("root", "./httpdoc/root", "document root for a local site")
-		sub.Flags().String("proxy-pass", "", "upstream for a proxy site, e.g. http://127.0.0.1:8080")
-		sub.Flags().String("type", "local", "location type: local or proxy")
-		sub.Flags().Bool("tls", false, "enable TLS on this site (adds ssl h2 and cert paths)")
-	}
-	initCmd.Flags().Bool("force", false, "overwrite an existing site file")
-	initCmd.Flags().Bool("non-interactive", false, "take every value from flags, never prompt")
-	showCmd.Flags().Bool("merged", false, "print the merged server block with every effective field")
-	removeCmd.Flags().Bool("yes", false, "confirm deletion")
-
-	root.AddCommand(initCmd, listCmd, checkCmd, showCmd, removeCmd, updateCmd)
+	root.AddCommand(initCmd, listCmd, showCmd, removeCmd)
 	return root
 }
 
@@ -128,6 +113,7 @@ func siteOptionsFrom(cmd *cobra.Command, args []string) siteOptions {
 	path, _ := flags.GetString("config")
 	opts := siteOptions{
 		ConfigPath: path,
+		Changed:    flags.Changed,
 		In:         cmd.InOrStdin(),
 		Out:        cmd.OutOrStdout(),
 	}
@@ -189,6 +175,18 @@ func runSiteInit(opts siteOptions) error {
 		return err
 	}
 
+	// 文件名已存在就是"更新"：站点只保留 init 一个入口，不必再记 update。
+	// --force 例外，表示按参数重建、丢弃现有内容。
+	if !opts.Force && strings.TrimSpace(opts.Name) != "" {
+		path, existing, found, err := site.LoadExisting(dirs, opts.Name)
+		if err != nil {
+			return err
+		}
+		if found {
+			return updateSiteInPlace(dirs, opts, path, existing)
+		}
+	}
+
 	name, in, err := siteInputFrom(&opts)
 	if err != nil {
 		return err
@@ -198,72 +196,106 @@ func runSiteInit(opts siteOptions) error {
 		return err
 	}
 
-	fmt.Fprintf(opts.Out, "站点文件已生成：%s\n", path)
-	fmt.Fprintf(opts.Out, "  listen=%s server_name=%s location=%s\n", in.ListenSummary(), in.ServerName, describeSiteInput(in))
+	printSiteWritten(opts, path, in, "站点文件已生成")
+	return nil
+}
+
+// updateSiteInPlace 把 init 用成"更新"：以现有文件为准，只覆盖用户这次明确给的项。
+// 一个内容 flag 都没给时进向导，并把现有值作为每道题的默认。
+func updateSiteInPlace(dirs []string, opts siteOptions, path string, existing config.SiteInput) error {
+	interactive := !opts.NonInteractive && !anySiteContentFlagChanged(opts)
+	if !interactive && !anySiteContentFlagChanged(opts) {
+		return errors.New("同名站点已存在：带上要修改的项（如 --tls、--listen、--root），或加 --force 按参数重建")
+	}
+
+	updated := existing
+	if interactive {
+		prepareSitePrompts(&opts, existing)
+		draft := existing
+		if err := promptSite(&opts, &draft); err != nil {
+			return err
+		}
+		updated.Listens = resolveListens(opts, draft.Listens)
+		updated.ServerName = strings.TrimSpace(draft.ServerName)
+		if err := applySiteLocation(&updated, opts, func(string) bool { return true }); err != nil {
+			return err
+		}
+		fillSiteCerts(&updated)
+	} else if err := applySiteFlags(&updated, opts); err != nil {
+		return err
+	}
+
+	if _, err := site.Update(dirs, opts.Name, func(in *config.SiteInput) error {
+		*in = updated
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	printSiteWritten(opts, path, updated, "站点已更新")
+	return nil
+}
+
+// applySiteFlags 只应用显式传入的 flag，其余字段保持文件里的原值。
+func applySiteFlags(in *config.SiteInput, opts siteOptions) error {
+	if siteFlagChanged(opts, "server-name") {
+		name := strings.TrimSpace(opts.ServerName)
+		if name == "" {
+			return errors.New("--server-name 不能为空")
+		}
+		in.ServerName = name
+	}
+	if siteFlagChanged(opts, "listen") {
+		listens := cleanListens(opts.Listens)
+		if len(listens) == 0 {
+			return errors.New("--listen 至少要给一个值")
+		}
+		in.Listens = listens
+	}
+	// --tls 的语义是"把现有监听升级成 TLS"，不会移除已经写好的 ssl。
+	if siteFlagChanged(opts, "listen") || siteFlagChanged(opts, "tls") {
+		in.Listens = resolveListens(opts, in.Listens)
+	}
+	if err := applySiteLocation(in, opts, func(name string) bool { return siteFlagChanged(opts, name) }); err != nil {
+		return err
+	}
+	fillSiteCerts(in)
+	return nil
+}
+
+// prepareSitePrompts 把现有站点的值预填进向导：类型、根目录/上游、TLS 开关。
+func prepareSitePrompts(opts *siteOptions, existing config.SiteInput) {
+	if opts.LocationType == "" {
+		opts.LocationType = "local"
+	}
+	opts.TLS = listensHaveSSL(existing.Listens)
+	if loc := primaryLocation(&existing); loc != nil {
+		if loc.Type != "" {
+			opts.LocationType = loc.Type
+		}
+		opts.Root = loc.Root
+		opts.ProxyPass = loc.ProxyPass
+	}
+}
+
+func anySiteContentFlagChanged(opts siteOptions) bool {
+	for _, name := range []string{"listen", "server-name", "root", "proxy-pass", "type", "tls"} {
+		if siteFlagChanged(opts, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func printSiteWritten(opts siteOptions, path string, in config.SiteInput, headline string) {
+	fmt.Fprintf(opts.Out, "%s：%s\n", headline, path)
+	fmt.Fprintf(opts.Out, "  listen=%s server_name=%s location=%s\n",
+		in.ListenSummary(), in.ServerName, describeSiteInput(in))
 	if listensHaveSSL(in.Listens) {
 		fmt.Fprintf(opts.Out, "  证书路径：%s / %s（不存在时首次 start 会用本地 CA 生成）\n",
 			in.SSLCertificate, in.SSLCertificateKey)
 	}
-	fmt.Fprintln(opts.Out, "下一步：fast-https check 校验，fast-https reload 生效（reload 不中断在途连接）。")
-	return nil
-}
-
-// runSiteUpdate 只应用用户显式传入的 flag，其余字段保持原样。
-// 站点不存在时报错并指向 init：update 不做隐式新建，拼错名字就会多出一个站点。
-func runSiteUpdate(cmd *cobra.Command, args []string) error {
-	opts := siteOptionsFrom(cmd, args)
-	if strings.TrimSpace(opts.Name) == "" {
-		return errors.New("用法：fast-https site update <站点名> [--listen ...] [--tls]")
-	}
-	dirs, err := siteDirs(opts)
-	if err != nil {
-		return err
-	}
-
-	flags := cmd.Flags()
-	changed := func(name string) bool { return flags.Changed(name) }
-
-	var updated config.SiteInput
-	apply := func(in *config.SiteInput) error {
-		if changed("server-name") {
-			name := strings.TrimSpace(opts.ServerName)
-			if name == "" {
-				return errors.New("--server-name 不能为空")
-			}
-			in.ServerName = name
-		}
-		if changed("listen") {
-			if len(cleanListens(opts.Listens)) == 0 {
-				return errors.New("--listen 至少要给一个值")
-			}
-			in.Listens = cleanListens(opts.Listens)
-		}
-		// --tls 的语义是"把现有监听升级成 TLS"，不会移除已经写好的 ssl。
-		if changed("listen") || changed("tls") {
-			in.Listens = resolveListens(opts, in.Listens)
-		}
-		if err := applySiteLocation(in, opts, changed); err != nil {
-			return err
-		}
-		fillSiteCerts(in)
-		updated = *in
-		return nil
-	}
-
-	path, err := site.Update(dirs, opts.Name, apply)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(opts.Out, "站点已更新：%s\n", path)
-	fmt.Fprintf(opts.Out, "  listen=%s server_name=%s location=%s\n",
-		updated.ListenSummary(), updated.ServerName, describeSiteInput(updated))
-	if listensHaveSSL(updated.Listens) {
-		fmt.Fprintf(opts.Out, "  证书路径：%s / %s（不存在时首次 start 会用本地 CA 生成）\n",
-			updated.SSLCertificate, updated.SSLCertificateKey)
-	}
-	fmt.Fprintln(opts.Out, "下一步：fast-https check 校验，fast-https reload 生效（新的证书路径需要 reload 才会重新读取）。")
-	return nil
+	fmt.Fprintln(opts.Out, "下一步：fast-https check 校验，fast-https reload 生效（reload 中断不了在途连接）。")
 }
 
 // applySiteLocation 只改 URL 为 "/" 的那个 location（没有就补一个），
@@ -523,13 +555,17 @@ func promptSite(opts *siteOptions, in *config.SiteInput) error {
 
 	// 一题一屏：每个字段单独成组，答完回车进入下一题。
 	listenText := strings.Join(in.Listens, ", ")
-	first := huh.NewForm(
-		huh.NewGroup(huh.NewInput().
+	groups := make([]*huh.Group, 0, 5)
+	// 同名更新时文件名是确定的，不再问一遍。
+	if strings.TrimSpace(opts.Name) == "" {
+		groups = append(groups, huh.NewGroup(huh.NewInput().
 			Title("站点名（文件名）").
 			Description("生成 conf.d/<名字>.json，只能用字母、数字、点、短横线。").
 			Placeholder("blog").
 			Value(&opts.Name).
-			Validate(site.ValidateName)),
+			Validate(site.ValidateName)))
+	}
+	groups = append(groups,
 		huh.NewGroup(huh.NewInput().
 			Title("监听端口/参数").
 			Description(`一个或多个，逗号分隔：80, "443 ssl h2"。`).
@@ -549,6 +585,7 @@ func promptSite(opts *siteOptions, in *config.SiteInput) error {
 			Negative("否").
 			Value(&opts.TLS)),
 	)
+	first := huh.NewForm(groups...)
 
 	if err := runSiteForm(first, opts); err != nil {
 		return err
@@ -571,11 +608,26 @@ func promptSite(opts *siteOptions, in *config.SiteInput) error {
 			Validate(validateNotBlank))), opts)
 	}
 
-	return runSiteForm(huh.NewForm(huh.NewGroup(huh.NewInput().
-		Title("站点根目录").
-		Description("静态文件目录，可以是相对安装目录的路径。").
-		Placeholder("./httpdoc/root").
-		Value(&opts.Root))), opts)
+	initial := strings.TrimSpace(opts.Root)
+	if initial == "" {
+		initial = "./httpdoc/root"
+	}
+	if _, ok := canReadRaw(*opts); !ok {
+		// 非终端输入时没有 Tab 可用，退回普通输入框。
+		return runSiteForm(huh.NewForm(huh.NewGroup(huh.NewInput().
+			Title("站点根目录").
+			Description("静态文件目录，相对路径按站点根基址解析。").
+			Placeholder(initial).
+			Value(&opts.Root))), opts)
+	}
+
+	// 路径靠手打容易错，这里给 shell 式的 Tab 补全。
+	root, err := readPathLine(*opts, "站点根目录", initial)
+	if err != nil {
+		return err
+	}
+	opts.Root = root
+	return nil
 }
 
 // runSiteForm 跑一屏问答，把 Ctrl+C / Esc 统一翻译成"已取消"。
@@ -612,30 +664,6 @@ func runSiteList(opts siteOptions) error {
 		fmt.Fprintf(opts.Out, "%-16s %-14s %-28s %s\n", entry.Name, entry.Listen, entry.ServerName,
 			strings.Join(entry.Types, ", "))
 	}
-	return nil
-}
-
-func runSiteCheck(opts siteOptions) error {
-	if opts.Name != "" {
-		dirs, err := siteDirs(opts)
-		if err != nil {
-			return err
-		}
-		path, ok := site.Find(dirs, opts.Name)
-		if !ok {
-			return fmt.Errorf("找不到站点文件：%s.json", opts.Name)
-		}
-		if err := config.ValidateSiteFile(path); err != nil {
-			return err
-		}
-		fmt.Fprintf(opts.Out, "%s ok\n", path)
-		return nil
-	}
-
-	if err := config.ValidateConfigFile(opts.ConfigPath); err != nil {
-		return err
-	}
-	fmt.Fprintf(opts.Out, "%s ok\n", opts.ConfigPath)
 	return nil
 }
 

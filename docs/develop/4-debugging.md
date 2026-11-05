@@ -9,7 +9,7 @@
 | error.log | 错误 | 上游失败、证书问题 |
 | safe.log | 安全拒绝，带 `reason` | blacklist / rate_limit / location_limit / waf |
 | daemon.log | 后台进程的控制台输出（每次 `start` 覆盖） | `start` 立刻失败、进程起来就没了 |
-| console（stdout） | 与文件并行的控制台回显 | dev 模式前台观察 |
+| console（stdout） | 与文件并行的控制台回显 | 前台运行（`FASTHTTPS_FOREGROUND=1 start`）时直接观察 |
 
 排查顺序建议：access.log 确认请求到达与状态码 → safe.log 看是否被安全层拒绝（reason 字段直接给出层级）→ error.log 找内部错误 → system.log 看生命周期事件。
 
@@ -26,14 +26,14 @@
 
 monitor 模式检测但不阻断，safe.log 的 `reason=waf` 记录（含 detector/score）即为误报分析素材；`enforce` 模式被阻断的请求在 access.log 里是 403。
 
-## pprof（dev 模式）
+## 性能剖析
 
-`go run . dev` 在 `0.0.0.0:10000` 挂标准库 mux：
+进程不再对外暴露 pprof 端口，剖析走基准测试产出的 profile：
 
 ```
-go tool pprof http://127.0.0.1:10000/debug/pprof/heap
-go tool pprof http://127.0.0.1:10000/debug/pprof/goroutine
-curl http://127.0.0.1:10000/debug/pprof/profile?seconds=30 > cpu.prof
+go test -run '^$' -bench . -benchmem -cpuprofile cpu.out -memprofile mem.out ./runtime/...
+go tool pprof -top cpu.out
+go tool pprof -top mem.out
 ```
 
 关注点：每请求分配（heap/alloc_objects）、goroutine 数量（连接数基线）、CPU 火焰（压缩/解析）。

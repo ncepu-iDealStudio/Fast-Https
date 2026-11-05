@@ -48,7 +48,7 @@ Blue is the primary request path; dashed lines are wiring injection and external
 | TLS certificates | Per-`server_name` certificates; `reload` swaps certificates on the same SSL port without rebinding the socket; certificates are provisioned automatically — a self-signed one is generated at startup when the PEM files are missing, and with ACME configured a publicly trusted certificate is issued and renewed for you (Let's Encrypt and others, via the `fast-https acme` wizard) |
 | HTTP/2 | Adding `h2` to `listen` enables it — ALPN, HPACK, stream state machine, and flow control come from `golang.org/x/net/http2`, and reloads send GOAWAY for a graceful close |
 | Security | Global plus per-location, per-IP token-bucket rate limiting; IP and IPv6 range blacklists; Basic auth; GuardianWAF (sqli / xss / lfi / cmdi / xxe / ssrf, log-only mode available) |
-| Operations | `start` / `stop` / `reload` / `status` / `check` / `dev`; config reload without dropping connections; `check` validates without listening |
+| Operations | `start` / `stop` / `reload` / `status` / `check`; config reload without dropping connections; `check` validates without listening |
 | Logging | Four JSON logs in `logs/` — system, access, error, security — each line tagged with `kind` and an RFC3339 timestamp; files are reopened after a reload |
 | Packaging | Installers for Linux / macOS / Windows, an RPM spec, three Docker base images, and a Windows tray program |
 
@@ -164,11 +164,11 @@ The shipped config carries no comments on purpose: every field is documented in 
 | Command | What it does |
 | --- | --- |
 | `./fast-https start` | Start the server (`start` is the default). Goes to the background on Linux / macOS; stays in the foreground under containers and systemd |
-| `./fast-https dev` | Foreground with log level 6 and pprof on `0.0.0.0:10000` |
 | `./fast-https stop` | Stop. Sends `SIGTERM` on Unix for a graceful shutdown; running it again is a no-op |
 | `./fast-https reload` | Validate the new config, then reload; a failed validation keeps the old config |
 | `./fast-https status` | Read the pid file and report whether the server is running |
 | `./fast-https check` | Validate the config only — no listening, no pid file |
+| `./fast-https version` | Print the version as a single line, `fast-https <version>` |
 | `./fast-https acme` | Interactive ACME setup, rewrites the `acme` section (restart required) |
 | `./fast-https acme show` | Show the effective ACME settings and the domains that will be requested |
 | `./fast-https site init blog` | Create a site file under `config/conf.d/` (wizard, or flags to skip prompts) |

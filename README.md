@@ -48,7 +48,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 | TLS 证书 | 每个 `server_name` 独立证书；同一 SSL 端口 `reload` 时热替换证书、不重新绑定端口；证书自动配置：缺少证书文件时启动前生成自签名证书，配置 ACME 后自动申请并续期受信任证书（Let's Encrypt 等，`fast-https acme` 向导） |
 | HTTP/2 | `listen` 含 `h2` 时启用，ALPN 协商、HPACK、流状态机与流量控制由 `golang.org/x/net/http2` 处理，重载时发 GOAWAY 优雅关闭 |
 | 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
-| 运维 | `start` / `stop` / `reload` / `status` / `check` / `dev`；热重载不断开已有连接；`check` 只校验配置不监听端口 |
+| 运维 | `start` / `stop` / `reload` / `status` / `check`；热重载不断开已有连接；`check` 只校验配置不监听端口 |
 | 日志 | `logs/` 下 system、access、error、safe 四路 JSON 日志，每条带 `kind` 与 RFC3339 时间，重载后重新打开文件 |
 | 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；Windows 附带托盘程序 |
 
@@ -164,11 +164,11 @@ curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
 | 命令 | 作用 |
 | --- | --- |
 | `./fast-https start` | 启动（无参数等同 `start`）。Linux / macOS 转后台，容器与 systemd 托管时保持前台 |
-| `./fast-https dev` | 前台启动，日志级别 6，并在 `0.0.0.0:10000` 打开 pprof |
 | `./fast-https stop` | 停止。Unix 发 `SIGTERM` 优雅停机，重复执行视为已停止 |
 | `./fast-https reload` | 校验配置后热重载，失败保留旧配置 |
 | `./fast-https status` | 读 pid 文件判断是否在运行 |
 | `./fast-https check` | 只校验配置，不监听端口、不写 pid |
+| `./fast-https version` | 打印版本号，输出一行 `fast-https <版本>` |
 | `./fast-https acme` | 交互式配置 ACME 自动签发证书，写回 `acme` 段（改完需重启） |
 | `./fast-https acme show` | 查看当前 ACME 配置与会申请证书的域名 |
 | `./fast-https site init blog` | 在 `config/conf.d/` 下生成一个站点文件（向导，或用参数跳过提问） |

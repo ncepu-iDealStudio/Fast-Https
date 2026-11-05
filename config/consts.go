@@ -51,8 +51,3 @@ const (
 /*
 goreleaser release -f build/goreleaser.yaml --snapshot --clean
 */
-
-/*
-http://127.0.0.1:10000/debug/pprof/
-go tool pprof main http://localhost:10000/debug/pprof/heap   web
-*/

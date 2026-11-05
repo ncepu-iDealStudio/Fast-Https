@@ -52,7 +52,7 @@
 
 - `core/registry.go` 定义 `RegisterHandler`、`Handler`、`HandlerReady` 和 `RegisteredTypes`。注册表是 `map[int]RRcircleHandler`，类型码由 `config` 定义，不再受定长数组长度限制。
 - `modules/static` 的 `Register` 登记 `LOCAL`；`modules/proxy` 登记 HTTP/HTTPS proxy；`modules/rewrite` 登记 rewrite；`modules/dev_mod` 登记 devmod。导入这些包本身不注册。
-- `cmd.RegisterHandlers` 在 `start`、`dev` 的 `ServerInit` 之前调用这四个函数。
+- `cmd.RegisterHandlers` 在 `start` 的 `ServerInit` 之前调用这四个函数。
 - `ServerInit()` 调用 `core.MissingHandlers()`，确认配置中非 TCP 的 location type 已有 handler，再创建监听器。
 - `runtime/events.EventHandler()` 根据匹配到的 location type 从 `core.Handler` 取得处理函数；缺失时返回 500，不再空指针崩溃。
 - TCP proxy 和 WebSocket 不走 location 表。`cmd.RegisterServices` 把它们放进 `core.Services.HandleListen`，`filters` 只调用这个钩子。
@@ -64,7 +64,7 @@
 
 | 输出 | 变量 | `kind` | 目的地 | 级别 |
 | --- | --- | --- | --- | --- |
-| 控制台 | `ConsoleLog` | `console` | stdout | 默认 `info`，`dev` 提到 `trace` |
+| 控制台 | `ConsoleLog` | `console` | stdout | 默认 `info` |
 | 系统 | `SystemLog` | `system` | `logs/system.log` + stdout | `debug` 及以上 |
 | 访问 | `AccessLog` | `access` | `logs/access.log` + stdout | `debug` 及以上 |
 | 错误 | `ErrorLog` | `error` | `logs/error.log` + stdout | `debug` 及以上 |
@@ -111,7 +111,7 @@
 - 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`。
 - 根目录 `tests/fast-https_test.go` 覆盖初始化路径。
 
-不进入 `go test` 的文件：`tests/scripts/dev-test.sh`、`dev-test.ps1`（手工拉起 `dev`），`tests/single/workloop.go`（独立 `main` 演示）。
+不进入 `go test` 的文件：`tests/scripts/dev-test.sh`、`dev-test.ps1`（手工前台拉起服务），`tests/single/workloop.go`（独立 `main` 演示）。
 
 ## 8. 历史验证基线（2026-10-13）
 

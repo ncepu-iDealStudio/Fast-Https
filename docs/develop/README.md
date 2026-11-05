@@ -10,7 +10,7 @@
 | 1 | [1-testing.md](1-testing.md) | 测试体系：单元/E2E/-race/基准/架构守卫 |
 | 2 | [2-code-standards.md](2-code-standards.md) | 分层约束、并发约定、提交与文档同步规范 |
 | 3 | [3-config-development.md](3-config-development.md) | 如何新增一个配置项（schema 到验收） |
-| 4 | [4-debugging.md](4-debugging.md) | 日志五路、pprof、常见问题排查 |
+| 4 | [4-debugging.md](4-debugging.md) | 日志五路、性能剖析、常见问题排查 |
 | 5 | [5-release.md](5-release.md) | 发布流程：GoReleaser/RPM/Docker 与发布前清单 |
 
 ## 过程与规划文档

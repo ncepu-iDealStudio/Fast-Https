@@ -33,19 +33,18 @@ flowchart TD
 
 ## 2. 进程入口与命令
 
-入口位于 [`fast-https.go`](../fast-https.go)。程序只创建并执行 `cmd.RootCmd()`；控制台日志级别由 `infra/logging` 的默认值（`info`）决定，`dev` 子命令在启动时把级别提到 `trace`。命令由 [`cmd/commands.go`](../cmd/commands.go) 分发：
+入口位于 [`fast-https.go`](../fast-https.go)。程序只创建并执行 `cmd.RootCmd()`；控制台日志级别由 `infra/logging` 的默认值（`info`）决定。命令由 [`cmd/commands.go`](../cmd/commands.go) 分发：
 
 | 命令 | 当前行为 |
 | --- | --- |
 | `start` | 预检查、系统初始化、启动服务器；非 Windows 平台随后调用 daemon 实现 |
 | 无参数 | 与 `start` 相同 |
-| `dev` | 提高日志级别、尝试启动 `:10000` 的 HTTP 服务，然后走相同的预检查和服务器初始化；不执行 `StartHandler` 中的 daemon 步骤 |
 | `stop` | 读取 PID 文件并对进程调用 `os.Kill` |
 | `reload` | 读取 PID 并发送平台对应的重载信号 |
 | `status` | 读取 `fast-https.pid`。进程在运行时打印 pid 并以 0 退出；没有 pid 文件，或文件里的 pid 已经没有对应进程时，以非 0 退出 |
 | `check` | 调用 `config.CheckConfig()`。不监听，不写 pid。通过时打印 `config ok` 并以 0 退出；失败时打印原因并以非 0 退出 |
 
-`start` 与 `dev` 的主要启动路径在 `StartHandler` 和 `DevStartHandler`。两者都会先执行 `PreCheckHandler`，再调用 `initialization.InitSystem()`、`server.ServerInit()` 和 `Server.Run()`。
+启动路径在 `StartHandler`：先执行 `PreCheckHandler`，再调用 `initialization.InitSystem()`、`server.ServerInit()` 和 `Server.Run()`。容器、systemd 托管或设了 `FASTHTTPS_FOREGROUND=1` 时不走 daemon 步骤。
 
 ## 3. 启动检查与系统初始化
 
@@ -77,7 +76,7 @@ ACME 证书管理器同样挂在 `AfterListen`（`certmanager.Start`）：必须
 
 `LoadFile` 在监听前把站点 root、证书、日志目录、`error_page` 与 include 路径转成绝对路径。相对路径按内容类型选基准（`config/base_dir.go` 与 `config/base_dir_rpm.go` 各一套）：配置与证书相对 ETC 目录，站点与错误页相对 DATA 目录，日志相对工作目录。归档构建的四个基址都在 `./` 下（`./config`、`./`、`./logs`），带 `rpm` tag 的发行版构建分属 `/etc/fast-https`、`/usr/share/fast-https`、`/var/log/fast-https`、`/run/fast-https`。`check` 用同一套基准，因此从任意工作目录启动或校验都指向同一份资源。Unix 上的 `start` 在容器外会把服务转到后台，做法是**重新 exec 自己**（`cmd/daemon_unix.go`：`Setsid` 独立会话、stdio 指向 `/dev/null`），而不是 fork 后继续跑 Go 代码——fork 出的子进程继承父进程的多线程与运行时锁状态，可能卡在启动阶段。父进程等子进程写好 pid 文件后退出，pid 由真正提供服务的进程写入 `fast-https.pid`。容器里存在 `/.dockerenv` 或 `/run/.containerenv`、systemd 托管（`INVOCATION_ID`）、或者设置了 `FASTHTTPS_FOREGROUND=1` 时，进程保持前台。
 
-开发模式额外启动 `http.ListenAndServe("0.0.0.0:10000", nil)`。当前代码中未发现该默认 mux 上注册 pprof handler 的实现；仅启动该端口并不意味着 `/debug/pprof/` 一定可用。
+进程不额外开放调试端口：`dev` 子命令已移除，需要剖析时用 `go test -cpuprofile` / `-memprofile` 产出 profile。
 
 ## 4. 从配置到监听器
 
@@ -121,7 +120,7 @@ ACME 证书管理器同样挂在 `AfterListen`（`certmanager.Start`）：必须
 | `rewrite` | `modules/rewrite` | 返回重定向响应 |
 | `devmod` | `modules/dev_mod` | 开发模块处理 |
 
-`cmd.RegisterHandlers` 在 `start` 和 `dev` 进入 `ServerInit` 之前，调用静态、代理、重写和开发模块的 `Register`，通过 `core.RegisterHandler` 登记处理器。WebSocket upgrade 在 HTTP 解析过滤阶段识别，之后由监听过滤器交给 WebSocket 模块。TCP 代理则按 TCP 类型的监听器在 HTTP 解析前分流。
+`cmd.RegisterHandlers` 在 `start` 进入 `ServerInit` 之前，调用静态、代理、重写和开发模块的 `Register`，通过 `core.RegisterHandler` 登记处理器。WebSocket upgrade 在 HTTP 解析过滤阶段识别，之后由监听过滤器交给 WebSocket 模块。TCP 代理则按 TCP 类型的监听器在 HTTP 解析前分流。
 
 ### 5.3 HTTP/2 事件链
 

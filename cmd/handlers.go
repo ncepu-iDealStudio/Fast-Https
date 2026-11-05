@@ -19,7 +19,7 @@ import (
 )
 
 // RegisterHandlers installs the production location handlers.
-// start and dev call it before ServerInit. Importing a handler package
+// start calls it before ServerInit. Importing a handler package
 // no longer registers it.
 func RegisterHandlers() {
 	static.Register()

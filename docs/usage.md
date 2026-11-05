@@ -475,12 +475,12 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 
 | 命令 | 作用 |
 | --- | --- |
-| `start` | 以守护进程方式启动（无参数等同此命令） |
-| `dev` | 前台启动，日志级别 6，并在 `0.0.0.0:10000` 开 pprof |
+| `start` | 以守护进程方式启动（无参数等同此命令）；容器与 systemd 托管、或设了 `FASTHTTPS_FOREGROUND=1` 时保持前台 |
 | `stop` | 停止服务 |
 | `reload` | 校验配置后热重载，失败时保留旧配置 |
 | `status` | 读 pid 文件，进程存在返回 0，否则非 0 |
 | `check` | 只校验配置，不监听端口、不写 pid |
+| `version` | 打印版本号，输出一行 `fast-https <版本>` |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型 |
 | `site check [name]` | 校验主配置（含 conf.d），带名字时只校验该文件 |
@@ -493,9 +493,23 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 
 三点行为需要留意：
 
-- `dev` 模式下 `Ctrl+C` 是**停止服务**，不是重载。
+- `SIGINT`（`Ctrl+C`）在各平台都是**重载配置**，前台运行也一样；停止用 `SIGTERM`、`SIGQUIT` 或 `stop` 命令。
 - `check` 通过时打印 `config ok` 并以 0 退出；`start` 的预检会做同一项校验。
 - 安装与卸载不走二进制：deb / rpm / apk 负责文件落位，`systemctl enable --now fast-https` 负责常驻。1.5.0 起不再提供 `install` / `uninstall` 子命令，老用户改用包管理器即可。
+
+### 10.1 帮助信息的语言
+
+帮助、用法与 flag 说明默认是中文。需要英文时用 `--lang en`，或者设置环境变量 `FAST_HTTPS_LANG=en`：
+
+```bash
+fast-https site init --help            # 中文
+fast-https --lang en site init --help  # 英文
+FAST_HTTPS_LANG=en fast-https -h       # 英文
+```
+
+`--lang` 优先于环境变量；两者都没给时按中文输出。语言只在进程启动时读一次，不影响运行期日志。
+
+手册页也是两份：`man fast-https` 读到的是中文页，`LANG=en_US.UTF-8 man fast-https` 读英文页（装在 `/usr/share/man/en/man1/`）。
 
 ## 11. 热重载与停机
 
@@ -515,7 +529,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | 启用 ACME 后仍是自签证书 | 查日志里的 `acme:` 告警：域名是否解析到本机、80/443 是否可达、CA 是否限速。失败期间服务继续用自签证书，按退避自动重试 |
 | 访问返回 421 | `security.host_check` 是 `enforce`，且请求的 `Host` 没命中任何 `server_name`。核对 `server_name`，或改成 `warn` / `off` |
 | 访问返回 405 | 该 location 配了 `allow_methods`。响应的 `Allow` 头列出允许的方法；`HEAD` 只在允许 `GET` 时自动放行 |
-| 修改配置后不生效 | 守护进程模式需要执行 `reload`；`dev` 模式需要重启 |
+| 修改配置后不生效 | 执行 `reload`；`acme` 段只在启动时读取，改完必须重启 |
 | 日志没有写到新目录 | 新 `log_root` 打不开时程序继续写原文件，检查目录权限 |
 
 ## 13. 已知限制

@@ -8,7 +8,7 @@ import (
 
 // main 是程序的入口函数。
 //
-// 控制台日志级别由 cmd 在子命令中按运行模式调整（dev 全量、其它为 info）。
+// 控制台日志级别由 infra/logging 决定，默认 info。
 func main() {
 	command := cmd.RootCmd()
 

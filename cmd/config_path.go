@@ -25,7 +25,7 @@ type RuntimePaths struct {
 func newConfigCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "config",
-		Short:        "inspect resolved runtime paths",
+		Short:        t("查看解析后的运行时路径", "inspect resolved runtime paths"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
@@ -33,10 +33,14 @@ func newConfigCmd() *cobra.Command {
 	var asJSON bool
 	pathCmd := &cobra.Command{
 		Use:   "path",
-		Short: "print config, cert, log and pid paths (absolute)",
-		Long: "print config, cert, log and pid paths (absolute).\n\n" +
-			"log 是当前布局的默认日志目录；配置里写了 log_root 时以配置为准，\n" +
-			"控制面可读取配置文件同名字段覆盖本值。",
+		Short: t("打印配置、证书、日志与 pid 路径（绝对路径）", "print config, cert, log and pid paths (absolute)"),
+		Long: t(
+			"打印配置、证书、日志与 pid 路径（绝对路径）。\n\n"+
+				"log 是当前布局的默认日志目录；配置里写了 log_root 时以配置为准，\n"+
+				"控制面可读取配置文件同名字段覆盖本值。",
+			"print config, cert, log and pid paths (absolute).\n\n"+
+				"log defaults to the directory of the current layout; when log_root is set in\n"+
+				"the config, that value wins and the control plane may override it as well."),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths := ResolvePaths()
@@ -52,7 +56,7 @@ func newConfigCmd() *cobra.Command {
 			return nil
 		},
 	}
-	pathCmd.Flags().BoolVar(&asJSON, "json", false, "print as JSON")
+	pathCmd.Flags().BoolVar(&asJSON, "json", false, t("以 JSON 输出", "print as JSON"))
 	root.AddCommand(pathCmd)
 	return root
 }
