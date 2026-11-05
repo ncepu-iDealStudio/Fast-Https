@@ -158,8 +158,11 @@ nfpms:
     section: web
     priority: optional
     # ACME 校验与 HTTPS 上游都要系统 CA 证书；最小化容器里没有这个包。
+    # 日志写在 /var/log/fast-https 且进程常开 fd，必须靠 logrotate 轮转，
+    # 没有它日志会无限增长——所以是硬依赖，而不是"有就用"。
     dependencies:
       - ca-certificates
+      - logrotate
     # Debian revision：仓库里同一 upstream 版本的多次打包靠它区分。
     release: "1"
     deb:
@@ -190,6 +193,11 @@ nfpms:
         dst: /usr/share/licenses/fast-https/LICENSE
       - src: build/packaging/systemd/fast-https.service
         dst: /usr/lib/systemd/system/fast-https.service
+      # 轮转策略跟包走：日志目录是 /var/log/fast-https（root 所有），
+      # 用户不该为了不让磁盘写满而自己写一份 logrotate 配置。
+      - src: build/packaging/logrotate/fast-https
+        dst: /etc/logrotate.d/fast-https
+        type: config|noreplace
       - dst: /etc/fast-https/cert
         type: dir
       # ACME 的账户与证书缓存目录：包安装后由 root 运行，目录必须预先存在，
