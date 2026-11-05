@@ -120,29 +120,11 @@ func runAcmeSetup(cmd *cobra.Command) error {
 	dryRun, _ := flags.GetBool("dry-run")
 	nonInteractive, _ := flags.GetBool("non-interactive")
 
-	answers := acmeAnswers{
-		Enabled:         true,
-		CA:              acmeCALetsEncrypt,
-		Challenge:       config.ACMEChallengeAuto,
-		RenewBeforeDays: config.DefaultACMERenewBeforeDays,
-		Storage:         config.ACMECertStorageDir,
-		Fallback:        true,
-	}
-	answers.Email, _ = flags.GetString("email")
-	answers.Directory, _ = flags.GetString("directory")
-	answers.EABKid, _ = flags.GetString("eab-kid")
-	answers.EABHmacKey, _ = flags.GetString("eab-hmac-key")
-	answers.Challenge, _ = flags.GetString("challenge")
-	answers.RenewBeforeDays, _ = flags.GetInt("renew-before-days")
-	answers.Storage, _ = flags.GetString("storage")
-	answers.Fallback, _ = flags.GetBool("fallback-self-signed")
-	if ca, err := flags.GetString("ca"); err == nil {
-		answers.CA = acmeCAChoice(ca)
-	}
-	if !flags.Changed("email") {
-		// 未显式给出邮箱时用配置里的值作为向导默认值。
-		answers.Email = currentACMEEmail()
-	}
+	// 默认值一律来自当前配置：再跑一次 acme 时，上次选的 CA、挑战方式、
+	// 续期天数、缓存目录与回落开关都应该原样带出来，而不是退回出厂值。
+	answers := acmeAnswersFromConfig(config.Current())
+	// 只有显式传了的 flag 才覆盖配置值，其余保持继承。
+	overrideACMEAnswers(&answers, cmd)
 
 	plain, _ := flags.GetBool("plain")
 	opts := acmeOptions{
@@ -273,6 +255,19 @@ func promptACME(answers *acmeAnswers, opts acmeOptions) error {
 			Value(&answers.Fallback)),
 	)
 
+	// 顺序很关键：摘要必须等前三段答完再生成。
+	// huh 的 Note Description 是创建表单时就求值的静态字符串，
+	// 提前构造 confirm 会把打开向导前的旧值写进"即将写入"，
+	// 用户明明填了邮箱，摘要里却还是空的。
+	for _, form := range []*huh.Form{basic, extra, advanced} {
+		if form == nil {
+			continue
+		}
+		if err := runACMEForm(form, opts); err != nil {
+			return err
+		}
+	}
+
 	confirmValue := true
 	confirm := huh.NewForm(
 		// Note 也单独一组：先让人看完整摘要，翻页后再确认。
@@ -285,24 +280,25 @@ func promptACME(answers *acmeAnswers, opts acmeOptions) error {
 			Negative("取消").
 			Value(&confirmValue)),
 	)
-
-	for _, form := range []*huh.Form{basic, extra, advanced, confirm} {
-		if form == nil {
-			continue
-		}
-		applyStdio(form, opts.In, opts.Out, opts.Accessible)
-		if err := form.Run(); err != nil {
-			if errors.Is(err, huh.ErrUserAborted) {
-				return errors.New("已取消，配置未改动")
-			}
-			return err
-		}
+	if err := runACMEForm(confirm, opts); err != nil {
+		return err
 	}
 	if !confirmValue {
 		return errors.New("已取消，配置未改动")
 	}
 	answers.Email = strings.TrimSpace(answers.Email)
 	answers.Storage = strings.TrimSpace(answers.Storage)
+	return nil
+}
+
+func runACMEForm(form *huh.Form, opts acmeOptions) error {
+	applyStdio(form, opts.In, opts.Out, opts.Accessible)
+	if err := form.Run(); err != nil {
+		if errors.Is(err, huh.ErrUserAborted) {
+			return errors.New("已取消，配置未改动")
+		}
+		return err
+	}
 	return nil
 }
 
@@ -448,8 +444,16 @@ func acmeSummary(a acmeAnswers) string {
 	if a.Enabled {
 		state = "启用"
 	}
+	email := cmpOr(a.Email, "(未填)")
+	if a.Enabled && strings.TrimSpace(a.Email) == "" {
+		email = "(未填，启用 ACME 时必须填写)"
+	}
+	ca := string(a.CA)
+	if a.CA == acmeCACustom {
+		ca = fmt.Sprintf("custom（%s）", a.Directory)
+	}
 	fmt.Fprintf(&b, "启用：%s\n邮箱：%s\nCA：%s\n挑战：%s\n续期提前：%d 天\n缓存目录：%s\n失败回落自签：%v\n",
-		state, cmpOr(a.Email, "(空)"), a.CA, a.Challenge, a.RenewBeforeDays,
+		state, email, ca, a.Challenge, a.RenewBeforeDays,
 		cmpOr(a.Storage, config.ACMECertStorageDir), a.Fallback)
 
 	plan := certmanager.Plan(config.Current())
@@ -550,11 +554,99 @@ func maskSecret(s string) string {
 	return "****" + s[len(s)-4:]
 }
 
-func currentACMEEmail() string {
-	if cfg := config.Current().Acme; cfg != nil {
-		return cfg.Email
+// acmeAnswersFromConfig 用当前配置里的 acme 段填充向导默认值。
+// 没有 acme 段（首次配置）时才退回出厂默认：启用、Let's Encrypt、auto、30 天。
+func acmeAnswersFromConfig(current *config.Fast_Https) acmeAnswers {
+	a := acmeAnswers{
+		Enabled:         true,
+		CA:              acmeCALetsEncrypt,
+		Challenge:       config.ACMEChallengeAuto,
+		RenewBeforeDays: config.DefaultACMERenewBeforeDays,
+		Storage:         config.ACMECertStorageDir,
+		Fallback:        true,
 	}
-	return ""
+	if current == nil || current.Acme == nil {
+		return a
+	}
+
+	cur := current.Acme
+	a.Enabled = cur.Enabled
+	a.Email = strings.TrimSpace(cur.Email)
+	if cur.RenewBeforeDays > 0 {
+		a.RenewBeforeDays = cur.RenewBeforeDays
+	}
+	if storage := strings.TrimSpace(cur.Storage); storage != "" {
+		a.Storage = storage
+	}
+	if cur.FallbackSelfSigned != nil {
+		a.Fallback = *cur.FallbackSelfSigned
+	}
+	switch len(cur.Challenge) {
+	case 1:
+		a.Challenge = cur.Challenge[0]
+	default:
+		// 多个挑战同时启用等价于 auto；空数组也回到 auto。
+		if len(cur.Challenge) > 1 {
+			a.Challenge = config.ACMEChallengeAuto
+		}
+	}
+
+	a.CA, a.Directory, a.EABKid, a.EABHmacKey = acmeCAFromConfig(cur)
+	return a
+}
+
+// acmeCAFromConfig 把 cas 列表的第一项还原成向导里的 CA 选项。
+// 降级链上后面的 CA 不参与向导（向导只写一条），但不会被静默丢弃——
+// buildConfig 仍按选择重建整段 cas。
+func acmeCAFromConfig(cur *config.AcmeConfig) (acmeCAChoice, string, string, string) {
+	if cur.Staging {
+		return acmeCAStaging, "", "", ""
+	}
+	if len(cur.CAs) == 0 {
+		return acmeCALetsEncrypt, "", "", ""
+	}
+	first := cur.CAs[0]
+	switch {
+	case first.Name == "zerossl" || first.Directory == config.ACMEZeroSSLDirectory:
+		return acmeCAZeroSSL, "", first.EABKid, first.EABHmacKey
+	case first.Directory == config.ACMELetsEncryptDirectory:
+		return acmeCALetsEncrypt, "", "", ""
+	default:
+		return acmeCACustom, first.Directory, first.EABKid, first.EABHmacKey
+	}
+}
+
+// overrideACMEAnswers 只应用显式传入的 flag，其余字段保留配置里的值。
+func overrideACMEAnswers(a *acmeAnswers, cmd *cobra.Command) {
+	flags := cmd.Flags()
+	if flags.Changed("email") {
+		a.Email, _ = flags.GetString("email")
+	}
+	if flags.Changed("ca") {
+		ca, _ := flags.GetString("ca")
+		a.CA = acmeCAChoice(ca)
+	}
+	if flags.Changed("directory") {
+		a.Directory, _ = flags.GetString("directory")
+	}
+	if flags.Changed("eab-kid") {
+		a.EABKid, _ = flags.GetString("eab-kid")
+	}
+	if flags.Changed("eab-hmac-key") {
+		a.EABHmacKey, _ = flags.GetString("eab-hmac-key")
+	}
+	if flags.Changed("challenge") {
+		a.Challenge, _ = flags.GetString("challenge")
+	}
+	if flags.Changed("renew-before-days") {
+		a.RenewBeforeDays, _ = flags.GetInt("renew-before-days")
+	}
+	if flags.Changed("storage") {
+		a.Storage, _ = flags.GetString("storage")
+	}
+	if flags.Changed("fallback-self-signed") {
+		a.Fallback, _ = flags.GetBool("fallback-self-signed")
+	}
 }
 
 func cmpOr(v, fallback string) string {

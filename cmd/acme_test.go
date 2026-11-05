@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // lineReader 每次 Read 只吐一行。huh 的 accessible 模式每个字段都会新建
@@ -272,6 +274,11 @@ func TestAcmeWizardAccessible(t *testing.T) {
 	if len(cfg.CAs) != 1 || cfg.CAs[0].Name != "letsencrypt" {
 		t.Fatalf("cas = %+v", cfg.CAs)
 	}
+	// 摘要必须在答完题之后再生成：用户刚填的邮箱要出现在"即将写入"里，
+	// 而不是向导打开前的空值。
+	if !strings.Contains(out.String(), "邮箱：ops@example.com") {
+		t.Fatalf("确认页摘要应显示刚填入的邮箱，实际输出：\n%s", out.String())
+	}
 }
 
 func TestAcmeWizardCancelLeavesFileUntouched(t *testing.T) {
@@ -409,6 +416,110 @@ func withServers(t *testing.T, servers []config.Server) func() {
 	old := config.Current()
 	config.Store(&config.Fast_Https{Servers: servers}, nil)
 	return func() { config.Store(old, nil) }
+}
+
+// 再跑一次 acme 时，向导默认值必须来自当前配置：上次选的挑战方式、续期天数、
+// 缓存目录与回落开关都要带出来，否则用户每次都得重填一遍，还容易被静默改回去。
+func TestAcmeAnswersInheritCurrentConfig(t *testing.T) {
+	fallback := false
+	current := &config.Fast_Https{Acme: &config.AcmeConfig{
+		Enabled:            true,
+		Email:              "ops@example.com",
+		Challenge:          []string{config.ACMEChallengeHTTP01},
+		RenewBeforeDays:    60,
+		FallbackSelfSigned: &fallback,
+		Storage:            "/etc/fast-https/cert/acme",
+		CAs:                []config.ACMECA{{Name: "letsencrypt", Directory: config.ACMELetsEncryptDirectory}},
+	}}
+
+	a := acmeAnswersFromConfig(current)
+	if !a.Enabled || a.Email != "ops@example.com" {
+		t.Fatalf("enabled/email = %v/%q", a.Enabled, a.Email)
+	}
+	if a.CA != acmeCALetsEncrypt {
+		t.Fatalf("CA = %q", a.CA)
+	}
+	if a.Challenge != config.ACMEChallengeHTTP01 {
+		t.Fatalf("challenge = %q", a.Challenge)
+	}
+	if a.RenewBeforeDays != 60 {
+		t.Fatalf("renew = %d", a.RenewBeforeDays)
+	}
+	if a.Storage != "/etc/fast-https/cert/acme" {
+		t.Fatalf("storage = %q", a.Storage)
+	}
+	if a.Fallback {
+		t.Fatal("fallback 应继承配置里的 false")
+	}
+}
+
+func TestAcmeAnswersDefaultsWithoutAcmeSection(t *testing.T) {
+	a := acmeAnswersFromConfig(&config.Fast_Https{})
+	if !a.Enabled || a.CA != acmeCALetsEncrypt || a.Challenge != config.ACMEChallengeAuto {
+		t.Fatalf("默认值不对：%+v", a)
+	}
+	if a.RenewBeforeDays != config.DefaultACMERenewBeforeDays || !a.Fallback || a.Storage != config.ACMECertStorageDir {
+		t.Fatalf("默认值不对：%+v", a)
+	}
+}
+
+func TestAcmeAnswersMapCAChoices(t *testing.T) {
+	zerossl := &config.Fast_Https{Acme: &config.AcmeConfig{
+		Enabled: true,
+		CAs: []config.ACMECA{{
+			Name: "zerossl", Directory: config.ACMEZeroSSLDirectory,
+			EABKid: "kid-1", EABHmacKey: "secret",
+		}},
+	}}
+	if a := acmeAnswersFromConfig(zerossl); a.CA != acmeCAZeroSSL || a.EABKid != "kid-1" || a.EABHmacKey != "secret" {
+		t.Fatalf("zerossl = %+v", a)
+	}
+
+	staging := &config.Fast_Https{Acme: &config.AcmeConfig{Enabled: true, Staging: true}}
+	if a := acmeAnswersFromConfig(staging); a.CA != acmeCAStaging {
+		t.Fatalf("staging = %q", a.CA)
+	}
+
+	custom := &config.Fast_Https{Acme: &config.AcmeConfig{
+		Enabled: true,
+		CAs:     []config.ACMECA{{Name: "corp", Directory: "https://acme.example.test/dir"}},
+	}}
+	if a := acmeAnswersFromConfig(custom); a.CA != acmeCACustom || a.Directory != "https://acme.example.test/dir" {
+		t.Fatalf("custom = %+v", a)
+	}
+}
+
+func TestAcmeFlagOverridesOnlyChangedFields(t *testing.T) {
+	cmd := &cobra.Command{}
+	registerAcmeSetupFlags(cmd)
+
+	base := acmeAnswers{
+		Enabled:         true,
+		Email:           "old@example.com",
+		CA:              acmeCALetsEncrypt,
+		Challenge:       config.ACMEChallengeHTTP01,
+		RenewBeforeDays: 60,
+		Storage:         "/etc/fast-https/cert/acme",
+		Fallback:        false,
+	}
+	if err := cmd.Flags().Set("email", "new@example.com"); err != nil {
+		t.Fatalf("set email: %v", err)
+	}
+
+	answers := base
+	overrideACMEAnswers(&answers, cmd)
+	if answers.Email != "new@example.com" {
+		t.Fatalf("email = %q", answers.Email)
+	}
+	if answers.Challenge != config.ACMEChallengeHTTP01 {
+		t.Fatalf("未传 --challenge 不应覆盖配置值，实际 %q", answers.Challenge)
+	}
+	if answers.RenewBeforeDays != 60 || answers.Storage != "/etc/fast-https/cert/acme" || answers.Fallback {
+		t.Fatalf("未传的字段被改了：%+v", answers)
+	}
+	if answers.CA != acmeCALetsEncrypt {
+		t.Fatalf("未传 --ca 不应覆盖 CA，实际 %q", answers.CA)
+	}
 }
 
 func boolPtr(v bool) *bool { return &v }
