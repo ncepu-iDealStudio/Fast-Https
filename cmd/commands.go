@@ -69,6 +69,11 @@ var (
 			register:    newAcmeCmd,
 		},
 		{
+			name:        "config",
+			description: "inspect resolved runtime paths",
+			register:    newConfigCmd,
+		},
+		{
 			name:        "site",
 			description: "manage site files under http.include",
 			register:    newSiteCmd,
