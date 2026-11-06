@@ -131,26 +131,28 @@ func (r *Request) ParseHost(lis_info *listener.Listener) {
 
 // reset request's header
 func (r *Request) SetHeader(key string, val string, cfg *listener.ListenCfg) {
-
 	r.Headers[key] = val
+}
 
-	// _, ref := r.Headers["Referer"]
-	// if ref {
-	// 	ori := r.Headers["Referer"]
-	// 	after := strings.Replace(ori, cfg.ServerName, r.Headers["Host"], -1)
-	// 	r.Headers["Referer"] = after
-	// }
+// DelHeader 删除一个请求头（不存在时为空操作）。
+func (r *Request) DelHeader(key string) {
+	delete(r.Headers, key)
+}
 
-	// _, ori := r.Headers["Origin"]
-	// if ori {
-	// 	if cfg.Type == 1 {
-	// 		r.Headers["Origin"] = "http://" + cfg.ProxyAddr
-	// 	} else if cfg.Type == 2 {
-	// 		r.Headers["Origin"] = "https://" + cfg.ProxyAddr
-	// 	} else {
-	// 		fmt.Println("SET header error...")
-	// 	}
-	// }
+// FixRequestFraming 按 Body 的实际长度重写消息帧描述头：
+// 删除 Transfer-Encoding，并把 Content-Length 固定为解码后的字节数。
+//
+// chunked 请求体在进入管线前已经解码成原始字节（events.go），但头部仍
+// 保留客户端的原始值。若原请求带 "Content-Length: 5" + "Transfer-Encoding:
+// chunked"，代理会把两者连同解码后的 11 字节 body 一起转发——优先按
+// Content-Length 取数体的上游只读 5 字节，把剩余字节当作下一条请求解析，
+// 构成经典请求走私；只带 TE 不带 CL 的合法 chunked 上传同样会以
+// "TE: chunked + 裸 body" 的矛盾形式转发，严格的上游直接 400。
+// RFC 9112 §6.1：TE 与 CL 同存时以 TE 为准且转发方必须移除 CL；
+// 解码 chunked 后统一改成 Content-Length 是最简且对上游最友好的重构帧。
+func (r *Request) FixRequestFraming() {
+	r.DelHeader("Transfer-Encoding")
+	r.SetHeader("Content-Length", strconv.Itoa(r.Body.Len()), nil)
 }
 
 // flush request struct
