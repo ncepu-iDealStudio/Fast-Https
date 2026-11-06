@@ -84,6 +84,16 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 **已知边界**：设置页只做 JSON/JSONC 语法校验，不判断配置语义；权威校验由主程序 `reload` 负责。配置 schema 若在主项目变更，这里需要同步 `state.go` 的字段。
 
+## 站点页：添加站点
+
+站点页右上角「添加站点」弹出表单，字段有 `server_name`、`listen`（逗号或换行分隔，支持 `80` 与 `443 ssl h2` 混写）、类型（`local` 静态 / `proxy` 反代）、`root` 或 `proxy_pass`、可选的 `index`、`ssl_certificate` / `ssl_certificate_key` 与文件名。
+
+`server_name` **一个站点只填一个名称**，可以是域名、`localhost` 或本机 IP（如 `192.168.1.10`）——运行时按 `server_name:端口` 精确匹配 Host，没有多域名分割。用 IP 或别名访问时，默认的 `security.host_check=off` 会回落到该端口的站点；改成 `enforce` 才严格校验 Host。
+
+「站点根目录」「证书路径」「私钥路径」右侧有「浏览…」按钮，调 Wails 的原生文件/目录选择框（`PickPath`）：目录用于 root，文件用于证书与私钥（过滤 PEM/CRT/CER）；选中的绝对路径若在 `config` 内会转成 `./cert/x.pem` 这类相对写法，否则保留绝对路径。取消选择不会改动输入框。
+
+新站点写成 `conf.d/<名称>.json`（文件名默认按域名生成，非 ASCII 会回落到 `site`），**不改主配置、不覆盖已有文件**。Go 侧 `AddSite` 会先校验：端口合法且未被现有站点占用、`local` 必须有 root、`proxy_pass` 必须带 http(s) scheme、文件名不能路径穿越、同名文件直接拒绝。写入是同目录临时文件 + rename。创建后需要点「重载配置」才生效。
+
 ## 设置页：主配置表单
 
 设置页**按字段编辑** `fast-https config path --json` 给出的主配置文件（通常是 `config/fast-https.json`）：分组表单覆盖 `security` / `waf` / `acme` / `http` / 基础等标量字段，枚举用下拉、布尔用勾选、数组用多行输入。字段清单在 `desktop/config_editor.go` 维护，前端通用渲染，新增字段只改 Go 一侧。`engine`（集群占位）当前没有模块读取、项目也未启用集群，不放进表单；配置里若仍带该段会原样保留。

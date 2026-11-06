@@ -67,6 +67,28 @@ body {
 .dialog h3 { margin: 0 0 10px; font-size: 15px; font-weight: 650; }
 .dialog p { margin: 0 0 20px; font-size: 13px; line-height: 1.8; color: var(--muted); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* 添加站点弹窗 */
+.dialog-wide { width: 560px; max-height: 82vh; overflow-y: auto; }
+.dialog-wide .form-row { grid-template-columns: 150px minmax(0,1fr); gap: 14px; padding: 5px 0; }
+.dialog-wide .form-label { font-size: 12px; }
+.dialog-wide .form-label small { font-size: 11px; }
+.dialog-error { color: var(--danger); font-size: 12px; margin: 10px 0 0; line-height: 1.6; }
+.dialog-hint { color: var(--faint); font-size: 12px; margin: 12px 0 0; line-height: 1.7; }
+.card-head-actions { display: flex; align-items: center; gap: 12px; }
+.form-control.with-browse { display: flex; align-items: center; gap: 8px; }
+.form-control.with-browse input { flex: 1; min-width: 0; }
+.form-control.with-browse .btn { flex: 0 0 auto; white-space: nowrap; }
+
+/* 站点访问地址：点击用系统浏览器打开 */
+.site-link { color: var(--accent); text-decoration: none; border-bottom: 1px dotted currentColor; cursor: pointer; overflow-wrap: anywhere; }
+.site-link:hover { color: var(--text); border-bottom-style: solid; }
+.site-link.is-off { opacity: .55; }
+.kv-row .n.with-action { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.icon-btn { width: 26px; height: 26px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+.icon-btn:hover { border-color: var(--line-strong); background: var(--accent-soft); color: var(--text); }
+.dialog-source { font: 11px/1.5 Consolas, "Courier New", monospace; color: var(--faint); margin: -2px 0 12px; overflow-wrap: anywhere; }
+.dialog-note { color: var(--muted); font-size: 12px; margin: 12px 0 0; line-height: 1.7; }
 .brand { display: flex; align-items: center; gap: 9px; }
 /* 应用图标来自 frontend/public/appicon.png，dev 与生产都走同一路径 */
 .mark { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 4px; object-fit: contain; }

@@ -128,8 +128,14 @@
 
         <div class="pane" data-pane="sites" hidden>
           <section class="card">
-            <div class="card-head"><h3>站点</h3><span class="card-note">http.server[] 与 http.include</span></div>
-            <p class="lede">主配置与 <span class="mono">conf.d</span> 下的站点文件，按监听端口逐个展开。</p>
+            <div class="card-head">
+              <h3>站点</h3>
+              <div class="card-head-actions">
+                <span class="card-note">http.server[] 与 http.include</span>
+                <button class="btn small" id="addSiteBtn">+ 添加站点</button>
+              </div>
+            </div>
+            <p class="lede">主配置与 <span class="mono">conf.d</span> 下的站点文件，按监听端口逐个展开。新站点写成 <span class="mono">conf.d/&lt;名称&gt;.json</span>，创建后需点「重载配置」。</p>
             <div class="kv-table" id="sitesTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取站点…</span></div></div>
           </section>
         </div>
@@ -216,6 +222,31 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
+
+  <div class="dialog-mask" id="siteDialog" hidden>
+    <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="siteDialogTitle">
+      <h3 id="siteDialogTitle">添加站点</h3>
+      <p class="dialog-source" id="siteSource" hidden></p>
+      <div class="site-form">
+        <div class="form-row"><label class="form-label" for="siteName">域名 / IP<small>server_name；域名、localhost、本机 IP 都行</small></label><div class="form-control"><input id="siteName" type="text" placeholder="example.com 或 192.168.1.10"/></div></div>
+        <div class="form-row"><label class="form-label" for="siteListen">监听<small>listen，逗号或换行分隔</small></label><div class="form-control"><input id="siteListen" type="text" placeholder="80 或 443 ssl h2"/></div></div>
+        <div class="form-row"><label class="form-label" for="siteType">类型</label><div class="form-control"><select id="siteType"><option value="local">静态站点（local）</option><option value="proxy">反向代理（proxy）</option></select></div></div>
+        <div class="form-row" id="siteRootRow"><label class="form-label" for="siteRoot">站点根目录<small>root，相对 config 目录</small></label><div class="form-control with-browse"><input id="siteRoot" type="text" placeholder="./httpdoc/root"/><button class="btn small" type="button" data-browse="dir" data-target="siteRoot">浏览…</button></div></div>
+        <div class="form-row" id="siteProxyRow" hidden><label class="form-label" for="siteProxy">反代地址<small>proxy_pass，需 http(s)://</small></label><div class="form-control"><input id="siteProxy" type="text" placeholder="http://127.0.0.1:9000"/></div></div>
+        <div class="form-row" id="siteIndexRow"><label class="form-label" for="siteIndex">首页<small>index，可留空</small></label><div class="form-control"><input id="siteIndex" type="text" placeholder="index.html index.htm"/></div></div>
+        <div class="form-row"><label class="form-label" for="siteCert">证书路径<small>ssl_certificate，可留空</small></label><div class="form-control with-browse"><input id="siteCert" type="text" placeholder="./cert/example.pem"/><button class="btn small" type="button" data-browse="file" data-target="siteCert">浏览…</button></div></div>
+        <div class="form-row"><label class="form-label" for="siteCertKey">私钥路径<small>ssl_certificate_key，可留空</small></label><div class="form-control with-browse"><input id="siteCertKey" type="text" placeholder="./cert/example-key.pem"/><button class="btn small" type="button" data-browse="file" data-target="siteCertKey">浏览…</button></div></div>
+        <div class="form-row" id="siteFileNameRow"><label class="form-label" for="siteFileName">文件名<small>conf.d 下的 JSON 文件名，可留空</small></label><div class="form-control"><input id="siteFileName" type="text" placeholder="默认按域名生成"/></div></div>
+      </div>
+      <p class="dialog-hint">一个站点只填一个名称。用 IP、localhost 或别名访问时，默认的 <span class="mono">security.host_check=off</span> 会回落到该端口的站点；改成 <span class="mono">enforce</span> 才会严格校验 Host。</p>
+      <p class="dialog-note" id="siteNote" hidden></p>
+      <p class="dialog-error" id="siteError" hidden></p>
+      <div class="dialog-actions">
+        <button class="btn" id="siteCancel">取消</button>
+        <button class="btn primary" id="siteSubmit">创建站点</button>
+      </div>
+    </div>
+  </div>
 
   <div class="dialog-mask" id="closeDialog" hidden>
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="closeDialogTitle">

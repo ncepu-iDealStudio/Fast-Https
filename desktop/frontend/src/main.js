@@ -394,12 +394,23 @@ function renderLogs(lines, target, kind) {
   el.innerHTML = lines.map((l) => `<tr><td colspan="3" class="mono">${esc(l)}</td></tr>`).join('');
 }
 
+// 站点访问地址：默认端口省略，其他端口显式带上；server_name 可能是域名或本机 IP。
+function siteURL(s) {
+  const scheme = s.tls ? 'https' : 'http';
+  const port = String(s.port || '').replace(/^:/, '');
+  const host = s.name || 'localhost';
+  const isDefault = (scheme === 'https' && port === '443') || (scheme === 'http' && port === '80');
+  return scheme + '://' + host + (port && !isDefault ? ':' + port : '') + '/';
+}
+
 function renderSites(sites, certs) {
-  renderRows('#sitesTable', sites.map((s) => ({
-    k: s.port || '—',
-    v: `${s.name}　·　${s.listen || '—'}　·　${s.tls ? 'TLS' : 'HTTP'}`,
-    n: s.source || ''
-  })));
+  $('#sitesTable').innerHTML = sites.length
+    ? sites.map((s) => {
+        const url = siteURL(s);
+        const off = lastOverview?.running ? '' : ' is-off';
+        return `<div class="kv-row"><span class="k">${esc(s.port || '—')}</span><span class="v"><a class="site-link${off}" href="#" data-url="${esc(url)}" title="${esc(url)}">${esc(url)}</a></span><span class="n with-action"><span>${esc(s.source || '')}</span><button class="icon-btn site-more" data-source="${esc(s.source || '')}" title="查看详情">⋯</button></span></div>`;
+      }).join('')
+    : '<div class="kv-row"><span class="k">—</span><span class="v">没有站点</span></div>';
   $('#matrixBody').innerHTML = sites.length
     ? sites.map((s) => {
         const c = certs.find((x) => x.domain === s.name);
@@ -549,11 +560,159 @@ function initCloseDialog() {
   });
 }
 
+let siteMode = 'add';
+let siteEditingSource = '';
+
+// local 与 proxy 显示的字段不同，详情回填后也要重新同步一次
+function syncSiteType() {
+  const proxy = $('#siteType').value === 'proxy';
+  $('#siteRootRow').hidden = proxy;
+  $('#siteIndexRow').hidden = proxy;
+  $('#siteProxyRow').hidden = !proxy;
+}
+
+function setSiteFormEnabled(enabled) {
+  $$('#siteDialog input, #siteDialog select').forEach((el) => { el.disabled = !enabled; });
+  $$('#siteDialog [data-browse]').forEach((b) => { b.disabled = !enabled; });
+  $('#siteSubmit').hidden = !enabled;
+}
+
+function resetSiteForm() {
+  ['siteName', 'siteListen', 'siteRoot', 'siteProxy', 'siteIndex', 'siteCert', 'siteCertKey', 'siteFileName']
+    .forEach((id) => { $('#' + id).value = ''; });
+  $('#siteType').value = 'local';
+  $('#siteFileNameRow').hidden = false;
+  $('#siteSource').hidden = true;
+  $('#siteSource').textContent = '';
+  $('#siteNote').hidden = true;
+  $('#siteError').hidden = true;
+  setSiteFormEnabled(true);
+  syncSiteType();
+}
+
+// 点站点行的「⋯」：读取该站点文件的字段与原文，不可编辑时只读展示原因
+async function openSiteDetail(source) {
+  siteMode = 'edit';
+  siteEditingSource = source;
+  resetSiteForm();
+  $('#siteDialog').hidden = false;
+  $('#siteDialogTitle').textContent = '站点详情';
+  $('#siteSubmit').textContent = '保存修改';
+  $('#siteFileNameRow').hidden = true;
+  $('#siteSource').hidden = false;
+  $('#siteSource').textContent = source;
+  try {
+    const d = await DesktopService.ReadSiteDetail(source);
+    $('#siteName').value = d.name || '';
+    $('#siteListen').value = d.listen || '';
+    $('#siteType').value = d.type || 'local';
+    $('#siteRoot').value = d.root || '';
+    $('#siteProxy').value = d.proxyPass || '';
+    $('#siteIndex').value = d.index || '';
+    $('#siteCert').value = d.cert || '';
+    $('#siteCertKey').value = d.certKey || '';
+    syncSiteType();
+    if (!d.editable) {
+      setSiteFormEnabled(false);
+      $('#siteNote').textContent = d.note || '该站点不可在这里编辑';
+      $('#siteNote').hidden = false;
+    }
+  } catch (e) {
+    setSiteFormEnabled(false);
+    $('#siteError').textContent = msgOf(e);
+    $('#siteError').hidden = false;
+  }
+}
+
+function initSiteDialog() {
+  const mask = $('#siteDialog');
+  if (!mask) return;
+  const close = () => { mask.hidden = true; $('#siteError').hidden = true; };
+  $('#addSiteBtn').addEventListener('click', () => {
+    siteMode = 'add';
+    siteEditingSource = '';
+    resetSiteForm();
+    $('#siteDialogTitle').textContent = '添加站点';
+    $('#siteSubmit').textContent = '创建站点';
+    mask.hidden = false;
+    $('#siteName').focus();
+  });
+  $('#siteCancel').addEventListener('click', close);
+  mask.addEventListener('click', (e) => { if (e.target === mask) close(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !mask.hidden) { e.preventDefault(); close(); }
+  });
+  // 站点行是动态重建的，详情按钮用事件委托
+  document.addEventListener('click', (e) => {
+    const more = e.target.closest ? e.target.closest('.site-more') : null;
+    if (!more) return;
+    e.preventDefault();
+    openSiteDetail(more.getAttribute('data-source'));
+  });
+  $$('#siteDialog [data-browse]').forEach((b) => b.addEventListener('click', async () => {
+    try {
+      const p = await DesktopService.PickPath(b.getAttribute('data-browse'));
+      if (p) $('#' + b.getAttribute('data-target')).value = p;
+    } catch (e) {
+      $('#siteError').textContent = '选择失败：' + msgOf(e);
+      $('#siteError').hidden = false;
+    }
+  }));
+  $('#siteType').addEventListener('change', syncSiteType);
+  $('#siteSubmit').addEventListener('click', async () => {
+    const btn = $('#siteSubmit');
+    btn.disabled = true;
+    $('#siteError').hidden = true;
+    const payload = {
+      name: $('#siteName').value,
+      listen: $('#siteListen').value,
+      type: $('#siteType').value,
+      root: $('#siteRoot').value,
+      proxyPass: $('#siteProxy').value,
+      index: $('#siteIndex').value,
+      cert: $('#siteCert').value,
+      certKey: $('#siteCertKey').value,
+      fileName: siteMode === 'add' ? $('#siteFileName').value : '',
+      source: siteMode === 'edit' ? siteEditingSource : ''
+    };
+    try {
+      const text = siteMode === 'add'
+        ? await DesktopService.AddSite(payload)
+        : await DesktopService.SaveSiteDetail(payload);
+      close();
+      toast(text);
+      await refreshDetails();
+      await refreshOverview();
+    } catch (e) {
+      $('#siteError').textContent = msgOf(e);
+      $('#siteError').hidden = false;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+function initSiteLinks() {
+  // 站点地址是 <a href="#">，统一委托到 Go 侧的 OpenPath，用系统默认浏览器打开。
+  document.addEventListener('click', async (e) => {
+    const a = e.target.closest ? e.target.closest('.site-link') : null;
+    if (!a) return;
+    e.preventDefault();
+    try {
+      await DesktopService.OpenPath(a.getAttribute('data-url'));
+    } catch (err) {
+      toast('打开链接失败：' + msgOf(err));
+    }
+  });
+}
+
 function init() {
   initTheme();
   initAccountMenu();
   initConfigEditor();
   initCloseDialog();
+  initSiteDialog();
+  initSiteLinks();
   $$('[data-nav]').forEach((n) => n.addEventListener('click', () => activate(n.getAttribute('data-nav'))));
   $$('[data-goto]').forEach((b) => b.addEventListener('click', () => activate(b.getAttribute('data-goto'))));
   $$('[data-action]').forEach((b) => b.addEventListener('click', () => doAction(b.getAttribute('data-action'))));
