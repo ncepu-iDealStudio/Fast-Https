@@ -83,21 +83,35 @@ func TestUpstreamConnectionResetDuringBody(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = ln.Close() })
 
+	// 服务端在 Accept 后立即写响应并以 RST 关闭；负载高（如全量测试
+	// 并行）时 RST 可能赶在握手完成前到达，Dial 本身报
+	// "connection reset by peer"。这是测试自身的时序竞态，与被测代码
+	// 无关——服务端改为循环 Accept，客户端对这一种瞬时错误重试拨号。
 	go func() {
-		conn, err := ln.Accept()
-		if err != nil {
-			return
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\npartial"))
+			if tc, ok := conn.(*net.TCPConn); ok {
+				_ = tc.SetLinger(0) // Close 发 RST 而不是 FIN
+			}
+			_ = conn.Close()
 		}
-		_, _ = conn.Write([]byte("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\npartial"))
-		if tc, ok := conn.(*net.TCPConn); ok {
-			_ = tc.SetLinger(0) // Close 发 RST 而不是 FIN
-		}
-		_ = conn.Close()
 	}()
 
-	conn, err := net.Dial("tcp", ln.Addr().String())
-	if err != nil {
-		t.Fatal(err)
+	var conn net.Conn
+	var dialErr error
+	for attempt := 0; attempt < 20; attempt++ {
+		conn, dialErr = net.Dial("tcp", ln.Addr().String())
+		if dialErr == nil {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if dialErr != nil {
+		t.Fatal(dialErr)
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 
