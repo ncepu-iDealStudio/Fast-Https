@@ -11,6 +11,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// appRef 供 QuitApp 使用：托盘常驻时关闭窗口只隐藏，真正退出必须显式 Quit。
+var appRef *application.App
+
 func main() {
 	app := application.New(application.Options{
 		Name:        "Fast-Https Desktop",
@@ -39,6 +42,7 @@ func main() {
 		URL:              "/",
 	})
 	setMainWindow(window)
+	appRef = app
 
 	setupTray(app, window)
 

@@ -523,10 +523,37 @@ async function doAction(name) {
 }
 
 /* ---------------------------------------------------------------- 启动 */
+function openCloseDialog() {
+  const mask = $('#closeDialog');
+  if (!mask) return;
+  mask.hidden = false;
+  $('#closeHide').focus();
+}
+
+function initCloseDialog() {
+  const mask = $('#closeDialog');
+  if (!mask) return;
+  const close = () => { mask.hidden = true; };
+  $('#closeCancel').addEventListener('click', close);
+  $('#closeHide').addEventListener('click', async () => {
+    close();
+    try { await DesktopService.HideWindow(); } catch (e) { toast('窗口操作失败：' + msgOf(e)); }
+  });
+  $('#closeQuit').addEventListener('click', async () => {
+    close();
+    try { await DesktopService.QuitApp(); } catch (e) { toast('退出失败：' + msgOf(e)); }
+  });
+  mask.addEventListener('click', (e) => { if (e.target === mask) close(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !mask.hidden) { e.preventDefault(); close(); }
+  });
+}
+
 function init() {
   initTheme();
   initAccountMenu();
   initConfigEditor();
+  initCloseDialog();
   $$('[data-nav]').forEach((n) => n.addEventListener('click', () => activate(n.getAttribute('data-nav'))));
   $$('[data-goto]').forEach((b) => b.addEventListener('click', () => activate(b.getAttribute('data-goto'))));
   $$('[data-action]').forEach((b) => b.addEventListener('click', () => doAction(b.getAttribute('data-action'))));
@@ -540,7 +567,7 @@ function init() {
     try {
       if (action === 'minimise') await DesktopService.MinimiseWindow();
       else if (action === 'maximise') await DesktopService.ToggleMaximiseWindow();
-      else if (action === 'hide') await DesktopService.HideWindow();
+      else if (action === 'hide') openCloseDialog();
     } catch (e) { toast('窗口操作失败：' + msgOf(e)); }
   }));
   renderEvents();

@@ -11,9 +11,15 @@
   <header class="topbar">
     <div class="brand"><img class="mark" src="/appicon.png" alt="Fast-Https 应用图标"/><b>fast-https</b><small>DESKTOP</small></div>
     <div class="win-controls">
-      <button class="win-btn" data-window="minimise" aria-label="最小化">—</button>
-      <button class="win-btn" data-window="maximise" aria-label="最大化或还原">□</button>
-      <button class="win-btn close" data-window="hide" aria-label="关闭到后台托盘">×</button>
+      <button class="win-btn" data-window="minimise" aria-label="最小化" title="最小化">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5h8"/></svg>
+      </button>
+      <button class="win-btn" data-window="maximise" aria-label="最大化或还原" title="最大化／还原">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1.7" y="1.7" width="6.6" height="6.6"/></svg>
+      </button>
+      <button class="win-btn close" data-window="hide" aria-label="关闭" title="关闭">
+        <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.2 2.2l5.6 5.6M7.8 2.2l-5.6 5.6"/></svg>
+      </button>
     </div>
   </header>
 
@@ -210,6 +216,18 @@
   </div>
 
   <div class="toast" id="toast" hidden></div>
+
+  <div class="dialog-mask" id="closeDialog" hidden>
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="closeDialogTitle">
+      <h3 id="closeDialogTitle">要隐藏到后台还是直接退出？</h3>
+      <p>隐藏到后台：桌面端继续在系统托盘运行，点托盘图标可恢复窗口。<br/>直接退出：结束桌面端进程；<span class="mono">fast-https</span> 服务仍在后台运行，不会跟着停。</p>
+      <div class="dialog-actions">
+        <button class="btn" id="closeCancel">取消</button>
+        <button class="btn" id="closeQuit">直接退出</button>
+        <button class="btn primary" id="closeHide">隐藏到后台</button>
+      </div>
+    </div>
+  </div>
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>

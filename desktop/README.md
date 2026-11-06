@@ -1,6 +1,6 @@
 # Fast-Https Desktop（Wails v3）
 
-本机图形化管理端。**单窗口 + 后台托盘**：从 Windows 开始菜单或 Linux 应用菜单点开；点窗口关闭按钮会隐藏到系统托盘、程序继续在后台运行，左键单击托盘图标可显示／隐藏主界面，右键菜单里的「退出」才真正结束程序。桌面端始终不接管 fast-https 服务进程。
+本机图形化管理端。**单窗口 + 后台托盘**：从 Windows 开始菜单或 Linux 应用菜单点开；点窗口关闭按钮会弹窗询问「隐藏到后台 / 直接退出 / 取消」，隐藏后程序继续在托盘运行，左键单击托盘图标可显示／隐藏主界面，托盘右键菜单里的「退出」等同于「直接退出」。桌面端始终不接管 fast-https 服务进程。
 
 - Wails v3 CLI：`v3.1.0`（`go install github.com/wailsapp/wails/v3/cmd/wails3@latest`，`@latest` 指向周更稳定版，不跟 nightly）
 - 独立 Go module `fast-https-desktop`，**不 import 主项目的 `config` 包**，主项目 `go.mod` 不受影响
@@ -45,20 +45,26 @@ go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/fast-h
 | Windows NSIS | `wails3 task windows:create:nsis:installer` | `bin/fast-https-desktop-amd64-installer.exe` |
 | Linux desktop deb | `wails3 task linux:create:deb` | `bin/fast-https-desktop_1.5.0_<arch>.deb` |
 
-- NSIS 的组件页里，**桌面快捷方式**与**开始菜单**是两个可勾选、可取消的 Section。
+- NSIS 的组件页里，**桌面快捷方式**与**开始菜单**是两个可勾选、可取消的 Section；`build/package.ps1` 会把对应架构的 `fast-https-desktop.exe` 一起打进安装包，快捷方式指向它。主程序 `fast-https.exe` 是 `-H=windowsgui` 的命令行服务端，双击没有窗口，图形入口只有桌面管理端。
 - `MicrosoftEdgeWebview2Setup.exe` 是打包时由 `wails3 generate webview2bootstrapper` 生成的中间产物（已忽略、不入库），走 `wails3 task windows:package` 会自动重新生成；手工跑 `makensis` 前需要先生成它。
 - deb 包含 `/usr/bin/fast-https-desktop`、图标与 `.desktop` 文件，装完在应用菜单可见，支持图形化包管理器安装；依赖 `libgtk-4-1` / `libwebkitgtk-6.0-4`。
-- Linux deb 需要在 Linux 主机上原生构建（Wails v3.1 的 Linux 后端依赖 CGO + GTK4/WebKitGTK 6.0）；Windows 侧的 Docker 交叉编译配置已删除。`frontend/bindings/` 是 `wails3 generate bindings` 的生成物，已加入 git 忽略——走 `wails3 build` 会自动生成，手工只跑 `npm run build` 前要先执行一次生成命令。
+- `build/package.ps1` 先准备前端与 `.desktop`，再由 goreleaser 用 `purego` 无 CGO 交叉编译 Linux 二进制，产出 `dist/fast-https-desktop_<version>_linux_{amd64,arm64}.{deb,rpm,apk}`；依赖名按格式分别用 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包。Linux 主机上仍可跑 `wails3 task linux:create:deb` 走原生 CGO 构建。`frontend/bindings/` 是 `wails3 generate bindings` 的生成物，已加入 git 忽略——走 `wails3 build` 会自动生成，手工只跑 `npm run build` 前要先执行一次生成命令。
 
 `build/` 已按范围清理：只保留 `appicon.png`、`config.yml`、共通与平台 Taskfile、Windows 图标/NSIS 脚本、Linux nfpm 与 `.desktop` 生成任务。iOS / Android / macOS 打包资产、MSIX、AppImage、RPM/Arch、server mode、Docker 交叉编译与模板占位配置都已删除，Taskfile 的 includes 与任务也同步精简。
 
 ## 自绘标题栏
 
-窗口用 `Frameless: true`，没有系统标题栏（图标、标题文字与系统按钮那条都不显示）。顶部通栏通过 `--wails-draggable: drag` 承担窗口拖拽，右侧三个自绘按钮调用 Go 侧 `MinimiseWindow` / `ToggleMaximiseWindow` / `HideWindow`；其中「关闭」是隐藏到后台托盘、不是结束进程，真正退出只走托盘菜单。Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默认 `false`）。
+窗口用 `Frameless: true`，没有系统标题栏（图标、标题文字与系统按钮那条都不显示）。顶部通栏通过 `--wails-draggable: drag` 承担窗口拖拽，右侧三个自绘按钮按系统原生比例做成 46px 宽、撑满通栏高度、直角，图标是统一线宽的 SVG；分别调用 Go 侧 `MinimiseWindow` / `ToggleMaximiseWindow`。点「关闭」不直接隐藏，而是弹出询问框：
+
+- 「隐藏到后台」调 `HideWindow()`：窗口隐藏、程序留在托盘，`WindowClosing` hook 的默认行为也是隐藏（Alt+F4 同样只隐藏）。
+- 「直接退出」调 `QuitApp()`：置位 `appQuitting` 后 `app.Quit()`，hook 才会放行真正的关闭；托盘菜单的「退出」走同一条路径。
+- 「取消」或 Esc / 点遮罩关闭弹窗。
+
+Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默认 `false`）。
 
 ## 图标
 
-`build/windows/icon.ico` 与 `build/appicon.png` 都来自项目原有的 `monitor/icon/starting.ico`：前者是原 ICO（32/48/256 三帧），供 Windows 托盘、`.syso` 窗口资源与 NSIS 安装包使用；后者是从同一个 ICO 里提取出的 256×256 PNG 帧，供 Linux 托盘与 deb 的 `hicolor` 图标。前端 logo 用 `frontend/public/appicon.png`（内容相同的副本，走 `/appicon.png`，保证 `wails3 dev` 与生产构建都能加载）。换图标时这三处一起替换，不需要再跑图标生成任务。
+`build/windows/icon.ico` 与 `build/appicon.png` 都来自项目原有应用图标（原 `starting.ico`，副本已内置在 `build/` 下）：前者是原 ICO（32/48/256 三帧），供 Windows 托盘、`.syso` 窗口资源与 NSIS 安装包使用；后者是从同一个 ICO 里提取出的 256×256 PNG 帧，供 Linux 托盘与 deb 的 `hicolor` 图标。前端 logo 用 `frontend/public/appicon.png`（内容相同的副本，走 `/appicon.png`，保证 `wails3 dev` 与生产构建都能加载）。换图标时这三处一起替换，不需要再跑图标生成任务。
 
 ## 数据从哪来（进程外读取）
 

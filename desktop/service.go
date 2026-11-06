@@ -41,11 +41,21 @@ func (s *DesktopService) ToggleMaximiseWindow() {
 	}
 }
 
-// HideWindow 是「关闭」按钮与账户菜单里的「隐藏到后台托盘」：隐藏窗口，
-// 与 WindowClosing hook 语义一致。真正退出只走托盘菜单。
+// HideWindow 是「隐藏到后台托盘」：隐藏窗口并保留托盘图标，
+// 与 WindowClosing hook 的默认行为一致。
 func (s *DesktopService) HideWindow() {
 	if mainWindow != nil {
 		mainWindow.Hide()
+	}
+}
+
+// QuitApp 真正结束桌面端进程。关闭弹窗里的「直接退出」走这里；
+// 置位 appQuitting 后 WindowClosing hook 才不会把关闭再拦回隐藏。
+// 注意：这只结束桌面端，fast-https 服务由主程序独立管理，不受影响。
+func (s *DesktopService) QuitApp() {
+	appQuitting.Store(true)
+	if appRef != nil {
+		appRef.Quit()
 	}
 }
 

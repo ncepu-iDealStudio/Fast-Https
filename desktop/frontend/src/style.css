@@ -53,10 +53,20 @@ body {
 /* 顶部通栏：只放 logo 与自绘窗口按钮；页面标题留在主区，设置类入口收进左下角菜单 */
 .topbar { height: 52px; flex: 0 0 52px; display: flex; align-items: center; gap: 16px; padding: 0 12px 0 20px; background: var(--bg); border-bottom: 1px solid var(--line); --wails-draggable: drag; -webkit-user-select: none; user-select: none; }
 .topbar button { --wails-draggable: no-drag; }
-.win-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; }
-.win-btn { width: 44px; height: 36px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
+/* 窗口按钮按系统原生比例：46px 宽、撑满通栏高度、直角，图标统一线宽 */
+.win-controls { display: flex; align-items: stretch; align-self: stretch; margin-left: auto; margin-right: -12px; }
+.win-btn { width: 46px; border: 0; border-radius: 0; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+.win-btn svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; }
 .win-btn:hover { background: var(--accent-soft); color: var(--text); }
-.win-btn.close:hover { background: rgba(192,57,43,.12); color: var(--danger); }
+.win-btn.close:hover { background: #c0392b; color: #fff; }
+
+/* 关闭确认弹窗 */
+.dialog-mask { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(16,20,28,.34); }
+.dialog-mask[hidden] { display: none; }
+.dialog { width: 430px; max-width: calc(100vw - 48px); background: var(--bg); border: 1px solid var(--line-strong); border-radius: 10px; padding: 22px 24px 18px; box-shadow: 0 18px 48px rgba(16,20,28,.22); }
+.dialog h3 { margin: 0 0 10px; font-size: 15px; font-weight: 650; }
+.dialog p { margin: 0 0 20px; font-size: 13px; line-height: 1.8; color: var(--muted); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
 .brand { display: flex; align-items: center; gap: 9px; }
 /* 应用图标来自 frontend/public/appicon.png，dev 与生产都走同一路径 */
 .mark { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 4px; object-fit: contain; }
