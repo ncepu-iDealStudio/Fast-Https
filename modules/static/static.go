@@ -104,6 +104,14 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	path_type := strings.Split(path, "?")
 
 	realPath := path_type[0]
+	// 隐藏路径（.git/config、.env、.htaccess 等）按未找到处理。
+	// 判定用请求路径而不是拼好的文件路径：站点根本身可能落在 .local 这类
+	// 带点目录下，拿文件路径判会把整个站点误杀。
+	if hiddenPathSegment(rr.Req.Path) {
+		log.Status(404)
+		log.Size(50)
+		return -1
+	}
 	// /../ 之类的逃逸路径按未找到处理，不读任何文件
 	realPath, inRoot := staticPathInRoot(lisdata.StaticRoot, realPath)
 	if !inRoot {
@@ -382,6 +390,31 @@ func directoryRedirect(root, reqPath, filePath string) (string, bool) {
 	return target, true
 }
 
+// wellKnownPrefix 是 ACME http-01 约定的公开目录（RFC 8555 §8.3）。
+// 站点根下自托管的挑战文件就在它下面，不能跟着隐藏文件一起拦掉。
+const wellKnownPrefix = "/.well-known/"
+
+// hiddenPathSegment 报告请求路径里是否存在以 "." 开头的路径段。
+//
+// .git、.env、.htaccess 这类文件是部署残留或凭据，nginx 用户要靠
+// `location ~ /\.` 自己拦，漏配就是源码与密钥被直接下载。这里默认不提供，
+// 只放行 /.well-known/ 一层；".." 交给 staticPathInRoot 的逃逸检查处理。
+func hiddenPathSegment(target string) bool {
+	path, _, _ := strings.Cut(target, "?")
+	if rest, ok := strings.CutPrefix(path, wellKnownPrefix); ok {
+		path = "/" + rest
+	}
+	for _, seg := range strings.Split(path, "/") {
+		if seg == "." || seg == ".." {
+			continue
+		}
+		if strings.HasPrefix(seg, ".") {
+			return true
+		}
+	}
+	return false
+}
+
 // staticPathInRoot 清洗拼接后的文件路径并校验没有逃出站点根目录。
 // StaticRoot 在配置加载时已解析为绝对路径；rooted 是 StaticRoot 与
 // URL 路径直接拼接的结果。本服务不做 URL 解码，%2e%2e 不会被还原
@@ -396,30 +429,52 @@ func staticPathInRoot(root, rooted string) (string, bool) {
 }
 
 // get this endpoint's content type
-// user can define mime.types in confgure
+// user can define mime in config/mime.json
 func getContentType(path string) string {
-	path_type := strings.Split(path, ".")
+	ext, ok := contentTypeExt(path)
+	if !ok {
+		return defaultContentType()
+	}
+	if contentType := mimeType(ext); contentType != "" {
+		return contentType
+	}
+	return defaultContentType()
+}
 
-	if path_type == nil {
-		return config.HTTP_DEFAULT_CONTENT_TYPE
+// contentTypeExt 取路径最后一段扩展名，并剥掉 ?query。
+// 返回 ok=false 表示没有扩展名（无点、以点结尾或点后为空）。
+func contentTypeExt(path string) (string, bool) {
+	dot := strings.LastIndexByte(path, '.')
+	if dot < 0 || dot == len(path)-1 {
+		return "", false
 	}
-	pointAfter := path_type[len(path_type)-1]
-	row := config.MIME()[pointAfter]
-	if row == "" {
-		sep := "?"
-		index := strings.Index(pointAfter, sep)
-		if index != -1 { // if "?" exists
-			// delete chars from "?" to the end of string
-			pointAfter = pointAfter[:index]
-		}
-		secondFind := config.MIME()[pointAfter]
-		if secondFind != "" {
-			return secondFind
-		} else {
-			return config.HTTP_DEFAULT_CONTENT_TYPE
-		}
+	ext := path[dot+1:]
+	if q := strings.IndexByte(ext, '?'); q >= 0 {
+		ext = ext[:q]
 	}
-	return row
+	return ext, ext != ""
+}
+
+// mimeType 查表：先按原样查，查不到再按小写查一次。
+// 表里的键全是小写，IMG.PNG 不该因为大小写落到默认类型。
+func mimeType(ext string) string {
+	if contentType := config.MIME()[ext]; contentType != "" {
+		return contentType
+	}
+	lower := strings.ToLower(ext)
+	if lower == ext {
+		return ""
+	}
+	return config.MIME()[lower]
+}
+
+// defaultContentType 返回 http.default_type：配置未加载或没写这一项时
+// 用内置常量。快照在 reload 后整体替换，这里每次重新读即可。
+func defaultContentType() string {
+	if contentType := config.Current().DefaultType; contentType != "" {
+		return contentType
+	}
+	return config.HTTP_DEFAULT_CONTENT_TYPE
 }
 
 /*

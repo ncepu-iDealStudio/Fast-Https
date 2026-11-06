@@ -37,14 +37,16 @@ rpm -ivh fast-https-*.rpm                    # RHEL / openEuler / CentOS
 apk add --allow-untrusted fast-https_*.apk   # Alpine
 ```
 
-包装好后的位置：程序 `/usr/bin/fast-https`，配置、站点与日志 `/usr/share/fast-https/`，服务单元 `/usr/lib/systemd/system/fast-https.service`，手册页 `/usr/share/man/man1/fast-https.1`。启动与查手册：
+包装好后的位置按 FHS 分开放：程序 `/usr/bin/fast-https`，配置与证书 `/etc/fast-https/`，站点 `/usr/share/fast-https/httpdoc/`，日志 `/var/log/fast-https/`，pid `/run/fast-https/`，服务单元 `/usr/lib/systemd/system/fast-https.service`，手册页 `/usr/share/man/man1/fast-https.1`，日志轮转 `/etc/logrotate.d/fast-https`。启动与查手册：
 
 ```bash
 systemctl enable --now fast-https
 man fast-https
 ```
 
-首次安装时包里没有证书文件，先 `systemctl start fast-https` 生成自签证书，之后 `fast-https check` 才会通过。`/usr/share/fast-https/` 下的目录归 root 所有，手工执行 `start` / `check` 要用 `sudo`，普通用户会因为写不了证书和日志而失败。运行期路径都以安装目录为基准，可以从任意工作目录执行 `fast-https`。
+随包默认配置同时监听 80 与 `443 ssl h2`，装完 `systemctl enable --now fast-https` 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 `start` 会用本地 CA 生成 `/etc/fast-https/cert/<server_name>.pem`；在那之前 `reload` 的预检会报 `ssl_certificate not found`，先跑一次 `start` 即可。`/etc/fast-https/`、`/var/log/fast-https/` 归 root 所有，手工执行 `start` / `reload` 要用 `sudo`，普通用户会因为写不了日志而失败。运行期路径由编译期基址决定，可以从任意工作目录执行 `fast-https`；外部控制面若要知道实际路径，用 `fast-https config path --json` 读取，不要自己判断装法。
+
+从 1.5.0 或更早的包升级时，安装脚本会把 `/usr/share/fast-https/config/` 下已有的配置与证书复制到 `/etc/fast-https/`（目标已存在则跳过，旧文件保留不动），确认无误后可手工删除旧目录。
 
 ### 容器
 
@@ -54,14 +56,14 @@ docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
 docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .
 ```
 
-镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 8080 与 443。
+镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 80 与 443，与随包默认配置一致。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 `listen`。
 
 ## 3. 目录布局
 
 ```text
 fast-https                  主程序（Windows 下另有 monitor.exe 托盘程序）
-config/fast-https.json      唯一配置真源
-config/conf.d/              拆分出来的站点配置（由 http.include 指向）
+config/fast-https.json      系统级配置（include、acme、日志、WAF…）
+config/conf.d/              站点配置，一个文件一个站点（由 http.include 指向）
 config/mime.json            扩展名 → Content-Type 映射
 config/cert/                TLS 证书，*.pem 不入库，首次启动自动生成
 httpdoc/root/               默认站点根目录
@@ -70,59 +72,137 @@ logs/                       运行日志
 
 ## 4. 快速开始
 
-### 4.1 最小配置
+### 4.1 默认配置
+
+配置分成两层：`config/fast-https.json` 只放系统级设置（`http.include`、`acme`、日志、WAF、安全响应头），站点一律写在 `config/conf.d/` 下，一个文件一个站点。两个文件都刻意不带注释。
 
 `config/fast-https.json`：
 
 ```json
 {
   "log_root": "./logs",
+  "security": {
+    "host_check": "off",
+    "headers": {
+      "nosniff": true,
+      "hsts": "",
+      "x_frame_options": "",
+      "referrer_policy": "",
+      "content_security_policy": ""
+    }
+  },
+  "waf": {
+    "mode": "disabled"
+  },
   "http": {
-    "server": [
-      {
-        "listen": 8080,
-        "server_name": "localhost",
-        "location": [
-          {
-            "url": "/",
-            "type": "local",
-            "root": "./httpdoc/root",
-            "index": ["index.html", "index.htm"]
-          }
-        ]
-      }
-    ],
-    "include": ["./config/conf.d"]
+    "include": ["./config/conf.d"],
+    "default_type": "application/octet-stream",
+    "servers_limit": {
+      "max_header_size": 4096,
+      "max_body_size": 524288,
+      "limit": 0,
+      "burst": 0
+    },
+    "blaklist": [],
+    "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
+  },
+  "acme": {
+    "enabled": false,
+    "email": ""
   }
 }
 ```
 
-### 4.2 启动并验证
+上面每一项的取值都等于内置默认值，写全是为了在文件里直接看到有哪些系统级开关（`waf.mode: disabled` 等价于不启用，引擎不构建，零开销）。
 
-```bash
-./fast-https start                 # 无参数等同 start
-curl -I http://127.0.0.1:8080/
-```
-
-看到 `200` 与 `Server: fast-https` 即启动成功。`listen` 也可以写成字符串 `"8080"`，两种写法等价。
-
-### 4.3 打开 HTTPS 与 HTTP/2
+随包的 `config/conf.d/default.json` 是开箱即用的默认站点，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 `./httpdoc/root`：
 
 ```json
 {
-  "listen": "443 ssl h2",
+  "listen": [80, "443 ssl h2"],
   "server_name": "localhost",
   "ssl_certificate": "./config/cert/localhost.pem",
   "ssl_certificate_key": "./config/cert/localhost-key.pem",
   "location": [
-    { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html"] }
+    {
+      "url": "/",
+      "type": "local",
+      "root": "./httpdoc/root",
+      "index": ["index.html", "index.htm"]
+    }
   ]
 }
 ```
 
-`ssl_certificate` 指向的文件不存在时，启动阶段会用它自己签发的本地 CA 生成一张自签证书，可以直接用 `curl -k` 验证。浏览器不信任这张证书，正式环境请替换为权威 CA 签发的证书文件。
+逐项说明：
 
-### 4.4 停止
+- `listen: [80, "443 ssl h2"]`：一个站点文件可以写多个监听，加载时按每个监听展开成独立的运行期 server 块，`server_name`、`location` 与证书共用；只想留一个端口就从数组里删掉另一个。写成单个值时也可以直接写 `"listen": 80`。
+- `listen: 80`：HTTP 默认端口，绑定它需要 root；普通用户手工运行时改成 `8080` 之类的高位端口。写成字符串 `"80"` 等价。
+- `listen: "443 ssl h2"`：HTTPS + HTTP/2，`ssl` 开 TLS，`h2` 才向客户端通告 HTTP/2。
+- `ssl_certificate` / `ssl_certificate_key`：文件不存在时，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`，可以直接 `curl -k https://127.0.0.1/` 验证；浏览器会提示不受信任。正式环境换成权威 CA 的 PEM，或者打开 7.1 的 ACME 自动签发。
+- 不需要 HTTPS 时把 `"443 ssl h2"` 从 `listen` 里去掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或去掉这一项。
+- `server_name`：按请求的 `Host` 头匹配。没命中任何 `server_name` 时回落到该端口的第一个 server 块（相当于 nginx 的 `default_server`），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。
+- `root: ./httpdoc/root`：站点根目录，相对路径按站点根基址解析（包布局是 `/usr/share/fast-https`，归档布局是当前目录），与二进制所在目录无关。
+- `http.include: ["./config/conf.d"]`：该目录下每个 `*.json` 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。主配置可以完全不写 `http.server`，只要 include 里至少有一个站点文件；`fast-https site` 的子命令就是按这个约定增删站点文件的。
+- `acme.enabled: false`：ACME 自动签发默认关闭，行为与老版本一致。需要受信任证书时按 7.1 手工配置，或直接运行 `fast-https acme` 向导。
+
+配置本身允许 `//`、`/* */` 注释与末尾多余逗号（见第 5 节），需要给自己留备注时随时加。随包默认文件不带注释，是为了让「用脚本或向导改配置」这件事不用处理注释：文档负责解释字段，文件保持最小可读 JSON。
+
+### 4.2 启动并验证
+
+```bash
+sudo ./fast-https start            # 无参数等同 start；80 端口需要 root
+curl -I http://127.0.0.1/          # 换成高位端口时写成 http://127.0.0.1:8080/
+```
+
+看到 `200` 与 `Server: fast-https` 即启动成功。`listen` 也可以写成字符串 `"80"`，两种写法等价。
+
+### 4.3 HTTPS 与 HTTP/2
+
+默认配置里的第二个 server 块已经打开 HTTPS，不需要额外准备证书文件：
+
+```bash
+curl -kI https://127.0.0.1/          # 自签证书用 -k 跳过校验
+curl -I --http2 -k https://127.0.0.1/  # 确认协商到 HTTP/2
+```
+
+要点：
+
+- `ssl` 必须配 `ssl_certificate` 与 `ssl_certificate_key`，缺一个启动期就报错。
+- 证书文件不存在时，`start` 的预检阶段会用本地 CA 生成自签证书（`config/cert/<server_name>.pem`）；`reload` 的预检不生成证书，所以在第一次 `start` 之前会报 `ssl_certificate not found`。
+- 只有 `listen` 里写了 `h2` 的端口才通告 HTTP/2，纯 `ssl` 端口只走 HTTP/1.1。
+- 换权威证书有两种方式：把这两个路径改成自己签发的 PEM 后 `reload`；或者用 7.1 的 ACME 自动签发，签发成功后证书会就地热替换。
+- 端口冲突时（例如 Windows 上 443 被 IIS 占用）改 `listen` 里的端口号，或整段删掉这个 server 块。
+
+### 4.4 用 site 命令管理站点文件
+
+站点多了不必都堆在主配置里：`config/conf.d/*.json` 每个文件就是一个 server 块（字段与 `http.server[]` 元素完全一致），主配置的 `http.include` 指向该目录即可。
+
+```bash
+fast-https site init blog --server-name blog.example --non-interactive
+fast-https site list
+fast-https site show blog            # 站点文件原文
+fast-https site show blog --merged   # 合并后的完整 server 块（含默认值）
+fast-https site init blog --tls      # 同名即更新：只改显式传的字段，加 443 ssl h2 与证书路径
+fast-https site remove blog --yes
+```
+
+- **交互式**：`fast-https site init` 省略名字（或参数不齐）时进向导，一题一屏依次问站点名、监听端口、`server_name`、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。标准输入不是终端时自动要求用参数，不会挂起。站点名带不带 `.json` 都行（`blog` 与 `blog.json` 等价，不会生成 `blog.json.json`）。
+- **反代站点**：`--type proxy --proxy-pass http://127.0.0.1:8080`。
+- **改已有站点**：`site update <name>`，只覆盖显式传进来的 flag，没传的字段保持原值。例如 `--tls` 把现有监听升级成 `443 ssl h2` 并补默认证书路径；`--server-name`、`--listen`、`--root`、`--type`、`--proxy-pass` 用法与 `init` 相同。手写的其它 `location` 块原样保留；文件会按纯 JSON 重写，里面的注释不保留。站点不存在时报错并提示用 `init`，不会隐式新建。
+- **多端口**：`--listen` 可重复，一个文件就能同时监听多个端口，站点文件里写成数组。
+
+  ```bash
+  fast-https site init blog --server-name blog.example \
+      --listen 80 --listen "443 ssl h2" --non-interactive
+  ```
+
+  加载时这个块会展开成"一块一个端口"的两个 server 块，`server_name`、location 与证书共用；`site list` 的 LISTEN 列显示为 `80, 443 ssl h2`。
+- **TLS 站点**：`--tls` 保证至少有一个 TLS 监听，且不会把 `ssl` 贴到 80 上。不给 `--listen` 时生成 `["80", "443 ssl h2"]`；给了 `--listen` 时写什么用什么，只把非 80 的那条补成 `ssl h2`（`--listen 80 --tls` 仍是 `80` + `443 ssl h2`）。证书默认路径是 `config/cert/<server_name>.pem` 与 `-key.pem`，由首次 `start` 生成；在那之前 `reload` 的预检会报 `ssl_certificate not found`（与主配置一致）。
+- **写入安全**：先生成 `.tmp`，用主配置同一套 schema 校验通过后才 rename；同名文件已存在时要求 `--force`。
+- **生效方式**：命令只写文件并提示 `fast-https reload`（reload 会先校验配置），不自动重载。
+
+### 4.5 停止
 
 ```bash
 ./fast-https stop
@@ -131,6 +211,8 @@ curl -I http://127.0.0.1:8080/
 Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请求处理完（最长 `GracefulStopTimeout`）再退出，pid 文件随之删除；重复执行 `stop` 视为「本来就没在跑」，返回 0。Windows 上没有信号语义，直接终止进程。容器内、systemd（`INVOCATION_ID`）与设置了 `FASTHTTPS_FOREGROUND=1` 时 `start` 不转后台，交由进程管理器托管。
 
 ## 5. 配置文件
+
+文件仍然是 JSON（`http.include` 只收录 `*.json`），但解析前会先去掉 `//`、`/* */` 注释与对象/数组末尾多余的逗号，所以配置可以像 nginx.conf 一样逐段写注释。字符串里的 `//`（例如 `proxy_pass: "http://..."`）不受影响，纯 JSON 文件行为完全不变。
 
 ### 5.1 顶层键
 
@@ -141,6 +223,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `engine` | 预留的主从注册字段，当前不参与运行逻辑 |
 | `waf` | 全局应用防火墙：`{"mode": "enforce" \| "monitor" \| "disabled"}` |
 | `http` | HTTP 服务主体，见下 |
+| `acme` | ACME 自动签发与续期，见 7.1。缺省即关闭，行为与老版本一致 |
+| `security` | Host 校验与安全响应头，见 5.5。缺省只加 `X-Content-Type-Options: nosniff` |
 
 ### 5.2 `http` 段
 
@@ -178,9 +262,10 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `proxy_cache` | 代理缓存，见 6.5 |
 | `zip` | 响应压缩，取值 `gzip`、`br`，可同时配置 |
 | `limit` | `mem`、`rate`、`burst`、`nodelay` |
-| `auth` | `{"type": "basic", "user": "...", "pswd": "..."}` |
+| `auth` | `{"type": "basic", "user": "...", "pswd": "...", "realm": "..."}`。只支持 `basic`，写了 `type` 就必须同时写 `user` 与 `pswd`（缺任何一项校验就报错）；`realm` 可选，留空时用站点名 |
 | `appfirewall` | 应用防火墙开关，例如 `["xss", "sqli"]` |
 | `error_page` | `{"not_found": "./httpdoc/404.html", "proxy": "./httpdoc/502.html"}` |
+| `allow_methods` | 只允许列出的方法，例如 `["GET", "HEAD"]`；越界返回 405 并带 `Allow` 头。缺省不限制，`HEAD` 随 `GET` 自动放行 |
 
 `proxy_set_header` 的 `HeaderValue` 支持变量插值：
 
@@ -192,6 +277,34 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `$proxy_host` | 上游地址 |
 | `$remote_addr` | 客户端 IP |
 | `$proxy_add_x_forwarded_for` | 追加当前客户端 IP 后的 `X-Forwarded-For` |
+
+### 5.5 `security` 段
+
+```json
+"security": {
+  "host_check": "warn",
+  "headers": {
+    "nosniff": true,
+    "hsts": "max-age=31536000",
+    "x_frame_options": "SAMEORIGIN",
+    "referrer_policy": "no-referrer",
+    "content_security_policy": "default-src 'self'"
+  }
+}
+```
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `host_check` | `off` | `off` / `warn` / `enforce`。`enforce` 时 `Host` 没命中任何 `server_name` 直接返回 421，不再回落到该端口的第一个 server；`warn` 只写安全日志、行为不变 |
+| `headers.nosniff` | `true` | 写入 `X-Content-Type-Options: nosniff`。这一项无兼容风险，所以默认开 |
+| `headers.hsts` | 空 | 写入 `Strict-Transport-Security`，内容原样写入。只在全站 HTTPS 后开，否则 HTTP 访问会被浏览器记住 |
+| `headers.x_frame_options` | 空 | 写入 `X-Frame-Options` |
+| `headers.referrer_policy` | 空 | 写入 `Referrer-Policy` |
+| `headers.content_security_policy` | 空 | 写入 `Content-Security-Policy` |
+
+安全头在响应写出的唯一出口统一补齐：模块自己设置过同名头时不覆盖，重复调用幂等。
+
+> 请求路径在解析阶段就完成规范化：解一层 `%xx`、合并连续的 `/`、拒绝二次编码（`%252f`）、反斜杠、控制字符与超过 8192 字节的目标，非法请求直接 400。location 匹配、静态文件解析与日志看到的都是规范化后的路径。
 
 ## 6. 典型配置
 
@@ -273,9 +386,50 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 
 - **SNI 多证书**：同一端口上的多个 `server_name` 各自持有证书，握手时按 SNI 选择，匹配不到用该端口的第一张。
 - **自动生成**：首次启动时，若 `config/cert/<server_name>.pem` 不存在，会用一个本地自签 CA 生成证书。CA 有效期 10 年，域名证书 2 年 3 个月。
-- **热替换**：执行 `reload` 后证书从磁盘重新加载，不需要重启进程。
-- **不自动续期**：程序只判断文件是否存在，不检查有效期。证书过期前需要替换文件并 `reload`。
-- **外部签发**：用 acme.sh、certbot 等外部工具签发后，把 `fullchain.pem` 与私钥路径填进 `ssl_certificate` / `ssl_certificate_key` 即可。
+- **热替换**：执行 `reload` 后证书从磁盘重新加载，不需要重启进程；启用 ACME 后新证书签发成功也会就地热替换。
+- **ACME 自动签发与续期**：配置 `acme` 段后向 Let's Encrypt / ZeroSSL 申请受信任证书，到期前自动续期，见 7.1。
+- **外部签发**：仍可用 certbot 等外部工具签发，把 `fullchain.pem` 与私钥路径填进 `ssl_certificate` / `ssl_certificate_key`。
+
+### 7.1 ACME 自动签发
+
+不想手写这段 JSON 时，跑 `fast-https acme` 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 `acme` 段，其余配置与注释原样保留。向导的默认值取自当前配置（邮箱、CA、挑战方式、续期天数、缓存目录、回落开关），回车即保留原值，不会退回出厂默认；确认页的摘要也是答完题之后才生成，显示的是这次要写入的内容。不喜欢全屏表单就加 `--plain` 改成逐行问答；脚本里则用 `fast-https acme setup --email you@example.com --non-interactive` 全走参数。改完执行 `fast-https reload` 即可生效，不需要重启进程。
+
+```json
+"acme": {
+  "enabled": true,
+  "email": "ops@example.com",
+  "challenge": ["auto"],
+  "renew_before_days": 30,
+  "fallback_self_signed": true,
+  "storage": "./config/cert/acme",
+  "cas": [
+    { "name": "letsencrypt", "directory": "https://acme-v02.api.letsencrypt.org/directory" }
+  ]
+}
+```
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `enabled` | `false` | 总开关。关闭时进程行为与未配置 `acme` 完全一致 |
+| `email` | 空 | 账户邮箱，`enabled` 为真时必填，否则配置校验直接报错 |
+| `staging` | `false` | 为真时把 Let's Encrypt 目录换成测试环境，便于联调；自定义目录不受影响 |
+| `challenge` | `["auto"]` | 可选 `auto`、`http-01`、`tls-alpn-01`。`auto` 同时启用后两者，由 ACME 客户端按成功率自动选择 |
+| `renew_before_days` | `30` | 到期前的续期提前量，按 90 天有效期换算成续期窗口比例 |
+| `fallback_self_signed` | `true` | 签发失败时是否继续用自签证书提供服务 |
+| `storage` | `config/cert/acme` | 账户与订单缓存目录，相对路径按配置基址解析（包布局落在 `/etc/fast-https/cert/acme`）；只有真正发起过申请才有内容 |
+| `cas` | Let's Encrypt、ZeroSSL | CA 降级链，按顺序尝试；ZeroSSL 必须提供 `eab_kid` 与 `eab_hmac_key`，否则该 CA 被跳过 |
+
+行为：
+
+- **启动不被阻塞**：监听建立后才会在后台申请，申请期间继续用自签证书，首次握手不会卡住。
+- **两种挑战**：`http-01` 由数据面在 `/.well-known/acme-challenge/<token>` 上应答（不依赖站点根目录，token 只存在内存里、不落盘），`tls-alpn-01` 在同一个 443 端口上用临时证书应答（ALPN 通告 `acme-tls/1`）。两者都不额外占用端口。
+- **落盘位置不变**：签发成功后写回该 server 块配置的 `ssl_certificate` / `ssl_certificate_key`（默认 `config/cert/<server_name>.pem`），写盘用临时文件 + rename，随后热替换证书，监听 socket 不变。
+- **失败回落**：内网、域名未解析、速率限制等情况下继续使用自签证书，日志里每个域名一条告警，按退避重试，不会刷屏。
+- **申请范围**：只有 `listen` 里带 `ssl` 的 server 块会被申请证书。只监听 80 的站点不会触发任何申请——先给它加 `"443 ssl h2"` 与 `ssl_certificate` / `ssl_certificate_key`，再用 `fast-https acme show` 确认"将申请的域名"里出现了它。
+- **跳过不可用的名字**：IP、`localhost`、不含点的名字与通配符（只能 `dns-01`）不会发起申请，启动时各留一条告警。
+- **续期**：由后台任务在到期前完成，续期成功后同样热替换；不需要 `reload`，也不需要重启。
+
+> 账户私钥、订单与证书缓存都在 `storage` 目录下，备份时与 `config/cert` 一起打包即可。`http-01` 需要外部能访问本进程的 80 端口（也可以是前置反代转发 `/.well-known/acme-challenge/`），`tls-alpn-01` 需要外部能直连 443。
 
 > 本地 CA 的证书 `root.crt` 放在 `httpdoc/root/`（首页可直接下载安装），私钥 `root.key` 放在 `config/cert/`，不在对外服务的站点根下。旧版本把两者都放在站点根，升级后首次启动会把私钥搬到 `config/cert/`。如果你自己改过站点根，确认新目录里不含私钥。
 
@@ -314,23 +468,44 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 
 修改 `log_root` 后执行 `reload` 会重新打开日志文件；新目录打不开时继续写原文件。
 
+Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份、单个文件超过 100MB 也提前轮转、gzip 压缩。四个日志文件在进程里常开 fd，所以用 `copytruncate`——先复制再截断，不需要重启或 `reload`。该文件是包管理器登记的配置文件（deb conffile、rpm `%config(noreplace)`），本地修改在升级时保留。归档与 Docker 部署的日志在 `./logs`，不在这个配置管辖范围，需要自己接 logrotate 或按天清理。
+
 ## 10. 命令行
 
 | 命令 | 作用 |
 | --- | --- |
-| `start` | 以守护进程方式启动（无参数等同此命令） |
-| `dev` | 前台启动，日志级别 6，并在 `0.0.0.0:10000` 开 pprof |
+| `start` | 以守护进程方式启动（无参数等同此命令）；容器与 systemd 托管、或设了 `FASTHTTPS_FOREGROUND=1` 时保持前台 |
 | `stop` | 停止服务 |
-| `reload` | 校验配置后热重载，失败时保留旧配置 |
+| `reload` | 先校验配置，通过才发信号热重载；校验失败直接返回原因，运行中的配置保持不动 |
 | `status` | 读 pid 文件，进程存在返回 0，否则非 0 |
-| `check` | 只校验配置，不监听端口、不写 pid |
-| `install` | 安装为系统服务 |
-| `uninstall` | 卸载系统服务 |
+| `version` | 打印版本号，输出一行 `fast-https <版本>` |
+| `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
+| `site list` | 列出站点文件、监听、`server_name` 与 location 类型 |
+| `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块 |
+| `site remove <name>` | 删除站点文件（需要 `--yes`） |
+| `acme` | 交互式配置 ACME：问邮箱、CA、挑战方式，写回 `acme` 段 |
+| `acme setup` | 同 `acme`，可用 `--email`、`--ca`、`--challenge` 等 flags 非交互执行 |
+| `acme show` | 打印生效的 ACME 配置（EAB 私钥脱敏）与会申请证书的域名 |
 
-两点行为需要留意：
+三点行为需要留意：
 
-- `dev` 模式下 `Ctrl+C` 是**停止服务**，不是重载。
-- `check` 通过时打印 `config ok` 并以 0 退出；`start` 的预检会做同一项校验。
+- `SIGINT`（`Ctrl+C`）在各平台都是**重载配置**，前台运行也一样；停止用 `SIGTERM`、`SIGQUIT` 或 `stop` 命令。
+- `start` 与 `reload` 都会先校验配置：失败直接停下并说明原因，`reload` 此时不动运行中的配置。
+- 安装与卸载不走二进制：deb / rpm / apk 负责文件落位，`systemctl enable --now fast-https` 负责常驻。1.5.0 起不再提供 `install` / `uninstall` 子命令，老用户改用包管理器即可。
+
+### 10.1 帮助信息的语言
+
+帮助、用法与 flag 说明默认是中文。需要英文时用 `--lang en`，或者设置环境变量 `FAST_HTTPS_LANG=en`：
+
+```bash
+fast-https site init --help            # 中文
+fast-https --lang en site init --help  # 英文
+FAST_HTTPS_LANG=en fast-https -h       # 英文
+```
+
+`--lang` 优先于环境变量；两者都没给时按中文输出。语言只在进程启动时读一次，不影响运行期日志。
+
+手册页也是两份：`man fast-https` 读到的是中文页，`LANG=en_US.UTF-8 man fast-https` 读英文页（装在 `/usr/share/man/en/man1/`）。
 
 ## 11. 热重载与停机
 
@@ -342,20 +517,23 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 
 | 现象 | 原因与处理 |
 | --- | --- |
-| 启动报 `ssl_certificate not found` | `listen` 含 `ssl` 时证书文件必须存在。首次启动会自动生成 `config/cert/<server_name>.pem`，请确认路径与 `server_name` 一致，或改用绝对路径 |
+| 启动或 `reload` 报 `ssl_certificate not found` | `listen` 含 `ssl` 时证书文件必须存在。`start` 会用本地 CA 自动生成 `config/cert/<server_name>.pem`，`reload` 不生成，所以新装的目录先跑一次 `start`；路径与 `server_name` 不一致时改成实际路径或绝对路径 |
 | 启动报 `listen: port already in use` | 端口被占用，换端口或先释放 |
 | 配置校验通过但访问 404 | 检查 `root` 是相对路径时的实际解析位置，确认 `server_name` 与请求 `Host` 一致 |
 | 反向代理返回 404 或落到静态分支 | `proxy_pass` 缺少 `http://` / `https://` 前缀，被当作 `local` 处理 |
 | HTTP/2 不生效 | `listen` 没写 `h2`；或客户端不支持 ALPN。可用 `curl -I --http2 https://...` 验证协议版本 |
-| 修改配置后不生效 | 守护进程模式需要执行 `reload`；`dev` 模式需要重启 |
+| 启用 ACME 后仍是自签证书 | 查日志里的 `acme:` 告警：域名是否解析到本机、80/443 是否可达、CA 是否限速。失败期间服务继续用自签证书，按退避自动重试 |
+| 访问返回 421 | `security.host_check` 是 `enforce`，且请求的 `Host` 没命中任何 `server_name`。核对 `server_name`，或改成 `warn` / `off` |
+| 访问返回 405 | 该 location 配了 `allow_methods`。响应的 `Allow` 头列出允许的方法；`HEAD` 只在允许 `GET` 时自动放行 |
+| 修改配置后不生效 | 执行 `reload`；看日志里是 `acme: manager restarted (reason: ...)` 还是 `kept previous manager, new config is unusable` |
 | 日志没有写到新目录 | 新 `log_root` 打不开时程序继续写原文件，检查目录权限 |
 
 ## 13. 已知限制
 
 | 项 | 说明 |
 | --- | --- |
-| ACME 自动签发 | 未接入。仓库内的 `acme.sh` 不参与启动流程，证书需外部工具签发后填入路径 |
-| 证书自动续期 | 不支持，需人工替换后 `reload` |
+| ACME 通配符与 IP 证书 | 只实现 `http-01` 与 `tls-alpn-01`，通配符需要 `dns-01`，这类 `server_name` 不会发起申请，继续用自签证书 |
+| ACME 管理器重建窗口 | 配置差异触发重建时，旧实例已停、新实例的挑战 token 还没写入，这个毫秒级空窗里恰好来验证会失败一次，由 certmagic 退避重试；配置没变的 `reload` 不重建，不受影响 |
 | `engine` 配置段 | 主从注册的预留字段，当前不参与运行逻辑 |
 | 上游故障转移 | 未实现，单个上游不可用时直接返回错误页 |
 | 配置文件自动重载 | 暂不支持，监听文件变化后自动 reload 仍未排期 |

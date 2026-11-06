@@ -30,6 +30,6 @@ HTTP/HTTPS 反向代理：转发到 `proxy_pass` 上游、请求头改写、上�
 
 ## 已知限制
 
-- 上游为单地址，无负载均衡/健康检查/故障转移（见占位 [21-planned-upstream-failover.md](21-planned-upstream-failover.md)）。
+- 上游为单地址，无负载均衡/健康检查/故障转移（见 [upstream-failover-plan.md](../develop/plans/upstream-failover-plan.md)）。
 - HTTPS 上游 `InsecureSkipVerify: true`（不校验上游证书）。
 - 响应不做压缩（客户端接受压缩而上游未压时透传原文）。

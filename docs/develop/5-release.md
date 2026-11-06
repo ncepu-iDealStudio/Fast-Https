@@ -2,7 +2,9 @@
 
 ## 版本号
 
-`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.4.0`）；GoReleaser 快照版本号 `1.4.0-next`。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。
+`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.5.0`）；GoReleaser 快照版本号 `1.5.0`（`build/goreleaser.yaml` 的 `version_template`）。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。三处版本号（`consts.go`、`version_template`、Windows NSIS 的 `APP_VERSION` 默认值）要一起改，否则安装包文件名与徽章会各说各的。
+
+`version_template` 只影响 `--snapshot` 构建（本地打包默认走快照，用 `-Release` 才取 tag 的版本）。1.5.0 已发布，所以这里就是 `1.5.0`；进入下一轮开发时改成 `1.5.1-next`，免得本地快照和线上发行版同名不同内容。
 
 ## 本地快照构建
 
@@ -14,13 +16,19 @@
 .\build\package.ps1 -SkipBuild -NoInstaller   # 只整理 dist / 只出安装包
 ```
 
-等价的手工命令：
+只想出压缩包与 Linux 包（不出 Windows 安装包）时可以手工执行：
 
 ```bash
 goreleaser release -f build/goreleaser.yaml --snapshot --clean
 ```
 
-产物在 `dist/`；压缩包内打入 `config/fast-https.json`、`config/mime.json`、`config/fastcgi.conf`、`docs/usage.html`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。
+这条命令**不会**产出 `setup.exe`：`build/goreleaser.yaml` 里没有 `nsis:` 段，Windows 安装包是 `build/package.ps1` 在 goreleaser 跑完之后调用 `makensis` 生成的（`package.ps1` 还会读 `dist/metadata.json` 取版本号、给 `.nsi` 补 UTF-8 BOM）。已经跑过 goreleaser、只想补安装包时用：
+
+```powershell
+.\build\package.ps1 -SkipBuild
+```
+
+产物在 `dist/`；压缩包内打入 `config/fast-https.json`、`config/mime.json`、`docs/usage.html`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。
 
 `dist/` 里除了最终产物还会出现 GoReleaser 的中间目录（`unix_linux_amd64_v1/` 等）、`config.yaml`、`metadata.json`、`artifacts.json`。`build/package.ps1` 收尾会把它们删掉，只留下：
 
@@ -53,9 +61,9 @@ checksums.txt
 手工编译（makensis 的下载安装与路径探测见 [0-environment-and-build.md](0-environment-and-build.md) 的「NSIS（Windows 安装包）」）：
 
 ```powershell
-makensis /DAPP_VERSION=1.4.0 /DAPP_VERSION4=1.4.0.0 /DAPP_ARCH=amd64 `
+makensis /DAPP_VERSION=1.5.0 /DAPP_VERSION4=1.5.0.0 /DAPP_ARCH=amd64 `
          /DSTAGE_DIR=dist\.stage\amd64 `
-         /DOUT_FILE=dist\fast-https-1.4.0-windows-amd64-setup.exe `
+         /DOUT_FILE=dist\fast-https-1.5.0-windows-amd64-setup.exe `
          build\installer\windows\fast-https.nsi
 ```
 
@@ -75,17 +83,71 @@ go run ./tools/docgen
 
 `build/goreleaser.yaml` 的 `nfpms` 段用 `linux-pkg` 构建（带 `-tags=rpm`）产出三种包：
 
-- 程序装到 `/usr/bin/fast-https`；配置、站点、日志装到 `/usr/share/fast-https/`
+- 程序装到 `/usr/bin/fast-https`；配置与证书 `/etc/fast-https/`、站点 `/usr/share/fast-https/httpdoc/`、日志 `/var/log/fast-https/`、pid `/run/fast-https/`
 - 单元文件 `build/packaging/systemd/fast-https.service` 装到 `/usr/lib/systemd/system/`
-- 手册页 `build/packaging/man/fast-https.1` 装到 `/usr/share/man/man1/`；内容由 `go run ./tools/manpage` 从 `cmd.RootCmd()` 的命令树生成，改子命令后必须重新生成
-- 安装/卸载脚本在 `build/packaging/linux/`：安装后 `systemctl daemon-reload` 并打印启动提示，不自动 `enable`（容器与 CI 里没有 systemd）
+- 手册页中英各一份：`build/packaging/man/fast-https.1` 装到 `/usr/share/man/man1/`，`fast-https.en.1` 装到 `/usr/share/man/en/man1/`；两份都由 `go run ./tools/manpage` 从命令树生成，改子命令后必须重新生成
+- 日志轮转 `build/packaging/logrotate/fast-https` 装到 `/etc/logrotate.d/fast-https`，登记为配置文件（deb conffile、rpm `%config(noreplace)`）。四个日志文件在进程里常开 fd 且 `O_APPEND` 追加，所以配置用 `copytruncate`，不走 `create` + `postrotate`；`nfpms.dependencies` 因此包含 `logrotate`，没有它日志会无上限增长
+- 安装/卸载脚本在 `build/packaging/linux/`：安装后 `systemctl daemon-reload` 并打印启动提示，不自动 `enable`（容器与 CI 里没有 systemd）；卸载分两档——`remove` 保留配置与证书，`purge` 清掉 `/etc/fast-https` 下的证书、`conf.d` 与 `/var/log/fast-https`，升级两档都不触发
 - 装完执行 `systemctl enable --now fast-https` 即可常驻；`Type=simple` 配合 `FASTHTTPS_FOREGROUND=1`，服务不会自行转后台
 
-当前配置、站点、日志共用 `/usr/share/fast-https/` 一个前缀，日志与配置因此不在 FHS 推荐位置。拆成 `/etc/fast-https`、`/usr/share/fast-https`、`/var/log/fast-https`、`/run/fast-https` 的改造排在 [plans/fhs-layout-plan.md](plans/fhs-layout-plan.md)，尚未实施。
+`/var/log/fast-https` 在包里用 `type: dir` 声明（配 `.keep` 占位），`/run/fast-https` 不写进包——rpm 不接受包内 `/run` 内容，改由 systemd 的 `RuntimeDirectory=` 与 postinstall 脚本创建，程序写 pid 前也会自建父目录。细节与后续阶段见 [plans/fhs-layout-plan.md](plans/fhs-layout-plan.md)。
+
+归档（tar.gz / Docker / Windows）布局不受影响，始终相对工作目录（`./config`、`./logs`、`./httpdoc`），由 `!rpm` 构建的基址常量保证。两种布局由同一个二进制通过 build tag 区分，不做运行时判断。
+
+外部控制面读取运行期路径用 `fast-https config path --json`，输出 `config` / `cert` / `log` / `pid` 四个绝对路径。
 
 ```bash
 goreleaser release -f build/goreleaser.yaml --snapshot --clean
 ```
+
+### 包元数据
+
+仓库客户端解析依赖、分类、升级关系时读的是包元数据，改动 `nfpms` 段时别丢掉这些字段：
+
+| 字段 | 值 | 作用 |
+| --- | --- | --- |
+| `section` / `priority` | `web` / `optional` | apt 的软件分类与优先级，缺省会被算进 `unknown` |
+| `depends` | `ca-certificates` | ACME 校验与 HTTPS 上游都要系统 CA；精简容器里默认没有 |
+| `release` | `"1"` | Debian revision，同一上游版本重新打包时靠它区分 |
+| `deb.compression` | `xz` | 体积更小，`dpkg` 1.17+ 都支持 |
+| `rpm.group` / `rpm.summary` / `rpm.packager` | `Applications/Internet` 等 | 没有 `summary` 的 rpm 在 `dnf info` 里是空的 |
+
+## 仓库发布（apt / dnf / apk 源）
+
+`build/packaging/repo/publish-repo.sh` 把 `dist/` 里的包组装成可直接静态托管的仓库树：
+
+```bash
+# 在 Debian 系环境里跑（需要 dpkg-scanpackages、apt-ftparchive；yum 源另需 createrepo_c）
+bash build/packaging/repo/publish-repo.sh \
+     dist repo-out \
+     <GPG_KEY_ID> \
+     https://repo.example.com/fast-https
+```
+
+参数：`DIST_DIR OUT_DIR [GPG_KEY_ID] [BASE_URL]`。`GPG_KEY_ID` 留空则跳过签名（只够本地测试或配 `trusted=yes` / `repo_gpgcheck=0`），`BASE_URL` 决定生成的 `.list` / `.repo` 里的地址。
+
+产出结构：
+
+```text
+repo-out/
+├── apt/  pool/main/f/fast-https/*.deb
+│         dists/stable/main/binary-{amd64,arm64}/Packages(.gz)
+│         dists/stable/{Release,InRelease,Release.gpg}
+│         fast-https.list              # 下发给用户
+├── yum/  {x86_64,aarch64}/*.rpm + repodata/（含 repomd.xml.asc）
+│         fast-https.repo              # 下发给用户
+├── apk/  {x86_64,aarch64}/*.apk + APKINDEX.tar.gz
+├── fast-https.asc / fast-https.gpg    # 签名时导出的公钥（dnf / apt 各用一份）
+└── SHA256SUMS
+```
+
+要点：
+
+- 架构映射：Go 的 `amd64`/`arm64` 对应 rpm 与 apk 的 `x86_64`/`aarch64`，脚本用文件名里的 `_linux_<arch>` 判断，未知架构告警跳过
+- 签名：apt 用 `gpg --clearsign` 出 `InRelease`、`-abs` 出 `Release.gpg`；yum 用 `-abs` 签 `repodata/repomd.xml`；apk 用 `abuild-sign`（可选）
+- rpm 包本身没有 GPG 签名（需要 rpm 工具链），所以 `.repo` 模板里是 `gpgcheck=0` + `repo_gpgcheck=1`，只校验仓库元数据
+- 模板在 `build/packaging/repo/{apt,yum}/`，占位符 `@BASE_URL@`、`@SIGNED_BY@`、`@REPO_GPGCHECK@` 由脚本替换；换公钥路径或镜像地址改模板即可
+- 整棵树（含 `fast-https.asc`/`fast-https.gpg`）原样传到 `BASE_URL` 对应的静态目录，客户端按脚本末尾打印的步骤导入
 
 ## Docker
 
@@ -93,11 +155,14 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 
 ## 发布前清单
 
-0. `go run ./tools/docgen && go run ./tools/manpage` 重新生成使用文档与手册页（`go test ./tools/docgen ./tools/manpage` 校验生成物是否与源一致）
+0. `go run ./tools/docgen && go run ./tools/manpage` 重新生成使用文档与手册页（`go test ./tools/docgen ./tools/manpage` 校验生成物是否与源一致）；`go test ./tests/packaging` 确认打包脚本是 LF 行尾——Windows 上 `core.autocrlf` 会把 `preremove.sh` 变成 CRLF，装进包里就是"能装上、卸载不掉、报 prerm ENOENT"；`sh tests/packaging/distro/run.sh all` 在 ubuntu / almalinux / alpine 容器里实装一遍（装、启动、轮转、卸载），需要 docker
 1. `go build ./... && go vet ./...` 干净
 2. `go test -race ./...` 全绿（29 包）
 3. 三个 E2E：`FASTHTTPS_E2E_RELOAD=1` reload、proxy、h2
 4. 根 README 依赖表与 `go.mod` 一致
-5. `docs/feature/` 与 `develop/plans/iteration-plan.md` 状态同步
+5. `docs/feature/` 与 `develop/archive/iteration-plan.md` 状态同步
 6. 快照产物冒烟：安装目录跑 `check`/`start`/`status`/`reload`/`stop`
 7. Windows 与 Linux 各自编译验证（不以单平台代替）；Windows 再跑一次安装包：安装 → 托盘启动 → 卸载，确认 `dist` 里只剩产物
+8. 二进制体积对比：`go build -trimpath -o /tmp/fast-https .` 记录本次改动前后的大小差。1.5.0 实测（Windows/amd64）：基线 15,084,544 → 引入 certmagic 18,152,448（+3.07MB）→ 再引入 huh 配置向导 20,212,224（+2.06MB），累计 +5.13MB（+34%）。`go tool nm` 里没有 `go-acme/lego` 符号：`certmagic/dnsprovider.go` 只在启用 DNS-01 时可达，未启用时被链接器裁掉。huh 带来 17 个传递依赖（bubbletea、lipgloss、x/ansi 等），它们只在 `acme` 向导里可达，若后续嫌大可换回手写提示层
+9. ACME 联调冒烟：`acme.staging=true` + `email` 填真实地址，公网域名跑一次 `start`，确认日志出现 `cert_obtained`、`config/cert/<name>.pem` 被替换、`curl https://<name>` 不再告警；再把域名解析指向无效地址，确认回落自签且只有一条告警
+10. 发行包内确认存在 `config/cert/acme/`（`.keep` 占位）：非 systemd 手工启动时账户与证书缓存需要有可写目录

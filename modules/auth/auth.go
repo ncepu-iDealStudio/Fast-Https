@@ -15,9 +15,15 @@ func AuthHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 	if !AuthExists(cfg) {
 		return true
 	}
+	// 配置校验已经拒绝写不全的凭据，这里再兜一层：空口令等于没有口令，
+	// "Basic Og=="（即 ":"）不能被当成合法登录。
+	if strings.TrimSpace(cfg.Auth.User) == "" || cfg.Auth.Pswd == "" {
+		unauthorized(cfg, ev)
+		return false
+	}
 	username, pswd, ok := parseBasicAuth(ev.RR.Req.GetAuthorization())
 	if !ok || !credentialsMatch(cfg, username, pswd) {
-		unauthorized(ev)
+		unauthorized(cfg, ev)
 		return false
 	}
 	return true
@@ -52,13 +58,25 @@ func credentialsMatch(cfg *listener.ListenCfg, username, pswd string) bool {
 		subtle.ConstantTimeCompare([]byte(pswd), []byte(cfg.Auth.Pswd)) == 1
 }
 
-func unauthorized(ev *core.Event) {
+func unauthorized(cfg *listener.ListenCfg, ev *core.Event) {
 	res := response.ResponseInit()
 	res.SetFirstLine(401, "Authorization Required")
-	res.SetHeader("WWW-Authenticate", "Basic realm=\"Access to the staging site\"")
+	res.SetHeader("WWW-Authenticate", "Basic realm=\""+realmOf(cfg)+"\"")
 	res.SetHeader("Content-Length", "0")
 	ev.RR.Res = res
 	ev.WriteResponseClose(nil)
+}
+
+// realmOf 决定 401 响应里的 realm：配置了 auth.realm 就用它，否则用站点名，
+// 最后兜底成固定串。RFC 7235 规定 Basic 的 realm 必填，不能为空串。
+func realmOf(cfg *listener.ListenCfg) string {
+	if realm := strings.TrimSpace(cfg.Auth.Realm); realm != "" {
+		return realm
+	}
+	if serverName := strings.TrimSpace(cfg.ServerName); serverName != "" {
+		return serverName
+	}
+	return "Fast-Https"
 }
 
 func AuthExists(cfg *listener.ListenCfg) bool {

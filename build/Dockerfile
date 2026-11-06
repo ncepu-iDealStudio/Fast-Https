@@ -20,11 +20,12 @@ RUN apk --no-cache add ca-certificates \
 WORKDIR /app
 
 COPY --from=builder /app/fast-https .
-COPY config/fast-https.json config/mime.json config/fastcgi.conf ./config/
+COPY config/fast-https.json config/mime.json ./config/
+COPY config/conf.d/default.json ./config/conf.d/
 COPY httpdoc/root/index.html httpdoc/root/favicon.ico ./httpdoc/root/
 
 ENV FASTHTTPS_FOREGROUND=1
 
-EXPOSE 8080 443
+EXPOSE 80 443
 
 CMD ["./fast-https"]

@@ -4,7 +4,7 @@
 
 2.0 要降低部署、管理和日常运维的人工成本。操作者用本机命令行和大模型多轮对话，完成写配置、启动、查看状态、看错误和回滚。服务跑起来之后，智能体根据运行状态和日志，在策略范围内自主调整参数；必须重启才生效的参数，等到请求冷门时段再停机拉起。
 
-当前代码里还要做的发布和稳定性工作仍以 [iteration-plan.md](develop/plans/iteration-plan.md) 为准。`status` 已经能区分进程在不在（R6）。配置重载成功后会按 `log_root` 重新打开四份日志（R3）。无效配置重载会保留旧配置。2.0 仍要补连接数、4xx/5xx、限流拒绝，以及上游故障转移（R8）。启动与请求路径见 [about.md](about.md)。
+当前代码里还要做的发布和稳定性工作仍以 [iteration-plan.md](develop/archive/iteration-plan.md) 为准。`status` 已经能区分进程在不在（R6）。配置重载成功后会按 `log_root` 重新打开四份日志（R3）。无效配置重载会保留旧配置。2.0 仍要补连接数、4xx/5xx、限流拒绝，以及上游故障转移（R8）。启动与请求路径见 [about.md](about.md)。
 
 ## 1. 目标与非目标
 
@@ -107,10 +107,12 @@ flowchart LR
 
 | 布局 | 基目录 | 路径写法 |
 | --- | --- | --- |
-| 源码运行、Windows | `./`（`config/base_dir.go`） | 相对当前工作目录，例如 `./httpdoc/root`、`config/cert/localhost.pem` |
-| RPM（`-tags=rpm`） | `/usr/share/fast-https/` | 绝对路径，例如 `/usr/share/fast-https/httpdoc/root` |
+| 源码运行、Windows | ETC `./config`、DATA `.`、LOG `./logs`（`config/base_dir.go`） | 相对当前工作目录，例如 `./httpdoc/root`、`./cert/localhost.pem` |
+| deb / rpm / apk（`-tags=rpm`） | ETC `/etc/fast-https`、DATA `/usr/share/fast-https`、LOG `/var/log/fast-https`、RUN `/run/fast-https` | 配置、证书、include 相对 `/etc/fast-https`；站点与错误页相对 `/usr/share/fast-https` |
 | Alpine 镜像 | `/app` | 绝对路径，例如 `/app/httpdoc/root` |
 | Ubuntu 24.04、CentOS 7 镜像 | `/usr/local/fast-https` | 绝对路径，例如 `/usr/local/fast-https/httpdoc/root` |
+
+智能体不需要自己判断当前装法：`fast-https config path --json` 会输出 `config`、`cert`、`log`、`pid` 四个绝对路径，按它拼 `root` 与证书路径即可。
 
 ### 3.3 例子
 
@@ -138,7 +140,7 @@ flowchart LR
 }
 ```
 
-同一句话在 RPM 上，`root` 写成 `/usr/share/fast-https/httpdoc/root`。在 Alpine 镜像上写成 `/app/httpdoc/root`。在 Ubuntu 或 CentOS 镜像上写成 `/usr/local/fast-https/httpdoc/root`。`listen` 和 `proxy_pass` 不随安装目录改变。写完并启动后，对话回报 8080 是否已经在听。
+同一句话在 deb/rpm/apk 上，`root` 写成 `/usr/share/fast-https/httpdoc/root`（或相对 `/usr/share/fast-https` 的 `./httpdoc/root`）。在 Alpine 镜像上写成 `/app/httpdoc/root`。在 Ubuntu 或 CentOS 镜像上写成 `/usr/local/fast-https/httpdoc/root`。`listen` 和 `proxy_pass` 不随安装目录改变。写完并启动后，对话回报 8080 是否已经在听。
 
 服务器已经在运行时：都能热更新的变更确认后走 `ReloadFile`；含有必须重启才生效的项，确认后进入待生效队列，按第 5 节等到冷门时段。操作者若明确说「现在重启」，则不等待冷门窗口，立刻 `stop` 再 `start`。
 

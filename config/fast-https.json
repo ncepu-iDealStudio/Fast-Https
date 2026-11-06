@@ -1,35 +1,31 @@
 {
+  "security": {
+    "host_check": "off",
+    "headers": {
+      "nosniff": true,
+      "hsts": "",
+      "x_frame_options": "",
+      "referrer_policy": "",
+      "content_security_policy": ""
+    }
+  },
+  "waf": {
+    "mode": "disabled"
+  },
   "http": {
-    "server": [
-      {
-        "listen": 8080,
-        "server_name": "localhost",
-        "location": [
-          {
-            "url": "/",
-            "type": "local",
-            "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"]
-          }
-        ]
-      },
-      {
-        "listen": "443 ssl",
-        "server_name": "localhost",
-        "ssl_certificate": "config/cert/localhost.pem",
-        "ssl_certificate_key": "config/cert/localhost-key.pem",
-        "location": [
-          {
-            "url": "/",
-            "type": "local",
-            "root": "./httpdoc/root",
-            "index":["index.html", "index.htm"] 
-          }
-        ]
-      }
-    ],
-    "include": [
-      "./config/conf.d"
-    ]
+    "include": ["./conf.d"],
+    "default_type": "application/octet-stream",
+    "servers_limit": {
+      "max_header_size": 4096,
+      "max_body_size": 524288,
+      "limit": 0,
+      "burst": 0
+    },
+    "blaklist": [],
+    "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
+  },
+  "acme": {
+    "enabled": false,
+    "email": "<EMAIL>"
   }
 }

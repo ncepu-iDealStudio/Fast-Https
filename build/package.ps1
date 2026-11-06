@@ -4,25 +4,28 @@
   and leave only the final artifacts in dist.
 
 .DESCRIPTION
-  Snapshot build by default (version 1.4.0-next). Tag first, then use
-  -Release for a real release. One installer is built per Windows zip
-  found in dist (amd64 / arm64).
+  Snapshot build by default (version 1.5.0). Tag the current commit
+  first, then use -Release for a real-versioned local build. One installer
+  is built per Windows zip found in dist (amd64 / arm64).
 
-  Kept in dist:
-    fast-https_Windows_x86_64.zip       fast-https_Windows_arm64.zip
-    fast-https_Linux_x86_64.tar.gz      fast-https_Linux_arm64.tar.gz
-    fast-https_Darwin_x86_64.tar.gz     fast-https_Darwin_arm64.tar.gz
-    fast-https_<version>_linux_{amd64,arm64}.{deb,rpm,apk}
-    fast-https-<version>-windows-<arch>-setup.exe
-    checksums.txt
+  Both modes only build locally (--skip=publish): no git remote is touched
+  and no GITHUB_TOKEN is needed. Add -Publish to actually publish the
+  release to the git hosting service (requires GITHUB_TOKEN); in that mode
+  NSIS installers are built after publishing, so push them by hand or add
+  them to the release later.
+
+  goreleaser release also refuses to run when the current commit has no
+  tag: "Tag first" is a hard requirement of -Release, not a script quirk.
 
 .EXAMPLE
   .\build\package.ps1
   .\build\package.ps1 -Release
+  .\build\package.ps1 -Release -Publish
   .\build\package.ps1 -SkipBuild -NoInstaller
 #>
 param(
     [switch]$Release,
+    [switch]$Publish,
     [switch]$SkipBuild,
     [switch]$NoInstaller,
     [string]$Makensis = ""
@@ -77,6 +80,8 @@ function ConvertTo-Version4 {
 if (-not $SkipBuild) {
     $grArgs = @("release", "-f", $grConfig, "--clean")
     if (-not $Release) { $grArgs += "--snapshot" }
+    # 本地打包不发布：-Publish 才真正上传，需要 GITHUB_TOKEN
+    if (-not $Publish) { $grArgs += "--skip=publish" }
     Write-Host "==> goreleaser $($grArgs -join ' ')"
     & goreleaser @grArgs
     if ($LASTEXITCODE -ne 0) { throw "goreleaser failed (exit $LASTEXITCODE)" }

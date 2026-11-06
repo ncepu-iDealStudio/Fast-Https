@@ -3,11 +3,14 @@
 ```
 docs/
   README.md          ← 本文件
-  feature/           产品功能（23 篇，按编号排列，含计划占位）
-  develop/           开发文档（环境/测试/规范/配置/调试/发布 + plans 过程规划）
-  test/              测试专项（覆盖率评估/边界用例集/压测计划）
+  feature/           产品功能（20 篇，按编号排列，只放已实现的能力）
+  develop/           开发文档（环境/测试/规范/配置/调试/发布 + plans 未实施方案 + archive 已归档方案）
+  help/              帮助文档（构建与安装/目录布局/常见问题/开发问题日志）
+  test/              测试专项（覆盖率评估/边界用例集/压测计划/发行版实机验证）
   usage.md               面向部署运维的使用文档（源），生成 usage.html 随发行包分发
   usage.html             由 usage.md 生成，不改源文件就不要手改它
+  architecture.html      项目架构图（自包含 HTML，可切换深色）
+  images/                架构图 PNG（亮色 / 深色）
   architecture-map.md    当前 package 盘点与依赖方向
   about.md               启动与运行逻辑（含流程图）
   nginx-core-gap.md      与 Nginx 核心功能对比
@@ -22,13 +25,18 @@ docs/
 | --- | --- |
 | 了解某个功能怎么用、怎么实现 | [feature/README.md](feature/README.md) |
 | 搭环境、跑测试、发版 | [develop/README.md](develop/README.md) |
+| 打包、安装、卸载、服务起不来 | [help/README.md](help/README.md) |
 | 看覆盖率、补边界用例、跑压测 | [test/README.md](test/README.md) |
+| 装包后行为是否符合预期、要不要重跑实机验证 | [test/3-distro-verification.md](test/3-distro-verification.md) |
+| 配证书、让 ACME 签发成功 | [help/tls-certificates.md](help/tls-certificates.md) |
 | 新增配置项 | [develop/3-config-development.md](develop/3-config-development.md) |
 | 排查线上问题 | [develop/4-debugging.md](develop/4-debugging.md) |
+| 看整体架构图（分层与请求链） | [architecture.html](architecture.html)、[images/architecture.png](images/architecture.png) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
-| 了解历史决策与演进 | [develop/plans/](develop/README.md) |
+| 了解历史决策与演进 | [develop/README.md](develop/README.md)（`plans/` 未实施，`archive/` 已归档） |
 
 ## 维护约定
 
-- 功能变化 → `feature/` 对应篇章；迭代状态 → `develop/plans/iteration-plan.md`；结构变化 → `architecture-map.md`。
-- 计划中的功能在 `feature/` 里有占位文档（编号 20 起），落地后转正。
+- 功能变化 → `feature/` 对应篇章；迭代状态 → `develop/archive/iteration-plan.md`；结构变化 → `architecture-map.md`。
+- 方案落地后从 `develop/plans/` 移到 `develop/archive/`，正文不改写。
+- 未实现的方案写在 `develop/plans/`；落地后写成 `feature/` 的功能文档，方案本身移入 `develop/archive/`。

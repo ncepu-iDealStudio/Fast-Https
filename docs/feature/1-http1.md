@@ -8,7 +8,7 @@
 
 ## 使用
 
-`listen: "8080"` 即启用；keep-alive 自动。相关上限配置：
+`listen: 80`（或任意端口）即启用；keep-alive 自动。相关上限配置：
 
 ```json
 "http": {

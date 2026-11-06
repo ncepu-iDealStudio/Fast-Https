@@ -10,12 +10,12 @@ import (
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/events"
 	"fast-https/runtime/listener"
+	"fmt"
 	"net"
 	"os"
 	"os/signal"
 	"runtime/debug"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -87,24 +87,21 @@ func ServerInit() *Server {
 // Returns:
 //   - error: Returns error if ports are in use, nil otherwise
 //
-// 扫描配置的端口，检查它们是否已被占用
+// 检查的是**配置里**的端口，不是已建立的监听器：启动阶段 GLisinfos 还是空的，
+// 用 FindOldPorts 等于什么都不检查，端口被占用只能等监听失败才发现。
 func ScanPorts() error {
-	ports := listener.FindOldPorts()
-	for _, port := range ports {
+	for _, port := range listener.FindPorts() {
 		conn, err := net.Listen("tcp", "0.0.0.0:"+port)
 		if err != nil {
-			listener.GLisinfos = []*listener.Listener{}
-			return err
+			return fmt.Errorf("port %s is already in use: %w", port, err)
 		}
-		conn.Close()
+		_ = conn.Close()
 	}
-	listener.GLisinfos = []*listener.Listener{}
 	return nil
 }
 
 // signalEffect is what the process should do with one OS signal.
 // SIGINT reloads on every platform. Stopping uses SIGTERM, SIGQUIT, or the stop command.
-// dev 前台模式例外：SIGINT 触发优雅停机（见 foregroundDev）。
 type signalEffect int
 
 const (
@@ -124,27 +121,13 @@ func signalEffectOf(sig os.Signal) signalEffect {
 	}
 }
 
-// foregroundDev 标记前台开发模式：SIGINT 触发优雅停机而非重载。
-// 守护进程模式保持 SIGINT=reload（守护进程没有 Ctrl+C，reload 走命令）。
-// 必须在 ServerInit 之前设置。
-var foregroundDev atomic.Bool
-
-// SetForegroundDev 标记前台开发模式（dev 命令调用）。
-func SetForegroundDev(v bool) { foregroundDev.Store(v) }
-
 // SigHandler handles system signals received by the server.
-// SIGTERM and SIGQUIT stop the process. SIGINT reloads configuration,
-// 除非处于 dev 前台模式——此时 SIGINT（Ctrl+C）优雅停机。
+// SIGTERM and SIGQUIT stop the process. SIGINT reloads configuration.
 func (s *Server) SigHandler(sig os.Signal) {
 	switch signalEffectOf(sig) {
 	case signalStop:
 		s.gracefulStop()
 	case signalReload:
-		if foregroundDev.Load() {
-			logging.PrintInfo("dev mode: got SIGINT, shutting down gracefully")
-			s.gracefulStop()
-			return
-		}
 		logging.ConsoleLog.Info().Msg("========= server reload start ========")
 		s.Reload()
 	}
@@ -284,6 +267,10 @@ func (s *Server) Reload() {
 	if err := logging.Open(config.Current().LogRoot); err != nil {
 		logging.ConsoleLog.Error().Msgf("reload kept previous log files: %s", err.Error())
 	}
+
+	// 数据面钩子（ACME 的 acme-tls/1 provider 等）必须先按新配置就位：
+	// listenSsl 在构造 tls.Config 时读它们，晚一步这一次重建就白做。
+	core.RunBeforeListenReload()
 
 	lisAll, lisAdded, removed := listener.ReloadListenCfg()
 

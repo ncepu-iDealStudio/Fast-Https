@@ -29,9 +29,10 @@
 tests/
 ├── readme.md
 ├── fast-https_test.go               # 启动初始化步骤（有副作用，见 1.0）
-├── scripts/                         # 开发模式启动脚本，不进入 go test
+├── scripts/                         # 手工脚本，不进入 go test
 │   ├── dev-test.sh
-│   └── dev-test.ps1
+│   ├── dev-test.ps1
+│   └── static-regression.sh         # 静态资源 curl 回归，见 1.3
 ├── single/                          # 手工样例，不进入 go test
 │   ├── workloop.go
 │   └── httpclient/main.go           # 手工 HTTP/HTTPS 客户端
@@ -140,6 +141,21 @@ Remove-Item Env:FASTHTTPS_E2E_RELOAD
 go test ./tests/client_test -run TestProxyHTTPIntegration -v
 ```
 
+#### 静态资源 curl 回归
+
+`tests/scripts/static-regression.sh` 自己起一个临时实例（临时 base 目录 + 临时站点根，
+不碰仓库配置与 `httpdoc/`），用 curl 断言文件访问、`Content-Type`、带哈希文件名、
+目录 301、不列目录、404 与敏感路径。失败以非 0 退出，可直接放进 CI。
+
+```bash
+bash tests/scripts/static-regression.sh                          # 自建实例，默认 127.0.0.1:18080
+BASE_URL=http://127.0.0.1:8080 bash tests/scripts/static-regression.sh
+BIN=./fast-https bash tests/scripts/static-regression.sh         # 复用已构建二进制
+SKIP_SERVER=1 BASE_URL=http://127.0.0.1:8080 bash tests/scripts/static-regression.sh  # 只测已有实例
+```
+
+`SKIP_SERVER=1` 时目标实例需要已按脚本头部的 fixture 布局提供文件，否则相关断言会失败。
+
 #### 测试覆盖率
 
 在仓库根目录执行：
@@ -168,7 +184,7 @@ HTTP/2：协议栈由 `golang.org/x/net/http2` 承担，`tests/client_test` 的 
 
 依赖边界：`core/deps_test.go` 的 `TestCoreDoesNotImportFeaturePackages` 检查 `core/...` 不导入 `modules` 下的功能包，现有例外列在 `coreImportAllowlist` 中，只能删减。
 
-`check`：`TestCheckFileAcceptsValidConfig` 和 `TestCheckFileRejectsInvalidConfig` 只校验临时配置，不监听。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `runtime/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
+配置校验：`TestValidateConfigAcceptsValidConfig` 和 `TestValidateConfigRejectsInvalidConfig` 只校验临时配置，不监听；`TestReloadStopsOnInvalidConfig` 保证 `reload` 在配置写坏时不发信号。`HEAD`、gzip 正文和 404 错误页见 `modules/static/body_test.go`。分块请求体见 `runtime/request/chunked_test.go`。上游拨号失败的错误页见 `modules/proxy/error_page_test.go`。
 
 示例：
 
@@ -295,11 +311,9 @@ go get github.com/stretchr/testify/assert
 
 ### 2.1 特性说明
 
-1. 日志级别设为 6
-2. 在 `0.0.0.0:10000` 打开 pprof
-3. 不进入 Linux 守护进程
-4. 与 `start` 相同，证书缺失时由 `init.CertInit` 生成自签名证书
-5. 配置变更通过 `reload` 子命令或 `SIGINT` 生效。前台 Ctrl+C 会重载，不会退出。启动流程不会监视配置文件
+1. 设了 `FASTHTTPS_FOREGROUND=1` 后不进入 Linux 守护进程，输出直接落在当前终端
+2. 与后台启动相同，证书缺失时由 `init.CertInit` 生成自签名证书
+3. 配置变更通过 `reload` 子命令或 `SIGINT` 生效。前台 Ctrl+C 会重载，不会退出。启动流程不会监视配置文件
 
 ### 2.2 使用方法
 
@@ -321,26 +335,25 @@ Linux/Mac:
 # 在仓库根目录使用开发测试脚本
 ./tests/scripts/dev-test.sh
 
-# 或直接运行
-go run fast-https.go dev
+# 或直接前台运行
+FASTHTTPS_FOREGROUND=1 go run fast-https.go start
 ```
 
 Windows:
 
 ```powershell
 # 使用开发测试脚本
-.\test\scripts\dev-test.ps1
+.\tests\scripts\dev-test.ps1
 
-# 或直接运行
-go run fast-https.go dev
+# 或直接前台运行
+$env:FASTHTTPS_FOREGROUND = "1"; go run fast-https.go start
 ```
 
 #### 配置说明
 
-开发模式与普通模式都使用 `config/fast-https.json` 作为运行时配置文件。
-`config/dev.yaml` 仅作为开发参数示例，不会被运行时自动加载。
-
-`go run fast-https.go dev` 与 `start` 读取同一份 JSON。`config/dev.yaml` 里的端口、日志和代理片段不会进入运行时。
+前台运行与普通模式都使用 `config/fast-https.json` 作为运行时配置文件。
+`go run fast-https.go`（无参数等同 `start`）在仓库根目录直接跑会转后台，本地调试记得带上
+`FASTHTTPS_FOREGROUND=1`，进程才会留在当前终端。
 
 ### 2.3 调试指南
 
@@ -365,22 +378,12 @@ ps aux | grep fast-https
 
 #### 性能分析
 
-1. CPU 分析：
+进程不再暴露 pprof 端口，用基准测试产出 profile：
 
 ```bash
-go tool pprof http://localhost:10000/debug/pprof/profile
-```
-
-1. 内存分析：
-
-```bash
-go tool pprof http://localhost:10000/debug/pprof/heap
-```
-
-1. 协程分析：
-
-```bash
-go tool pprof http://localhost:10000/debug/pprof/goroutine
+go test -run '^$' -bench . -benchmem -cpuprofile cpu.out -memprofile mem.out ./runtime/...
+go tool pprof -top cpu.out
+go tool pprof -top mem.out
 ```
 
 ### 2.4 使用须知

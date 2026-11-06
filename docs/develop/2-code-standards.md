@@ -37,7 +37,7 @@ cmd(组合根) → modules(功能) → core(契约) → runtime(数据面) → c
 | 改动 | 必须同步 |
 | --- | --- |
 | 用户可见行为 | `docs/feature/` 对应篇章 |
-| 迭代项状态 | `develop/plans/iteration-plan.md` |
+| 迭代项状态 | `develop/archive/iteration-plan.md` |
 | 目录/依赖结构 | `docs/architecture-map.md` |
 | 新增/移除依赖 | 根 `README.md` 依赖表 |
 

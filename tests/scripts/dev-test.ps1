@@ -14,6 +14,7 @@ if (Test-Path "fast-https.pid") {
 Write-Host "Building project..."
 go build -v
 
-# 运行开发模式
-Write-Host "Starting in development mode..."
-.\fast-https.exe dev
+# 前台运行：本地调试时进程就在当前终端里
+Write-Host "Starting in foreground..."
+$env:FASTHTTPS_FOREGROUND = "1"
+.\fast-https.exe start

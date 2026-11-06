@@ -1,0 +1,22 @@
+# fast-https 日志轮转。由 deb / rpm / apk 安装到 /etc/logrotate.d/fast-https，
+# 包管理器视为配置文件（deb conffile、rpm %config(noreplace)），本地修改在升级时保留。
+#
+# 为什么用 copytruncate 而不是 create + postrotate：
+# 四个日志文件（system/access/error/safe）在进程里常开 fd，且以 O_APPEND 追加。
+# create 会把当前文件改名、新建同名文件，进程却仍写进改名后的旧 inode，
+# 新文件永远是空的——除非同时让进程重新打开文件（fast-https reload）。
+# copytruncate 先复制再截断，进程无需重启、也无需响应信号，
+# 代价是复制与截断之间的几毫秒写入可能丢在旧文件里。
+#
+# 归档 / Docker 布局的日志在 ./logs 下，不在本配置管辖范围，由部署方自行处理。
+/var/log/fast-https/*.log {
+    daily
+    rotate 14
+    maxsize 100M
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    su root root
+}

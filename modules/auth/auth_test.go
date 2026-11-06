@@ -116,3 +116,75 @@ func TestAuthExists(t *testing.T) {
 		t.Fatal("AuthType set means auth active")
 	}
 }
+
+// reject401 发一次未通过认证的请求并返回响应字节。
+// net.Pipe 无缓冲，读端必须先就绪，AuthHandler 的同步写才不会被卡住。
+func reject401(t *testing.T, cfg *listener.ListenCfg, header string) string {
+	t.Helper()
+	ev, client := newAuthEvent(t, "", "", "", header)
+	done := make(chan string, 1)
+	go func() {
+		buf, _ := io.ReadAll(client)
+		done <- string(buf)
+	}()
+
+	if AuthHandler(cfg, ev) {
+		t.Fatalf("header %q must be rejected", header)
+	}
+	select {
+	case got := <-done:
+		return got
+	case <-time.After(3 * time.Second):
+		t.Fatal("401 response never arrived")
+		return ""
+	}
+}
+
+// 配置里只写了 type、漏了 user/pswd 时，空凭据 "Basic Og=="（即 ":"）
+// 不能被当成合法登录。
+func TestAuthIncompleteCredentialsAlwaysReject(t *testing.T) {
+	cases := []struct {
+		name string
+		user string
+		pswd string
+	}{
+		{name: "missing pswd", user: "alice"},
+		{name: "missing user", pswd: "s3cret"},
+		{name: "both empty"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := &listener.ListenCfg{Auth: config.PathAuth{AuthType: "basic", User: c.user, Pswd: c.pswd}}
+			got := reject401(t, cfg, basic("", ""))
+			if !strings.Contains(got, "401") {
+				t.Fatalf("empty credentials passed with incomplete config: %q", got)
+			}
+		})
+	}
+}
+
+// realm 取 auth.realm，其次站点名，最后内置串；不能是空串。
+func TestAuthRealm(t *testing.T) {
+	cases := []struct {
+		name       string
+		realm      string
+		serverName string
+		want       string
+	}{
+		{name: "configured realm", realm: "Private area", serverName: "local:443", want: `realm="Private area"`},
+		{name: "server name fallback", serverName: "local:443", want: `realm="local:443"`},
+		{name: "builtin fallback", want: `realm="Fast-Https"`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := &listener.ListenCfg{
+				ServerName: c.serverName,
+				Auth:       config.PathAuth{AuthType: "basic", User: "alice", Pswd: "s3cret", Realm: c.realm},
+			}
+			got := reject401(t, cfg, "")
+			if !strings.Contains(got, c.want) {
+				t.Fatalf("response = %q, want it to contain %q", got, c.want)
+			}
+		})
+	}
+}

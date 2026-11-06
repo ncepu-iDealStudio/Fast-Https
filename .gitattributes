@@ -1,0 +1,24 @@
+# GitHub 语言统计（Linguist）：只统计产品代码。
+# 文档、生成站点、打包脚本不是这个项目的语言构成，标成不可检测后
+# 侧边栏语言占比按 Go 计算；二进制与生成物本来就不参与统计，这里显式写死，
+# 免得将来换图标/加 .syso 时又冒出来。
+docs/**    linguist-detectable=false
+*.md       linguist-detectable=false
+httpdoc/** linguist-detectable=false
+build/**   linguist-detectable=false
+
+*.ico      linguist-detectable=false
+*.syso     linguist-detectable=false
+
+# 行尾：打包进 deb/rpm/apk 的脚本会被 dpkg/rpm 直接 exec。
+# Windows 上 core.autocrlf=true 会把工作区转成 CRLF，shebang 变成
+# "#!/bin/sh\r"，内核找不到 /bin/sh\r，卸载时报 ENOENT、退出码 2。
+# 这些文件必须强制 LF，tests/packaging/lf_test.go 会盯着。
+*.sh                text eol=lf
+*.service           text eol=lf
+build/spec          text eol=lf
+build/Dockerfile    text eol=lf
+build/docker/*      text eol=lf
+# logrotate 配置没有扩展名，不显式声明就会被 core.autocrlf 转成 CRLF；
+# 路径行带上 \r 后匹配不到 /var/log/fast-https/*.log，轮转静默失效。
+build/packaging/logrotate/*  text eol=lf
