@@ -11,7 +11,7 @@
 | 项 | 决定 |
 | --- | --- |
 | 托盘 | **后台托盘**：点窗口 X 隐藏到托盘、程序继续运行；左键单击托盘显示／隐藏主界面，右键菜单「退出」真正结束。桌面端仍不接管 fast-https 服务进程 |
-| monitor | **不要版本管理、不要过渡期**。`monitor/` 不再进入发布链 |
+| monitor | **不要版本管理、不要过渡期**。`monitor/` 已从仓库删除 |
 | Wails 版本 | **用最新版**，不 pin 具体版本 |
 | Windows 安装包 | 继续用 NSIS，支持**快捷方式创建选择**与**开始菜单选择** |
 | Linux 安装包 | 额外多打一个 **desktop deb**，支持图形化安装 |
@@ -87,7 +87,7 @@ desktop/                    独立 Go module（fast-https-desktop），主项目
 | Windows | `wails3 task windows:create:nsis:installer` | `bin/fast-https-desktop-amd64-installer.exe` |
 | Linux | `wails3 task linux:create:deb` | `bin/fast-https-desktop_1.5.0_<arch>.deb` |
 
-Linux deb 在 Linux 主机上原生构建（Wails v3.1 Linux 后端依赖 CGO + GTK4/WebKitGTK 6.0），Windows 侧的 Docker 交叉编译配置已删除。详见 `desktop/README.md`。
+`build/package.ps1` 先准备桌面端前端与 `.desktop`，再由 goreleaser 用 `CGO_ENABLED=0 -tags production,purego` 交叉编译 Linux 二进制，产出 amd64 / arm64 的 deb、rpm、apk（依赖名按格式区分 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包）；Linux 主机上仍可用 `wails3 task linux:create:deb` 走原生 CGO 构建。GUI 行为仍需 Linux 实机验证。详见 `desktop/README.md`。
 
 **构建资产已按范围清理**：`desktop/build/` 只保留 `appicon.png`、`config.yml`、共通/平台 Taskfile、`windows/`（图标、info.json、manifest、nsis 脚本）、`linux/`（Taskfile、nfpm 配置与 postinstall）。Android / iOS / macOS 资产、MSIX、AppImage、RPM/Arch、server mode、Docker 交叉编译、图标合成输入与模板占位文件全部删除；`frontend/bindings/` 作为生成物已加入 git 忽略；`Taskfile.yml` 的 includes 与任务也同步精简，`wails3 task --list` 只剩 Windows / Linux 构建打包链。
 
@@ -95,7 +95,7 @@ Linux deb 在 Linux 主机上原生构建（Wails v3.1 Linux 后端依赖 CGO + 
 
 | 项 | 说明 |
 | --- | --- |
-| Linux 实机构建 | 本机是 Windows，deb 尚未实跑；需验证 GTK4/WebKitGTK 与 `.desktop` 是否进应用菜单 |
+| Linux 实机验证 | desktop deb 已由 `package.ps1` 产出，`dpkg-deb` 核实架构、依赖与 `.desktop` / 图标内容；GTK4/WebKitGTK 与 GUI 启动、应用菜单入口仍需在 Ubuntu 24.04+ 实机确认 |
 | 托盘实机行为 | 已通过 `go build` 编译验证，但未在 GUI 会话里点过 X / 托盘菜单；需在 Windows 实机确认隐藏与退出 |
 | frameless 拖拽 | 顶部通栏用官方 `--wails-draggable: drag`，headless 只能验证 CSS 属性与按钮存在；需在 Windows 实机确认可拖动、三个自绘按钮可用 |
 | 图标尺寸 | Windows 用 `starting.ico` 的 32/48/256 三帧，Linux 用同文件提取的 256×256 PNG；若某些桌面环境显示模糊，可再补一张 128×128 |

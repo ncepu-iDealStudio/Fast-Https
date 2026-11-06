@@ -46,16 +46,20 @@ checksums.txt
 | --- | --- | --- | --- |
 | Linux | amd64、arm64 | `tar.gz` | |
 | Darwin | amd64、arm64 | `tar.gz` | |
-| Windows | amd64 | `zip` | 含托盘程序 `monitor.exe` |
-| Windows | arm64 | `zip` | 不含托盘程序（`monitor` 只出 amd64；Win11 on ARM 可用 x64 模拟运行 amd64 版） |
+| Windows | amd64 | `zip` | |
+| Windows | arm64 | `zip` | |
+
+## Linux 桌面端包
+
+`build/package.ps1` 先准备桌面端前端与 `.desktop`，再由 goreleaser 用 `purego` 无 CGO 交叉编译 Linux 二进制，产出 `dist/fast-https-desktop_<version>_linux_{amd64,arm64}.{deb,rpm,apk}`，都带 `.desktop` 与图标，依赖按格式使用 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包名。Linux 二进制不在 Windows 上执行，GUI 行为仍需在 Linux 实机验证。
 
 ## Windows 安装包（NSIS）
 
 脚本在 `build/installer/windows/fast-https.nsi`，由 `build/package.ps1` 逐个 Windows zip 生成，产出 `dist/fast-https-<version>-windows-<arch>-setup.exe`。
 
-- 安装目录 `%ProgramFiles%\Fast-Https`，写入卸载信息与开始菜单快捷方式（使用文档、安装目录、托盘程序、卸载）
-- 升级时不覆盖用户改过的 `config/fast-https.json`；安装前会先 `taskkill` 掉在跑的 `monitor.exe` / `fast-https.exe`
-- 可选组件「开机自动启动托盘」写 `HKCU\...\Run`，仅当安装包内含 `monitor.exe` 时生效
+- 安装目录 `%ProgramFiles%\Fast-Https`，写入卸载信息与开始菜单快捷方式（使用文档、安装目录、卸载）
+- 安装包会带上对应架构的 `fast-https-desktop.exe`（桌面管理端，图形入口），桌面与开始菜单快捷方式指向它；`fast-https.exe` 是 `-H=windowsgui` 编译的命令行服务端，双击不会出现窗口，日常从桌面管理端启停
+- 升级时不覆盖用户改过的 `config/fast-https.json`；安装前会先 `taskkill` 掉在跑的 `fast-https-desktop.exe` / `fast-https.exe`
 - 卸载停止进程、清注册表、删快捷方式与安装目录
 
 手工编译（makensis 的下载安装与路径探测见 [0-environment-and-build.md](0-environment-and-build.md) 的「NSIS（Windows 安装包）」）：

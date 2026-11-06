@@ -92,7 +92,7 @@ docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
 docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .</code></pre>
 <p>镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 80 与 443，与随包默认配置一致。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 <code>listen</code>。</p>
 <h2 id="sec-7">3. 目录布局</h2>
-<pre><code class="language-text">fast-https                  主程序（Windows 下另有 monitor.exe 托盘程序）
+<pre><code class="language-text">fast-https                  主程序
 config/fast-https.json      系统级配置（include、acme、日志、WAF…）
 config/conf.d/              站点配置，一个文件一个站点（由 http.include 指向）
 config/mime.json            扩展名 → Content-Type 映射

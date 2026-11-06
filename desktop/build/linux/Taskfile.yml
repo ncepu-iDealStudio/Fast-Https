@@ -1,8 +1,10 @@
 version: '3'
 
 # Linux 打包：只产出 desktop deb（带 .desktop + 图标，支持图形化安装）。
-# 需在 Linux 主机上原生构建：Wails v3.1 的 Linux 后端依赖 CGO + GTK4/WebKitGTK 6.0。
-# AppImage / RPM / Arch、签名与 Docker 交叉编译相关资产已删除。
+# 本 Taskfile 走 Linux 主机原生 CGO 构建（GTK4/WebKitGTK 6.0），只出 deb。
+# Windows 上另有 build/package.ps1：它先准备前端与 .desktop，再由 goreleaser 用
+# purego 无 CGO 交叉编译，产出 deb / rpm / apk 三种格式。
+# AppImage / Arch、签名与 Docker 交叉编译相关资产已删除。
 
 includes:
   common: ../Taskfile.yml

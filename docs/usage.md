@@ -61,7 +61,7 @@ docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .
 ## 3. 目录布局
 
 ```text
-fast-https                  主程序（Windows 下另有 monitor.exe 托盘程序）
+fast-https                  主程序
 config/fast-https.json      系统级配置（include、acme、日志、WAF…）
 config/conf.d/              站点配置，一个文件一个站点（由 http.include 指向）
 config/mime.json            扩展名 → Content-Type 映射
