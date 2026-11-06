@@ -40,6 +40,20 @@ sudo ls -la /etc/fast-https /var/log/fast-https /usr/share/fast-https/httpdoc
 sudo rm -rf /etc/fast-https /var/log/fast-https /usr/share/fast-https
 ```
 
+### 卸载后 80/443 仍被占用，`ps` 里还有 `/usr/bin/fast-https`
+
+包删了，进程还活着。原因：直接执行 `fast-https`（不带子命令）时进程会自己 daemonize——父进程退出、子进程 `setsid` 到 init 下面，它不在 systemd 单元的 cgroup 里，`systemctl stop` 碰不到；`purge` 又把 `/run/fast-https/fast-https.pid` 一起删了，事后连 pid 都查不到。这时二进制已经是 deleted inode，端口却还被占着，重装后 `start` 只会报端口被占用。
+
+1.5.0 起 `prerm` 会在删文件之前按 pid 文件与 `/proc` 两条路清掉这类进程。已经踩到的，手工收尾：
+
+```bash
+ps -eo pid,args | grep '[/]usr/bin/fast-https'
+sudo kill <pid>                       # SIGTERM：服务端会关监听并等在途请求
+# 5 秒后还在，再补一刀
+sudo kill -9 <pid>
+ss -ltnp | grep -E ':(80|443)\b'      # 确认端口已释放
+```
+
 ### 升级后配置"不见了"
 
 配置没丢，只是换地方了。1.5.0 之前所有东西在 `/usr/share/fast-https/config/`，现在在 `/etc/fast-https/`。postinstall 会复制过去，旧文件保留：

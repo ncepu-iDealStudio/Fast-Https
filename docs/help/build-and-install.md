@@ -103,6 +103,10 @@ sudo apt purge  fast-https   # 确定不要了，连证书、ACME 缓存、日�
 sudo dpkg --audit            # 无输出即数据库干净
 ```
 
+`remove` / `purge` 时 `prerm` 会先停 systemd 单元，再把单元之外的残留进程一并停掉（先 `SIGTERM`，5 秒不退补 `SIGKILL`）。这一步不能省：直接执行 `fast-https`（不带子命令）时进程会自己 daemonize 到 init 下面，`systemctl stop` 管不到它，不强杀就会变成"包删了、进程还在占 80/443"。
+
+升级不走这段逻辑，服务不被打断；但此时运行中的仍是旧二进制（deleted inode），要让新二进制生效跑一次 `sudo systemctl restart fast-https`。
+
 purge 删的是本程序生成的东西：
 
 | 路径 | 内容 |
