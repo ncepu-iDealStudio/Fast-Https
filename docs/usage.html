@@ -158,7 +158,7 @@ logs/                       运行日志</code></pre>
 <li><code>listen: &#34;443 ssl h2&#34;</code>：HTTPS + HTTP/2，<code>ssl</code> 开 TLS，<code>h2</code> 才向客户端通告 HTTP/2。</li>
 <li><code>ssl_certificate</code> / <code>ssl_certificate_key</code>：文件不存在时，首次 <code>start</code> 会用本地 CA 生成 <code>config/cert/localhost.pem</code> 与 <code>localhost-key.pem</code>，可以直接 <code>curl -k https://127.0.0.1/</code> 验证；浏览器会提示不受信任。正式环境换成权威 CA 的 PEM，或者打开 7.1 的 ACME 自动签发。</li>
 <li>不需要 HTTPS 时把 <code>&#34;443 ssl h2&#34;</code> 从 <code>listen</code> 里去掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或去掉这一项。</li>
-<li><code>server_name</code>：按请求的 <code>Host</code> 头匹配。没命中任何 <code>server_name</code> 时回落到该端口的第一个 server 块（相当于 nginx 的 <code>default_server</code>），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。</li>
+<li><code>server_name</code>：按请求的 <code>Host</code> 头匹配。支持多域名写法：空格分隔多个域名（如 <code>&#34;server_name&#34;: &#34;example.com www.example.com&#34;</code>），它们共享同一组 location 和证书。没命中任何 <code>server_name</code> 时回落到该端口的第一个 server 块（相当于 nginx 的 <code>default_server</code>），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。</li>
 <li><code>root: ./httpdoc/root</code>：站点根目录，相对路径按站点根基址解析（包布局是 <code>/usr/share/fast-https</code>，归档布局是当前目录），与二进制所在目录无关。</li>
 <li><code>http.include: [&#34;./config/conf.d&#34;]</code>：该目录下每个 <code>*.json</code> 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。主配置可以完全不写 <code>http.server</code>，只要 include 里至少有一个站点文件；<code>fast-https site</code> 的子命令就是按这个约定增删站点文件的。</li>
 <li><code>acme.enabled: false</code>：ACME 自动签发默认关闭，行为与老版本一致。需要受信任证书时按 7.1 手工配置，或直接运行 <code>fast-https acme</code> 向导。</li>
@@ -237,7 +237,7 @@ fast-https site remove blog --yes</code></pre>
 <thead><tr><th>键</th><th>说明</th></tr></thead>
 <tbody>
 <tr><td><code>listen</code></td><td>端口，可带 <code>ssl</code>、<code>h2</code>、<code>tcp</code>，例如 <code>8080</code>、<code>443 ssl</code>、<code>443 ssl h2</code>、<code>9000 tcp</code></td></tr>
-<tr><td><code>server_name</code></td><td>虚拟主机名，按 <code>Host</code> 匹配，必填</td></tr>
+<tr><td><code>server_name</code></td><td>虚拟主机名，按 <code>Host</code> 匹配，必填。多域名用空格分隔：<code>&#34;example.com www.example.com&#34;</code>，共享同一组 location 和证书</td></tr>
 <tr><td><code>ssl_certificate</code></td><td>证书链 PEM 路径，<code>listen</code> 含 <code>ssl</code> 时必填</td></tr>
 <tr><td><code>ssl_certificate_key</code></td><td>私钥 PEM 路径，<code>listen</code> 含 <code>ssl</code> 时必填</td></tr>
 <tr><td><code>location</code></td><td>路由数组，见 5.4</td></tr>

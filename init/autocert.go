@@ -64,11 +64,13 @@ func CertInit() error {
 			continue
 		}
 
-		certfile := filepath.Join(config.CERT_DIR, serverconfig.ServerName) + ".pem"
+		// 多域名：证书文件名用第一个域名（主域名），SAN 包含所有域名。
+		primary := serverconfig.PrimaryServerName()
+		certfile := filepath.Join(config.CERT_DIR, primary) + ".pem"
 		if _, err := os.Stat(certfile); !os.IsNotExist(err) {
 			continue
 		}
-		if err := newCert([]string{serverconfig.ServerName}); err != nil {
+		if err := newCert(serverconfig.ServerNames()); err != nil {
 			return err
 		}
 		logging.PrintInfo(certfile, " created")

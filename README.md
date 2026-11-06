@@ -140,6 +140,8 @@ go build -o fast-https . && ./fast-https start
 
 随包的 `config/conf.d/default.json` 就是开箱即用的默认站点：80 提供 HTTP，`443 ssl h2` 提供 HTTPS + HTTP/2，两者都指向 `./httpdoc/root`。443 的证书不用预置，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`；非 root 运行时把 `listen` 改成 `8080` 之类的高位端口。
 
+`server_name` 支持多域名写法：空格分隔多个域名（如 `"example.com www.example.com"`），它们共享同一组 location 和证书。
+
 ```json
 {
   "listen": [80, "443 ssl h2"],

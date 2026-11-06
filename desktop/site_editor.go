@@ -81,6 +81,17 @@ func parseSiteInput(in SiteInput) (parsedSite, error) {
 	if p.name == "" {
 		return p, fmt.Errorf("server_name 不能为空")
 	}
+	// 多域名支持：server_name 允许空格分隔多个域名（nginx 风格），
+	// 每个域名都要非空且不含非法字符。
+	names := strings.Fields(p.name)
+	if len(names) == 0 {
+		return p, fmt.Errorf("server_name 不能为空")
+	}
+	for _, name := range names {
+		if strings.ContainsAny(name, "/\\:@#?&=+$,;!*'\"<>[]{}|") {
+			return p, fmt.Errorf("域名 %q 包含非法字符", name)
+		}
+	}
 	p.typ = strings.TrimSpace(in.Type)
 	if p.typ != "local" && p.typ != "proxy" {
 		return p, fmt.Errorf("站点类型只能是 local 或 proxy")
@@ -137,7 +148,8 @@ func addSiteFile(dir string, in SiteInput) (string, error) {
 
 	file := strings.TrimSpace(in.FileName)
 	if file == "" {
-		file = sanitizeSiteName(p.name)
+		// 多域名：文件名用第一个域名（主域名）。
+		file = sanitizeSiteName(strings.Fields(p.name)[0])
 	}
 	file = strings.TrimSuffix(file, ".json")
 	if !siteFileNameRe.MatchString(file) {
@@ -153,14 +165,21 @@ func addSiteFile(dir string, in SiteInput) (string, error) {
 
 	// 同一端口挂不同 server_name 是合法的虚拟主机写法，只有同名又同端口
 	// 才是真冲突；这里在写文件前拦下，避免 reload 时才报错。
+	// 多域名：逐个域名检查是否与已有站点冲突。
 	if sites, _, err := readSites(dir); err == nil {
+		newNames := strings.Fields(p.name)
 		for _, s := range sites {
-			if s.Name != p.name {
-				continue
-			}
-			for _, port := range p.ports {
-				if s.Port == port {
-					return "", fmt.Errorf("已存在同名站点 %s 监听 %s，换个端口或改个名称", p.name, port)
+			existingNames := strings.Fields(s.Name)
+			for _, nn := range newNames {
+				for _, en := range existingNames {
+					if nn != en {
+						continue
+					}
+					for _, port := range p.ports {
+						if s.Port == port {
+							return "", fmt.Errorf("域名 %s 已在站点 %s 监听 %s 上使用，换个端口或改个名称", nn, s.Name, port)
+						}
+					}
 				}
 			}
 		}

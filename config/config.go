@@ -11,7 +11,10 @@
 //   - security.go   security 段（Host 校验与安全响应头）
 package config
 
-import "sync/atomic"
+import (
+	"strings"
+	"sync/atomic"
+)
 
 const (
 	ZIP_NONE    = 0
@@ -107,6 +110,23 @@ type Server struct {
 	SSLCertificate    string
 	SSLCertificateKey string
 	Path              []Path
+}
+
+// ServerNames 把 server_name 按空白分割成域名列表（nginx 风格多域名写法：
+// "a.example b.example"）。单域名配置返回单元素切片，行为与之前一致。
+// 返回的每个域名已 TrimSpace，空段被丢弃。
+func (s Server) ServerNames() []string {
+	return strings.Fields(s.ServerName)
+}
+
+// PrimaryServerName 返回第一个域名（主域名），用于证书文件名、ACME 申请、
+// 日志展示等需要单值的场景。空 server_name 返回空串。
+func (s Server) PrimaryServerName() string {
+	names := s.ServerNames()
+	if len(names) == 0 {
+		return ""
+	}
+	return names[0]
 }
 
 type Engine struct {

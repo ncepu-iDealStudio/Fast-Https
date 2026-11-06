@@ -141,7 +141,7 @@ logs/                       运行日志
 - `listen: "443 ssl h2"`：HTTPS + HTTP/2，`ssl` 开 TLS，`h2` 才向客户端通告 HTTP/2。
 - `ssl_certificate` / `ssl_certificate_key`：文件不存在时，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`，可以直接 `curl -k https://127.0.0.1/` 验证；浏览器会提示不受信任。正式环境换成权威 CA 的 PEM，或者打开 7.1 的 ACME 自动签发。
 - 不需要 HTTPS 时把 `"443 ssl h2"` 从 `listen` 里去掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或去掉这一项。
-- `server_name`：按请求的 `Host` 头匹配。没命中任何 `server_name` 时回落到该端口的第一个 server 块（相当于 nginx 的 `default_server`），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。
+- `server_name`：按请求的 `Host` 头匹配。支持多域名写法：空格分隔多个域名（如 `"server_name": "example.com www.example.com"`），它们共享同一组 location 和证书。没命中任何 `server_name` 时回落到该端口的第一个 server 块（相当于 nginx 的 `default_server`），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。
 - `root: ./httpdoc/root`：站点根目录，相对路径按站点根基址解析（包布局是 `/usr/share/fast-https`，归档布局是当前目录），与二进制所在目录无关。
 - `http.include: ["./config/conf.d"]`：该目录下每个 `*.json` 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。主配置可以完全不写 `http.server`，只要 include 里至少有一个站点文件；`fast-https site` 的子命令就是按这个约定增删站点文件的。
 - `acme.enabled: false`：ACME 自动签发默认关闭，行为与老版本一致。需要受信任证书时按 7.1 手工配置，或直接运行 `fast-https acme` 向导。
@@ -242,7 +242,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | 键 | 说明 |
 | --- | --- |
 | `listen` | 端口，可带 `ssl`、`h2`、`tcp`，例如 `8080`、`443 ssl`、`443 ssl h2`、`9000 tcp` |
-| `server_name` | 虚拟主机名，按 `Host` 匹配，必填 |
+| `server_name` | 虚拟主机名，按 `Host` 匹配，必填。多域名用空格分隔：`"example.com www.example.com"`，共享同一组 location 和证书 |
 | `ssl_certificate` | 证书链 PEM 路径，`listen` 含 `ssl` 时必填 |
 | `ssl_certificate_key` | 私钥 PEM 路径，`listen` 含 `ssl` 时必填 |
 | `location` | 路由数组，见 5.4 |
