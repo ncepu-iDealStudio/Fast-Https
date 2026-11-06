@@ -86,6 +86,20 @@ func (s *DesktopService) SaveConfigForm(values map[string]string) (string, error
 	return saveConfigForm(resolvePaths(s.baseDir).Config, values)
 }
 
+// ------------------------------------------------------------ 站点页：添加站点
+
+func (s *DesktopService) AddSite(in SiteInput) (string, error) {
+	return addSiteFile(s.baseDir, in)
+}
+
+func (s *DesktopService) ReadSiteDetail(source string) (SiteDetail, error) {
+	return readSiteDetail(s.baseDir, source)
+}
+
+func (s *DesktopService) SaveSiteDetail(in SiteInput) (string, error) {
+	return saveSiteDetail(s.baseDir, in)
+}
+
 // ------------------------------------------------------------ 本机状态与操作
 
 func (s *DesktopService) GetOverview() (Overview, error) {
