@@ -155,6 +155,6 @@ SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CORE} "程序本体、默认配置、默认站点与使用文档。"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} "在桌面创建入口（有桌面管理端时指向它，否则指向安装目录），可取消。"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} "在桌面创建图形入口，指向桌面管理端 fast-https-desktop.exe（没有它时退化为安装目录快捷方式），可取消。"
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_STARTMENU} "在 Windows 开始菜单创建程序分组，可取消。"
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
