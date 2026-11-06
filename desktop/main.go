@@ -8,6 +8,7 @@ import (
 )
 
 // 前端产物由 vite 构建到 frontend/dist，编译期嵌进单文件可执行程序。
+//
 //go:embed all:frontend/dist
 var assets embed.FS
 

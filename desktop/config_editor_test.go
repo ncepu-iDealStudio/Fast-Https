@@ -61,7 +61,7 @@ func TestReadConfigFormValues(t *testing.T) {
 	cases := map[string]string{
 		"security.host_check":                "off",
 		"security.headers.nosniff":           "true",
-		"waf.mode":                          "disabled",
+		"waf.mode":                           "disabled",
 		"acme.enabled":                       "false",
 		"acme.email":                         "<EMAIL>",
 		"http.include":                       "./conf.d",
@@ -107,10 +107,10 @@ func readFormJSON(t *testing.T, p string) map[string]any {
 func TestSaveConfigFormKeepsUnknownFields(t *testing.T) {
 	p := writeFormConfig(t, sampleFormConfig)
 	_, err := saveConfigForm(p, map[string]string{
-		"waf.mode":                          "monitor",
-		"http.servers_limit.max_body_size":  "1024",
-		"acme.enabled":                      "true",
-		"http.log_format":                   "ip_port, time, status",
+		"waf.mode":                         "monitor",
+		"http.servers_limit.max_body_size": "1024",
+		"acme.enabled":                     "true",
+		"http.log_format":                  "ip_port, time, status",
 	})
 	if err != nil {
 		t.Fatal(err)

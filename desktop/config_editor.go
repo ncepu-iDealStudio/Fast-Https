@@ -36,7 +36,7 @@ type ConfigForm struct {
 
 type fieldSpec struct {
 	path, label, group, typ, help string
-	options                      []string
+	options                       []string
 }
 
 // 字段名与 config/schema.go、config/config.go、config/acme.go 保持一致，
@@ -70,7 +70,6 @@ var configSpecs = []fieldSpec{
 	{"http.servers_limit.burst", "限流 burst", "HTTP", "number", "0 表示不限", nil},
 	{"http.blaklist", "黑名单", "HTTP", "list", "历史键名 blaklist，每行一个", nil},
 	{"http.log_format", "访问日志字段", "HTTP", "list", "每行一个，如 ip_port / time / status", nil},
-
 }
 
 // engine（is_master / id / register_port / slave_*）是 schema 里为兼容存量配置

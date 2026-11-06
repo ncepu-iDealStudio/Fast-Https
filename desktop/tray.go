@@ -12,6 +12,7 @@ import (
 // 图标来自项目原有应用图标（含 32/48/256 三帧），副本已内置在 build/ 下。
 // Windows 托盘直接用 ICO 的多尺寸帧；Linux/macOS 用从同一个 ICO 里
 // 提取出的 256×256 PNG 帧——Wails 的 Linux 托盘走 image.Decode，不认 ICO。
+//
 //go:embed build/windows/icon.ico
 var trayIconICO []byte
 
