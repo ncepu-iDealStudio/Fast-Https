@@ -43,7 +43,7 @@ go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/fast-h
 | 平台 | 命令 | 产物 |
 | --- | --- | --- |
 | Windows NSIS | `wails3 task windows:create:nsis:installer` | `bin/fast-https-desktop-amd64-installer.exe` |
-| Linux desktop deb | `wails3 task linux:create:deb` | `bin/fast-https-desktop_1.5.0_<arch>.deb` |
+| Linux desktop deb | `wails3 task linux:create:deb` | `bin/fast-https-desktop_1.6.0_<arch>.deb` |
 
 - NSIS 的组件页里，**桌面快捷方式**与**开始菜单**是两个可勾选、可取消的 Section；`build/package.ps1` 会把对应架构的 `fast-https-desktop.exe` 一起打进安装包，快捷方式指向它。主程序 `fast-https.exe` 是 `-H=windowsgui` 的命令行服务端，双击没有窗口，图形入口只有桌面管理端。
 - `MicrosoftEdgeWebview2Setup.exe` 是打包时由 `wails3 generate webview2bootstrapper` 生成的中间产物（已忽略、不入库），走 `wails3 task windows:package` 会自动重新生成；手工跑 `makensis` 前需要先生成它。

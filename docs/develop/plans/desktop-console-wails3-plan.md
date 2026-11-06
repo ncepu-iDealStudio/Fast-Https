@@ -85,7 +85,7 @@ desktop/                    独立 Go module（fast-https-desktop），主项目
 | 平台 | 命令 | 产物 |
 | --- | --- | --- |
 | Windows | `wails3 task windows:create:nsis:installer` | `bin/fast-https-desktop-amd64-installer.exe` |
-| Linux | `wails3 task linux:create:deb` | `bin/fast-https-desktop_1.5.0_<arch>.deb` |
+| Linux | `wails3 task linux:create:deb` | `bin/fast-https-desktop_1.6.0_<arch>.deb` |
 
 `build/package.ps1` 先准备桌面端前端与 `.desktop`，再由 goreleaser 用 `CGO_ENABLED=0 -tags production,purego` 交叉编译 Linux 二进制，产出 amd64 / arm64 的 deb、rpm、apk（依赖名按格式区分 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包）；Linux 主机上仍可用 `wails3 task linux:create:deb` 走原生 CGO 构建。GUI 行为仍需 Linux 实机验证。详见 `desktop/README.md`。
 

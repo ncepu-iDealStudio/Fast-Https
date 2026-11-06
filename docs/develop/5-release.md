@@ -2,9 +2,9 @@
 
 ## 版本号
 
-`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.5.0`）；GoReleaser 快照版本号 `1.5.0`（`build/goreleaser.yaml` 的 `version_template`）。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。三处版本号（`consts.go`、`version_template`、Windows NSIS 的 `APP_VERSION` 默认值）要一起改，否则安装包文件名与徽章会各说各的。
+`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.6.0`）；GoReleaser 快照版本号 `1.6.0`（`build/goreleaser.yaml` 的 `version_template`）。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。三处版本号（`consts.go`、`version_template`、Windows NSIS 的 `APP_VERSION` 默认值）要一起改，否则安装包文件名与徽章会各说各的。
 
-`version_template` 只影响 `--snapshot` 构建（本地打包默认走快照，用 `-Release` 才取 tag 的版本）。1.5.0 已发布，所以这里就是 `1.5.0`；进入下一轮开发时改成 `1.5.1-next`，免得本地快照和线上发行版同名不同内容。
+`version_template` 只影响 `--snapshot` 构建（本地打包默认走快照，用 `-Release` 才取 tag 的版本）。1.6.0 已发布，所以这里就是 `1.6.0`；进入下一轮开发时改成 `1.6.1-next`，免得本地快照和线上发行版同名不同内容。
 
 ## 本地快照构建
 
@@ -65,9 +65,9 @@ checksums.txt
 手工编译（makensis 的下载安装与路径探测见 [0-environment-and-build.md](0-environment-and-build.md) 的「NSIS（Windows 安装包）」）：
 
 ```powershell
-makensis /DAPP_VERSION=1.5.0 /DAPP_VERSION4=1.5.0.0 /DAPP_ARCH=amd64 `
+makensis /DAPP_VERSION=1.6.0 /DAPP_VERSION4=1.6.0.0 /DAPP_ARCH=amd64 `
          /DSTAGE_DIR=dist\.stage\amd64 `
-         /DOUT_FILE=dist\fast-https-1.5.0-windows-amd64-setup.exe `
+         /DOUT_FILE=dist\fast-https-1.6.0-windows-amd64-setup.exe `
          build\installer\windows\fast-https.nsi
 ```
 

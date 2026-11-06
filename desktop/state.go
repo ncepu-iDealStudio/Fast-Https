@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-const desktopVersion = "1.5.0"
+const desktopVersion = "1.6.0"
 
 // RuntimePaths 与 cmd/config_path.go 的 RuntimePaths 一致。
 type RuntimePaths struct {
