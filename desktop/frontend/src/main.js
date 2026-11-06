@@ -193,7 +193,10 @@ function markConfigDirty() {
 async function loadConfig(force) {
   const box = $('#configForm');
   if (!box) return;
-  if (configDirty && force && !window.confirm('有未保存的修改，确定放弃并重新读取吗？')) return;
+  if (configDirty && force) {
+    const ok = await askConfirm('放弃未保存的修改？', '重新读取会用磁盘上的配置覆盖当前编辑内容，未保存的改动会丢失。', '放弃并重新读取');
+    if (!ok) return;
+  }
   setConfigStatus('正在读取…');
   try {
     const form = await DesktopService.ReadConfigForm();
@@ -725,6 +728,37 @@ function initSiteLinks() {
   });
 }
 
+// 应用内确认框：原生 confirm 在 dev 模式下会把标题显示成 wails.localhost:9245
+let confirmResolve = null;
+
+function askConfirm(title, body, okText) {
+  const mask = $('#confirmDialog');
+  if (!mask) return Promise.resolve(false);
+  $('#confirmTitle').textContent = title;
+  $('#confirmBody').textContent = body;
+  $('#confirmOk').textContent = okText || '确定';
+  mask.hidden = false;
+  $('#confirmOk').focus();
+  return new Promise((resolve) => { confirmResolve = resolve; });
+}
+
+function initConfirmDialog() {
+  const mask = $('#confirmDialog');
+  if (!mask) return;
+  const settle = (value) => {
+    mask.hidden = true;
+    const resolve = confirmResolve;
+    confirmResolve = null;
+    if (resolve) resolve(value);
+  };
+  $('#confirmCancel').addEventListener('click', () => settle(false));
+  $('#confirmOk').addEventListener('click', () => settle(true));
+  mask.addEventListener('click', (e) => { if (e.target === mask) settle(false); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !mask.hidden) { e.preventDefault(); settle(false); }
+  });
+}
+
 function init() {
   initTheme();
   initAccountMenu();
@@ -732,6 +766,7 @@ function init() {
   initCloseDialog();
   initSiteDialog();
   initSiteLinks();
+  initConfirmDialog();
   $$('[data-nav]').forEach((n) => n.addEventListener('click', () => activate(n.getAttribute('data-nav'))));
   $$('[data-goto]').forEach((b) => b.addEventListener('click', () => activate(b.getAttribute('data-goto'))));
   $$('[data-action]').forEach((b) => b.addEventListener('click', () => doAction(b.getAttribute('data-action'))));

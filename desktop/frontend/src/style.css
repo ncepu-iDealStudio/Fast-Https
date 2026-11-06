@@ -67,6 +67,7 @@ body {
 .dialog h3 { margin: 0 0 10px; font-size: 15px; font-weight: 650; }
 .dialog p { margin: 0 0 20px; font-size: 13px; line-height: 1.8; color: var(--muted); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.dialog-sm { width: 380px; }
 
 /* 添加站点弹窗 */
 .dialog-wide { width: 560px; max-height: 82vh; overflow-y: auto; }
@@ -224,19 +225,23 @@ h4:first-of-type { margin-top: 0; }
 .form-label { font-size: 13px; line-height: 1.5; }
 .form-label small { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; line-height: 1.5; }
 .form-row.missing .form-label::after { content: "未配置"; margin-left: 6px; font-size: 10px; color: var(--warn); }
-.form-control input[type="text"], .form-control input[type="number"], .form-control select, .form-control textarea { width: 100%; max-width: 560px; height: 34px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
+.form-control input[type="text"], .form-control input[type="number"], .form-control input[type="email"], .form-control select, .form-control textarea { width: 100%; max-width: 560px; height: 34px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
 .form-control textarea { height: auto; min-height: 62px; padding: 8px 10px; resize: vertical; font: 12px/1.6 Consolas, "Courier New", monospace; }
 .form-control input:focus, .form-control select:focus, .form-control textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.form-control input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+/* 自绘勾选框：浏览器默认的白底方块在暗色主题下很突兀 */
+.form-control input[type="checkbox"], .choice input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; flex: 0 0 16px; margin: 0; position: relative; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--bg); cursor: pointer; }
+.form-control input[type="checkbox"]:checked, .choice input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
+.form-control input[type="checkbox"]::after, .choice input[type="checkbox"]::after { content: ""; position: absolute; left: 5px; top: 1.5px; width: 4px; height: 8px; border: solid var(--accent-ink); border-width: 0 1.6px 1.6px 0; transform: rotate(45deg); opacity: 0; }
+.form-control input[type="checkbox"]:checked::after, .choice input[type="checkbox"]:checked::after { opacity: 1; }
 /* 按数据类型收窄长度：数字与枚举不需要占满整行 */
 .form-control input[type="number"] { max-width: 180px; }
 .form-control input[type="email"] { max-width: 340px; }
 .form-control select { max-width: 340px; }
 .choice-group { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 0; }
 .choice { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
-.choice input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
 .choice:hover { color: var(--text); }
-.form-check { display: flex; align-items: center; gap: 8px; height: 34px; font-size: 13px; color: var(--muted); cursor: pointer; }
+/* 只让勾选框与文字可点：块级 flex 会让 label 撑满整行，右侧空白也会触发勾选 */
+.form-check { display: inline-flex; align-items: center; gap: 8px; height: 34px; font-size: 13px; color: var(--muted); cursor: pointer; }
 .config-empty { color: var(--faint); font-size: 13px; padding: 24px 0; margin: 0; }
 .config-group .setting-note { font-size: 12px; }
 .config-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
