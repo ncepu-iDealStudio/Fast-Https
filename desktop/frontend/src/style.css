@@ -228,6 +228,14 @@ h4:first-of-type { margin-top: 0; }
 .form-control textarea { height: auto; min-height: 62px; padding: 8px 10px; resize: vertical; font: 12px/1.6 Consolas, "Courier New", monospace; }
 .form-control input:focus, .form-control select:focus, .form-control textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .form-control input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+/* 按数据类型收窄长度：数字与枚举不需要占满整行 */
+.form-control input[type="number"] { max-width: 180px; }
+.form-control input[type="email"] { max-width: 340px; }
+.form-control select { max-width: 340px; }
+.choice-group { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 0; }
+.choice { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.choice input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.choice:hover { color: var(--text); }
 .form-check { display: flex; align-items: center; gap: 8px; height: 34px; font-size: 13px; color: var(--muted); cursor: pointer; }
 .config-empty { color: var(--faint); font-size: 13px; padding: 24px 0; margin: 0; }
 .config-group .setting-note { font-size: 12px; }

@@ -47,17 +47,17 @@ var configSpecs = []fieldSpec{
 
 	{"security.host_check", "Host 校验", "安全", "select", "off 回落首个 server；warn 只记录；enforce 返回 421", []string{"off", "warn", "enforce"}},
 	{"security.headers.nosniff", "X-Content-Type-Options", "安全", "bool", "写入 nosniff 响应头", nil},
-	{"security.headers.hsts", "HSTS", "安全", "text", "留空关闭；误开会让 HTTP 站点被浏览器锁死", nil},
-	{"security.headers.x_frame_options", "X-Frame-Options", "安全", "text", "留空关闭", nil},
-	{"security.headers.referrer_policy", "Referrer-Policy", "安全", "text", "留空关闭", nil},
-	{"security.headers.content_security_policy", "Content-Security-Policy", "安全", "text", "留空关闭", nil},
+	{"security.headers.hsts", "HSTS", "安全", "text", "留空关闭；例 max-age=31536000; includeSubDomains。误开会让 HTTP 站点被浏览器锁死", nil},
+	{"security.headers.x_frame_options", "X-Frame-Options", "安全", "select", "留空关闭", []string{"", "DENY", "SAMEORIGIN"}},
+	{"security.headers.referrer_policy", "Referrer-Policy", "安全", "select", "留空关闭", []string{"", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"}},
+	{"security.headers.content_security_policy", "Content-Security-Policy", "安全", "textarea", "留空关闭；策略较长时可分行写", nil},
 
 	{"waf.mode", "WAF 模式", "WAF", "select", "enforce 阻断 / monitor 只记录 / disabled 不启用", []string{"", "enforce", "monitor", "disabled"}},
 
 	{"acme.enabled", "启用自动签发", "ACME", "bool", "关闭后走静态证书", nil},
-	{"acme.email", "ACME 邮箱", "ACME", "text", "用于注册 ACME 账户", nil},
+	{"acme.email", "ACME 邮箱", "ACME", "email", "用于注册 ACME 账户", nil},
 	{"acme.staging", "使用 staging 环境", "ACME", "bool", "测试时避免触发正式 CA 速率限制", nil},
-	{"acme.challenge", "挑战方式", "ACME", "list", "每行一个，如 http-01 / tls-alpn-01", nil},
+	{"acme.challenge", "挑战方式", "ACME", "multiselect", "至少选一个；不在列表里的自定义值会保留", []string{"http-01", "tls-alpn-01", "dns-01"}},
 	{"acme.renew_before_days", "提前续期天数", "ACME", "number", "0 表示用默认 30 天", nil},
 	{"acme.fallback_self_signed", "证书失败回落自签", "ACME", "bool", "默认回落；显式 false 则不回落", nil},
 	{"acme.storage", "ACME 缓存目录", "ACME", "text", "留空用默认路径", nil},
@@ -69,7 +69,7 @@ var configSpecs = []fieldSpec{
 	{"http.servers_limit.limit", "限流 rate", "HTTP", "number", "0 表示不限", nil},
 	{"http.servers_limit.burst", "限流 burst", "HTTP", "number", "0 表示不限", nil},
 	{"http.blaklist", "黑名单", "HTTP", "list", "历史键名 blaklist，每行一个", nil},
-	{"http.log_format", "访问日志字段", "HTTP", "list", "每行一个，如 ip_port / time / status", nil},
+	{"http.log_format", "访问日志字段", "HTTP", "multiselect", "按需勾选，顺序即日志字段顺序", []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}},
 }
 
 // engine（is_master / id / register_port / slave_*）是 schema 里为兼容存量配置
@@ -187,7 +187,7 @@ func setPath(root map[string]any, path string, v any) {
 }
 
 func formatFieldValue(v any, typ string) string {
-	if typ == "list" {
+	if typ == "list" || typ == "multiselect" {
 		if arr, ok := v.([]any); ok {
 			items := make([]string, 0, len(arr))
 			for _, x := range arr {
@@ -237,7 +237,7 @@ func parseFieldValue(s fieldSpec, raw string) (any, error) {
 			return nil, fmt.Errorf("不是合法数字：%q", raw)
 		}
 		return json.Number(t), nil
-	case "list":
+	case "list", "multiselect":
 		parts := strings.FieldsFunc(raw, func(r rune) bool { return r == '\n' || r == '\r' || r == ',' })
 		items := make([]string, 0, len(parts))
 		for _, x := range parts {

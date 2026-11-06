@@ -83,6 +83,16 @@ func TestReadConfigFormValues(t *testing.T) {
 	if _, ok := fieldByPath(form, "engine.id"); ok {
 		t.Fatal("engine 集群占位不应出现在表单里")
 	}
+	// 固定候选的字段用多选，前端按选项渲染勾选组
+	if f, ok := fieldByPath(form, "http.log_format"); !ok || f.Type != "multiselect" {
+		t.Fatalf("log_format 应为 multiselect：%+v", f)
+	}
+	if f, ok := fieldByPath(form, "security.headers.referrer_policy"); !ok || f.Type != "select" {
+		t.Fatalf("referrer_policy 应为 select：%+v", f)
+	}
+	if f, ok := fieldByPath(form, "security.headers.content_security_policy"); !ok || f.Type != "textarea" {
+		t.Fatalf("CSP 应为 textarea：%+v", f)
+	}
 	if f, ok := fieldByPath(form, "acme.renew_before_days"); !ok || !f.Missing || f.Value != "0" {
 		t.Fatal("未配置的字段应标记 missing 并给默认值")
 	}

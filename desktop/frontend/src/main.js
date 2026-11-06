@@ -116,19 +116,29 @@ let configInitial = {};
 
 function renderConfigField(f) {
   const id = 'cf-' + f.path.replace(/[^\w-]/g, '-');
-  const v = esc(f.value);
+  let v = f.value || '';
   let control;
-  if (f.type === 'bool') {
+  if (f.type === 'multiselect') {
+    // 固定候选 + 配置里已有的自定义值，避免勾选时把自定义项丢掉
+    const current = String(v).split('\n').map((x) => x.trim()).filter(Boolean);
+    const options = [...(f.options || [])];
+    for (const x of current) if (!options.includes(x)) options.push(x);
+    const checked = options.filter((o) => current.includes(o));
+    v = checked.join('\n');
+    control = `<div class="choice-group" id="${id}" data-value="${f.path}" data-multi="1">${options.map((o) => `<label class="choice"><input type="checkbox" value="${esc(o)}" ${current.includes(o) ? 'checked' : ''}/><span>${esc(o)}</span></label>`).join('')}</div>`;
+  } else if (f.type === 'bool') {
     control = `<label class="form-check"><input type="checkbox" id="${id}" data-value="${f.path}" ${f.value === 'true' ? 'checked' : ''}/><span>开启</span></label>`;
   } else if (f.type === 'select') {
     const opts = (f.options || []).map((o) => `<option value="${esc(o)}" ${o === f.value ? 'selected' : ''}>${o === '' ? '（未设置）' : esc(o)}</option>`).join('');
     control = `<select id="${id}" data-value="${f.path}">${opts}</select>`;
-  } else if (f.type === 'list') {
-    control = `<textarea id="${id}" data-value="${f.path}" rows="3" spellcheck="false">${v}</textarea>`;
+  } else if (f.type === 'list' || f.type === 'textarea') {
+    control = `<textarea id="${id}" data-value="${f.path}" rows="3" spellcheck="false">${esc(v)}</textarea>`;
+  } else if (f.type === 'email') {
+    control = `<input id="${id}" type="email" data-value="${f.path}" value="${esc(v)}" placeholder="you@example.com" spellcheck="false"/>`;
   } else {
-    control = `<input id="${id}" type="${f.type === 'number' ? 'number' : 'text'}" data-value="${f.path}" value="${v}"/>`;
+    control = `<input id="${id}" type="${f.type === 'number' ? 'number' : 'text'}" data-value="${f.path}" value="${esc(v)}"/>`;
   }
-  return `<div class="form-row ${f.missing ? 'missing' : ''}" data-row="${f.path}" data-initial="${v}">
+  return `<div class="form-row ${f.missing ? 'missing' : ''}" data-row="${f.path}" data-initial="${esc(v)}">
     <label class="form-label" for="${id}">${esc(f.label)}${f.help ? `<small>${esc(f.help)}</small>` : ''}</label>
     <div class="form-control">${control}</div>
   </div>`;
@@ -152,13 +162,22 @@ function renderConfigForm(form) {
   $$('#configForm [data-row]').forEach((row) => { configInitial[row.getAttribute('data-row')] = row.getAttribute('data-initial'); });
 }
 
+// 统一取一行表单的当前值：多选拼成换行串，布尔取勾选状态，其余取 value
+function configRowValue(el) {
+  if (el.hasAttribute('data-multi')) {
+    return [...el.querySelectorAll('input:checked')].map((x) => x.value).join('\n');
+  }
+  if (el.type === 'checkbox') return String(el.checked);
+  return el.value;
+}
+
 function collectChangedValues() {
   const values = {};
   $$('#configForm [data-row]').forEach((row) => {
     const el = row.querySelector('[data-value]');
     if (!el) return;
     const path = row.getAttribute('data-row');
-    const v = el.type === 'checkbox' ? String(el.checked) : el.value;
+    const v = configRowValue(el);
     if (v !== configInitial[path]) values[path] = v;
   });
   return values;
@@ -215,7 +234,7 @@ function initConfigEditor() {
       $$('#configForm [data-row]').forEach((row) => {
         const el = row.querySelector('[data-value]');
         if (!el) return;
-        const v = el.type === 'checkbox' ? String(el.checked) : el.value;
+        const v = configRowValue(el);
         row.setAttribute('data-initial', v);
         configInitial[row.getAttribute('data-row')] = v;
       });
