@@ -1,0 +1,16 @@
+# 仓库根 .gitignore 把 go.mod / go.sum 全仓忽略了；这里显式反忽略，
+# 否则 desktop 作为独立 Go module 无法被版本控制跟踪。
+!go.mod
+!go.sum
+
+.task
+.wails
+bin
+frontend/dist
+frontend/node_modules
+# wails3 generate bindings 生成的 Go → JS 客户端，构建时自动重建，不入库
+frontend/bindings/
+# 打包链生成的中间产物，不入库
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+build/linux/*.desktop
+*.syso

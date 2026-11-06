@@ -1,0 +1,84 @@
+version: '3'
+
+# Linux 打包：只产出 desktop deb（带 .desktop + 图标，支持图形化安装）。
+# 需在 Linux 主机上原生构建：Wails v3.1 的 Linux 后端依赖 CGO + GTK4/WebKitGTK 6.0。
+# AppImage / RPM / Arch、签名与 Docker 交叉编译相关资产已删除。
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: 构建 Linux 版本（Linux 主机原生构建）
+    cmds:
+      - task: build:native
+        vars:
+          ARCH: '{{.ARCH}}'
+          DEV: '{{.DEV}}'
+          OUTPUT: '{{.OUTPUT}}'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          OBFUSCATED: '{{.OBFUSCATED}}'
+          GARBLE_ARGS: '{{.GARBLE_ARGS}}'
+    vars:
+      CGO_ENABLED: '{{.CGO_ENABLED | default "1"}}'
+
+  build:native:
+    summary: Linux 原生构建
+    internal: true
+    deps:
+      - task: common:go:mod:tidy
+      - task: common:build:frontend
+        vars:
+          BUILD_FLAGS:
+            ref: .BUILD_FLAGS
+          OBFUSCATED:
+            ref: .OBFUSCATED
+          DEV:
+            ref: .DEV
+      - task: generate:dotdesktop
+    preconditions:
+      - sh: '{{if eq .OBFUSCATED "true"}}command -v garble >/dev/null 2>&1{{else}}true{{end}}'
+        msg: "混淆构建需要 garble"
+    cmds:
+      - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o {{.OUTPUT}}'
+    vars:
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s"{{end}}'
+      DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
+      OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
+    env:
+      GOOS: linux
+      CGO_ENABLED: '{{.CGO_ENABLED | default "1"}}'
+      GOARCH: '{{.ARCH | default ARCH}}'
+
+  package:
+    summary: 生成 Linux desktop deb
+    cmds:
+      - task: create:deb
+
+  create:deb:
+    summary: 生成 deb
+    deps:
+      - task: build
+    cmds:
+      - task: generate:dotdesktop
+      - task: generate:deb
+
+  generate:deb:
+    cmds:
+      - wails3 tool package -name "{{.APP_NAME}}" -format deb -config ./build/linux/nfpm/nfpm.yaml -out {{.ROOT_DIR}}/bin
+
+  generate:dotdesktop:
+    summary: 生成 .desktop 文件（应用菜单入口）
+    dir: build
+    cmds:
+      - wails3 generate .desktop -name "{{.APP_NAME}}" -exec "{{.EXEC}}" -icon "{{.ICON}}" -outputfile "{{.ROOT_DIR}}/build/linux/{{.APP_NAME}}.desktop" -categories "{{.CATEGORIES}}"
+    vars:
+      APP_NAME: '{{.APP_NAME}}'
+      EXEC: '{{.APP_NAME}}'
+      ICON: '{{.APP_NAME}}'
+      CATEGORIES: 'Network;System;Utility;'
+      OUTPUTFILE: '{{.ROOT_DIR}}/build/linux/{{.APP_NAME}}.desktop'
+
+  run:
+    cmds:
+      - '{{.BIN_DIR}}/{{.APP_NAME}}'

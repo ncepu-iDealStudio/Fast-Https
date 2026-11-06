@@ -1,0 +1,31 @@
+# Linux desktop deb 的打包描述：由 `wails3 task linux:create:deb` 读取。
+# 装完在应用菜单出现入口（.desktop + 图标），可用图形化包管理器安装。
+
+name: "fast-https-desktop"
+arch: ${GOARCH}
+platform: "linux"
+version: "1.5.0"
+section: "web"
+priority: "optional"
+maintainer: "JFeng2048 <JFeng2048@outlook.com>"
+description: "Fast-Https 桌面管理端：状态、站点、证书与配置重载"
+vendor: "NCEPU BJ"
+homepage: "https://gitee.com/ncepu-bj/fast-https"
+license: "GPL-2.0"
+release: "1"
+
+contents:
+  - src: "./bin/fast-https-desktop"
+    dst: "/usr/bin/fast-https-desktop"
+  - src: "./build/appicon.png"
+    dst: "/usr/share/icons/hicolor/256x256/apps/fast-https-desktop.png"
+  - src: "./build/linux/fast-https-desktop.desktop"
+    dst: "/usr/share/applications/fast-https-desktop.desktop"
+
+# Wails v3.1 的 Linux 后端：GTK4 + WebKitGTK 6.0（Ubuntu 24.04+ / Debian 13+）
+depends:
+  - libgtk-4-1
+  - libwebkitgtk-6.0-4
+
+scripts:
+  postinstall: "./build/linux/nfpm/scripts/postinstall.sh"
