@@ -11,7 +11,7 @@
 
 ```bash
 git clone <repo> && cd fast-https
-go build ./...          # 全量编译（含 monitor）
+go build ./...          # 全量编译
 go vet ./...            # 静态检查，提交前必须干净
 ```
 

@@ -5,7 +5,6 @@ go 1.27.0
 toolchain go1.27.1
 
 require (
-	fyne.io/systray v1.12.2
 	github.com/andybalholm/brotli v1.2.7
 	github.com/caddyserver/certmagic v0.25.6
 	github.com/charmbracelet/huh v1.0.0
@@ -38,7 +37,6 @@ require (
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
-	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/libdns/libdns v1.1.1 // indirect

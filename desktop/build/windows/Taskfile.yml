@@ -1,0 +1,96 @@
+version: '3'
+
+# Windows 打包：只产出 NSIS 安装包（组件页可选桌面快捷方式与开始菜单）。
+# MSIX、签名、Docker 交叉编译相关资产与任务已删除。
+
+includes:
+  common: ../Taskfile.yml
+
+tasks:
+  build:
+    summary: 构建 Windows 版本（原生 Go 交叉编译，无需 CGO）
+    cmds:
+      - task: build:native
+        vars:
+          ARCH: '{{.ARCH}}'
+          DEV: '{{.DEV}}'
+          EXTRA_TAGS: '{{.EXTRA_TAGS}}'
+          OBFUSCATED: '{{.OBFUSCATED}}'
+          GARBLE_ARGS: '{{.GARBLE_ARGS}}'
+    vars:
+      CGO_ENABLED: '{{.CGO_ENABLED | default "0"}}'
+
+  build:native:
+    summary: Windows 原生构建
+    internal: true
+    deps:
+      - task: common:go:mod:tidy
+      - task: common:build:frontend
+        vars:
+          BUILD_FLAGS:
+            ref: .BUILD_FLAGS
+          OBFUSCATED:
+            ref: .OBFUSCATED
+          DEV:
+            ref: .DEV
+    preconditions:
+      - sh: '{{if eq .OBFUSCATED "true"}}command -v garble >/dev/null 2>&1{{else}}true{{end}}'
+        msg: "混淆构建需要 garble"
+    cmds:
+      - task: generate:syso
+        vars:
+          ARCH: '{{.ARCH}}'
+      - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o "{{.BIN_DIR}}/{{.APP_NAME}}.exe"'
+      - cmd: powershell Remove-item *.syso
+        platforms: [windows]
+      - cmd: rm -f *.syso
+        platforms: [linux, darwin]
+    vars:
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui"{{end}}'
+    env:
+      GOOS: windows
+      CGO_ENABLED: '{{.CGO_ENABLED | default "0"}}'
+      GOARCH: '{{.ARCH | default ARCH}}'
+
+  package:
+    summary: 生成 NSIS 安装包
+    cmds:
+      - task: create:nsis:installer
+        vars:
+          INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
+    vars:
+      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
+
+  generate:syso:
+    summary: 生成 Windows .syso 资源（图标 + 版本信息）
+    dir: build
+    cmds:
+      - wails3 generate syso -arch {{.ARCH}} -icon windows/icon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../wails_windows_{{.ARCH}}.syso
+    vars:
+      ARCH: '{{.ARCH | default ARCH}}'
+
+  create:nsis:installer:
+    summary: 生成 NSIS 安装包
+    dir: build/windows/nsis
+    deps:
+      - task: build
+    preconditions:
+      - sh: '[ "{{.INSTALL_SCOPE}}" = "user" ] || [ "{{.INSTALL_SCOPE}}" = "machine" ]'
+        msg: "INSTALL_SCOPE 必须是 user 或 machine"
+    cmds:
+      # WebView2 引导器是生成物，不入库，每次打包前生成
+      - wails3 generate webview2bootstrapper -dir "{{.ROOT_DIR}}/build/windows/nsis"
+      - |
+        {{if eq OS "windows"}}
+        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}\{{.BIN_DIR}}\{{.APP_NAME}}.exe" project.nsi
+        {{else}}
+        makensis {{if eq .INSTALL_SCOPE "user"}}-DWAILS_INSTALL_SCOPE=user -DREQUEST_EXECUTION_LEVEL=user {{end}}-DARG_WAILS_{{.ARG_FLAG}}_BINARY="{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}.exe" project.nsi
+        {{end}}
+    vars:
+      ARCH: '{{.ARCH | default ARCH}}'
+      ARG_FLAG: '{{if eq .ARCH "amd64"}}AMD64{{else}}ARM64{{end}}'
+      INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
+
+  run:
+    cmds:
+      - '{{.BIN_DIR}}/{{.APP_NAME}}.exe'

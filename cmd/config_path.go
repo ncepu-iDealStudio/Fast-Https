@@ -72,7 +72,7 @@ func ResolvePaths() RuntimePaths {
 }
 
 // toAbs 把归档布局的相对路径固定到当前工作目录：输出一律是绝对路径，
-// 控制面与 monitor 不需要再自己拼。
+// 控制面与桌面端不需要再自己拼。
 func toAbs(path string) string {
 	if path == "" || filepath.IsAbs(path) {
 		return path

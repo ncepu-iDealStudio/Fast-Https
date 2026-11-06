@@ -17,7 +17,7 @@
 | 契约 | `core` | `infra/*`、`config`、`runtime/{listener,request,response}` | 只放 `Event`、处理器注册表与生命周期钩子；后三个是 `Event` 内嵌的数据模型，属登记例外 |
 | 数据面运行时 | `runtime/*` | `infra/*`、`config`、`core`、`runtime/*` | 不允许依赖 `modules` |
 | 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters}` |
-| 组合根 | `cmd`、`init`、`monitor`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
+| 组合根 | `cmd`、`init`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
 
 ## 2. Package 与生产职责
 
@@ -45,7 +45,7 @@
 | `modules/auth`、`safe`、`appfirewall`、`cache`、`compress` | 认证、安全检查/限流、防火墙、代理缓存和静态压缩 | 配置或请求路径启用时 |
 | `modules/certmanager` | ACME 证书编排（certmagic + acmez）：账户、订单、续期调度、PEM 落盘与热替换；挑战应答通过 `core.Services.HandleEarlyRequest` 与 `listener.RegisterTLSALPNProvider` 注入数据面 | `acme.enabled` 为真时 |
 | `modules/site` | 站点文件（`conf.d/<name>.json`）的命名校验、原子落盘与目录扫描；合并与校验复用 `config`，不碰运行期对象 | `site` 命令组 |
-| `monitor` | Windows/amd64 托盘程序，独立 `main` | 独立可执行程序 |
+| `desktop/` | Wails v3 桌面管理端，独立 Go module | 独立可执行程序 |
 | `tests`、`tests/client_test`、`tests/unit_test/...`、`tests/arch` | 根测试入口、子进程 E2E、集中式单测、分层约束 | 测试专用 |
 
 ## 3. 请求 handler 注册机制
@@ -95,7 +95,7 @@
 | 主服务器本地构建 | 仓库根 package：`go build .`；主入口文件为 `fast-https.go` |
 | Docker | `build/Dockerfile` 使用 Go 1.27 Alpine，在 `/app` 执行 `go build -o fast-https .`；运行镜像复制配置、MIME 和默认静态文件 |
 | GoReleaser | `build/goreleaser.yaml` 的主程序 `main` 为 `./fast-https.go`，构建 Linux/Darwin amd64/arm64 和 Windows amd64 |
-| Windows monitor | 独立 package `./monitor`，源码 build tag 为 `windows && amd64` |
+| 桌面端 | 独立 module `./desktop`，由 Wails v3 构建 |
 | RPM | `build/spec` 文件执行 `go build -tags=rpm .`，按 FHS 安装：配置到 `%{_sysconfdir}/fast-https`、站点到 `%{_datadir}/fast-https`、日志目录 `%{_localstatedir}/log/fast-https` |
 | Linux 包（deb/rpm/apk） | `build/goreleaser.yaml` 的 `nfpms` 段，安装单元 `build/packaging/systemd/`、安装脚本 `build/packaging/linux/` |
 | Go CI | `.workflow/go-test.yml` 使用 Go 1.27.1，执行 `go test ./...` |
@@ -129,7 +129,7 @@ Windows 环境若偶发测试 exe 启动拒绝，可使用 `go test -p 1 ./...`�
 
 ## 9. 结论
 
-- 主服务器是根 package，`cmd/` 是 CLI 实现包；monitor 是独立 Windows/amd64 package。
+- 主服务器是根 package，`cmd/` 是 CLI 实现包；`desktop/` 是独立 Go module 的 Wails 桌面端。
 - 请求处理只有 `core.RegisterHandler` 这一条生产路径，由 `cmd.RegisterHandlers` 装配。
 - 核心层通过 `core.Services` 调用功能模块，由 `cmd.RegisterServices` 填写，并覆盖启动、重载与停机三个阶段。
 - 日志只有 `infra/logging` 一个出口，格式统一为 JSON，字段名在 `consts.go` 集中定义。

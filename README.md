@@ -4,7 +4,7 @@
 一份 JSON 描述监听端口与 location，覆盖常见的站点与反向代理场景。</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.5.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.6.0-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
@@ -50,7 +50,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 | 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
 | 运维 | `start` / `stop` / `reload` / `status`；热重载不断开已有连接；`start` 与 `reload` 都先校验配置 |
 | 日志 | `logs/` 下 system、access、error、safe 四路 JSON 日志，每条带 `kind` 与 RFC3339 时间，重载后重新打开文件 |
-| 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；Windows 附带托盘程序 |
+| 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；另附 Wails v3 桌面管理端（Windows 安装包 / Linux desktop deb） |
 
 核心依赖（版本以 `go.mod` 为准，其余均为标准库）：
 
@@ -139,6 +139,8 @@ go build -o fast-https . && ./fast-https start
 以上每一项都取内置默认值，写出来只是为了让人在文件里就能看到有哪些系统级开关；字段含义见 [docs/usage.md](docs/usage.md)。
 
 随包的 `config/conf.d/default.json` 就是开箱即用的默认站点：80 提供 HTTP，`443 ssl h2` 提供 HTTPS + HTTP/2，两者都指向 `./httpdoc/root`。443 的证书不用预置，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`；非 root 运行时把 `listen` 改成 `8080` 之类的高位端口。
+
+`server_name` 支持多域名写法：空格分隔多个域名（如 `"example.com www.example.com"`），它们共享同一组 location 和证书。
 
 ```json
 {
@@ -240,7 +242,7 @@ fast-https/
 ├── modules/             功能包：static / proxy / proxy_tcp / websocket / cache /
 │                        compress / auth / safe / appfirewall / rewrite
 ├── infra/               基础设施：logging / color / timeutil / banner
-├── monitor/             Windows 托盘程序（独立 main）
+├── desktop/             Wails v3 桌面管理端（独立 Go module）
 ├── httpdoc/root/        默认站点与自签发根证书目录
 ├── docs/                功能、开发、测试文档
 ├── tests/               单元测试与端到端测试

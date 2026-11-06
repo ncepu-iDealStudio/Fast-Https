@@ -2,9 +2,9 @@
 
 ## 版本号
 
-`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.5.0`）；GoReleaser 快照版本号 `1.5.0`（`build/goreleaser.yaml` 的 `version_template`）。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。三处版本号（`consts.go`、`version_template`、Windows NSIS 的 `APP_VERSION` 默认值）要一起改，否则安装包文件名与徽章会各说各的。
+`config/consts.go` 的 `CURRENT_VERSION`（当前 `V1.6.0`）；GoReleaser 快照版本号 `1.6.0`（`build/goreleaser.yaml` 的 `version_template`）。发布正式版：改 CURRENT_VERSION → 打 git tag → 跑 GoReleaser。三处版本号（`consts.go`、`version_template`、Windows NSIS 的 `APP_VERSION` 默认值）要一起改，否则安装包文件名与徽章会各说各的。
 
-`version_template` 只影响 `--snapshot` 构建（本地打包默认走快照，用 `-Release` 才取 tag 的版本）。1.5.0 已发布，所以这里就是 `1.5.0`；进入下一轮开发时改成 `1.5.1-next`，免得本地快照和线上发行版同名不同内容。
+`version_template` 只影响 `--snapshot` 构建（本地打包默认走快照，用 `-Release` 才取 tag 的版本）。1.6.0 已发布，所以这里就是 `1.6.0`；进入下一轮开发时改成 `1.6.1-next`，免得本地快照和线上发行版同名不同内容。
 
 ## 本地快照构建
 
@@ -46,24 +46,28 @@ checksums.txt
 | --- | --- | --- | --- |
 | Linux | amd64、arm64 | `tar.gz` | |
 | Darwin | amd64、arm64 | `tar.gz` | |
-| Windows | amd64 | `zip` | 含托盘程序 `monitor.exe` |
-| Windows | arm64 | `zip` | 不含托盘程序（`monitor` 只出 amd64；Win11 on ARM 可用 x64 模拟运行 amd64 版） |
+| Windows | amd64 | `zip` | |
+| Windows | arm64 | `zip` | |
+
+## Linux 桌面端包
+
+`build/package.ps1` 先准备桌面端前端与 `.desktop`，再由 goreleaser 用 `purego` 无 CGO 交叉编译 Linux 二进制，产出 `dist/fast-https-desktop_<version>_linux_{amd64,arm64}.{deb,rpm,apk}`，都带 `.desktop` 与图标，依赖按格式使用 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包名。Linux 二进制不在 Windows 上执行，GUI 行为仍需在 Linux 实机验证。
 
 ## Windows 安装包（NSIS）
 
 脚本在 `build/installer/windows/fast-https.nsi`，由 `build/package.ps1` 逐个 Windows zip 生成，产出 `dist/fast-https-<version>-windows-<arch>-setup.exe`。
 
-- 安装目录 `%ProgramFiles%\Fast-Https`，写入卸载信息与开始菜单快捷方式（使用文档、安装目录、托盘程序、卸载）
-- 升级时不覆盖用户改过的 `config/fast-https.json`；安装前会先 `taskkill` 掉在跑的 `monitor.exe` / `fast-https.exe`
-- 可选组件「开机自动启动托盘」写 `HKCU\...\Run`，仅当安装包内含 `monitor.exe` 时生效
+- 安装目录 `%ProgramFiles%\Fast-Https`，写入卸载信息与开始菜单快捷方式（使用文档、安装目录、卸载）
+- 安装包会带上对应架构的 `fast-https-desktop.exe`（桌面管理端，图形入口），桌面与开始菜单快捷方式指向它；`fast-https.exe` 是 `-H=windowsgui` 编译的命令行服务端，双击不会出现窗口，日常从桌面管理端启停
+- 升级时不覆盖用户改过的 `config/fast-https.json`；安装前会先 `taskkill` 掉在跑的 `fast-https-desktop.exe` / `fast-https.exe`
 - 卸载停止进程、清注册表、删快捷方式与安装目录
 
 手工编译（makensis 的下载安装与路径探测见 [0-environment-and-build.md](0-environment-and-build.md) 的「NSIS（Windows 安装包）」）：
 
 ```powershell
-makensis /DAPP_VERSION=1.5.0 /DAPP_VERSION4=1.5.0.0 /DAPP_ARCH=amd64 `
+makensis /DAPP_VERSION=1.6.0 /DAPP_VERSION4=1.6.0.0 /DAPP_ARCH=amd64 `
          /DSTAGE_DIR=dist\.stage\amd64 `
-         /DOUT_FILE=dist\fast-https-1.5.0-windows-amd64-setup.exe `
+         /DOUT_FILE=dist\fast-https-1.6.0-windows-amd64-setup.exe `
          build\installer\windows\fast-https.nsi
 ```
 
