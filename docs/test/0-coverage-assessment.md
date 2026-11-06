@@ -47,7 +47,6 @@ go tool cover -func=cover.out
 | runtime/server | 中 | 信号/停机/accept 已测；后台化 exec 自身仅 Linux 手工验证 |
 | cmd | 低（保留） | 命令 handler 靠 unit_test/cmd 行为测试；writePidTo / waitProcessGone 已单测，CLI 主循环与平台后台化不做单测 |
 | init | 部分 | randomSerialNumber 已测；InitSystem/newRoot/newCert 为启动编排与 ACME 路径，靠 E2E |
-| monitor | 不测 | Windows 托盘 GUI 封装 |
 
 ## 已识别并清零的死代码（2026-10-25）
 
