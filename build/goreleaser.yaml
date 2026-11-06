@@ -8,8 +8,6 @@ before:
     - go mod tidy
     # 手册页由命令树生成，打包前刷新一次，避免装出来的 man 与二进制命令不一致
     - go run ./tools/manpage
-    # 托盘程序目前只提供 amd64 版本（Windows on ARM 可经 x64 模拟运行）
-    - go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
 
 builds:
   - id: unix
@@ -110,8 +108,6 @@ archives:
       - httpdoc/root/index.html
       - logs/.keep
       - README.md
-      - src: monitor/monitor.exe
-        strip_parent: true
 
   - id: windows-arm64
     ids:
