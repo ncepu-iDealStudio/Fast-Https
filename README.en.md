@@ -4,7 +4,7 @@
 One JSON file describes listen ports and locations, covering common site and reverse-proxy scenarios.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.5.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.6.0-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
@@ -50,7 +50,7 @@ Blue is the primary request path; dashed lines are wiring injection and external
 | Security | Global plus per-location, per-IP token-bucket rate limiting; IP and IPv6 range blacklists; Basic auth; GuardianWAF (sqli / xss / lfi / cmdi / xxe / ssrf, log-only mode available) |
 | Operations | `start` / `stop` / `reload` / `status`; config reload without dropping connections; both `start` and `reload` validate the config first |
 | Logging | Four JSON logs in `logs/` — system, access, error, security — each line tagged with `kind` and an RFC3339 timestamp; files are reopened after a reload |
-| Packaging | Installers for Linux / macOS / Windows, an RPM spec, three Docker base images, and a Windows tray program |
+| Packaging | Installers for Linux / macOS / Windows, an RPM spec, three Docker base images, plus the Wails v3 desktop console (Windows installer / Linux desktop deb) |
 
 Core dependencies (versions live in `go.mod`; everything else is the standard library):
 
@@ -239,7 +239,7 @@ fast-https/
 ├── modules/             Features: static / proxy / proxy_tcp / websocket / cache /
 │                        compress / auth / safe / appfirewall / rewrite
 ├── infra/               Infrastructure: logging / color / timeutil / banner
-├── monitor/             Windows tray program (separate main)
+├── desktop/             Wails v3 desktop console (separate Go module)
 ├── httpdoc/root/        Default site and the self-signed root certificate directory
 ├── docs/                Feature, development, and test documentation
 ├── tests/               Unit tests and end-to-end tests

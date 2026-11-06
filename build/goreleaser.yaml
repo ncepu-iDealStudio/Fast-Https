@@ -1,6 +1,6 @@
 # Windows 的 NSIS 安装包不在本文件里：它由 build/package.ps1 在 goreleaser 结束后
-# 调用 makensis 生成（需要 NSIS 3.x）。只跑 goreleaser 只会得到
-# zip / tar.gz / deb / rpm / apk，不会出现 setup.exe。
+# 调用 makensis 生成（需要 NSIS 3.x）。只跑 goreleaser 会得到 zip / tar.gz 与
+# 主程序、桌面端的 deb / rpm / apk，不会出现 setup.exe。
 version: 2
 
 before:
@@ -8,8 +8,6 @@ before:
     - go mod tidy
     # 手册页由命令树生成，打包前刷新一次，避免装出来的 man 与二进制命令不一致
     - go run ./tools/manpage
-    # 托盘程序目前只提供 amd64 版本（Windows on ARM 可经 x64 模拟运行）
-    - go build -ldflags "-s -w -H=windowsgui" -o monitor/monitor.exe ./monitor
 
 builds:
   - id: unix
@@ -62,6 +60,26 @@ builds:
     tags:
       - rpm
 
+  # 桌面管理端：独立 Go module。Linux 后端必须 CGO_ENABLED=0 + purego 才能在
+  # Windows 上交叉编译（buildguard 要求二者之一），运行期再加载系统 GTK4/WebKitGTK。
+  # 前端 dist 与 .desktop 由 build/package.ps1 在调用 goreleaser 之前准备好。
+  - id: desktop-linux
+    dir: desktop
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https-desktop
+    main: .
+    tags:
+      - production
+      - purego
+    ldflags:
+      - "-s -w"
+
 archives:
   - id: unix
     ids:
@@ -110,8 +128,6 @@ archives:
       - httpdoc/root/index.html
       - logs/.keep
       - README.md
-      - src: monitor/monitor.exe
-        strip_parent: true
 
   - id: windows-arm64
     ids:
@@ -231,11 +247,98 @@ nfpms:
       preremove: build/packaging/linux/preremove.sh
       postremove: build/packaging/linux/postremove.sh
 
+  # 桌面管理端：GTK4 / WebKitGTK 6.0 的包名在 deb、rpm、apk 里各不相同，
+  # 所以按格式拆成三条，避免 rpm/apk 因为 Debian 包名找不到依赖而装不上。
+  # 三种格式共用同一份二进制、图标与 .desktop，只有依赖名与格式字段不同。
+  - id: desktop-deb
+    ids:
+      - desktop-linux
+    package_name: fast-https-desktop
+    vendor: NCEPU-BJ
+    homepage: https://gitee.com/ncepu-bj/fast-https
+    maintainer: JFeng2048 <JFeng2048@outlook.com>
+    description: |-
+      Fast-Https 桌面管理端：状态、站点、证书与主配置表单。
+    license: GPL-2.0
+    formats:
+      - deb
+    bindir: /usr/bin
+    umask: 0o022
+    section: web
+    priority: optional
+    dependencies:
+      - libgtk-4-1
+      - libwebkitgtk-6.0-4
+    release: "1"
+    deb:
+      compression: xz
+    contents:
+      - src: desktop/build/appicon.png
+        dst: /usr/share/icons/hicolor/256x256/apps/fast-https-desktop.png
+      - src: desktop/build/linux/fast-https-desktop.desktop
+        dst: /usr/share/applications/fast-https-desktop.desktop
+
+  - id: desktop-rpm
+    ids:
+      - desktop-linux
+    package_name: fast-https-desktop
+    vendor: NCEPU-BJ
+    homepage: https://gitee.com/ncepu-bj/fast-https
+    maintainer: JFeng2048 <JFeng2048@outlook.com>
+    description: |-
+      Fast-Https 桌面管理端：状态、站点、证书与主配置表单。
+    license: GPL-2.0
+    formats:
+      - rpm
+    bindir: /usr/bin
+    umask: 0o022
+    section: web
+    priority: optional
+    dependencies:
+      - gtk4
+      - webkitgtk6.0
+    release: "1"
+    rpm:
+      group: Applications/Internet
+      summary: Desktop console for Fast-Https
+      packager: JFeng2048 <JFeng2048@outlook.com>
+    contents:
+      - src: desktop/build/appicon.png
+        dst: /usr/share/icons/hicolor/256x256/apps/fast-https-desktop.png
+      - src: desktop/build/linux/fast-https-desktop.desktop
+        dst: /usr/share/applications/fast-https-desktop.desktop
+
+  - id: desktop-apk
+    ids:
+      - desktop-linux
+    package_name: fast-https-desktop
+    vendor: NCEPU-BJ
+    homepage: https://gitee.com/ncepu-bj/fast-https
+    maintainer: JFeng2048 <JFeng2048@outlook.com>
+    description: |-
+      Fast-Https 桌面管理端：状态、站点、证书与主配置表单。
+    license: GPL-2.0
+    formats:
+      - apk
+    bindir: /usr/bin
+    umask: 0o022
+    section: web
+    priority: optional
+    dependencies:
+      - gtk4.0
+      - webkit2gtk-6.0
+    release: "1"
+    contents:
+      - src: desktop/build/appicon.png
+        dst: /usr/share/icons/hicolor/256x256/apps/fast-https-desktop.png
+      - src: desktop/build/linux/fast-https-desktop.desktop
+        dst: /usr/share/applications/fast-https-desktop.desktop
+
 checksum:
   name_template: checksums.txt
 
 snapshot:
-  version_template: "1.5.0"
+  version_template: "1.6.0"
 
 changelog:
   sort: asc

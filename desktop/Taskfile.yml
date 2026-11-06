@@ -1,0 +1,40 @@
+version: '3'
+
+vars:
+  APP_NAME: "fast-https-desktop"
+  BIN_DIR: "bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+  # 只支持 Windows / Linux；由 `wails3 build GOOS=...` 覆盖
+  GOOS: '{{.GOOS | default OS}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+
+tasks:
+  build:
+    desc: 构建应用（Windows / Linux）
+    summary: 构建应用
+    cmds:
+      - task: "{{.GOOS}}:build"
+
+  package:
+    desc: 打包（Windows NSIS / Linux deb）
+    summary: 打包
+    cmds:
+      - task: "{{.GOOS}}:package"
+
+  run:
+    desc: 运行应用
+    summary: 运行应用
+    cmds:
+      - task: "{{.GOOS}}:run"
+
+  dev:
+    desc: 启动开发模式（Vite dev server + 热重载）
+    summary: 开发模式
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+

@@ -45,7 +45,7 @@ footer{max-width:1180px;margin:0 auto;padding:16px 24px 40px;color:var(--muted);
 </style>
 </head>
 <body>
-<header class="top"><span class="brand">Fast-Https</span><span class="ver">V1.5.0</span></header>
+<header class="top"><span class="brand">Fast-Https</span><span class="ver">V1.6.0</span></header>
 <div class="layout">
 <nav class="toc"><p class="toc-title">目录</p><ul><li><a href="#sec-2">1. 能力一览</a></li><li><a href="#sec-3">2. 获取与安装</a></li><li class="lvl3"><a href="#sec-4">发行包</a></li><li class="lvl3"><a href="#sec-5">Linux 发行版包（deb / rpm / apk）</a></li><li class="lvl3"><a href="#sec-6">容器</a></li><li><a href="#sec-7">3. 目录布局</a></li><li><a href="#sec-8">4. 快速开始</a></li><li class="lvl3"><a href="#sec-9">4.1 默认配置</a></li><li class="lvl3"><a href="#sec-10">4.2 启动并验证</a></li><li class="lvl3"><a href="#sec-11">4.3 HTTPS 与 HTTP/2</a></li><li class="lvl3"><a href="#sec-12">4.4 用 site 命令管理站点文件</a></li><li class="lvl3"><a href="#sec-13">4.5 停止</a></li><li><a href="#sec-14">5. 配置文件</a></li><li class="lvl3"><a href="#sec-15">5.1 顶层键</a></li><li class="lvl3"><a href="#sec-16">5.2 <code>http</code> 段</a></li><li class="lvl3"><a href="#sec-17">5.3 <code>server</code> 段</a></li><li class="lvl3"><a href="#sec-18">5.4 <code>location</code> 段</a></li><li class="lvl3"><a href="#sec-19">5.5 <code>security</code> 段</a></li><li><a href="#sec-20">6. 典型配置</a></li><li class="lvl3"><a href="#sec-21">6.1 静态站点 + try_files</a></li><li class="lvl3"><a href="#sec-22">6.2 反向代理</a></li><li class="lvl3"><a href="#sec-23">6.3 TCP 转发</a></li><li class="lvl3"><a href="#sec-24">6.4 压缩</a></li><li class="lvl3"><a href="#sec-25">6.5 代理缓存</a></li><li class="lvl3"><a href="#sec-26">6.6 Basic 认证与限流</a></li><li><a href="#sec-27">7. TLS 与证书</a></li><li class="lvl3"><a href="#sec-28">7.1 ACME 自动签发</a></li><li><a href="#sec-29">8. HTTP/2</a></li><li><a href="#sec-30">9. 日志</a></li><li><a href="#sec-31">10. 命令行</a></li><li class="lvl3"><a href="#sec-32">10.1 帮助信息的语言</a></li><li><a href="#sec-33">11. 热重载与停机</a></li><li><a href="#sec-34">12. 排错</a></li><li><a href="#sec-35">13. 已知限制</a></li><li><a href="#sec-36">14. 版本与许可</a></li></ul></nav>
 <main>
@@ -92,7 +92,7 @@ docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
 docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .</code></pre>
 <p>镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 80 与 443，与随包默认配置一致。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 <code>listen</code>。</p>
 <h2 id="sec-7">3. 目录布局</h2>
-<pre><code class="language-text">fast-https                  主程序（Windows 下另有 monitor.exe 托盘程序）
+<pre><code class="language-text">fast-https                  主程序
 config/fast-https.json      系统级配置（include、acme、日志、WAF…）
 config/conf.d/              站点配置，一个文件一个站点（由 http.include 指向）
 config/mime.json            扩展名 → Content-Type 映射
@@ -158,7 +158,7 @@ logs/                       运行日志</code></pre>
 <li><code>listen: &#34;443 ssl h2&#34;</code>：HTTPS + HTTP/2，<code>ssl</code> 开 TLS，<code>h2</code> 才向客户端通告 HTTP/2。</li>
 <li><code>ssl_certificate</code> / <code>ssl_certificate_key</code>：文件不存在时，首次 <code>start</code> 会用本地 CA 生成 <code>config/cert/localhost.pem</code> 与 <code>localhost-key.pem</code>，可以直接 <code>curl -k https://127.0.0.1/</code> 验证；浏览器会提示不受信任。正式环境换成权威 CA 的 PEM，或者打开 7.1 的 ACME 自动签发。</li>
 <li>不需要 HTTPS 时把 <code>&#34;443 ssl h2&#34;</code> 从 <code>listen</code> 里去掉；443 被别的程序占用（Windows 上常见于 IIS）时换端口或去掉这一项。</li>
-<li><code>server_name</code>：按请求的 <code>Host</code> 头匹配。没命中任何 <code>server_name</code> 时回落到该端口的第一个 server 块（相当于 nginx 的 <code>default_server</code>），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。</li>
+<li><code>server_name</code>：按请求的 <code>Host</code> 头匹配。支持多域名写法：空格分隔多个域名（如 <code>&#34;server_name&#34;: &#34;example.com www.example.com&#34;</code>），它们共享同一组 location 和证书。没命中任何 <code>server_name</code> 时回落到该端口的第一个 server 块（相当于 nginx 的 <code>default_server</code>），所以用 IP 或域名别名访问也能进到本站点，不会整站 404。</li>
 <li><code>root: ./httpdoc/root</code>：站点根目录，相对路径按站点根基址解析（包布局是 <code>/usr/share/fast-https</code>，归档布局是当前目录），与二进制所在目录无关。</li>
 <li><code>http.include: [&#34;./config/conf.d&#34;]</code>：该目录下每个 <code>*.json</code> 会被追加为一个 server 块，站点一多就拆出去，主配置不必跟着变长。主配置可以完全不写 <code>http.server</code>，只要 include 里至少有一个站点文件；<code>fast-https site</code> 的子命令就是按这个约定增删站点文件的。</li>
 <li><code>acme.enabled: false</code>：ACME 自动签发默认关闭，行为与老版本一致。需要受信任证书时按 7.1 手工配置，或直接运行 <code>fast-https acme</code> 向导。</li>
@@ -237,7 +237,7 @@ fast-https site remove blog --yes</code></pre>
 <thead><tr><th>键</th><th>说明</th></tr></thead>
 <tbody>
 <tr><td><code>listen</code></td><td>端口，可带 <code>ssl</code>、<code>h2</code>、<code>tcp</code>，例如 <code>8080</code>、<code>443 ssl</code>、<code>443 ssl h2</code>、<code>9000 tcp</code></td></tr>
-<tr><td><code>server_name</code></td><td>虚拟主机名，按 <code>Host</code> 匹配，必填</td></tr>
+<tr><td><code>server_name</code></td><td>虚拟主机名，按 <code>Host</code> 匹配，必填。多域名用空格分隔：<code>&#34;example.com www.example.com&#34;</code>，共享同一组 location 和证书</td></tr>
 <tr><td><code>ssl_certificate</code></td><td>证书链 PEM 路径，<code>listen</code> 含 <code>ssl</code> 时必填</td></tr>
 <tr><td><code>ssl_certificate_key</code></td><td>私钥 PEM 路径，<code>listen</code> 含 <code>ssl</code> 时必填</td></tr>
 <tr><td><code>location</code></td><td>路由数组，见 5.4</td></tr>
@@ -493,6 +493,6 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <p>版本号取自 <code>config/consts.go</code> 的 <code>CURRENT_VERSION</code>，启动横幅会打印。许可证见发行包内的 <code>LICENSE</code>。</p>
 </main>
 </div>
-<footer>本文档由 docs/usage.md 生成，请勿直接编辑 HTML。版本 V1.5.0。</footer>
+<footer>本文档由 docs/usage.md 生成，请勿直接编辑 HTML。版本 V1.6.0。</footer>
 </body>
 </html>

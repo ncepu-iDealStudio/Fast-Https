@@ -472,16 +472,19 @@ func Plan(cfg *config.Fast_Https) DomainPlan {
 		if !strings.Contains(server.Listen, "ssl") {
 			continue
 		}
-		name := normalizeName(server.ServerName)
-		if ok, reason := acmeEligible(name); !ok {
-			plan.Skipped = append(plan.Skipped, DomainSkip{Name: cmpOrName(server.ServerName, name), Reason: reason})
-			continue
+		// 多域名：server_name 空格分隔的每个域名都独立申请一张证书。
+		for _, raw := range server.ServerNames() {
+			name := normalizeName(raw)
+			if ok, reason := acmeEligible(name); !ok {
+				plan.Skipped = append(plan.Skipped, DomainSkip{Name: cmpOrName(raw, name), Reason: reason})
+				continue
+			}
+			if _, dup := seen[name]; dup {
+				continue
+			}
+			seen[name] = struct{}{}
+			plan.Managed = append(plan.Managed, name)
 		}
-		if _, dup := seen[name]; dup {
-			continue
-		}
-		seen[name] = struct{}{}
-		plan.Managed = append(plan.Managed, name)
 	}
 	return plan
 }

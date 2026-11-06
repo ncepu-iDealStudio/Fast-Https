@@ -1,17 +1,14 @@
 ﻿; Fast-Https Windows 安装包（NSIS 3.x）
 ;
-; 一般由 scripts/package.ps1 调用，传入以下宏：
+; 一般由 build/package.ps1 调用，传入以下宏：
 ;   /DAPP_VERSION   显示用版本号，例如 1.5.0
 ;   /DAPP_VERSION4  VIProductVersion 用的四段版本号，例如 1.5.0.0
 ;   /DAPP_ARCH      amd64 / arm64
 ;   /DSTAGE_DIR     解压好的发行目录（fast-https.exe、config、httpdoc…）
 ;   /DOUT_FILE      输出的安装包路径
 ;
-; 手工编译示例：
-;   makensis /DAPP_VERSION=1.5.0 /DAPP_VERSION4=1.5.0.0 /DAPP_ARCH=amd64 ^
-;            /DSTAGE_DIR=dist\.stage\amd64 ^
-;            /DOUT_FILE=dist\fast-https-1.5.0-windows-amd64-setup.exe ^
-;            installer\windows\fast-https.nsi
+; 桌面管理端 fast-https-desktop.exe 由 desktop/ 独立构建，若一并放进 STAGE_DIR，
+; 组件页会给它创建快捷方式；没有时不会创建死链。
 
 Unicode true
 !include "MUI2.nsh"
@@ -35,10 +32,10 @@ Unicode true
 
 !define APP_NAME "Fast-Https"
 !define APP_EXE "fast-https.exe"
+!define DESKTOP_EXE "fast-https-desktop.exe"
 !define APP_PUBLISHER "NCEPU BJ"
 !define APP_URL "https://gitee.com/ncepu-bj/fast-https"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
-!define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 
 Name "${APP_NAME} ${APP_VERSION} (${APP_ARCH})"
 OutFile "${OUT_FILE}"
@@ -63,6 +60,7 @@ VIAddVersionKey "LegalCopyright" "GPL-2.0"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
+; 快捷方式与开始菜单由用户勾选，不强制创建
 !insertmacro MUI_PAGE_COMPONENTS
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_PAGE_FINISH
@@ -78,8 +76,8 @@ VIAddVersionKey "LegalCopyright" "GPL-2.0"
 Section "Fast-Https 核心文件（必选）" SEC_CORE
   SectionIn RO
 
-  ; 升级时先停掉在跑的托盘与服务进程，否则文件被占用会替换失败
-  nsExec::ExecToLog 'taskkill /F /IM monitor.exe'
+  ; 升级时先停掉在跑的桌面端与服务进程，否则文件被占用会替换失败
+  nsExec::ExecToLog 'taskkill /F /IM ${DESKTOP_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${APP_EXE}'
 
   ; 用户改过的配置装完再放回去，升级不覆盖
@@ -112,38 +110,41 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${APP_PUBLISHER}"
   WriteRegStr HKLM "${UNINST_KEY}" "URLInfoAbout" "${APP_URL}"
   WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\monitor.exe"
+  WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${APP_EXE}"
   WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
+SectionEnd
 
+Section "创建桌面快捷方式" SEC_DESKTOP
+  ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
+    CreateShortcut "$DESKTOP\Fast-Https 桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
+  ${Else}
+    CreateShortcut "$DESKTOP\Fast-Https 安装目录.lnk" "$INSTDIR"
+  ${EndIf}
+SectionEnd
+
+Section "添加到 Windows 开始菜单" SEC_STARTMENU
   CreateDirectory "$SMPROGRAMS\${APP_NAME}"
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\使用文档.lnk" "$INSTDIR\docs\usage.html"
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\安装目录.lnk" "$INSTDIR"
-  ${If} ${FileExists} "$INSTDIR\monitor.exe"
-    CreateShortcut "$SMPROGRAMS\${APP_NAME}\托盘程序.lnk" "$INSTDIR\monitor.exe"
+  ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
   ${EndIf}
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\uninstall.exe"
-SectionEnd
-
-Section "开机自动启动托盘（monitor.exe）" SEC_AUTOSTART
-  ${If} ${FileExists} "$INSTDIR\monitor.exe"
-    WriteRegStr HKCU "${RUN_KEY}" "${APP_NAME}" '"$INSTDIR\monitor.exe"'
-  ${Else}
-    DetailPrint "当前架构没有托盘程序，跳过开机自启"
-  ${EndIf}
 SectionEnd
 
 ; ------------------------------------------------------------ 卸载
 
 Section "Uninstall"
-  nsExec::ExecToLog 'taskkill /F /IM monitor.exe'
+  nsExec::ExecToLog 'taskkill /F /IM ${DESKTOP_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${APP_EXE}'
 
-  DeleteRegValue HKCU "${RUN_KEY}" "${APP_NAME}"
   DeleteRegKey HKLM "${UNINST_KEY}"
   DeleteRegKey HKLM "Software\${APP_NAME}"
 
+  Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
+  Delete "$DESKTOP\Fast-Https 安装目录.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\*.lnk"
   RMDir "$SMPROGRAMS\${APP_NAME}"
 
@@ -154,5 +155,6 @@ SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
   !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CORE} "程序本体、默认配置、默认站点与使用文档。"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_AUTOSTART} "登录系统后自动运行托盘程序（仅 amd64 包提供 monitor.exe）。"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} "在桌面创建图形入口，指向桌面管理端 fast-https-desktop.exe（没有它时退化为安装目录快捷方式），可取消。"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_STARTMENU} "在 Windows 开始菜单创建程序分组，可取消。"
 !insertmacro MUI_FUNCTION_DESCRIPTION_END

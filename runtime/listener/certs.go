@@ -73,6 +73,14 @@ func loadCerts(cfgs []ListenCfg) ([]tls.Certificate, error) {
 			return nil, err
 		}
 		loaded = append(loaded, crt)
+		// 多域名：加载其余域名的证书，SNI 按域名匹配。
+		for _, extra := range item.ExtraCerts {
+			ecrt, err := tls.LoadX509KeyPair(extra.SslKey, extra.SslValue)
+			if err != nil {
+				return nil, err
+			}
+			loaded = append(loaded, ecrt)
+		}
 	}
 	if len(loaded) == 0 {
 		return nil, errors.New("ssl listen has no certificate")

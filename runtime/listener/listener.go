@@ -8,6 +8,7 @@ import (
 	"fast-https/config"
 	"fast-https/infra/logging"
 	"net"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -33,6 +34,12 @@ type ListenCfg struct {
 	ID         int
 	SSL        SSLkv
 	ServerName string
+	// Aliases 是 server_name 多域名写法下除主域名外的其他域名（含端口后缀），
+	// 与 ServerName 指向同一组 locations。单域名配置为空切片。
+	Aliases []string
+	// ExtraCerts 是多域名 server 块除主域名证书外的其他域名证书路径，
+	// loadCerts 会把 SSL 与 ExtraCerts 全部加载，SNI 按域名匹配。
+	ExtraCerts []SSLkv
 	Path       string
 	PathRe     *regexp.Regexp
 	Trys       []Try
@@ -281,19 +288,37 @@ func processListenData(lisInfos *[]*Listener) {
 					}
 					data.Trys = append(data.Trys, try)
 				}
-				data.ServerName = server.ServerName + ":" + eachlisten.Port
-				data.Type = paths.PathType
-				data.ProxyAddr = paths.ProxyData
-				data.ProxySetHeader = paths.ProxySetHeader
-				data.AppFireWall = paths.AppFireWall
-				data.Limit = paths.Limit
-				data.Auth = paths.Auth
-				data.StaticRoot = paths.Root
-				data.StaticIndex = paths.Index
-				data.ErrorNotFound = paths.ErrorNotFound
-				data.ErrorProxy = paths.ErrorProxy
-				data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
-				data.Zip = paths.Zip
+				// 多域名支持：server_name 允许空格分隔多个域名（nginx 风格）。
+			// ServerName 保留第一个域名（主域名），其余域名进 Aliases，
+			// processEachPort 会把所有域名都注册到 HostMap。
+			names := server.ServerNames()
+			if len(names) == 0 {
+				names = []string{""}
+			}
+			data.ServerName = names[0] + ":" + eachlisten.Port
+			for _, alias := range names[1:] {
+				data.Aliases = append(data.Aliases, alias+":"+eachlisten.Port)
+			}
+			data.Type = paths.PathType
+			data.ProxyAddr = paths.ProxyData
+			data.ProxySetHeader = paths.ProxySetHeader
+			data.AppFireWall = paths.AppFireWall
+			data.Limit = paths.Limit
+			data.Auth = paths.Auth
+			data.StaticRoot = paths.Root
+			data.StaticIndex = paths.Index
+			data.ErrorNotFound = paths.ErrorNotFound
+			data.ErrorProxy = paths.ErrorProxy
+			data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
+			// 多域名：其余域名的证书按 config/cert/<domain>.pem 兜底路径加载，
+			// ACME 每个域名分别申请一张证书，certPaths 也按此路径落盘。
+			for _, alias := range names[1:] {
+				data.ExtraCerts = append(data.ExtraCerts, SSLkv{
+					SslKey:   filepath.Join(config.CERT_DIR, alias) + ".pem",
+					SslValue: filepath.Join(config.CERT_DIR, alias) + "-key.pem",
+				})
+			}
+			data.Zip = paths.Zip
 				data.ReWrite = paths.Rewrite
 				data.ProxyCache = paths.ProxyCache
 				data.AllowMethods = paths.AllowMethods
@@ -325,6 +350,13 @@ func processEachPort(lisPort *Listener) {
 			}
 		}
 		lisPort.HostMap[name] = tempListenCfgArray
+		// 多域名：把该 server 块的所有别名也注册到 HostMap，
+		// 指向同一组 locations，hostCfgs 查询时无需感知别名。
+		if len(tempListenCfgArray) > 0 {
+			for _, alias := range tempListenCfgArray[0].Aliases {
+				lisPort.HostMap[alias] = tempListenCfgArray
+			}
+		}
 	}
 }
 
