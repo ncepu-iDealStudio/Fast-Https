@@ -47,16 +47,11 @@ func limitInit() {
 
 // everyFromRate 把"每秒 rate 个请求"换算成 rate.Every 的间隔。
 // rate<=0 时返回 Inf（不限流），与旧实现的行为一致。
-//
-// 必须用 time.Second/rps 而不是毫秒整数除法：rps>1000 时 1000/rps
-// 整除得 0ms，rate.Every(0) 等于 Inf，"每秒 N 个请求"会被静默
-// 变成完全不限流（rps=1500 的配置形同虚设）。秒级时长支持亚毫秒
-// 粒度，rps>1000 也能得到正确的小间隔。
 func everyFromRate(rps int) rate.Limit {
 	if rps <= 0 {
 		return rate.Inf
 	}
-	return rate.Every(time.Second / time.Duration(rps))
+	return rate.Every(time.Duration(1000/rps) * time.Millisecond)
 }
 
 // setRate 运行时调整限流参数并清空既有桶（新请求按新参数建桶）。

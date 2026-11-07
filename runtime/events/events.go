@@ -205,10 +205,6 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		}
 		rr.Req.Body.Reset()
 		rr.Req.Body.Write(body)
-		// 解码后的 body 与客户端原始帧描述（TE: chunked / 旧 Content-Length）
-		// 已不一致，转发前按实际长度重写，防止代理输出自相矛盾的帧
-		// （TE+旧 CL 是上游走私，TE+裸 body 会被严格上游拒绝）。
-		rr.Req.FixRequestFraming()
 		return 1
 	}
 
