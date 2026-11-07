@@ -5,7 +5,7 @@ import { $, toast } from '../ui/dom.js';
 export const template = `<div class="dialog-mask" id="closeDialog" hidden>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="closeDialogTitle">
     <h3 id="closeDialogTitle">要隐藏到后台还是直接退出？</h3>
-    <p>隐藏到后台：桌面端继续在系统托盘运行，点托盘图标可恢复窗口。<br/>直接退出：结束桌面端进程；<span class="mono">fast-https</span> 服务仍在后台运行，不会跟着停。</p>
+    <p>隐藏到后台：桌面端继续在系统托盘运行，点托盘图标可恢复窗口。<br/>直接退出：结束桌面端进程，并停止 <span class="mono">fast-https</span> 服务。</p>
     <div class="dialog-actions">
       <button class="btn" id="closeCancel">取消</button>
       <button class="btn" id="closeQuit">直接退出</button>

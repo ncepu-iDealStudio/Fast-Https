@@ -216,7 +216,14 @@ func StartHandler() error {
 	}
 
 	// 由真正提供服务的进程写自己的 pid，写完再做初始化。
-	_ = WritePid(config.PID_FILE)
+	// 写失败不能静默：pid 是 stop / reload / status 的唯一入口，写不出来
+	// 会表现为「服务在跑但停不掉」，必须留下能查的日志（例如安装目录
+	// 不可写的情况）。
+	if err := WritePid(config.PID_FILE); err != nil {
+		logging.ConsoleLog.Error().Msgf(
+			"write pid file %s failed: %v; stop / reload / status will not find this process",
+			config.PID_FILE, err)
+	}
 
 	// output logo, make initialization and start server
 	banner.PrintLogo(config.CURRENT_VERSION)

@@ -174,6 +174,23 @@ func startServer(dir string) (string, error) {
 	return "启动指令已发送，状态会在 2 秒后刷新", nil
 }
 
+// stopServer 跑完 stop 再用端口探测复核。pid 文件缺失时 stop 会当作
+// 「没在跑」直接成功，而服务可能仍在监听（安装目录不可写 pid 时就是
+// 这种表现）；此时把真实原因交回界面，而不是报一句「已停止」。
+func stopServer(dir string) (string, error) {
+	text, err := runServerCommand(dir, "stop")
+	if err != nil {
+		return text, err
+	}
+	time.Sleep(1200 * time.Millisecond)
+	ov := collectOverview(dir)
+	if ov.Running {
+		return text, fmt.Errorf("服务仍在监听 %s：pid 文件 %s 未生成或不可写，stop 无法定位进程",
+			strings.Join(ov.Ports, " "), ov.Paths.Pid)
+	}
+	return text, nil
+}
+
 // stripJSONC 去掉 // 与 /* */ 注释以及尾逗号。
 // 主配置与站点文件都允许 JSONC，标准库的 json 不接受这些写法。
 func stripJSONC(b []byte) []byte {

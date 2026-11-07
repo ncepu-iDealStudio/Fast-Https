@@ -54,6 +54,9 @@ func (s *DesktopService) HideWindow() {
 // 注意：这只结束桌面端，fast-https 服务由主程序独立管理，不受影响。
 func (s *DesktopService) QuitApp() {
 	appQuitting.Store(true)
+	// 先停服务再退出：桌面端拉起服务后，关掉窗口不应该把端口一直占着。
+	// 服务若不是本端启动（例如用 CLI 起的），stop 找不到 pid，属于空操作。
+	_, _ = runServerCommand(s.baseDir, "stop")
 	if appRef != nil {
 		appRef.Quit()
 	}
@@ -132,7 +135,7 @@ func (s *DesktopService) StartServer() (string, error) {
 }
 
 func (s *DesktopService) StopServer() (string, error) {
-	return runServerCommand(s.baseDir, "stop")
+	return stopServer(s.baseDir)
 }
 
 func (s *DesktopService) ReloadServer() (string, error) {
