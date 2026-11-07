@@ -14,12 +14,15 @@ import (
 // 不能靠猜"有没有装成包"来决定路径。归档与 deb/rpm/apk 的布局不同，
 // 由主程序按编译期基址算好后输出，控制面直接读即可。
 
-// RuntimePaths 是一次路径查询的结果，四个字段都是绝对路径。
+// RuntimePaths 是一次路径查询的结果，字段都是绝对路径。
+// root_crt 是本地根 CA 证书，控制面（桌面管理端）用它做信任引导，
+// 避免自己拼接数据目录导致 FHS 布局下写死路径。
 type RuntimePaths struct {
-	Config string `json:"config"`
-	Cert   string `json:"cert"`
-	Log    string `json:"log"`
-	Pid    string `json:"pid"`
+	Config  string `json:"config"`
+	Cert    string `json:"cert"`
+	Log     string `json:"log"`
+	Pid     string `json:"pid"`
+	RootCRT string `json:"root_crt"`
 }
 
 func newConfigCmd() *cobra.Command {
@@ -33,14 +36,17 @@ func newConfigCmd() *cobra.Command {
 	var asJSON bool
 	pathCmd := &cobra.Command{
 		Use:   "path",
-		Short: t("打印配置、证书、日志与 pid 路径（绝对路径）", "print config, cert, log and pid paths (absolute)"),
+		Short: t("打印配置、证书、日志、pid 与根 CA 路径（绝对路径）", "print config, cert, log, pid and root CA paths (absolute)"),
 		Long: t(
-			"打印配置、证书、日志与 pid 路径（绝对路径）。\n\n"+
+			"打印配置、证书、日志、pid 与本地根 CA 证书的路径（绝对路径）。\n\n"+
 				"log 是当前布局的默认日志目录；配置里写了 log_root 时以配置为准，\n"+
-				"控制面可读取配置文件同名字段覆盖本值。",
-			"print config, cert, log and pid paths (absolute).\n\n"+
+				"控制面可读取配置文件同名字段覆盖本值。root_crt 由当前布局的\n"+
+				"数据目录算出，控制面不要自行拼接。",
+			"print config, cert, log, pid and local root CA paths (absolute).\n\n"+
 				"log defaults to the directory of the current layout; when log_root is set in\n"+
-				"the config, that value wins and the control plane may override it as well."),
+				"the config, that value wins and the control plane may override it as well.\n"+
+				"root_crt is derived from the current data dir; control planes must not\n"+
+				"assemble it themselves."),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths := ResolvePaths()
@@ -49,10 +55,11 @@ func newConfigCmd() *cobra.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(paths)
 			}
-			fmt.Printf("config %s\n", paths.Config)
-			fmt.Printf("cert   %s\n", paths.Cert)
-			fmt.Printf("log    %s\n", paths.Log)
-			fmt.Printf("pid    %s\n", paths.Pid)
+			fmt.Printf("config   %s\n", paths.Config)
+			fmt.Printf("cert     %s\n", paths.Cert)
+			fmt.Printf("log      %s\n", paths.Log)
+			fmt.Printf("pid      %s\n", paths.Pid)
+			fmt.Printf("root_crt %s\n", paths.RootCRT)
 			return nil
 		},
 	}
@@ -64,10 +71,11 @@ func newConfigCmd() *cobra.Command {
 // ResolvePaths 返回当前编译布局下的绝对路径。
 func ResolvePaths() RuntimePaths {
 	return RuntimePaths{
-		Config: toAbs(config.CONFIG_FILE_PATH),
-		Cert:   toAbs(config.CERT_DIR),
-		Log:    toAbs(config.DEFAULT_LOG_ROOT),
-		Pid:    toAbs(config.PID_FILE),
+		Config:  toAbs(config.CONFIG_FILE_PATH),
+		Cert:    toAbs(config.CERT_DIR),
+		Log:     toAbs(config.DEFAULT_LOG_ROOT),
+		Pid:     toAbs(config.PID_FILE),
+		RootCRT: toAbs(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME+".crt")),
 	}
 }
 

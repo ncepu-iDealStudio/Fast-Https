@@ -1,0 +1,5 @@
+/* 样式入口：按层叠顺序汇总，页面样式最后覆盖组件默认值。 */
+@import './base.css';
+@import './layout.css';
+@import './components.css';
+@import './pages.css';

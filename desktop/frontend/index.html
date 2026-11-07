@@ -40,21 +40,10 @@
     </aside>
 
     <main class="workspace">
-      <div class="page-head">
-        <div class="page-head-left">
-          <div class="page-title-row"><h2 id="pageTitle">本机实例</h2><span class="meta-chip" id="stateChip">读取中</span></div>
-          <p class="page-sub"><span class="dot" id="runDot"></span><strong data-bind="running">读取中</strong><span class="sep">·</span><span data-bind="pid">pid —</span><span class="sep">·</span><span data-bind="version">1.6.1</span><span class="sep">·</span><span data-bind="uptime">状态每 2 秒刷新</span></p>
-        </div>
-        <div class="page-actions">
-          <button class="btn primary" id="primaryAction" data-action="start"><span class="glyph">▶</span><span id="primaryLabel">启动服务</span></button>
-          <button class="btn" data-action="reload"><span class="glyph">↻</span>重载配置</button>
-        </div>
-      </div>
-
       <div class="content">
         <div class="pane" data-pane="overview">
           <section class="card overview-card">
-            <div class="card-head"><h3>运行概况</h3><span class="card-note">本机实例 · 实时状态</span></div>
+            <div class="card-head"><h3>运行概况</h3><div class="card-head-actions"><span class="card-note">本机实例 · 实时状态</span><button class="btn primary" id="primaryAction" data-action="start"><span class="glyph">▶</span><span id="primaryLabel">启动服务</span></button><button class="btn" data-action="reload"><span class="glyph">↻</span>重载配置</button></div></div>
             <div class="metrics">
               <div class="metric"><span class="m-label">服务状态</span><strong class="m-value" id="metricRunning">—</strong><span class="m-sub" data-bind="statusText">—</span></div>
               <div class="metric"><span class="m-label">监听端口</span><strong class="m-value" id="metricPorts">0</strong><span class="m-sub" data-bind="portCount">—</span></div>
@@ -128,39 +117,61 @@
 
         <div class="pane" data-pane="sites" hidden>
           <section class="card">
-            <div class="card-head">
-              <h3>站点</h3>
-              <div class="card-head-actions">
-                <span class="card-note">http.server[] 与 http.include</span>
-                <button class="btn small" id="addSiteBtn">+ 添加站点</button>
-              </div>
+            <div class="pane-notes">
+              <p class="lede">主配置与 <span class="mono">conf.d</span> 下的站点文件（http.server[] 与 http.include），按监听端口逐个展开。新站点写成 <span class="mono">conf.d/&lt;名称&gt;.json</span>，创建后需点「重载配置」。</p>
             </div>
-            <p class="lede">主配置与 <span class="mono">conf.d</span> 下的站点文件，按监听端口逐个展开。新站点写成 <span class="mono">conf.d/&lt;名称&gt;.json</span>，创建后需点「重载配置」。</p>
+            <div class="section-label"><span>已配置的站点</span><span class="label-right"><span class="section-count" id="siteCountLabel">0</span><button class="btn small" id="addSiteBtn">+ 添加站点</button></span></div>
             <div class="kv-table" id="sitesTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取站点…</span></div></div>
           </section>
         </div>
 
         <div class="pane" data-pane="certs" hidden>
           <section class="card">
-            <div class="card-head"><h3>证书</h3><span class="card-note">读取 PEM · crypto/x509</span></div>
-            <p class="lede">签发者与到期时间直接读证书文件，到期天数按本机时间计算。</p>
-            <div class="kv-table" id="certsTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取证书…</span></div></div>
-            <div class="scale-block" id="certScale" hidden>
-              <div class="scale-head"><span>最近一张证书</span><span>有效期</span><span data-bind="certNotAfter">—</span></div>
-              <div class="scale-line"><span class="tick a"></span><span class="tick b"></span><span class="scale-cursor" id="scaleCursor"></span><span class="scale-today" id="scaleToday">今天</span></div>
+            <div class="cert-notes">
+              <p class="lede">读取 PEM · crypto/x509：主题、签发者与到期时间直接读证书文件，到期天数按本机时间计算；标记「本地生成」的证书由本机根 CA（<span class="mono">root.crt</span>）自动签发。</p>
+              <p class="setting-note">本地 CA 不在系统／浏览器的信任库里，所以访问 <span class="mono">https://localhost</span> 仍会提示「不安全」——这是自签 CA 的正常现象，不是证书损坏。下方「信任本地 CA…」可一步步导入；对外服务请改用 ACME 或正式证书。证书与根 CA 只在文件缺失时生成，已经生成的旧证书不会被覆盖。</p>
             </div>
+            <div class="section-label"><span>已配置的证书</span><span class="label-right"><span class="section-count" id="certCount">0</span><button class="btn small" id="trustCABtn">信任本地 CA…</button></span></div>
+            <div class="kv-table" id="certsTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取证书…</span></div></div>
           </section>
         </div>
 
         <div class="pane" data-pane="logs" hidden>
           <section class="card">
-            <div class="card-head"><h3>日志</h3><span class="card-note">只读文件尾部</span></div>
-            <div class="log-switch">
-              <button class="btn small on" data-log="access">access</button>
-              <button class="btn small" data-log="error">error</button>
-              <button class="btn small" data-log="system">system</button>
+            <div class="pane-notes">
+              <p class="lede">JSON 结构化 · 只读；可切换日志类型，按级别、状态码、关键词与时间筛选，滚动加载更早记录。</p>
             </div>
-            <table class="log-table"><tbody id="logBody"><tr><td>正在读取日志…</td><td></td><td></td></tr></tbody></table>
+            <div class="log-switch">
+              <div class="log-tabs">
+                <button class="btn small on" data-log="access">access</button>
+                <button class="btn small" data-log="error">error</button>
+                <button class="btn small" data-log="system">system</button>
+              </div>
+              <button class="btn small" id="logRefresh">刷新</button>
+            </div>
+            <div class="log-filters">
+              <select id="logLevel" aria-label="级别">
+                <option value="">全部级别</option>
+                <option value="debug">debug</option>
+                <option value="info">info</option>
+                <option value="warn">warn</option>
+                <option value="error">error</option>
+              </select>
+              <select id="logStatus" aria-label="状态码">
+                <option value="">全部状态</option>
+                <option value="2">2xx</option>
+                <option value="3">3xx</option>
+                <option value="4">4xx</option>
+                <option value="5">5xx</option>
+              </select>
+              <input id="logSearch" type="text" placeholder="关键词：路径 / 消息 / Host…"/>
+              <input id="logSince" type="text" placeholder="起：2026-11-07"/>
+              <input id="logUntil" type="text" placeholder="止：2026-11-08"/>
+              <button class="btn small" id="logApply">应用筛选</button>
+              <button class="btn small" id="logReset">重置</button>
+            </div>
+            <div class="log-list" id="logList"><div class="log-empty">正在读取日志…</div></div>
+            <div class="log-footer"><span id="logStatusText">—</span><button class="btn small" id="logMore" hidden>加载更多</button></div>
           </section>
         </div>
 
@@ -190,86 +201,25 @@
         </div>
       </div>
 
-      <footer class="workspace-foot"><span>Fast-HTTPS Desktop · 本机管理端</span><span data-bind="checkedAt">—</span></footer>
+      <footer class="workspace-foot">
+        <div class="foot-status">
+          <span class="dot" id="runDot"></span>
+          <strong data-bind="running">读取中</strong>
+          <span class="sep">·</span><span data-bind="pid">pid —</span>
+          <span class="sep">·</span><span data-bind="statusText">—</span>
+          <span class="sep">·</span><span data-bind="uptime">状态每 2 秒刷新</span>
+        </div>
+        <div class="foot-actions">
+          <span data-bind="checkedAt">—</span>
+          <button class="btn-icon" id="footStart" data-action="start" title="启动服务">▶</button>
+          <button class="btn-icon" data-action="reload" title="重载配置">↻</button>
+        </div>
+      </footer>
     </main>
-  </div>
-
-  <!-- 左下角账户菜单：外观、设置、帮助 -->
-  <div class="account-menu" id="accountMenu" hidden role="menu">
-    <div class="menu-head">
-      <img class="menu-logo" src="/appicon.png" alt=""/>
-      <div class="menu-head-text"><b>Fast-Https Desktop</b><small>本机管理端 · <span data-bind="version">1.6.1</span></small></div>
-    </div>
-
-    <div class="menu-title">外观</div>
-    <button class="menu-item" data-menu="light" role="menuitemradio"><span>亮色</span><span class="menu-check" data-mode-check="light"></span></button>
-    <button class="menu-item" data-menu="dark" role="menuitemradio"><span>暗色</span><span class="menu-check" data-mode-check="dark"></span></button>
-    <div class="menu-title">中性色</div>
-    <div class="menu-swatches">
-      <button class="menu-swatch" data-accent="0" aria-label="石墨"><i style="background:#5F6670"></i></button>
-      <button class="menu-swatch" data-accent="1" aria-label="暖灰"><i style="background:#6F655C"></i></button>
-      <button class="menu-swatch" data-accent="2" aria-label="松绿"><i style="background:#4F6B62"></i></button>
-      <button class="menu-swatch" data-accent="3" aria-label="赭石"><i style="background:#8A5A3B"></i></button>
-      <button class="menu-swatch" data-accent="4" aria-label="靛灰"><i style="background:#55607A"></i></button>
-    </div>
-
-    <div class="menu-sep"></div>
-    <button class="menu-item" data-menu="settings"><span>设置</span><span class="menu-hint">本机管理端</span></button>
-    <button class="menu-item" data-menu="tray"><span>隐藏到后台托盘</span><span class="menu-hint">保留窗口</span></button>
-
-    <div class="menu-sep"></div>
-    <button class="menu-item" data-menu="help"><span>帮助文档</span><span class="menu-hint">usage.html</span></button>
   </div>
 
   <div class="toast" id="toast" hidden></div>
 
-  <div class="dialog-mask" id="siteDialog" hidden>
-    <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="siteDialogTitle">
-      <h3 id="siteDialogTitle">添加站点</h3>
-      <p class="dialog-source" id="siteSource" hidden></p>
-      <div class="site-form">
-        <div class="form-row"><label class="form-label" for="siteName">域名 / IP<small>server_name；多个域名用空格分隔，如 example.com www.example.com</small></label><div class="form-control"><input id="siteName" type="text" placeholder="example.com www.example.com 或 192.168.1.10"/></div></div>
-        <div class="form-row"><label class="form-label" for="siteListen">监听<small>listen，逗号或换行分隔</small></label><div class="form-control"><input id="siteListen" type="text" placeholder="80 或 443 ssl h2"/></div></div>
-        <div class="form-row"><label class="form-label" for="siteType">类型</label><div class="form-control"><select id="siteType"><option value="local">静态站点（local）</option><option value="proxy">反向代理（proxy）</option></select></div></div>
-        <div class="form-row" id="siteRootRow"><label class="form-label" for="siteRoot">站点根目录<small>root，相对 config 目录</small></label><div class="form-control with-browse"><input id="siteRoot" type="text" placeholder="./httpdoc/root"/><button class="btn small" type="button" data-browse="dir" data-target="siteRoot">浏览…</button></div></div>
-        <div class="form-row" id="siteProxyRow" hidden><label class="form-label" for="siteProxy">反代地址<small>proxy_pass，需 http(s)://</small></label><div class="form-control"><input id="siteProxy" type="text" placeholder="http://127.0.0.1:9000"/></div></div>
-        <div class="form-row" id="siteIndexRow"><label class="form-label" for="siteIndex">首页<small>index，可留空</small></label><div class="form-control"><input id="siteIndex" type="text" placeholder="index.html index.htm"/></div></div>
-        <div class="form-row"><label class="form-label" for="siteCert">证书路径<small>ssl_certificate，可留空</small></label><div class="form-control with-browse"><input id="siteCert" type="text" placeholder="./cert/example.pem"/><button class="btn small" type="button" data-browse="file" data-target="siteCert">浏览…</button></div></div>
-        <div class="form-row"><label class="form-label" for="siteCertKey">私钥路径<small>ssl_certificate_key，可留空</small></label><div class="form-control with-browse"><input id="siteCertKey" type="text" placeholder="./cert/example-key.pem"/><button class="btn small" type="button" data-browse="file" data-target="siteCertKey">浏览…</button></div></div>
-        <div class="form-row" id="siteFileNameRow"><label class="form-label" for="siteFileName">文件名<small>conf.d 下的 JSON 文件名，可留空</small></label><div class="form-control"><input id="siteFileName" type="text" placeholder="默认按域名生成"/></div></div>
-      </div>
-      <p class="dialog-hint">多个域名用空格分隔（如 example.com www.example.com），它们共享同一组 location 和证书。用 IP、localhost 或别名访问时，默认的 <span class="mono">security.host_check=off</span> 会回落到该端口的站点；改成 <span class="mono">enforce</span> 才会严格校验 Host。</p>
-      <p class="dialog-note" id="siteNote" hidden></p>
-      <p class="dialog-error" id="siteError" hidden></p>
-      <div class="dialog-actions">
-        <button class="btn" id="siteCancel">取消</button>
-        <button class="btn primary" id="siteSubmit">创建站点</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="dialog-mask" id="closeDialog" hidden>
-    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="closeDialogTitle">
-      <h3 id="closeDialogTitle">要隐藏到后台还是直接退出？</h3>
-      <p>隐藏到后台：桌面端继续在系统托盘运行，点托盘图标可恢复窗口。<br/>直接退出：结束桌面端进程；<span class="mono">fast-https</span> 服务仍在后台运行，不会跟着停。</p>
-      <div class="dialog-actions">
-        <button class="btn" id="closeCancel">取消</button>
-        <button class="btn" id="closeQuit">直接退出</button>
-        <button class="btn primary" id="closeHide">隐藏到后台</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="dialog-mask" id="confirmDialog" hidden>
-    <div class="dialog dialog-sm" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
-      <h3 id="confirmTitle">确认操作</h3>
-      <p id="confirmBody">—</p>
-      <div class="dialog-actions">
-        <button class="btn" id="confirmCancel">取消</button>
-        <button class="btn primary" id="confirmOk">确定</button>
-      </div>
-    </div>
-  </div>
 </div>
 <script type="module" src="/src/main.js"></script>
 </body>

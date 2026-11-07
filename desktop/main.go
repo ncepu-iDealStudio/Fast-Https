@@ -41,6 +41,11 @@ func main() {
 		Frameless:        true,
 		BackgroundColour: application.NewRGB(255, 255, 255),
 		URL:              "/",
+		// 桌面端不是浏览器：右键菜单里的「返回 / 刷新 / 另存为 / 打印 / 检查」
+		// 对使用者没有意义，直接交给 WebView 关闭。devtools 在 production
+		// 构建里本来就默认关闭，这里显式关掉，避免开发版误带着入口。
+		DefaultContextMenuDisabled: true,
+		DevToolsEnabled:            false,
 	})
 	setMainWindow(window)
 	appRef = app
