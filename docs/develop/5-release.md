@@ -51,7 +51,9 @@ checksums.txt
 
 ## Linux 桌面端包
 
-`build/package.ps1` 先准备桌面端前端与 `.desktop`，再由 goreleaser 用 `purego` 无 CGO 交叉编译 Linux 二进制，产出 `dist/fast-https-desktop_<version>_linux_{amd64,arm64}.{deb,rpm,apk}`，都带 `.desktop` 与图标，依赖按格式使用 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包名。Linux 二进制不在 Windows 上执行，GUI 行为仍需在 Linux 实机验证。
+`build/package.ps1` 先准备桌面端前端与 `.desktop`，再由 goreleaser 用 `purego` 无 CGO 交叉编译 Linux 二进制，产出 `dist/fast-https-desktop_<version>_linux_{amd64,arm64}.{deb,rpm,apk}`，都带 `.desktop` 与图标，依赖按格式使用 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包名。
+
+桌面端包是「主程序包 + 桌面端」：同时带 `/usr/bin/fast-https`（与独立主程序包同一二进制）、`/etc/fast-https` 配置与站点、systemd unit、logrotate 与维护脚本，因此离线只装这一个包也能启动服务；它与独立主程序包声明 `Conflicts` / `Replaces`，最终 `/usr/bin/fast-https` 只有一份。实机验证走 `sh tests/packaging/distro/run.sh desktop`。Linux 二进制不在 Windows 上执行，GUI 行为仍需在带桌面的 Linux 实机验证。
 
 ## Windows 安装包（NSIS）
 

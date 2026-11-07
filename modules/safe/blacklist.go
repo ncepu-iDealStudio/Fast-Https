@@ -15,15 +15,21 @@ import (
 	"fast-https/runtime/response"
 )
 
+// 黑名单录入来源。
+const (
+	BlacklistSourceConfig  = "config"
+	BlacklistSourceRuntime = "runtime"
+)
+
 // BlacklistEntry 是黑名单的一条录入。
 type BlacklistEntry struct {
 	Raw    string   `json:"raw"`    // 原始录入形态（单 IP 或 "a-b" 段）
 	IPs    []string `json:"ips"`    // 展开后的 IP 列表
-	Source string   `json:"source"` // config（配置加载）| runtime（控制面添加）
+	Source string   `json:"source"` // config（配置加载）| runtime（运行时添加）
 }
 
 // Blacklist 是 IP 黑名单：按录入（单 IP 或段）管理，命中判断基于展开后的 IP。
-// 所有读写都持锁；录入来源区分 config/runtime，供控制面查询与 overlay 恢复。
+// 所有读写都持锁；录入来源区分 config/runtime。
 type Blacklist struct {
 	mu      sync.RWMutex
 	entries []BlacklistEntry
@@ -106,8 +112,7 @@ func (b *Blacklist) Size() int {
 // g_list 是进程唯一的黑名单实例（连接检查与控制面共用）。
 var g_list Blacklist
 
-// blacklistInit 以配置为底、叠加控制面 overlay 重建黑名单。
-// reload 会调用：控制面的运行时变更以 overlay 形式存活，不被冲掉。
+// blacklistInit 按当前配置重建黑名单。reload 会调用。
 func blacklistInit() {
 	g_list = *NewBlacklist()
 	for _, value := range config.Current().BlackList {
@@ -115,7 +120,6 @@ func blacklistInit() {
 			logging.ConsoleLog.Warn().Msgf("blacklist: skip invalid config entry %q: %s", value, err.Error())
 		}
 	}
-	applyBlacklistOverlay()
 }
 
 // IsInBlacklist 连接级黑名单检查（cmd 的 RejectConn 钩子调用）。
