@@ -120,6 +120,13 @@ func EventHandler(ev *core.Event, fif *filters.Filter) {
 	handler, ok := core.Handler(int(cfg.Type))
 	if !ok || handler.RRHandler == nil {
 		// 启动期 MissingHandlers 会拦下这种配置，这里只兜住运行期被撤销注册的极端情况。
+		// 这条 500 之前完全静默，配置改错时看不出是哪个路由缺处理器。
+		host, path := "", ""
+		if ev.RR.Req != nil {
+			host, path = ev.RR.Req.GetHost(), ev.RR.Req.Path
+		}
+		logging.ConsoleLog.Error().Msgf("events: no handler for type %d (host=%s path=%s), returning 500",
+			cfg.Type, host, path)
 		ev.RR.Res = response.DefaultServerError()
 		ev.WriteResponseClose(nil)
 		return
@@ -205,6 +212,10 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		}
 		rr.Req.Body.Reset()
 		rr.Req.Body.Write(body)
+		// 解码后的 body 与客户端原始帧描述（TE: chunked / 旧 Content-Length）
+		// 已不一致。转发前按实际长度重写，避免 TE+旧 CL 的 CL.TE 请求走私，
+		// 以及 TE+裸 body 被严格上游判为 400。
+		rr.Req.FixRequestFraming()
 		return 1
 	}
 
