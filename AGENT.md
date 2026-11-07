@@ -39,9 +39,19 @@ Windows 上 `core.autocrlf=true` 会自动把工作区转成 CRLF，所以：
 
 改了命令树（`cmd.RootCmd()`）或 `docs/usage.md`，必须重新生成，否则测试直接失败。
 
-### 4. 版本号三处同步
+### 4. 打 tag 前必须同步项目里的版本信息
 
-`config/consts.go` 的 `CURRENT_VERSION`、`build/goreleaser.yaml` 的 `snapshot.version_template`、Windows NSIS 的 `APP_VERSION` 默认值。漏一处会出现"文件名与徽章各说各的"。
+`git tag` 只改 git 引用，不会改代码里的版本号。打任何新 tag 前，先运行：
+
+```powershell
+.\build\bump-version.ps1 -Version 1.6.1
+```
+
+它会一次性更新主程序 `CURRENT_VERSION`、goreleaser 的 `version_template`、Windows NSIS 默认值、桌面端各版本字段与前端兜底文本、README 版本徽章，并重新生成 man 页与 `docs/usage.html`；脚本可重复执行，匹配任意 `x.y.z` 而非某个具体旧版本。**先提交这次改动，再打 tag。**
+
+漏跑会怎样：goreleaser `--snapshot` 仍按旧的 `version_template` 产包，二进制 `version` 打印旧版本，徽章也是旧的，但 tag 已经是新的；`go test ./tools/manpage`、`go test ./tools/docgen` 也会因为生成物不一致而失败。
+
+用 `git grep -n -E "\d+\.\d+\.\d+"` 复核。除 README 徽章（由脚本维护）与历史归档文档外，**源码注释、脚本注释和说明文档里不要写死具体版本号**，避免每次发版都要手改。
 
 ### 5. `modules/safe/control.go` 是有效的控制面协议，不是脚手架
 

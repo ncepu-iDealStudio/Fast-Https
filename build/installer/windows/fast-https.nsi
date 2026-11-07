@@ -1,8 +1,8 @@
 ﻿; Fast-Https Windows 安装包（NSIS 3.x）
 ;
 ; 一般由 build/package.ps1 调用，传入以下宏：
-;   /DAPP_VERSION   显示用版本号，例如 1.5.0
-;   /DAPP_VERSION4  VIProductVersion 用的四段版本号，例如 1.5.0.0
+;   /DAPP_VERSION   显示用版本号（由 build/package.ps1 传入）
+;   /DAPP_VERSION4  VIProductVersion 用的四段版本号（由 build/package.ps1 传入）
 ;   /DAPP_ARCH      amd64 / arm64
 ;   /DSTAGE_DIR     解压好的发行目录（fast-https.exe、config、httpdoc…）
 ;   /DOUT_FILE      输出的安装包路径

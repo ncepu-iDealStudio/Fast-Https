@@ -5,7 +5,7 @@
   artifacts in dist.
 
 .DESCRIPTION
-  Snapshot build by default (version 1.5.0). Tag the current commit
+  Snapshot build by default. Tag the current commit
   first, then use -Release for a real-versioned local build. One NSIS
   installer is built per Windows zip found in dist (amd64 / arm64).
 
