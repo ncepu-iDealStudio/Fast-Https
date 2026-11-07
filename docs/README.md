@@ -14,7 +14,8 @@ docs/
   architecture-map.md    当前 package 盘点与依赖方向
   about.md               启动与运行逻辑（含流程图）
   nginx-core-gap.md      与 Nginx 核心功能对比
-  product-design-2.0.md  2.0 产品设计稿
+  product-design.md      当前产品设计（只记录已经实现的行为）
+  product-design-2.0.md  2.0 产品设计稿（未来方案，代码里尚未实现）
 ```
 
 `usage.html` 由 `go run ./tools/docgen` 生成，版本号取自 `config.CURRENT_VERSION`。改了 `usage.md` 之后必须重新生成，`tools/docgen` 的测试会在不一致时报错。
@@ -31,6 +32,7 @@ docs/
 | 配证书、让 ACME 签发成功 | [help/tls-certificates.md](help/tls-certificates.md) |
 | 新增配置项 | [develop/3-config-development.md](develop/3-config-development.md) |
 | 排查线上问题 | [develop/4-debugging.md](develop/4-debugging.md) |
+| 看当前产品做成了什么、明确没做什么 | [product-design.md](product-design.md) |
 | 看整体架构图（分层与请求链） | [architecture.html](architecture.html)、[images/architecture.png](images/architecture.png) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
 | 了解历史决策与演进 | [develop/README.md](develop/README.md)（`plans/` 未实施，`archive/` 已归档） |

@@ -46,7 +46,8 @@
 - [architecture-map.md](../architecture-map.md) — 当前 package 盘点与依赖方向
 - [about.md](../about.md) — 启动与运行逻辑（含流程图）
 - [nginx-core-gap.md](../nginx-core-gap.md) — 与 Nginx 核心功能对比
-- [product-design-2.0.md](../product-design-2.0.md) — 2.0 产品设计稿
+- [product-design.md](../product-design.md) — 当前产品设计（只记录已经实现的行为）
+- [product-design-2.0.md](../product-design-2.0.md) — 2.0 产品设计稿（未来方案，代码里尚未实现）
 
 ## 约定速览
 
