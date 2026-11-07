@@ -27,6 +27,7 @@
 | 16 | [16-logging.md](16-logging.md) | 日志系统 | 五路 JSON 日志、log_format 定制 |
 | 17 | [17-config.md](17-config.md) | 配置系统 | JSON schema 解析、conf.d include、校验 |
 | 18 | [18-cli-service.md](18-cli-service.md) | 服务管理与 CLI | start/stop/reload/install/status |
+| 19 | [19-desktop-console.md](19-desktop-console.md) | 桌面管理端 | Wails v3 单窗口 + 托盘：状态、站点与配置表单、证书日志，转交 CLI 启停 |
 
 ## 约定
 
