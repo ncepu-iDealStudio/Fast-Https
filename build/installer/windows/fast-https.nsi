@@ -15,10 +15,10 @@ Unicode true
 !include "LogicLib.nsh"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "1.5.0"
+  !define APP_VERSION "1.6.1"
 !endif
 !ifndef APP_VERSION4
-  !define APP_VERSION4 "1.5.0.0"
+  !define APP_VERSION4 "1.6.1.0"
 !endif
 !ifndef APP_ARCH
   !define APP_ARCH "amd64"

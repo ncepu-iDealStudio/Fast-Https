@@ -318,7 +318,7 @@ function renderOverview(ov) {
   bind('running', runningText);
   bind('pid', 'pid ' + (ov.pid || '—'));
   bind('pidNum', ov.pid || '—');
-  bind('version', ov.version || '1.5.0');
+  bind('version', ov.version || '1.6.1');
   bind('uptime', '状态每 2 秒刷新');
   bind('statusText', ov.running ? '回环端口可连接' : '未检测到监听端口');
   bind('ports', (ov.ports || []).join('　') || '—');

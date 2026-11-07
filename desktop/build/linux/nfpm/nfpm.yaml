@@ -4,7 +4,7 @@
 name: "fast-https-desktop"
 arch: ${GOARCH}
 platform: "linux"
-version: "1.6.0"
+version: "1.6.1"
 section: "web"
 priority: "optional"
 maintainer: "JFeng2048 <JFeng2048@outlook.com>"

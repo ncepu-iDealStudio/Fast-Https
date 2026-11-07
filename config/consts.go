@@ -4,7 +4,7 @@ import "fast-https/infra/logging"
 
 const (
 	/* version */
-	CURRENT_VERSION string = "V1.6.0"
+	CURRENT_VERSION string = "V1.6.1"
 
 	/*
 		// use "config_dev/fast-https.json" when dev
