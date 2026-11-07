@@ -108,20 +108,7 @@ func (cl *CountLimit) Insert(ipstr string) bool {
 	now := int(time.Now().Unix())
 	cl.sweepExpired(now)
 
-	// rate<=0 表示该 location 没有配置计数限流：直接放行。每个 location
-	// 都会建一个 CountLimit 条目（countsInit 不区分是否配置），这里必须
-	// 先短路，否则 rate=0 时 `count >= rate` 恒真，未限流的 location 会
-	// 把第二个请求起的全部流量回 429。
-	if cl.rate <= 0 {
-		return true
-	}
-
-	// size 是可容纳的 IP 桶上限（配置 mem，单位 MiB 折算）。配置未写
-	// mem 时 size=0：此前 `num > size` 从第二个请求起恒真，整个
-	// location 计数限流被静默旁路（连第一个 IP 都不再计数）。改为
-	// 只有显式配置了上限才走"超限放行不计数"的降级路径；未配置时
-	// 全量跟踪，内存由 1 秒窗口的过期清扫兜底。
-	if cl.size > 0 && cl.num > cl.size {
+	if cl.num > cl.size {
 		return true
 	}
 
