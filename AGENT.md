@@ -64,7 +64,7 @@ Windows 上 `core.autocrlf=true` 会自动把工作区转成 CRLF，所以：
 - **插件开发不是简单地把命令透传给 CLI**。控制面要负责**数据的整理与计数**：`Snapshot()` 状态采样、`reason=control` 安全审计日志、限流与黑名单拒绝计数在控制面汇总，供上层工具做决策，而不是让工具自己解析日志。
 - 能力只经 `modules/safe` 控制面入口进入，不进入 Accept、请求解析或响应写出路径。
 
-完整设计约束见 [docs/develop/plans/agent-refactor-plan.md](docs/develop/plans/agent-refactor-plan.md) 第 0 节。
+已实现的行为见 [docs/product-design-latest.md](docs/product-design-latest.md) 第 8 节。
 
 ## 常用命令
 
