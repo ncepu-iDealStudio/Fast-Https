@@ -527,7 +527,7 @@ checksum:
   name_template: checksums.txt
 
 snapshot:
-  version_template: "1.6.0"
+  version_template: "1.6.1"
 
 changelog:
   sort: asc

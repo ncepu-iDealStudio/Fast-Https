@@ -41,6 +41,8 @@ func limitInit() {
 	}
 	il.resetBucketsLocked()
 	g_ips = il
+	// 控制面运行时调整过的参数以 overlay 形式存活，不被 reload 冲掉
+	applyRateOverlay()
 }
 
 // everyFromRate 把"每秒 rate 个请求"换算成 rate.Every 的间隔。
@@ -96,6 +98,7 @@ func (il *ipLimiters) allow(ip string) bool {
 	if !ok {
 		l = &ipLimiter{lim: rate.NewLimiter(il.rate, il.burst)}
 		il.limiters[ip] = l
+		println("ALLOW-CREATE ip=", ip, " rate=", float64(il.rate), " burst=", il.burst)
 	}
 	l.lastSeen = now
 	return l.lim.Allow()

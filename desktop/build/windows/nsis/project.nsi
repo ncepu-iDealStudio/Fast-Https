@@ -8,7 +8,7 @@
 ; 这里显式定义版本与版权；wails_tools.nsh 用 !ifndef 保护，不会覆盖。
 Unicode true
 
-!define INFO_PRODUCTVERSION "1.5.0"
+!define INFO_PRODUCTVERSION "1.6.1"
 !define INFO_COPYRIGHT "GPL-2.0, NCEPU BJ"
 !include "wails_tools.nsh"
 

@@ -15,7 +15,7 @@ import (
 	"github.com/guardianwaf/guardianwaf"
 )
 
-// guardianWAF 版本钉死 v1.0.0：检测器名与模式常量以该版本源码为准
+// guardianWAF 依赖 v0.6.0：上游没有 v1.0.0 tag，检测器名与模式常量以 v0.6.0 源码为准
 // （检测器：sqli/xss/lfi/cmdi/xxe/ssrf；模式：enforce/monitor/disabled）。
 // 检测器选项的配置映射见 mapping.go。
 

@@ -5,7 +5,7 @@ package config
 import "testing"
 
 // 归档 / Docker 布局：解压即用，所有路径都相对工作目录。
-// 这些字面量是 1.5.0 单前缀布局的原值，任何一个改动都会让 tar.gz 用户
+// 这些字面量是 旧版 单前缀布局的原值，任何一个改动都会让 tar.gz 用户
 // 找不到配置文件或日志，因此必须逐字锁住。
 func TestArchiveLayoutPaths(t *testing.T) {
 	cases := []struct{ name, got, want string }{

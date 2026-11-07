@@ -7,7 +7,7 @@ import (
 	"fast-https/infra/logging"
 )
 
-// wafDetectorNames 是 v1.0.0 的全部检测器（WithDetector 合法名）。
+// wafDetectorNames 是 v0.6.0 的全部检测器（WithDetector 合法名）。
 var wafDetectorNames = []string{"sqli", "xss", "lfi", "cmdi", "xxe", "ssrf"}
 
 // legacyRuleMap 把旧 appfirewall 规则名映射到检测器名。

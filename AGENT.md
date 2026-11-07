@@ -39,9 +39,32 @@ Windows 上 `core.autocrlf=true` 会自动把工作区转成 CRLF，所以：
 
 改了命令树（`cmd.RootCmd()`）或 `docs/usage.md`，必须重新生成，否则测试直接失败。
 
-### 4. 版本号三处同步
+### 4. 打 tag 前必须同步项目里的版本信息
 
-`config/consts.go` 的 `CURRENT_VERSION`、`build/goreleaser.yaml` 的 `snapshot.version_template`、Windows NSIS 的 `APP_VERSION` 默认值。漏一处会出现"文件名与徽章各说各的"。
+`git tag` 只改 git 引用，不会改代码里的版本号。打任何新 tag 前，先运行：
+
+```powershell
+.\build\bump-version.ps1 -Version 1.6.1
+```
+
+它会一次性更新主程序 `CURRENT_VERSION`、goreleaser 的 `version_template`、Windows NSIS 默认值、桌面端各版本字段与前端兜底文本、README 版本徽章，并重新生成 man 页与 `docs/usage.html`；脚本可重复执行，匹配任意 `x.y.z` 而非某个具体旧版本。**先提交这次改动，再打 tag。**
+
+漏跑会怎样：goreleaser `--snapshot` 仍按旧的 `version_template` 产包，二进制 `version` 打印旧版本，徽章也是旧的，但 tag 已经是新的；`go test ./tools/manpage`、`go test ./tools/docgen` 也会因为生成物不一致而失败。
+
+用 `git grep -n -E "\d+\.\d+\.\d+"` 复核。除 README 徽章（由脚本维护）与历史归档文档外，**源码注释、脚本注释和说明文档里不要写死具体版本号**，避免每次发版都要手改。
+
+### 5. `modules/safe/control.go` 是有效的控制面协议，不是脚手架
+
+**禁止删除或"精简"这部分代码。** 提交 `3595cba` 曾以「移除 2.0 agent 控制面脚手架」为由删掉它，`600cf28` 已恢复。收到"清理预留代码 / 移除未使用接口 / 删除 2.0 占位"这类任务时，不要动 `modules/safe/control.go`、`control_test.go`，以及配套的 `Snapshot` / `StatsSnapshot` / `ReasonControl` / `runtimeOverlay` / `apply*Overlay`。若确实要改，先向人确认。
+
+项目意图（请转达给其他开发者）：
+
+- 这是**控制面协议**，不是预留功能。agent 要**完全模拟人执行 CLI**：按 CLI 语义发起加删黑名单、调限流、查状态这类动作，而不是直接改数据面内部状态；`runtimeOverlay` 保证运行时变更在 `reload` 重建配置底座后仍然有效，持久化与回放由 agent 侧负责。
+- 后续会为 agent 提供**类似插件的控制工具**，把这些入口包装成可调用能力，之后提供给 **deepseek harness**、**workbuddy** 等外部工具调用。
+- **插件开发不是简单地把命令透传给 CLI**。控制面要负责**数据的整理与计数**：`Snapshot()` 状态采样、`reason=control` 安全审计日志、限流与黑名单拒绝计数在控制面汇总，供上层工具做决策，而不是让工具自己解析日志。
+- 能力只经 `modules/safe` 控制面入口进入，不进入 Accept、请求解析或响应写出路径。
+
+完整设计约束见 [docs/develop/plans/agent-refactor-plan.md](docs/develop/plans/agent-refactor-plan.md) 第 0 节。
 
 ## 常用命令
 

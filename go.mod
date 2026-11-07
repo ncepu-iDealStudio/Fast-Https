@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/x/term v0.2.1
 	github.com/fatih/color v1.19.0
-	github.com/guardianwaf/guardianwaf v1.0.0
+	github.com/guardianwaf/guardianwaf v0.6.0
 	github.com/klauspost/compress v1.17.2
 	github.com/mholt/acmez/v3 v3.1.7
 	github.com/rs/zerolog v1.35.1

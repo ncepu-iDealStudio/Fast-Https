@@ -4,7 +4,7 @@
 一份 JSON 描述监听端口与 location，覆盖常见的站点与反向代理场景。</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.6.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.6.1-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />

@@ -14,7 +14,7 @@ fi
 mkdir -p /etc/fast-https/cert/acme /etc/fast-https/conf.d /var/log/fast-https /run/fast-https
 chmod 0700 /etc/fast-https/cert /etc/fast-https/cert/acme 2>/dev/null || true
 
-# 1.5.0 及更早的包把所有运行资源放在 /usr/share/fast-https/ 下。
+# 早期版本的包把所有运行资源放在 /usr/share/fast-https/ 下。
 # 升级到 FHS 布局后配置与证书在 /etc/fast-https，这里做一次迁移：
 # 只复制不删除、目标已存在就跳过，失败也不中断安装（旧文件仍留在原处）。
 LEGACY_DIR=/usr/share/fast-https/config
