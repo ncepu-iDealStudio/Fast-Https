@@ -23,7 +23,10 @@
 
 - `listenSsl`：`net.Listen`（SO_REUSEPORT）+ `tls.NewListener`，`tls.Config.GetCertificate = certs.get`——按 ClientHello 的 SNI 动态选证书，一个端口可承载多域名。
 - `certSet`：持有多份证书，`replace()` 在 reload 时整体换入——同名端口 reload 后证书更新无需重启（`tests/unit_test/.../reload_cert_test.go` 验证：证书缺失时监听保持打开）。
-- 自签链：`init/autocert.go` 首次启动生成 3072 位 RSA 根 CA（证书 `httpdoc/root/root.crt` 供首页下载，私钥 `config/cert/root.key` 不放在站点根下），再为每个 ssl server_name 签发站点证书。
+- 自签链：`init/autocert.go` 首次启动生成 3072 位 RSA 根 CA（证书 `httpdoc/root/root.crt` 供首页下载，私钥 `config/cert/root.key` 不放在站点根下），再为每个 ssl server_name 签发站点证书。根 CA 身份为 `O=fast-https / OU=Local CA / CN=fast-https Local CA`；站点证书的 `CN` 取主域名，SAN 覆盖全部域名与 IP。本地 CA 不在系统信任库，浏览器访问仍会提示「不安全」——把 `root.crt` 导入「受信任的根证书颁发机构」或改用 ACME／正式证书即可消除。
+- 生成时机：`CertInit` 只在文件缺失时生成，不会覆盖已有 PEM，也不会覆盖 ACME 写入的证书。要让存量自签证书换成新身份字段，需删除 `config/cert` 下的 `root.crt` / `root.key` 与对应 `<主域名>.pem` / `-key.pem` 后重启，并重新导入新的 `root.crt`。
+- 信任引导：桌面管理端证书页的「信任本地 CA…」会给出 `root.crt` 路径、按平台的分步说明与可复制的导入命令，二次确认后才尝试提权导入（Windows UAC / Linux `pkexec`，macOS 只给手动命令）。桌面端不会静默修改系统信任库。
+- 两类本地证书：`config/cert/<主域名>.pem`（及 `-key.pem`）是**站点证书**，`ssl_certificate` 指向它、TLS 握手时发给客户端；`httpdoc/root/root.crt` 是**本地根 CA 证书**，负责签发前者，并放在站点根目录供下载与导入。系统信任库只导入根 CA，不是站点证书；CA 私钥在 `config/cert/root.key`，不放在站点根下。
 - ALPN：只有 `listen ... h2` 才通告 `h2`，否则纯 HTTP/1.1（防止客户端协商到 h2 却被 HTTP/1.1 解析器处理）。
 
 ## 测试
