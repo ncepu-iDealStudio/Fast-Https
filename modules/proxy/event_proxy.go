@@ -437,6 +437,16 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	// }
 	proxy, err := getProxy(ev, &ev.RR, cfg)
 	if err != nil { // one type error `ProxyErrorDialUpstream`
+		// 这条 500 之前完全静默：上游没起来、DNS 不通、连接池耗尽时只能靠猜。
+		upstream, path := "", ""
+		if cfg != nil {
+			upstream = cfg.ProxyAddr
+		}
+		if ev.RR.Req != nil {
+			path = ev.RR.Req.Path
+		}
+		logging.ConsoleLog.Error().Msgf("proxy: cannot dial upstream %q (path=%s): %v",
+			upstream, path, err)
 		ev.RR.Res = DialFailureResponse(cfg)
 		ev.WriteResponseClose(nil)
 		return

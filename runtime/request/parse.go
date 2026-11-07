@@ -153,6 +153,42 @@ func (r *Request) SetHeader(key string, val string, cfg *listener.ListenCfg) {
 	// }
 }
 
+// delHeaderFold 按头名忽略大小写删除，避免非 canonical 写法的残留。
+func (r *Request) delHeaderFold(key string) {
+	for k := range r.Headers {
+		if strings.EqualFold(k, key) {
+			delete(r.Headers, k)
+		}
+	}
+}
+
+// DelHeader 删除一个请求头（忽略大小写，不存在时为空操作）。
+func (r *Request) DelHeader(key string) {
+	r.delHeaderFold(key)
+}
+
+// FixRequestFraming 按 Body 的实际长度重写帧描述头：删除
+// Transfer-Encoding，把 Content-Length 固定为解码后的字节数。
+//
+// chunked 请求体在进入管线前已解码成原始字节（runtime/events），但头部
+// 仍是客户端发来的原始值，ByteRow() 会原样重建：
+//   - 同时带 "Content-Length: 5" 与 "Transfer-Encoding: chunked" 时，
+//     上游看到的是旧 CL 加 11 字节 body；优先按 CL 取数体的上游只读
+//     5 字节，把剩余字节当作下一条请求解析，构成经典 CL.TE 请求走私，
+//     可绕过前端代理的 WAF / 访问控制直达源站；
+//   - 只带 TE 时，上游看到 "Transfer-Encoding: chunked" 加一具没有
+//     分块帧的裸 body，严格的上游（nginx / Go net/http 等）直接 400，
+//     合法的 chunked 上传全部失败。
+//
+// RFC 9112 §6.1：TE 与 CL 同存时以 TE 为准，转发方必须移除 CL。解码完
+// 后统一改成自洽的 Content-Length 是对上游最友好、也无法被歧义解析的形式。
+func (r *Request) FixRequestFraming() {
+	r.delHeaderFold("Transfer-Encoding")
+	r.delHeaderFold("Content-Length")
+	r.Headers["Content-Length"] = strconv.Itoa(r.Body.Len())
+	r.BodyLen = r.Body.Len()
+}
+
 // flush request struct
 func (r *Request) Flush() {
 	r.Body.Reset()
