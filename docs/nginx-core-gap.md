@@ -43,7 +43,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | 分块请求体 | `Transfer-Encoding: chunked` 的 POST 能读完 | 按块解码，错误或超限关闭连接。`Content-Length` 路径不变 | 已落地 |
 | 按编码压缩正文 | 看 `Accept-Encoding`，压缩后再写 `Content-Length` | 静态文件在 location 打开 gzip 且客户端接受时压缩正文 | 已落地 |
 | 错误页 | `error_page` 把 404、502 指到本站页面 | 可选 `error_page.not_found` 与 `error_page.proxy`。文件不可读时用默认响应 | 已落地 |
-| 运行计数 | `stub_status` 看连接和请求 | 没有连接数、4xx/5xx、限流拒绝计数。2.0 设计依赖这些数 | 随 2.0 做，不单独对齐 `stub_status` 文本 |
+| 运行计数 | `stub_status` 看连接和请求 | `status` 只回答进程是否存活。没有连接数、4xx/5xx 的对外接口；限流与黑名单拒绝计数只在进程内的 `Snapshot` | 不做 Nginx 兼容文本 |
 | 上游故障转移 | `upstream` 里多个地址，拨号失败试下一个 | 一个 `proxy_pass`。这就是迭代计划里的 R8 | 暂缓 |
 | 重写引擎 | `rewrite` 正则替换，`last` / `break`，多种状态码 | 只有固定 301 | 暂缓完整引擎。301 保持现状 |
 | 代理超时和缓冲 | `proxy_connect_timeout`、`proxy_read_timeout`、缓冲开关 | 连接建立后有固定 20 秒读写 deadline，不能按 location 配置；拨号本身没有超时，上游不响应时受操作系统 TCP 超时约束 | 完整配置暂缓；拨号超时应单独补 |
@@ -80,7 +80,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 - **代理超时完整配置、ACME、HTTP/3、二进制热升级。** 都有使用场景，但当前发布不依赖它们。拨号超时是缺陷、不是配置项，单独补，不在暂缓之列。
 - **代理缓存剩余缺项。** `proxy_cache_lock` 请求合并和 purge 接口按需补，不整体重写已有实现。
 - **真实 IP。** 只要前面挂 CDN 或负载均衡就必须做：现在限流和黑名单取的是连接地址，多层代理下会把所有客户端识别成同一个 IP，按 IP 限流失效、黑名单会误封。没有代理层时可以等。
-- **运行计数。** 2.0 智能体需要连接数、4xx/5xx 和限流拒绝。做到 2.0 的状态接口里，不必先做一份 Nginx `stub_status` 兼容文本。
+- **运行计数。** 当前产品不对外提供连接数和状态码。`status` 只回答进程是否存活；安全计数留在进程内的 `Snapshot`。不为此做一份 Nginx `stub_status` 兼容文本。
 
 ## 6. 建议不做
 
@@ -94,4 +94,4 @@ FastCGI、uWSGI、SCGI 和 gRPC 是另一类后端协议。应用可以自己听
 
 [iteration-plan.md](develop/archive/iteration-plan.md) 里 R1 到 R6 已落地，R7 暂缓，R8 未做。第 4 节的六项已落地，不改那张状态表。
 
-启动和请求路径以 [about.md](about.md) 为准。2.0 的对话式运维以 [product-design-2.0.md](product-design-2.0.md) 为准，那里的运行计数仍留在 2.0。
+启动和请求路径以 [about.md](about.md) 为准。产品边界以 [product-design-latest.md](product-design-latest.md) 为准。
