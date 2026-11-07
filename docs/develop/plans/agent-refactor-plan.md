@@ -10,6 +10,21 @@
 
 ---
 
+## 0. 控制面协议定位与保留约束（2026-11-07 决策）
+
+`modules/safe/control.go`（`AddBlacklist` / `RemoveBlacklist` / `ListBlacklist` / `SetGlobalRateLimit` / `GetGlobalRateLimit` / `Snapshot`，以及 `runtimeOverlay` 与 `apply*Overlay`）是**有效的控制面协议实现**，不是为 2.0 预留的临时脚手架。提交 `3595cba` 曾以「移除 2.0 agent 控制面脚手架」为由将其删除，现已恢复；后续不得再以清理脚手架的名义移除。
+
+设计意图：
+
+- **完全模拟人执行 CLI**：控制面以人的操作路径为模型。agent 不直接改数据面内部状态，而是按 CLI 的语义发起「加黑名单 / 删黑名单 / 调限流 / 查状态」这类动作；`runtimeOverlay` 保证运行时变更在 `reload` 重建配置底座后仍然保留，持久化与回放由 agent 侧负责。
+- **agent 控制工具（插件）**：后续会为 agent 提供类似插件的控制工具，把这些入口包装成可被调用的能力；之后提供给 **deepseek harness**、**workbuddy** 等外部工具调用。
+- **插件开发不是简单 CLI 调用**：不能把工具实现成把命令透传给 CLI。控制面要负责**数据的整理与计数**——`Snapshot()` / `StatsSnapshot` 做状态采样，`reason=control` 写安全审计日志，限流与黑名单拒绝等计数在控制面汇总，供上层工具决策，而不是让工具自己解析日志。
+- **保留数据面边界**：以上能力只经 `modules/safe` 的控制面入口进入，不进入 Accept、请求解析或响应写出路径。
+
+因此恢复同时带回 `control_test.go`，`safe.go` 的 `Snapshot` / `StatsSnapshot`、`ReasonControl` 与 `locationRejected` 计数，以及 `blacklist.go` / `limit.go` 的 overlay 应用逻辑；这些都服务于上面的「整理计数」职责。
+
+---
+
 ## 1. 现状与缺口（带证据）
 
 **代码现状（V1.4.0）**
