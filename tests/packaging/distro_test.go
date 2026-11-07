@@ -51,7 +51,7 @@ func TestDistroScriptsStopService(t *testing.T) {
 			if !strings.Contains(body, "docker run --rm") {
 				t.Error("run.sh 必须用 docker run --rm：容器不留残余")
 			}
-			for _, target := range []string{"deb.sh", "rpm.sh", "apk.sh", "upgrade.sh"} {
+			for _, target := range []string{"deb.sh", "rpm.sh", "apk.sh", "upgrade.sh", "desktop-deb.sh"} {
 				if !strings.Contains(body, target) {
 					t.Errorf("run.sh 未映射 %s，新增脚本后要同步入口", target)
 				}
