@@ -4,7 +4,7 @@
 
 本文是 [architecture-convergence-plan.md](../archive/architecture-convergence-plan.md) 的**补充计划**，不重复其已完成的结构收敛工作，聚焦三件事：**技术栈/死代码精简**、**请求热路径性能**、**稳定性缺陷**。本文只做规划，不含代码改动；每项单独评审、提交和验证，前一项未达验收不进入下一项。
 
-不做 2.0 智能体（见 [agent-refactor-plan.md](agent-refactor-plan.md)），不新增协议或产品能力，不重写 HTTP/1.1、HTTP/2、HPACK 与连接池实现。
+不做常驻智能体，不新增协议或产品能力，不重写 HTTP/1.1、HTTP/2、HPACK 与连接池实现。产品边界见 [product-design-latest.md](../../product-design-latest.md)。
 
 ## 1. 现状基线
 
@@ -34,7 +34,7 @@
 
 **范围（只做 Web 服务器）**：静态站点、反向代理、TLS/H2、gzip、代理缓存、限流/黑名单/防火墙、location 级 Basic 认证、访问日志。
 
-**不在范围**：2.0 agent；HTTP/3、FastCGI、upstream 负载均衡等新功能；重写协议实现；为目录偏好一次性搬迁全部包。
+**不在范围**：常驻智能体；HTTP/3、FastCGI、upstream 负载均衡等新功能；重写协议实现；为目录偏好一次性搬迁全部包。
 
 ## 3. 技术栈精简
 

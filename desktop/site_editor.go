@@ -137,6 +137,17 @@ func parseSiteInput(in SiteInput) (parsedSite, error) {
 	}
 	p.cert = strings.TrimSpace(in.Cert)
 	p.certKey = strings.TrimSpace(in.CertKey)
+	if (p.cert == "") != (p.certKey == "") {
+		return p, fmt.Errorf("证书路径与私钥路径必须同时填写或同时留空")
+	}
+	// listen 带 ssl 且证书留空时，用主程序自动生成的本地证书。
+	// init.CertInit 按主域名生成 cert/<primary>.pem 与 <primary>-key.pem，
+	// 这里写成同样的相对路径，reload 时就能直接找到。
+	if p.cert == "" && strings.Contains(in.Listen, "ssl") {
+		primary := strings.Fields(p.name)[0]
+		p.cert = "./cert/" + primary + ".pem"
+		p.certKey = "./cert/" + primary + "-key.pem"
+	}
 	return p, nil
 }
 
@@ -210,6 +221,42 @@ func addSiteFile(dir string, in SiteInput) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("已创建 conf.d/%s.json（%s，监听 %s）。请点「重载配置」使站点生效。", file, p.name, strings.Join(p.ports, " ")), nil
+}
+
+// deleteSiteFile 删除 conf.d 下的站点文件。source 必须是 readSites 给出的相对
+// 路径（conf.d/xxx.json）；主配置 http.server[] 内联的站点没有独立文件，不可删。
+// 删除用 rename 成 .bak 而不是直接 unlink：conf.d 的 include 只收集 *.json，
+// .bak 不会被加载，误删后可手工找回。
+func deleteSiteFile(dir, source string) (string, error) {
+	paths := resolvePaths(dir)
+	etcDir := filepath.Dir(paths.Config)
+	rel := filepath.ToSlash(strings.TrimSpace(source))
+	if rel == "" {
+		return "", fmt.Errorf("缺少站点来源")
+	}
+	if filepath.Base(paths.Config) == rel {
+		return "", fmt.Errorf("该站点内联在主配置 http.server[] 里，没有独立文件可删")
+	}
+	if !strings.HasPrefix(rel, "conf.d/") || !strings.HasSuffix(rel, ".json") {
+		return "", fmt.Errorf("只允许删除 conf.d 下的站点文件：%s", rel)
+	}
+	full := filepath.Join(etcDir, filepath.FromSlash(rel))
+	if !withinDir(etcDir, full) {
+		return "", fmt.Errorf("站点路径不合法：%s", source)
+	}
+	if _, err := os.Stat(full); err != nil {
+		return "", fmt.Errorf("站点文件不存在：%s", rel)
+	}
+	backup := full + ".bak"
+	if _, err := os.Stat(backup); err == nil {
+		if err := os.Remove(backup); err != nil {
+			return "", fmt.Errorf("清理旧备份失败：%w", err)
+		}
+	}
+	if err := os.Rename(full, backup); err != nil {
+		return "", fmt.Errorf("删除失败：%w", err)
+	}
+	return fmt.Sprintf("已删除 %s（备份为 %s.bak）。请点「重载配置」使删除生效。", rel, rel), nil
 }
 
 // readSiteDetail 读取站点文件的表单字段与原文。主配置 http.server[] 里的内联

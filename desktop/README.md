@@ -5,7 +5,7 @@
 - Wails v3 CLI：`v3.1.0`（`go install github.com/wailsapp/wails/v3/cmd/wails3@latest`，`@latest` 指向周更稳定版，不跟 nightly）
 - 独立 Go module `fast-https-desktop`，**不 import 主项目的 `config` 包**，主项目 `go.mod` 不受影响
 - 前端：Vanilla JS + Vite，产物编译期 embed 进单文件可执行程序
-- 视觉：亮色是文档式「运行报告」，暗色是深石墨「值班台」；导航只保留左侧一列，按钮为克制圆角，选中态用中性淡灰
+- 视觉：亮色是文档式「运行报告」，暗色是深石墨「值班台」；导航只保留左侧一列，按钮为克制圆角，选中态用中性淡灰。侧边栏／顶栏与工作区靠底色差区分（无边框线），滚动条弱化为几乎不可见，日志列表占满剩余高度
 
 ## 环境
 
@@ -92,7 +92,19 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 「站点根目录」「证书路径」「私钥路径」右侧有「浏览…」按钮，调 Wails 的原生文件/目录选择框（`PickPath`）：目录用于 root，文件用于证书与私钥（过滤 PEM/CRT/CER）；选中的绝对路径若在 `config` 内会转成 `./cert/x.pem` 这类相对写法，否则保留绝对路径。取消选择不会改动输入框。
 
+`listen` 带 `ssl` 且证书路径与私钥路径同时留空时，站点文件会自动写成 `./cert/<主域名>.pem` 与 `./cert/<主域名>-key.pem`，正好是主程序 `init.CertInit` 生成的本地证书；只填其中一个会被拒绝，纯 HTTP 站点不会带出证书字段。
+
+这里填的是**站点证书**（由本地根 CA 签发，TLS 握手时发给浏览器，配置里 `ssl_certificate` 指向它）；`httpdoc/root/root.crt` 是**本地根 CA 证书**，负责签发站点证书、放在站点根目录供下载，也是导入系统信任库要用的那一张。两者都由 `CertInit` 首次启动时生成。
+
 新站点写成 `conf.d/<名称>.json`（文件名默认按域名生成，非 ASCII 会回落到 `site`），**不改主配置、不覆盖已有文件**。Go 侧 `AddSite` 会先校验：端口合法、同名站点不能重复占用同一端口（不同域名共用端口是合法的虚拟主机）、`local` 必须有 root、`proxy_pass` 必须带 http(s) scheme、文件名不能路径穿越、同名文件直接拒绝。写入是同目录临时文件 + rename。创建后需要点「重载配置」才生效。
+
+## 日志页：筛选与滚动分页
+
+日志页按 JSON 结构做查询（`QueryLogs`）：可切 `access` / `error` / `system`，按级别、状态码前缀（2xx…5xx）、关键词（匹配原始行，路径/消息/Host 都能搜）与起止时间筛选。结果**由新到旧**，每页 30 条，滚到列表底部自动加载更早的一页，也有「加载更多」按钮兜底；切换日志类型、改筛选或点「刷新」会重置分页。
+
+Go 侧用 64KB 块从文件末尾倒着读，不把大 `access.log` 整文件读进内存；每行解析成 `LogEntry`（`time` / `level` / `kind` / `message` / `method` / `path` / `status` / `size` / `host` 等），非 JSON 行保留原文。测试在 `desktop/log_query_test.go`：分页、组合筛选、时间范围、跨块读取与非法类型。
+
+本地根 CA 证书路径由主程序 `config path --json` 的 `root_crt` 提供，桌面端不拼接数据目录、不写死安装布局。
 
 ## 设置页：主配置表单
 
@@ -100,10 +112,41 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 保存只提交**被改动的字段**，合并回原始 JSON 后写回；未纳入表单的 `http.server[]`、`acme.cas` 与未知顶层键原样保留。保存会重新格式化文件（JSONC 注释会丢失），原文件完整备份为 `fast-https.json.bak`，再用临时文件原子替换。配置语义仍由主程序 `reload` 校验，保存后需点「重载配置」。主程序不在同目录时会显示读取失败并禁用表单。
 
+## 证书页：信任本地 CA 引导
+
+证书页右上角「信任本地 CA…」弹出引导：显示 `root.crt` 的实际路径与是否已生成、风险提示、按平台给出的分步说明和可直接复制的导入命令（Windows `certutil`、Linux `update-ca-certificates`、macOS `security add-trusted-cert`）。另有「打开证书目录」与「尝试自动导入」两个按钮。
+
+弹窗会标明当前平台（Windows / Linux / macOS），证书与私钥路径都由主程序 `config path --json` 动态给出，命令与确认方式按平台生成，通用说明用平台中性措辞。桌面端不会擅自改系统信任库：自动导入前会再弹一次确认，明确说明「本机所有 HTTPS 站点都会信任由这个 CA 签发的证书」，确认后才发起提权（Windows 走 UAC 的 `Start-Process -Verb RunAs`，Linux 走 `pkexec`，macOS 只给手动命令）。提权失败或工具缺失时，弹窗会把系统输出带回来并提示改用复制的命令手动执行。相关 Go 代码在 `cert_trust.go`，路径推导与各平台命令由 `cert_trust_test.go` 覆盖。
+
+## 前端结构
+
+`frontend/src` 按职责拆分，入口只做编排：
+
+```
+src/
+  main.js           入口：注入弹窗模板 → 各模块 init → 导航/动作/日志/窗口绑定 → 定时刷新
+  api.js            DesktopService 统一出口 + msgOf 错误提取
+  state.js          跨模块共享状态（当前日志、最近概览、配置脏标记等）
+  theme.js          亮暗主题与五档中性色
+  router.js         工作区切换与按需加载
+  refresh.js        概览 2s / 明细 15s 拉取编排
+  actions.js        data-action 按钮统一入口
+  account-menu.js   左下角账户菜单
+  ui/dom.js         $ / $$ / bind / esc / toast / localStorage
+  ui/events.js      概览「最近事件」时间线
+  pages/            overview / details / config / logs 四个页面模块
+  dialogs/          close / confirm / site / trust 四个弹窗（各导出 template + init）
+  styles/app.css    样式（变量、骨架、组件、页面）
+```
+
+弹窗与账户菜单的 HTML 不再写在根 `index.html` 里，而是由各自模块导出 `template`，入口在挂载时注入 `body` 末尾；事件绑定与业务逻辑仍留在对应模块。这样单文件不会随功能增加而膨胀，改某个页面或弹窗只需看一个文件。
+
 ## 主题
 
 左下角「本机管理」点击弹出账户菜单，里面包含：亮色／暗色、五档中性色（石墨、暖灰、松绿、赭石、靛灰，默认亮色 + 石墨）、设置页、隐藏到后台托盘、帮助文档。主题选择保存在本机 `localStorage`。
 
 「帮助文档」打开发行包里的 `docs/usage.html`（开发时 exe 在 `desktop/bin/`，会回退到仓库根）。顶部工具按钮与左侧「设置」导航项已移除，统一从这个菜单进入。
+
+「启动／停止服务」与「重载配置」在概览页「运行概况」卡片右上；底部状态栏固定在窗口下沿，只放运行状态、pid、监听探测结果、刷新时间与两个图标按钮。版本号只在侧边栏显示一次，不在状态栏或账户菜单里重复。站点／证书／日志页不再重复页面标题，说明文字直接铺在卡片里；窗口不显示页面大标题，内容直接从顶部铺满。站点页可删除 `conf.d` 下的独立站点文件（保留 `.bak` 备份，重载后生效），主配置内联站点不可删。
 
 **选中／激活态一律用中性色**：亮色是淡淡的灰，暗色是略亮的灰。正常、告警、危险三种语义色独立，不随主题变化。

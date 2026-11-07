@@ -64,7 +64,8 @@ $edits = @(
     @{ File = 'desktop/build/linux/nfpm/nfpm.yaml'; Pattern = 'version: "\d+\.\d+\.\d+"'; Replacement = 'version: "' + $Version + '"' },
     @{ File = 'desktop/build/windows/nsis/project.nsi'; Pattern = '!define INFO_PRODUCTVERSION "\d+\.\d+\.\d+"'; Replacement = '!define INFO_PRODUCTVERSION "' + $Version + '"' },
     @{ File = 'desktop/build/windows/info.json'; Pattern = '"(file_version|product_version|FileVersion|ProductVersion)": "\d+\.\d+\.\d+"'; Replacement = '"$1": "' + $Version + '"'; Min = 4 },
-    @{ File = 'desktop/frontend/index.html'; Pattern = 'data-bind="version">\d+\.\d+\.\d+<'; Replacement = 'data-bind="version">' + $Version + '<'; Min = 3 },
+    # 版本号只在侧边栏显示一次：顶部状态行与账户菜单不再重复
+    @{ File = 'desktop/frontend/index.html'; Pattern = 'data-bind="version">\d+\.\d+\.\d+<'; Replacement = 'data-bind="version">' + $Version + '<'; Min = 1 },
     @{ File = 'desktop/frontend/src/main.js'; Pattern = "ov\.version \|\| '\d+\.\d+\.\d+'"; Replacement = "ov.version || '" + $Version + "'" }
 )
 
