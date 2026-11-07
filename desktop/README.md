@@ -88,11 +88,11 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 站点页右上角「添加站点」弹出表单，字段有 `server_name`、`listen`（逗号或换行分隔，支持 `80` 与 `443 ssl h2` 混写）、类型（`local` 静态 / `proxy` 反代）、`root` 或 `proxy_pass`、可选的 `index`、`ssl_certificate` / `ssl_certificate_key` 与文件名。
 
-`server_name` **一个站点只填一个名称**，可以是域名、`localhost` 或本机 IP（如 `192.168.1.10`）——运行时按 `server_name:端口` 精确匹配 Host，没有多域名分割。用 IP 或别名访问时，默认的 `security.host_check=off` 会回落到该端口的站点；改成 `enforce` 才严格校验 Host。
+`server_name` 支持**空格分隔多个域名**（nginx 风格），可以是域名、`localhost` 或本机 IP（如 `192.168.1.10`）；运行时把每个名称都注册到 `HostMap`，按 `server_name:端口` 匹配 Host，自签证书 SAN 与 ACME 申请覆盖全部名称。用 IP 或别名访问时，默认的 `security.host_check=off` 会回落到该端口的站点；改成 `enforce` 才严格校验 Host。
 
 「站点根目录」「证书路径」「私钥路径」右侧有「浏览…」按钮，调 Wails 的原生文件/目录选择框（`PickPath`）：目录用于 root，文件用于证书与私钥（过滤 PEM/CRT/CER）；选中的绝对路径若在 `config` 内会转成 `./cert/x.pem` 这类相对写法，否则保留绝对路径。取消选择不会改动输入框。
 
-新站点写成 `conf.d/<名称>.json`（文件名默认按域名生成，非 ASCII 会回落到 `site`），**不改主配置、不覆盖已有文件**。Go 侧 `AddSite` 会先校验：端口合法且未被现有站点占用、`local` 必须有 root、`proxy_pass` 必须带 http(s) scheme、文件名不能路径穿越、同名文件直接拒绝。写入是同目录临时文件 + rename。创建后需要点「重载配置」才生效。
+新站点写成 `conf.d/<名称>.json`（文件名默认按域名生成，非 ASCII 会回落到 `site`），**不改主配置、不覆盖已有文件**。Go 侧 `AddSite` 会先校验：端口合法、同名站点不能重复占用同一端口（不同域名共用端口是合法的虚拟主机）、`local` 必须有 root、`proxy_pass` 必须带 http(s) scheme、文件名不能路径穿越、同名文件直接拒绝。写入是同目录临时文件 + rename。创建后需要点「重载配置」才生效。
 
 ## 设置页：主配置表单
 
