@@ -4,7 +4,7 @@ import "fast-https/infra/logging"
 
 const (
 	/* version */
-	CURRENT_VERSION string = "V1.6.0"
+	CURRENT_VERSION string = "V1.6.1"
 
 	/*
 		// use "config_dev/fast-https.json" when dev
@@ -12,7 +12,7 @@ const (
 	*/
 	// 路径按内容性质分到四个基址（见 base_dir.go / base_dir_rpm.go）：
 	// pid 属运行期临时文件，配置与 MIME 表属运维文件，站点属只读数据，日志属可变状态。
-	// 归档布局下四个基址仍映射到 1.5.0 的相对路径；包布局分属 /etc、/usr/share、
+	// 归档布局下四个基址仍映射到 旧版 的相对路径；包布局分属 /etc、/usr/share、
 	// /var/log、/run。
 	PID_FILE         string = FAST_HTTPS_RUN_DIR + "/fast-https.pid"
 	CONFIG_FILE_PATH string = FAST_HTTPS_ETC_DIR + "/fast-https.json"

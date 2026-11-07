@@ -9,7 +9,7 @@ package config
 //	./       —— 站点根 httpdoc/、pid
 //	./logs   —— 日志
 //
-// 这些值与 1.5.0 的单前缀布局逐字等价：升级归档不改变任何现有路径。
+// 这些值与 旧版 的单前缀布局逐字等价：升级归档不改变任何现有路径。
 const (
 	FAST_HTTPS_ETC_DIR  string = "./config"
 	FAST_HTTPS_DATA_DIR string = "."

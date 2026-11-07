@@ -36,7 +36,7 @@ rpms=("$DIST"/fast-https_*_linux_*.rpm)
 apks=("$DIST"/fast-https_*_linux_*.apk)
 [ "${#debs[@]}" -gt 0 ] || die "dist 里没有 .deb：先跑 goreleaser release --snapshot（或 -Release）"
 
-# goreleaser 的文件名形如 fast-https_1.5.0_linux_amd64.deb
+# goreleaser 的文件名形如 fast-https_<version>_linux_amd64.deb
 arch_of() { sed -E 's/.*_linux_([a-z0-9]+)\.[a-z]+$/\1/' <<<"$1"; }
 
 rm -rf "$OUT/apt" "$OUT/yum" "$OUT/apk"

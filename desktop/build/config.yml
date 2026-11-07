@@ -10,7 +10,7 @@ info:
   description: "Fast-Https 本机管理端：状态、站点、证书与配置重载"
   copyright: "GPL-2.0, NCEPU BJ"
   comments: "Wails v3 桌面管理端"
-  version: "1.6.0"
+  version: "1.6.1"
 
 dev_mode:
   root_path: .

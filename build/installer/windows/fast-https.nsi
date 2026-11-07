@@ -1,8 +1,8 @@
 ﻿; Fast-Https Windows 安装包（NSIS 3.x）
 ;
 ; 一般由 build/package.ps1 调用，传入以下宏：
-;   /DAPP_VERSION   显示用版本号，例如 1.5.0
-;   /DAPP_VERSION4  VIProductVersion 用的四段版本号，例如 1.5.0.0
+;   /DAPP_VERSION   显示用版本号（由 build/package.ps1 传入）
+;   /DAPP_VERSION4  VIProductVersion 用的四段版本号（由 build/package.ps1 传入）
 ;   /DAPP_ARCH      amd64 / arm64
 ;   /DSTAGE_DIR     解压好的发行目录（fast-https.exe、config、httpdoc…）
 ;   /DOUT_FILE      输出的安装包路径
@@ -15,10 +15,10 @@ Unicode true
 !include "LogicLib.nsh"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "1.5.0"
+  !define APP_VERSION "1.6.1"
 !endif
 !ifndef APP_VERSION4
-  !define APP_VERSION4 "1.5.0.0"
+  !define APP_VERSION4 "1.6.1.0"
 !endif
 !ifndef APP_ARCH
   !define APP_ARCH "amd64"

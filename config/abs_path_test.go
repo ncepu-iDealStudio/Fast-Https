@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// 拆掉安装根下的 config 层之后，1.5.0 存量配置里的 "./config/xxx" 与
+// 拆掉安装根下的 config 层之后，旧版 存量配置里的 "./config/xxx" 与
 // "config/xxx" 都要回退到新布局；新写法一次命中，不触发回退。
 func TestAbsPathInTrimsLegacyConfigPrefix(t *testing.T) {
 	base := t.TempDir()
