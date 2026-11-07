@@ -100,6 +100,12 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   CreateDirectory "$INSTDIR\config\cert"
   CreateDirectory "$INSTDIR\config\conf.d"
 
+  ; 运行期要写 pid、日志、证书与配置备份，而 Program Files 默认对普通
+  ; 用户只读：不授权的话 start 写不出 pid 文件，stop 就会当作「没在跑」
+  ; 直接成功（表现为「点了停止但服务还在访问」），日志与首证也写不进去。
+  ; 用 Users 组的 SID 授权，避免不同语言的组名差异。
+  nsExec::ExecToLog 'icacls "$INSTDIR" /grant *S-1-5-32-545:(OI)(CI)M /T /C /Q'
+
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   WriteRegStr HKLM "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
