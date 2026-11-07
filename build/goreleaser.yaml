@@ -269,14 +269,77 @@ nfpms:
     dependencies:
       - libgtk-4-1
       - libwebkitgtk-6.0-4
+      - ca-certificates
+      - logrotate
+
     release: "1"
     deb:
       compression: xz
+    # 同一个文件不能被两个包各装一份：桌面端包与主程序包互斥，
+    # 装了本包就会替换掉独立主程序包，最终 /usr/bin/fast-https 只有一份。
+    conflicts:
+      - fast-https
+    replaces:
+      - fast-https
     contents:
+      # 自带的主程序与独立主程序包完全一致：同一个构建产物、同一个 /usr/bin 路径，
+      # 桌面端按「同目录找 fast-https」的常规逻辑就能调用，不需要特殊回退。
+      - src: dist/linux-pkg_linux_{{ .Arch }}*/fast-https
+        dst: /usr/bin/
+        file_info:
+          mode: 0o755
       - src: desktop/build/appicon.png
         dst: /usr/share/icons/hicolor/256x256/apps/fast-https-desktop.png
       - src: desktop/build/linux/fast-https-desktop.desktop
         dst: /usr/share/applications/fast-https-desktop.desktop
+      # 以下运行期资源与维护脚本和独立主程序包完全一致：桌面端包 = 主程序包 + 桌面端，
+      # 离线只装这一个包也能直接 fast-https start。改主程序条目时要同步这里。
+      - src: config/fast-https.json
+        dst: /etc/fast-https/fast-https.json
+        type: config|noreplace
+      - src: config/mime.json
+        dst: /etc/fast-https/mime.json
+        type: config|noreplace
+      - src: httpdoc/root/index.html
+        dst: /usr/share/fast-https/httpdoc/root/index.html
+      - src: httpdoc/root/favicon.ico
+        dst: /usr/share/fast-https/httpdoc/root/favicon.ico
+      - src: docs/usage.html
+        dst: /usr/share/doc/fast-https/usage.html
+      - src: build/packaging/man/fast-https.1
+        dst: /usr/share/man/man1/fast-https.1
+      - src: build/packaging/man/fast-https.en.1
+        dst: /usr/share/man/en/man1/fast-https.1
+      - src: LICENSE
+        dst: /usr/share/licenses/fast-https/LICENSE
+      - src: build/packaging/systemd/fast-https.service
+        dst: /usr/lib/systemd/system/fast-https.service
+      - src: build/packaging/logrotate/fast-https
+        dst: /etc/logrotate.d/fast-https
+        type: config|noreplace
+      - dst: /etc/fast-https/cert
+        type: dir
+      - dst: /etc/fast-https/cert/acme
+        type: dir
+      - dst: /etc/fast-https/conf.d
+        type: dir
+      - src: config/conf.d/default.json
+        dst: /etc/fast-https/conf.d/default.json
+        type: config|noreplace
+      - dst: /var/log/fast-https
+        type: dir
+      - src: config/cert/.keep
+        dst: /etc/fast-https/cert/.keep
+      - src: config/cert/acme/.keep
+        dst: /etc/fast-https/cert/acme/.keep
+      - src: config/conf.d/.keep
+        dst: /etc/fast-https/conf.d/.keep
+      - src: logs/.keep
+        dst: /var/log/fast-https/.keep
+    scripts:
+      postinstall: build/packaging/linux/postinstall.sh
+      preremove: build/packaging/linux/preremove.sh
+      postremove: build/packaging/linux/postremove.sh
 
   - id: desktop-rpm
     ids:
@@ -297,16 +360,79 @@ nfpms:
     dependencies:
       - gtk4
       - webkitgtk6.0
+      - ca-certificates
+      - logrotate
+
     release: "1"
     rpm:
       group: Applications/Internet
       summary: Desktop console for Fast-Https
       packager: JFeng2048 <JFeng2048@outlook.com>
+    # 同一个文件不能被两个包各装一份：桌面端包与主程序包互斥，
+    # 装了本包就会替换掉独立主程序包，最终 /usr/bin/fast-https 只有一份。
+    conflicts:
+      - fast-https
+    replaces:
+      - fast-https
     contents:
+      # 自带的主程序与独立主程序包完全一致：同一个构建产物、同一个 /usr/bin 路径，
+      # 桌面端按「同目录找 fast-https」的常规逻辑就能调用，不需要特殊回退。
+      - src: dist/linux-pkg_linux_{{ .Arch }}*/fast-https
+        dst: /usr/bin/
+        file_info:
+          mode: 0o755
       - src: desktop/build/appicon.png
         dst: /usr/share/icons/hicolor/256x256/apps/fast-https-desktop.png
       - src: desktop/build/linux/fast-https-desktop.desktop
         dst: /usr/share/applications/fast-https-desktop.desktop
+      # 以下运行期资源与维护脚本和独立主程序包完全一致：桌面端包 = 主程序包 + 桌面端，
+      # 离线只装这一个包也能直接 fast-https start。改主程序条目时要同步这里。
+      - src: config/fast-https.json
+        dst: /etc/fast-https/fast-https.json
+        type: config|noreplace
+      - src: config/mime.json
+        dst: /etc/fast-https/mime.json
+        type: config|noreplace
+      - src: httpdoc/root/index.html
+        dst: /usr/share/fast-https/httpdoc/root/index.html
+      - src: httpdoc/root/favicon.ico
+        dst: /usr/share/fast-https/httpdoc/root/favicon.ico
+      - src: docs/usage.html
+        dst: /usr/share/doc/fast-https/usage.html
+      - src: build/packaging/man/fast-https.1
+        dst: /usr/share/man/man1/fast-https.1
+      - src: build/packaging/man/fast-https.en.1
+        dst: /usr/share/man/en/man1/fast-https.1
+      - src: LICENSE
+        dst: /usr/share/licenses/fast-https/LICENSE
+      - src: build/packaging/systemd/fast-https.service
+        dst: /usr/lib/systemd/system/fast-https.service
+      - src: build/packaging/logrotate/fast-https
+        dst: /etc/logrotate.d/fast-https
+        type: config|noreplace
+      - dst: /etc/fast-https/cert
+        type: dir
+      - dst: /etc/fast-https/cert/acme
+        type: dir
+      - dst: /etc/fast-https/conf.d
+        type: dir
+      - src: config/conf.d/default.json
+        dst: /etc/fast-https/conf.d/default.json
+        type: config|noreplace
+      - dst: /var/log/fast-https
+        type: dir
+      - src: config/cert/.keep
+        dst: /etc/fast-https/cert/.keep
+      - src: config/cert/acme/.keep
+        dst: /etc/fast-https/cert/acme/.keep
+      - src: config/conf.d/.keep
+        dst: /etc/fast-https/conf.d/.keep
+      - src: logs/.keep
+        dst: /var/log/fast-https/.keep
+    scripts:
+      postinstall: build/packaging/linux/postinstall.sh
+      preremove: build/packaging/linux/preremove.sh
+      postremove: build/packaging/linux/postremove.sh
 
   - id: desktop-apk
     ids:
@@ -327,12 +453,75 @@ nfpms:
     dependencies:
       - gtk4.0
       - webkit2gtk-6.0
+      - ca-certificates
+      - logrotate
+
     release: "1"
+    # 同一个文件不能被两个包各装一份：桌面端包与主程序包互斥，
+    # 装了本包就会替换掉独立主程序包，最终 /usr/bin/fast-https 只有一份。
+    conflicts:
+      - fast-https
+    replaces:
+      - fast-https
     contents:
+      # 自带的主程序与独立主程序包完全一致：同一个构建产物、同一个 /usr/bin 路径，
+      # 桌面端按「同目录找 fast-https」的常规逻辑就能调用，不需要特殊回退。
+      - src: dist/linux-pkg_linux_{{ .Arch }}*/fast-https
+        dst: /usr/bin/
+        file_info:
+          mode: 0o755
       - src: desktop/build/appicon.png
         dst: /usr/share/icons/hicolor/256x256/apps/fast-https-desktop.png
       - src: desktop/build/linux/fast-https-desktop.desktop
         dst: /usr/share/applications/fast-https-desktop.desktop
+      # 以下运行期资源与维护脚本和独立主程序包完全一致：桌面端包 = 主程序包 + 桌面端，
+      # 离线只装这一个包也能直接 fast-https start。改主程序条目时要同步这里。
+      - src: config/fast-https.json
+        dst: /etc/fast-https/fast-https.json
+        type: config|noreplace
+      - src: config/mime.json
+        dst: /etc/fast-https/mime.json
+        type: config|noreplace
+      - src: httpdoc/root/index.html
+        dst: /usr/share/fast-https/httpdoc/root/index.html
+      - src: httpdoc/root/favicon.ico
+        dst: /usr/share/fast-https/httpdoc/root/favicon.ico
+      - src: docs/usage.html
+        dst: /usr/share/doc/fast-https/usage.html
+      - src: build/packaging/man/fast-https.1
+        dst: /usr/share/man/man1/fast-https.1
+      - src: build/packaging/man/fast-https.en.1
+        dst: /usr/share/man/en/man1/fast-https.1
+      - src: LICENSE
+        dst: /usr/share/licenses/fast-https/LICENSE
+      - src: build/packaging/systemd/fast-https.service
+        dst: /usr/lib/systemd/system/fast-https.service
+      - src: build/packaging/logrotate/fast-https
+        dst: /etc/logrotate.d/fast-https
+        type: config|noreplace
+      - dst: /etc/fast-https/cert
+        type: dir
+      - dst: /etc/fast-https/cert/acme
+        type: dir
+      - dst: /etc/fast-https/conf.d
+        type: dir
+      - src: config/conf.d/default.json
+        dst: /etc/fast-https/conf.d/default.json
+        type: config|noreplace
+      - dst: /var/log/fast-https
+        type: dir
+      - src: config/cert/.keep
+        dst: /etc/fast-https/cert/.keep
+      - src: config/cert/acme/.keep
+        dst: /etc/fast-https/cert/acme/.keep
+      - src: config/conf.d/.keep
+        dst: /etc/fast-https/conf.d/.keep
+      - src: logs/.keep
+        dst: /var/log/fast-https/.keep
+    scripts:
+      postinstall: build/packaging/linux/postinstall.sh
+      preremove: build/packaging/linux/preremove.sh
+      postremove: build/packaging/linux/postremove.sh
 
 checksum:
   name_template: checksums.txt
