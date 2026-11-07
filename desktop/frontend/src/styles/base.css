@@ -1,0 +1,77 @@
+/* 基础层：设计变量、重置、滚动条、窗口骨架与顶部通栏。 */
+
+/* Fast-Https 桌面管理端
+   亮色：文档式运行报告；暗色：深石墨值班台。
+   顶部通栏放 logo，工作区是浅底 + 白卡片；导航选中态用中性色块，不用左侧竖条。 */
+
+:root {
+  --accent: #5F6670;
+  --accent-soft: #ECEDF0;
+  --accent-ink: #FFFFFF;
+  --bg: #FFFFFF;
+  --surface: #F5F7FA;
+  --panel: #FFFFFF;
+  --line: #E6E8EC;
+  --line-strong: #D7DBE1;
+  --text: #16181D;
+  --muted: #666C75;
+  --faint: #949AA3;
+  --ok: #16794A;
+  --warn: #A75B0A;
+  --danger: #C0392B;
+  --sidebar-w: 200px;
+}
+html[data-mode="dark"] {
+  --accent: #C2C8D0;
+  --accent-soft: rgba(255,255,255,.09);
+  --accent-ink: #14171C;
+  --bg: #1A1E24;
+  --surface: #101319;
+  --panel: #171B21;
+  --line: #2A2F37;
+  --line-strong: #3A414B;
+  --text: #E8EBEF;
+  --muted: #98A1AD;
+  --faint: #6F7884;
+  --ok: #5FCB96;
+  --warn: #E0A458;
+  --danger: #F08A80;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body {
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--text);
+  font: 14px/1.5 "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 滚动条弱化：透明轨道 + 与背景接近的滑块，hover 才加深 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+
+.window { width: 100%; height: 100vh; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+
+/* 顶部通栏：只放 logo 与自绘窗口按钮；页面标题留在主区，设置类入口收进左下角菜单 */
+.topbar { height: 52px; flex: 0 0 52px; display: flex; align-items: center; gap: 16px; padding: 0 12px 0 20px; background: var(--bg); --wails-draggable: drag; -webkit-user-select: none; user-select: none; }
+.topbar button { --wails-draggable: no-drag; }
+/* 窗口按钮按系统原生比例：46px 宽、撑满通栏高度、直角，图标统一线宽 */
+.win-controls { display: flex; align-items: stretch; align-self: stretch; margin-left: auto; margin-right: -12px; }
+.win-btn { width: 46px; border: 0; border-radius: 0; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+.win-btn svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; }
+.win-btn:hover { background: var(--accent-soft); color: var(--text); }
+.win-btn.close:hover { background: #c0392b; color: #fff; }
+
+.brand { display: flex; align-items: center; gap: 9px; }
+/* 应用图标来自 frontend/public/appicon.png，dev 与生产都走同一路径 */
+.mark { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 4px; object-fit: contain; }
+.brand b { font-size: 15px; letter-spacing: -.02em; }
+.brand small { font-size: 10px; letter-spacing: .16em; color: var(--faint); }
+.app { flex: 1; display: grid; grid-template-columns: var(--sidebar-w) minmax(0,1fr); min-height: 0; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
