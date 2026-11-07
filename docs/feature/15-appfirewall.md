@@ -4,7 +4,7 @@
 
 ## 功能
 
-对经过 HTTP 管线的请求做应用层攻击检测：基于 [GuardianWAF](https://github.com/GuardianWAF/GuardianWAF) v1.0.0 的分词评分引擎，检测 SQL 注入、XSS、路径穿越、命令注入、XXE、SSRF（按配置启用），命中即 403。
+对经过 HTTP 管线的请求做应用层攻击检测：基于 [GuardianWAF](https://github.com/GuardianWAF/GuardianWAF) v0.6.0 的分词评分引擎，检测 SQL 注入、XSS、路径穿越、命令注入、XXE、SSRF（按配置启用），命中即 403。
 
 ## 使用
 
@@ -29,7 +29,7 @@
 
 ## 已知限制
 
-- v1.0.0 引擎含 6 类检测器（SSTI/NoSQL/请求走私等在 main 分支，升级另行评估）。
+- v0.6.0 引擎含 6 类检测器（SSTI/NoSQL/请求走私等在 main 分支，升级另行评估）。
 - 评分模型存在绕过可能；`mode: monitor` 可随时降级为只记录。
 - 单维护者上游项目，版本钉死、接口隔离（换引擎只需重写本包）。
 

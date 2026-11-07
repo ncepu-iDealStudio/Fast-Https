@@ -37,7 +37,7 @@
 | --- | --- |
 | [architecture-convergence-plan.md](archive/architecture-convergence-plan.md) | 架构收敛计划（阶段 0-4 已完成，4b 快照化已做，阶段 5 按需） |
 | [iteration-plan.md](archive/iteration-plan.md) | 迭代计划与回归项（R1-R6、R9 已落地；R7 暂缓，R8 未做） |
-| [guardianwaf-adoption.md](archive/guardianwaf-adoption.md) | GuardianWAF 接入方案（2026-10-25 已实施，v1.0.0） |
+| [guardianwaf-adoption.md](archive/guardianwaf-adoption.md) | GuardianWAF 接入方案（2026-10-25 已实施，版本记录以 go.mod 为准） |
 | [acme-certmagic-plan.md](archive/acme-certmagic-plan.md) | 用 certmagic 取代 shell/.acme.sh 的 ACME 方案（1.5.0 已实施：`modules/certmanager`） |
 | [acme-hot-reload-plan.md](archive/acme-hot-reload-plan.md) | ACME 管理器热重载：reload 按差异重建证书申请/续期任务，不再需要 stop + start（2026-11-05 已实施） |
 
