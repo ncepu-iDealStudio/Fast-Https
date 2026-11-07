@@ -27,10 +27,11 @@ const desktopVersion = "1.6.1"
 
 // RuntimePaths 与 cmd/config_path.go 的 RuntimePaths 一致。
 type RuntimePaths struct {
-	Config string `json:"config"`
-	Cert   string `json:"cert"`
-	Log    string `json:"log"`
-	Pid    string `json:"pid"`
+	Config  string `json:"config"`
+	Cert    string `json:"cert"`
+	Log     string `json:"log"`
+	Pid     string `json:"pid"`
+	RootCRT string `json:"root_crt"`
 }
 
 // Overview 是概览页一次拉取的全部内容。
@@ -62,11 +63,16 @@ type Site struct {
 // Cert 是从 PEM 里读出的证书摘要。
 type Cert struct {
 	Domain     string `json:"domain"`
+	Subject    string `json:"subject"`
+	Names      string `json:"names"`
 	Issuer     string `json:"issuer"`
 	NotAfter   string `json:"notAfter"`
 	DaysLeft   int    `json:"daysLeft"`
 	SelfSigned bool   `json:"selfSigned"`
-	Note       string `json:"note"`
+	// Local 表示「本机自动生成的证书」：自签，或由本地 CA（O=fast-https）签发。
+	// 后者 Issuer != Subject，只用 selfSigned 会误标成外部 CA 已签发。
+	Local bool   `json:"local"`
+	Note  string `json:"note"`
 }
 
 type mainConfig struct {
@@ -128,10 +134,11 @@ func resolvePaths(dir string) RuntimePaths {
 		}
 	}
 	return RuntimePaths{
-		Config: filepath.Join(base, "config", "fast-https.json"),
-		Cert:   filepath.Join(base, "config", "cert"),
-		Log:    filepath.Join(base, "logs"),
-		Pid:    filepath.Join(base, "fast-https.pid"),
+		Config:  filepath.Join(base, "config", "fast-https.json"),
+		Cert:    filepath.Join(base, "config", "cert"),
+		Log:     filepath.Join(base, "logs"),
+		Pid:     filepath.Join(base, "fast-https.pid"),
+		RootCRT: filepath.Join(base, "httpdoc", "root", "root.crt"),
 	}
 }
 
@@ -370,10 +377,13 @@ func readSites(dir string) ([]Site, RuntimePaths, error) {
 				continue
 			}
 			rel, _ := filepath.Rel(etcDir, f)
+			// 统一用正斜杠：Source 会直接进 JSON 给前端判断
+			// （如「是否 conf.d/ 下的独立站点文件可删」），
+			// Windows 的 filepath.Rel 返回反斜杠会让前端口径对不上。
 			sources = append(sources, struct {
 				file string
 				body siteFile
-			}{file: rel, body: s})
+			}{file: filepath.ToSlash(rel), body: s})
 		}
 	}
 
@@ -452,9 +462,31 @@ func inspectPEM(domain, path string) Cert {
 		if c.Issuer == "" {
 			c.Issuer = cert.Issuer.String()
 		}
+		// 「颁发给」优先取 CN；旧版本生成的叶子证书只有 SAN，这里回落展示。
+		c.Subject = cert.Subject.CommonName
+		if c.Subject == "" && len(cert.DNSNames) > 0 {
+			c.Subject = cert.DNSNames[0]
+		}
+		var names []string
+		names = append(names, cert.DNSNames...)
+		for _, ip := range cert.IPAddresses {
+			names = append(names, ip.String())
+		}
+		for _, u := range cert.URIs {
+			names = append(names, u.String())
+		}
+		c.Names = strings.Join(names, ", ")
 		c.NotAfter = cert.NotAfter.Format("2006-01-02")
 		c.DaysLeft = int(time.Until(cert.NotAfter).Hours() / 24)
 		c.SelfSigned = cert.Issuer.String() == cert.Subject.String()
+		// 本地 CA 签发时 Issuer 是 CA 的 Subject，与叶子 Subject 不同，
+		// 仅靠 selfSigned 会把自动生成的证书误标成外部已签发。
+		c.Local = c.SelfSigned
+		for _, org := range cert.Issuer.Organization {
+			if strings.EqualFold(org, "fast-https") {
+				c.Local = true
+			}
+		}
 		c.Note = path
 		return c
 	}

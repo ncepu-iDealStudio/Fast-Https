@@ -23,7 +23,15 @@ import (
 	"time"
 )
 
-var userAndHostname string
+// 本地 CA 的身份字段。旧实现把 CN 写成 "fast-https " + 一个写死的邮箱串，
+// 浏览器证书查看器里颁发者显示成 "fast-https fast-https@ncepu.edu.cn"，
+// 既重复也不像颁发机构。这里换成固定的可读名称。
+const (
+	localCAOrg = "fast-https"
+	localCAOU  = "Local CA"
+	localCACN  = "fast-https Local CA"
+)
+
 var caCert *x509.Certificate
 var caKey crypto.PrivateKey
 
@@ -32,7 +40,6 @@ var caKey crypto.PrivateKey
 // 时写盘会失败，若在这里吞掉错误，用户只能看到后面那句莫名其妙的
 // "ssl_certificate not found"。
 func CertInit() error {
-	userAndHostname = "fast-https@ncepu.edu.cn"
 	if err := os.MkdirAll(config.CERT_DIR, 0o755); err != nil {
 		return fmt.Errorf("create certificate directory %s: %w", config.CERT_DIR, err)
 	}
@@ -113,6 +120,27 @@ func randomSerialNumber() *big.Int {
 	return serialNumber
 }
 
+// caTemplate 是本地根 CA 的证书模板。抽成纯函数便于单测锁定身份字段，
+// 避免再把用户名/邮箱拼进 CN。
+func caTemplate(skid []byte) *x509.Certificate {
+	return &x509.Certificate{
+		SerialNumber: randomSerialNumber(),
+		Subject: pkix.Name{
+			Organization:       []string{localCAOrg},
+			OrganizationalUnit: []string{localCAOU},
+			CommonName:         localCACN,
+		},
+		SubjectKeyId: skid,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().AddDate(10, 0, 0),
+		KeyUsage:     x509.KeyUsageCertSign,
+
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+}
+
 func newRoot() error {
 	priv, err := rsa.GenerateKey(rand.Reader, 3072)
 	if err != nil {
@@ -134,25 +162,7 @@ func newRoot() error {
 
 	skid := sha1.Sum(spki.SubjectPublicKey.Bytes)
 
-	tpl := &x509.Certificate{
-		SerialNumber: randomSerialNumber(),
-		Subject: pkix.Name{
-			Organization:       []string{"fast-https"},
-			OrganizationalUnit: []string{userAndHostname},
-
-			CommonName: "fast-https " + userAndHostname,
-		},
-		SubjectKeyId: skid[:],
-
-		NotAfter:  time.Now().AddDate(10, 0, 0),
-		NotBefore: time.Now(),
-
-		KeyUsage: x509.KeyUsageCertSign,
-
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-		MaxPathLenZero:        true,
-	}
+	tpl := caTemplate(skid[:])
 
 	cert, err := x509.CreateCertificate(rand.Reader, tpl, tpl, pub, priv)
 	if err != nil {
@@ -215,29 +225,19 @@ func loadCa() error {
 	return nil
 }
 
-func newCert(hosts []string) error {
-	if len(hosts) == 0 {
-		return errors.New("generate certificate: no host given")
-	}
-
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return fmt.Errorf("generate certificate key: %w", err)
-	}
-	pub := priv.Public()
-
-	expiration := time.Now().AddDate(2, 3, 0)
-
+// leafTemplate 生成本地 CA 签发的服务器证书模板。
+// Subject 必须带 CN：旧实现只写 SAN，浏览器证书查看器里「颁发给」是空的，
+// 看起来像证书不完整。CN 取主域名，SAN 仍覆盖所有域名/IP/URI/邮箱。
+func leafTemplate(hosts []string) *x509.Certificate {
 	tpl := &x509.Certificate{
 		SerialNumber: randomSerialNumber(),
 		Subject: pkix.Name{
-			Organization:       []string{"fast-https"},
-			OrganizationalUnit: []string{userAndHostname},
+			Organization: []string{localCAOrg},
+			CommonName:   hosts[0],
 		},
-
-		NotBefore: time.Now(), NotAfter: expiration,
-
-		KeyUsage: x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().AddDate(2, 3, 0),
+		KeyUsage:  x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 	}
 
 	for _, h := range hosts {
@@ -258,6 +258,21 @@ func newCert(hosts []string) error {
 	if len(tpl.EmailAddresses) > 0 {
 		tpl.ExtKeyUsage = append(tpl.ExtKeyUsage, x509.ExtKeyUsageEmailProtection)
 	}
+	return tpl
+}
+
+func newCert(hosts []string) error {
+	if len(hosts) == 0 {
+		return errors.New("generate certificate: no host given")
+	}
+
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return fmt.Errorf("generate certificate key: %w", err)
+	}
+	pub := priv.Public()
+
+	tpl := leafTemplate(hosts)
 
 	cert, err := x509.CreateCertificate(rand.Reader, tpl, caCert, pub, caKey)
 	if err != nil {
