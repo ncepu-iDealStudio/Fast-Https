@@ -19,6 +19,11 @@
 "limit": { "mem": 16, "rate": 50 }   // location 级
 ```
 
+location 级的 `mem` 可省略：未配置时全量跟踪（内存由 1 秒窗口的过期
+清扫兜底），限流照常生效；显式配置时超过容量的新 IP 放行不计数。
+`servers_limit.limit` 支持大于 1000 的值（旧实现在 rate>1000 时会因
+毫秒整数除法静默失效）。
+
 ## 实现方案（modules/safe/）
 
 - **黑名单**（blacklist.go）：IP 段展开为单 IP 列表（上限 65536 个，防 OOM；起止反序报错防死循环）；`net.SplitHostPort` 取主机部分，IPv6 正确；拒绝路径回 403 + 安全日志。
