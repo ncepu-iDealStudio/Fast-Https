@@ -10,6 +10,7 @@
 | `upgrade` | `ubuntu:24.04` | 旧版 `/usr/share/fast-https/config` 迁移到 `/etc/fast-https`、不覆盖现场文件、迁移后服务可用 |
 | `rpm` | `almalinux:9` | 同上，另加重装时 `%config(noreplace)` 保留本地修改、`rpm -e` 清理 |
 | `apk` | `alpine:3.21` | 无 systemd 时的目录兜底、logrotate 依赖、卸载保留数据（apk 没有 purge 语义） |
+| `desktop` | `ubuntu:24.04` | 离线只装 desktop deb：自带主程序与独立包二进制一致、同在 `/usr/bin`、运行期资源齐备、`start` 能监听 80/443、卸载清理 |
 
 ## 用法
 
@@ -17,8 +18,11 @@
 # 先出包
 goreleaser release -f build/goreleaser.yaml --snapshot --clean --skip=archive,publish,announce
 
-# 全部跑一遍（deb → upgrade → rpm → apk）
+# 全部跑一遍（deb → upgrade → rpm → apk → desktop）
 sh tests/packaging/distro/run.sh all
+
+# 只验桌面端离线单包
+sh tests/packaging/distro/run.sh desktop amd64
 
 # 只跑一个，指定架构
 sh tests/packaging/distro/run.sh rpm arm64

@@ -1,7 +1,7 @@
 #!/bin/sh
 # 在容器里跑发行版实机验证。
 #
-#   sh tests/packaging/distro/run.sh all          # deb → upgrade → rpm → apk
+#   sh tests/packaging/distro/run.sh all          # deb → upgrade → rpm → apk → desktop
 #   sh tests/packaging/distro/run.sh deb arm64    # 指定架构
 #
 # 前置：本机有 docker，且 dist/ 下已经有包
@@ -34,7 +34,8 @@ run_one() {
         rpm)     image=almalinux:9;     script=rpm.sh ;;
         apk)     image=alpine:3.21;     script=apk.sh ;;
         upgrade) image=ubuntu:24.04;    script=upgrade.sh ;;
-        *) echo "未知目标: $1（可选 deb / rpm / apk / upgrade / all）" >&2; exit 2 ;;
+        desktop) image=ubuntu:24.04;    script=desktop-deb.sh ;;
+        *) echo "未知目标: $1（可选 deb / rpm / apk / upgrade / desktop / all）" >&2; exit 2 ;;
     esac
 
     echo "=== $1（$image, $arch） ==="
@@ -47,7 +48,7 @@ run_one() {
 
 case "$action" in
     all)
-        for target in deb upgrade rpm apk; do
+        for target in deb upgrade rpm apk desktop; do
             run_one "$target" || exit $?
         done
         ;;
