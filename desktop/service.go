@@ -100,6 +100,10 @@ func (s *DesktopService) SaveSiteDetail(in SiteInput) (string, error) {
 	return saveSiteDetail(s.baseDir, in)
 }
 
+func (s *DesktopService) DeleteSite(source string) (string, error) {
+	return deleteSiteFile(s.baseDir, source)
+}
+
 // ------------------------------------------------------------ 本机状态与操作
 
 func (s *DesktopService) GetOverview() (Overview, error) {
