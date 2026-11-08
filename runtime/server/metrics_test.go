@@ -20,8 +20,40 @@ func stubServeConnHandler(t *testing.T, fn func(*listener.Listener, net.Conn, co
 	t.Cleanup(func() { serveConnHandler = prev })
 }
 
-func TestInitialStateIsStarting(t *testing.T) {
+// waitConnSettle 等在途连接落地。计数是进程全局的，而端口探测（assertPortState）
+// 发起的那次 accept 是异步的：如果它的 ConnClosed 跨过下一次 ResetForTest，
+// active 会被打成负数。这里要求「没有在途连接」且「接受数一小段时间不变」。
+func waitConnSettle(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	last := metrics.ConnAcceptedTotal()
+	stableSince := time.Now()
+	for {
+		if metrics.ConnActive() == 0 && metrics.ConnAcceptedTotal() == last {
+			if time.Since(stableSince) >= 50*time.Millisecond {
+				return
+			}
+		} else {
+			last = metrics.ConnAcceptedTotal()
+			stableSince = time.Now()
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("connection counters did not settle: active=%d accepted=%d",
+				metrics.ConnActive(), metrics.ConnAcceptedTotal())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// resetMetricsForTest 只在没有在途连接时清零，避免用例之间互相串号。
+func resetMetricsForTest(t *testing.T) {
+	t.Helper()
+	waitConnSettle(t)
 	metrics.ResetForTest()
+}
+
+func TestInitialStateIsStarting(t *testing.T) {
+	resetMetricsForTest(t)
 	if got := metrics.State(); got != metrics.StateStarting {
 		t.Fatalf("state = %s, want starting", got)
 	}
@@ -37,7 +69,7 @@ func TestInitialStateIsStarting(t *testing.T) {
 }
 
 func TestReloadFailureKeepsRunning(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	metrics.RecordProcessStart()
 	metrics.MarkRunning()
 	metrics.ConnAccepted()
@@ -76,7 +108,7 @@ func TestReloadFailureKeepsRunning(t *testing.T) {
 }
 
 func TestReloadSuccessBumpsGeneration(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	metrics.RecordProcessStart()
 	metrics.MarkRunning()
 	metrics.ReplaceListeners([]metrics.ListenerInfo{{Port: "seed"}})
@@ -123,7 +155,7 @@ func TestReloadSuccessBumpsGeneration(t *testing.T) {
 }
 
 func TestConnCounters(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	stubServeConnHandler(t, func(*listener.Listener, net.Conn, context.Context) {})
 
 	s := &Server{}
@@ -143,7 +175,7 @@ func TestConnCounters(t *testing.T) {
 }
 
 func TestConnCounterPanic(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	stubServeConnHandler(t, func(*listener.Listener, net.Conn, context.Context) {
 		panic("handler boom")
 	})
@@ -166,7 +198,7 @@ func TestConnCounterPanic(t *testing.T) {
 }
 
 func TestConnCounterNotCountedWhenStopping(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	called := false
 	stubServeConnHandler(t, func(*listener.Listener, net.Conn, context.Context) {
 		called = true
@@ -193,7 +225,7 @@ func TestConnCounterNotCountedWhenStopping(t *testing.T) {
 func TestStopTimeoutCounter(t *testing.T) {
 	// Windows 生产 stop 走 Kill，进不了 drainConnections；超时分支本身
 	// 与信号无关。用不返回的处理函数加很短超时覆盖，不等默认的 5 秒。
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	block := make(chan struct{})
 	stubServeConnHandler(t, func(*listener.Listener, net.Conn, context.Context) {
 		<-block
@@ -216,7 +248,7 @@ func TestStopTimeoutCounter(t *testing.T) {
 }
 
 func TestListenerSnapshotMapsTypes(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	publishListeners([]*listener.Listener{
 		{Port: "8080", LisType: 0},
 		{Port: "443", LisType: 10},

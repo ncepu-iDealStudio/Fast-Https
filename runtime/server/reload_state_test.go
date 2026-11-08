@@ -18,7 +18,7 @@ import (
 )
 
 func TestReloadSuccessState(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	metrics.RecordProcessStart()
 	metrics.MarkRunning()
 	metrics.ReplaceListeners([]metrics.ListenerInfo{{Port: "seed"}})
@@ -108,10 +108,12 @@ func TestReloadSuccessState(t *testing.T) {
 }
 
 func TestReloadFailureState(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	metrics.RecordProcessStart()
 	metrics.MarkRunning()
 	metrics.ConnAccepted()
+	// 与上面的接受配对：留一条在途连接会让下一个用例的清零等待超时。
+	t.Cleanup(metrics.ConnClosed)
 	metrics.NoteReloadSuccess()
 	started := metrics.StartedAt()
 	gen := metrics.Generation()
@@ -153,7 +155,7 @@ func TestReloadFailureState(t *testing.T) {
 }
 
 func TestListenersAfterReload(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	metrics.RecordProcessStart()
 	metrics.MarkRunning()
 
@@ -204,10 +206,13 @@ func TestListenersAfterReload(t *testing.T) {
 	assertListenSet(t, s, portB)
 	assertPortState(t, portA, false)
 	assertPortState(t, portB, true)
+
+	// 端口探测发起的连接是异步 accept 的，这里等它落地再结束用例。
+	waitConnSettle(t)
 }
 
 func TestActiveGaugesReturnToZero(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	stubServeConnHandler(t, func(*listener.Listener, net.Conn, context.Context) {})
 
 	s := &Server{}
@@ -229,7 +234,7 @@ func TestActiveGaugesReturnToZero(t *testing.T) {
 }
 
 func TestGracefulStopMarksStopping(t *testing.T) {
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	metrics.MarkRunning()
 	s := &Server{}
 	s.Wg.Add(1)
@@ -243,7 +248,7 @@ func TestSigtermMarksStopping(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Windows stop uses Kill, not SIGTERM; stopping is not observable from outside")
 	}
-	metrics.ResetForTest()
+	resetMetricsForTest(t)
 	metrics.MarkRunning()
 	s := &Server{}
 	s.Wg.Add(1)
