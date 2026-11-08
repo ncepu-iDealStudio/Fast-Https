@@ -14,6 +14,7 @@
 fast-https start|stop|reload|status|version
 fast-https service version|status|reload [--json]   # 机器可读的版本 / 状态 / 受控 reload
 fast-https runtime status|stats [--json]  # 读本机 /runtime 的瞬时状态与累计统计
+fast-https monitor status|events [--json] # 只读 Monitor 状态文件与事件文件（未安装为 not_installed）
 fast-https config path|show|validate|versions|diff|apply|rollback [--json] # 路径 / 脱敏配置 / 校验 / 版本 / 差异 / 应用 / 回滚
 fast-https cert list|check --domain <d> [--json] # 只读的证书状态 / 检查
 fast-https acme [setup|show]     # 交互向导 / 参数式配置 / 查看当前生效值
@@ -36,6 +37,7 @@ fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操�
 - **`service status` 判定**：进程在且至少一个配置端口回环可连是 `running`，进程在但端口都连不上是 `degraded`，没进程也没端口是 `stopped`（pid 文件残留时带 `stale_pid`），证据互相矛盾（没进程却有端口可连、pid 文件读不出）是 `unknown`。端口取自 `config.ListenPortsFromFile`，只读、不替换运行期快照。读得到 `/runtime` 时补 `uptime_seconds`、`started_at`、`version`；`config_version` 来自状态目录里当前 active 的配置快照。
 - **`runtime status` / `runtime stats`**：`management/rtclient` 用标准库 HTTP 读 `127.0.0.1:9088/runtime`（可用 `FASTHTTPS_RUNTIME_URL` 覆盖）。只做客户端，不另写计数。`schema_version` 必须为 `"1"`，否则 `UNMET_DEPENDENCY`。连不上是 `SERVICE_UNREACHABLE`。`runtime stats` 的窗口固定为 `since_process_start`；`--since` / `--domain` 返回 `NOT_SUPPORTED`。
 - **reload 强验证**：`management/svcctl.WaitRuntime` 要求快照可连、`state` 为 `running`、pid 与 `started_at` 不变、`config_generation` 加一。读不到快照时退回 `WaitBasic`。`started_at`/pid 变化视为重启失败（`ErrReloadedAsRestart`）；生成号不加一则 `ErrReloadNotApplied`，apply 走补偿回滚。
+- **`monitor status` / `monitor events`**：`management/monview` 只读 `<日志目录>/monitor/status.json` 与 `events.jsonl`（测试可用 `FASTHTTPS_MONITOR_DIR` 覆盖）。不连接 Monitor 进程。状态文件缺失为 `not_installed`；`schema_version` 不是 `"1"` 时退出码 11。事件只返回 `time`、`type`、`severity`、`message`。
 - **`config validate` 的告警**：`config.ValidateConfigFileWithWarnings` 把非致命告警作为返回值交出来；旧的 `ValidateConfigFile` 仍写同一条控制台日志。
 - **`cert` 命令组**：`cmd/cert.go` 只做参数与输出，`management/view/cert_view.go` 把 `config.SSLServersFromFile`（按运行期规则把 server 块展开成「域名 → 证书文件」：第一个域名用 `ssl_certificate`，其余域名用 `<证书目录>/<域名>.pem`）与 `modules/certmanager.Inspect`（解析 PEM）合成输出。“是否由 ACME 管理”直接复用 `certmanager.Plan`，与运行期判断一致。私钥只在 `CheckKeyPair` 里在内存中参与一次配对计算，返回固定枚举值，不带出底层错误文本。
 
@@ -49,6 +51,7 @@ fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操�
 - `config show` 的来源是磁盘，不是运行中进程实际生效的配置；`config_dirty_hint` 只是按修改时间的提示，且只在进程确实在跑时给出。
 - `config validate --candidate` 校验整棵候选目录（主文件 + `conf.d`），不再读线上 `conf.d`。
 - `service reload` / `config apply` 在 `/runtime` 可达时是强验证（`verification.level: runtime`，`reload_confirmed` 在生成号加一时为 true）；快照不可达时退回弱验证（`basic`）。`--dry-run` 始终是 basic。
+- Monitor 进程本体还不在本仓库里（Monitor 计划第 6、7 步）。在它开始写状态文件之前，`monitor status` 一直是 `not_installed`。CLI 不启停 Monitor。
 - `config apply --dry-run` 不写正式配置、不 reload、默认不创建 operation。非 dry-run 必须 `--yes`（`--confirm` 同义）。`site add/update/delete/enable/disable` 同样要求 `--yes`（除非 `--dry-run`）。
 - 旧顶层 `reload` 仍保留原文案；`FindProcess`/发信号失败时仍 `Fatal`。新增端口被占用时改为命令失败，避免 Server 在 reload 时 `Fatal` 退出。
 - `config show` 只展开 `http.include` 目录下直接的 `*.json`（与 `site list` 一致）；include 写成单个文件或不存在的目录时会给出告警。

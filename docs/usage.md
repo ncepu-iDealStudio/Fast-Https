@@ -506,7 +506,9 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。含 `PrintErr` 以及控制台 Warn/Error 的镜像（`source:"console"`，`kind:"error"`） |
 | `logs access` | 只读 `access.log`，过滤条件同上，另有 `--status`（`500`、`4xx` 或 `400-499`） |
 | `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
-| `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 目前为 `unavailable`，不拉低 `overall`。配置有问题也退出码 0 |
+| `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0 |
+| `monitor status` | 只读 Monitor 的 `status.json`。文件不存在时 `status` 为 `not_installed`（退出码 0）；采集时间早于 30 秒为 `stale`。不连接 Monitor 进程，也不负责启停 |
+| `monitor events` | 只读 `events.jsonl`。`--since`、`--limit`（默认 100，上限 1000）、`--severity`（`info`、`warning`、`error`、`critical`）。坏行跳过并计数，事件文本只作为数据返回 |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点）。只写文件，提示 reload |
 | `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`）。走配置事务，非 dry-run 必须 `--yes`。同名或同 `server_name` 退出码 10 |
 | `site update <name>` | 受控更新白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`）。内联主配置站点退出码 11 |
@@ -541,7 +543,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 
 ### 10.2 机器可读输出与退出码
 
-根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前 `--json` 在下列命令上有效：`service version`、`service status`、`service reload`、`runtime status`、`runtime stats`、`config show`、`config validate`、`config versions`、`config diff`、`config apply`、`config rollback`、`site list`、`site show`、`site add`、`site update`、`site delete`、`site enable`、`site disable`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`、`diagnose`、`operation list`、`operation get`，以及保持原格式的 `config path`。`--request-id` 用于修改类命令的幂等。`config path --json` 现有六个键，其中 `state` 是新增的管理状态目录。
+根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前 `--json` 在下列命令上有效：`service version`、`service status`、`service reload`、`runtime status`、`runtime stats`、`monitor status`、`monitor events`、`config show`、`config validate`、`config versions`、`config diff`、`config apply`、`config rollback`、`site list`、`site show`、`site add`、`site update`、`site delete`、`site enable`、`site disable`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`、`diagnose`、`operation list`、`operation get`，以及保持原格式的 `config path`。`--request-id` 用于修改类命令的幂等。`config path --json` 现有六个键，其中 `state` 是新增的管理状态目录。
 
 `--json` 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：
 

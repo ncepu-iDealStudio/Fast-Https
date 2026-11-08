@@ -83,6 +83,11 @@ func commandList() []command {
 			register:    newDiagnoseCmd,
 		},
 		{
+			name:        "monitor",
+			description: t("查询独立 Monitor 的状态与事件", "query the standalone monitor status and events"),
+			register:    newMonitorCmd,
+		},
+		{
 			name:        "operation",
 			description: t("查询管理操作记录", "query management operations"),
 			register:    newOperationCmd,

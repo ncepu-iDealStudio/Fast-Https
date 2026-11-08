@@ -19,6 +19,7 @@ import (
 	"fast-https/config"
 	"fast-https/infra/logging"
 	"fast-https/management/logquery"
+	"fast-https/management/monview"
 	"fast-https/management/rtclient"
 	"fast-https/management/view"
 )
@@ -66,6 +67,8 @@ type Input struct {
 	Extra      []NamedCheck
 	// Runtime 拉取 /runtime。测试注入，避免碰到本机真实的 9088。
 	Runtime func() (rtclient.Snapshot, error)
+	// MonitorDir 是状态文件所在目录。测试注入，避免读到本机真实的 monitor 目录。
+	MonitorDir string
 }
 
 // Run 按固定顺序执行检查。一项卡住只让那一项超时，其余照常返回。
@@ -87,7 +90,7 @@ func Run(in Input) Report {
 		timed(timeout, "ports", func(ctx context.Context) Check { return checkPorts(in) }),
 		timed(timeout, "logs", func(ctx context.Context) Check { return checkLogs(in, now) }),
 		timed(timeout, "runtime", func(ctx context.Context) Check { return checkRuntime(in) }),
-		{Name: "monitor", Status: StatusUnavailable, Message: "monitor is not available until S12"},
+		timed(timeout, "monitor", func(ctx context.Context) Check { return checkMonitor(in) }),
 		timed(timeout, "state", func(ctx context.Context) Check { return checkState(in) }),
 	}
 	for _, extra := range in.Extra {
@@ -340,6 +343,34 @@ func checkRuntime(in Input) Check {
 			state = "unknown"
 		}
 		return Check{Name: "runtime", Status: StatusWarning, Message: "runtime snapshot state is " + state}
+	}
+}
+
+func checkMonitor(in Input) Check {
+	logRoot := ""
+	if in.ConfigPath != "" {
+		logRoot, _ = logquery.ResolveLogDir(in.ConfigPath)
+	}
+	st, _, err := monview.ReadStatus(monview.StatusInput{
+		Dir: in.MonitorDir, LogRoot: logRoot, Now: time.Now(),
+	})
+	if err != nil {
+		if errors.Is(err, monview.ErrSchema) {
+			return Check{Name: "monitor", Status: StatusWarning, Message: "monitor status schema is not supported"}
+		}
+		return Check{Name: "monitor", Status: StatusWarning, Message: "monitor status file is not readable"}
+	}
+	switch st.Status {
+	case monview.StatusNotInstalled:
+		return Check{Name: "monitor", Status: StatusOK, Message: "monitor is not installed"}
+	case monview.StatusRunning:
+		return Check{Name: "monitor", Status: StatusOK, Message: "monitor status file is fresh"}
+	case monview.StatusStale:
+		return Check{Name: "monitor", Status: StatusWarning, Message: "monitor status file is stale"}
+	case monview.StatusUnhealthy:
+		return Check{Name: "monitor", Status: StatusWarning, Message: "monitor reports unhealthy"}
+	default:
+		return Check{Name: "monitor", Status: StatusWarning, Message: "monitor status is " + st.Status}
 	}
 }
 

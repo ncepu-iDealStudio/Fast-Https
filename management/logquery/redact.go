@@ -19,6 +19,9 @@ var (
 
 // redactText 遮蔽查询串里的敏感参数、Bearer / Basic 凭据和私钥正文。
 // 其它文字原样保留：日志内容是数据，不能因为出现某些词就被删掉或拿去执行。
+// Redact 遮蔽一行不可信文本里的查询串、凭据和私钥。其它查询复用同一套规则。
+func Redact(s string) string { return redactText(s) }
+
 func redactText(s string) string {
 	if s == "" {
 		return s

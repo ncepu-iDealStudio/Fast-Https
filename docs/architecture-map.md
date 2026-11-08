@@ -50,7 +50,8 @@
 | `modules/site` | 站点文件（`conf.d/<name>.json`）的命名校验、原子落盘与目录扫描；合并与校验复用 `config`，不碰运行期对象 | `site` 命令组 |
 | `management/rtclient` | 本机 `GET /runtime` 的标准库 HTTP 客户端；校验 `schema_version == "1"`，自身复制 JSON 结构，不依赖 `runtime/metrics` | CLI `runtime *`、`service status/version`、reload 强验证、`diagnose` |
 | `management/svcctl` | 受控 reload：校验、新增端口预检、发信号；读得到快照时 `WaitRuntime`（生成号加一、pid/`started_at` 不变），否则 `WaitBasic` | `service reload`、`config apply` |
-| `management/diagnose` | 只读健康汇总。`runtime` 检查项读 `/runtime`（连不上为 warning）；`monitor` 仍为 unavailable | `diagnose` |
+| `management/diagnose` | 只读健康汇总。`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning） | `diagnose` |
+| `management/monview` | 只读 Monitor 的 `status.json` 与 `events.jsonl`。不连接 Monitor 进程；文件不存在视为未安装 | `monitor status` / `monitor events` |
 | `monitor` | 独立 Monitor 进程：周期读本机 `GET /runtime`，把原始快照追加到 `snapshots.jsonl`，写「不可达 / 恢复 / 进程重启 / 采集异常」事件到 `events.jsonl`，并原子更新 `status.json`；事件与快照按单文件上限自轮转 | 独立可执行程序，Server 不依赖它 |
 | `desktop/` | Wails v3 桌面管理端，独立 Go module | 独立可执行程序 |
 | `tests`、`tests/client_test`、`tests/unit_test/...`、`tests/arch` | 根测试入口、子进程 E2E、集中式单测、分层约束 | 测试专用 |

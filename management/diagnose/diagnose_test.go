@@ -29,7 +29,7 @@ func TestDiagnoseAllOK(t *testing.T) {
 		t.Fatal("missing observed_at")
 	}
 	byName := checksByName(report)
-	for _, name := range []string{"service", "config", "certs", "ports", "logs", "runtime", "state"} {
+	for _, name := range []string{"service", "config", "certs", "ports", "logs", "runtime", "monitor", "state"} {
 		if byName[name].Status != StatusOK {
 			t.Errorf("%s = %+v", name, byName[name])
 		}
@@ -70,8 +70,8 @@ func TestDiagnoseUnavailableVsFailed(t *testing.T) {
 	if byName["runtime"].Status != StatusOK {
 		t.Errorf("runtime = %+v, want ok（已接入 /runtime）", byName["runtime"])
 	}
-	if byName["monitor"].Status != StatusUnavailable {
-		t.Errorf("monitor = %+v, want unavailable", byName["monitor"])
+	if byName["monitor"].Status != StatusOK {
+		t.Errorf("monitor = %+v, want ok（未安装也是一次成功观察）", byName["monitor"])
 	}
 	if byName["state"].Status != StatusOK {
 		t.Errorf("state = %+v, want ok", byName["state"])
@@ -195,6 +195,7 @@ func healthyInput(t *testing.T) Input {
 		Inspect:    runningInspect(7),
 		Probe:      func(int) bool { return true },
 		Timeout:    time.Second,
+		MonitorDir: t.TempDir(),
 		Now:        func() time.Time { return time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC) },
 		Runtime: func() (rtclient.Snapshot, error) {
 			return rtclient.Snapshot{
