@@ -195,3 +195,45 @@ func TestUpdateStopsOnApplyError(t *testing.T) {
 		t.Fatal("apply 失败时不应写盘")
 	}
 }
+
+func TestListAllDisableEnable(t *testing.T) {
+	dir := t.TempDir()
+	path, err := Create([]string{dir}, "blog", validInput("blog"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Disable([]string{dir}, "blog"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := Find([]string{dir}, "blog"); ok {
+		t.Fatal("停用后 Find 不应再命中 .json")
+	}
+	all, err := ListAll([]string{dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 || all[0].Enabled || all[0].Name != "blog" {
+		t.Fatalf("ListAll = %+v", all)
+	}
+	enabled, err := List([]string{dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(enabled) != 0 {
+		t.Fatalf("List 不应含停用站点：%+v", enabled)
+	}
+	if _, err := Enable([]string{dir}, "blog"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(orig) {
+		t.Fatalf("启用后字节应一致\n%s\n%s", orig, got)
+	}
+}
