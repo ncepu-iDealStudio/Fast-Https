@@ -118,3 +118,23 @@ func runLockChild(t *testing.T, dir, role string) {
 	}
 	os.Exit(1)
 }
+
+func TestLockReentrantSamePID(t *testing.T) {
+	d := Dir{Root: t.TempDir(), Alive: func(int, string) bool { return true }, PID: 7}
+	r1, err := d.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2, err := d.Lock()
+	if err != nil {
+		t.Fatal("同进程嵌套获取应成功")
+	}
+	r2()
+	if _, err := os.Stat(d.LockPath()); err != nil {
+		t.Fatal("内层释放不应删掉外层锁")
+	}
+	r1()
+	if _, err := os.Stat(d.LockPath()); !os.IsNotExist(err) {
+		t.Fatal("外层释放应去掉锁文件")
+	}
+}

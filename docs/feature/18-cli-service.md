@@ -4,7 +4,7 @@
 
 ## 功能
 
-`start`（后台服务）、`stop`、`reload`、`status`、`version`，以及 `acme`（交互式配置 ACME 自动签发）、`site`（管理 conf.d 下的站点文件）。`start` 与 `reload` 都先校验配置，失败即停并说明原因。
+`start`（后台服务）、`stop`、`reload`、`status`、`version`，以及 `acme`（交互式配置 ACME 自动签发）、`site`（管理 conf.d 下的站点文件）。`start` 与 `reload` 都先校验配置，失败即停并说明原因。`service reload`、`config apply`、`config rollback` 走管理核心的受控事务（恢复点、operation、幂等、失败补偿）。
 
 帮助文本有中英两版：默认中文，`--lang en` 或 `FAST_HTTPS_LANG=en` 切英文。
 
@@ -12,8 +12,8 @@
 
 ```
 fast-https start|stop|reload|status|version
-fast-https service version|status [--json]   # 机器可读的版本 / 状态查询
-fast-https config path|show|validate [--json] # 路径 / 脱敏后的磁盘配置 / 只校验不应用
+fast-https service version|status|reload [--json]   # 机器可读的版本 / 状态 / 受控 reload
+fast-https config path|show|validate|versions|diff|apply|rollback [--json] # 路径 / 脱敏配置 / 校验 / 版本 / 差异 / 应用 / 回滚
 fast-https cert list|check --domain <d> [--json] # 只读的证书状态 / 检查
 fast-https acme [setup|show]     # 交互向导 / 参数式配置 / 查看当前生效值
 fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
@@ -37,13 +37,16 @@ fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
 
 ## 测试
 
-`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏）、`management/redact`、`management/view`、`config/validate_warnings_test.go`。
+`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏，`cli_s8_test.go` 覆盖 apply/reload 用法与旧 reload 文案）、`management/redact`、`management/view`、`management/svcctl`、`management/txn`（故障注入）、`config/validate_warnings_test.go`。
 
 ## 已知限制
 
 - `status` 依赖 pid 文件。进程异常退出留下的陈旧 pid 会被识别为 `stale`，`stop` / `reload` 遇到时按「没在跑」处理并清理文件，`status` 仍以非 0 退出。
 - `config show` 的来源是磁盘，不是运行中进程实际生效的配置；`config_dirty_hint` 只是按修改时间的提示，且只在进程确实在跑时给出。
 - `config validate --candidate` 校验整棵候选目录（主文件 + `conf.d`），不再读线上 `conf.d`。
+- `service reload` / `config apply` 的验证是弱验证（`verification.level: basic`，`reload_confirmed: false`）；强验证要等 Server 只读快照（S11）。
+- `config apply --dry-run` 不写正式配置、不 reload、默认不创建 operation。非 dry-run 必须 `--yes`（`--confirm` 同义）。
+- 旧顶层 `reload` 仍保留原文案；`FindProcess`/发信号失败时仍 `Fatal`。新增端口被占用时改为命令失败，避免 Server 在 reload 时 `Fatal` 退出。
 - `config show` 只展开 `http.include` 目录下直接的 `*.json`（与 `site list` 一致）；include 写成单个文件或不存在的目录时会给出告警。
 - 不带 `--json` 的 `site show` 仍打印站点文件原文，包含写在文件里的口令；要脱敏输出请加 `--json`。
 - `service status` 的端口探测会对配置端口各发起一次回环 TCP 连接，TLS 端口上服务端会看到一次未完成的握手。

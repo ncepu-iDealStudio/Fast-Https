@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,10 +9,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"fast-https/config"
 	"fast-https/management/cfgdiff"
 	"fast-https/management/cfgver"
+	"fast-https/management/operation"
+	"fast-https/management/svcctl"
+	"fast-https/management/txn"
 	"fast-https/management/view"
 
 	"github.com/spf13/cobra"
@@ -256,4 +261,184 @@ func resolveDiffCandidate(candidate string) (string, error) {
 		return p, nil
 	}
 	return "", &CLIError{Code: CodeNotFound, Command: "config.diff", Message: "candidate not found: " + candidate}
+}
+
+func newConfigApplyCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "apply",
+		Short: t("将候选配置目录受控应用到线上", "apply a candidate config directory under management control"),
+		Long: t(
+			"校验候选目录、生成差异、保存恢复点、切换配置、reload 并做弱验证。失败则从恢复点还原。\n"+
+				"必须加 --yes（或 --confirm）。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建恢复点。",
+			"Validate the candidate directory, diff it, save a restore point, switch files, reload, and run a basic check.\n"+
+				"Failure rolls back from the restore point. --yes (or --confirm) is required.\n"+
+				"--dry-run only reports validation and the diff; it writes nothing, does not reload, and creates no restore point."),
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE:         runConfigApply,
+	}
+	addConfigFlag(c)
+	c.Flags().String("candidate", "", t("候选配置目录（必填）", "candidate config directory (required)"))
+	c.Flags().Bool("dry-run", false, t("只校验与展示差异，不应用", "validate and show the diff only, do not apply"))
+	c.Flags().Bool("yes", false, t("确认执行（非 dry-run 必填）", "confirm the apply (required unless --dry-run)"))
+	c.Flags().Bool("confirm", false, t("与 --yes 同义", "same as --yes"))
+	return c
+}
+
+func newConfigRollbackCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "rollback",
+		Short: t("回滚到一个历史配置版本", "roll back to a historical config version"),
+		Long: t(
+			"回滚是一次新的 operation：先校验目标版本（含引用的证书仍存在），再走与 apply 相同的事务。不删除历史版本。\n"+
+				"必须加 --yes（或 --confirm）。",
+			"Rollback is a new operation: the target version is validated first (including that referenced certificates still exist),\n"+
+				"then the same transaction as apply runs. Historical versions are not deleted. --yes (or --confirm) is required."),
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE:         runConfigRollback,
+	}
+	addConfigFlag(c)
+	c.Flags().String("version", "", t("目标版本号，例如 v001（必填）", "target version, e.g. v001 (required)"))
+	c.Flags().Bool("dry-run", false, t("只校验与展示差异，不回滚", "validate and show the diff only, do not roll back"))
+	c.Flags().Bool("yes", false, t("确认执行（非 dry-run 必填）", "confirm the rollback (required unless --dry-run)"))
+	c.Flags().Bool("confirm", false, t("与 --yes 同义", "same as --yes"))
+	return c
+}
+
+func confirmed(cmd *cobra.Command) bool {
+	yes, _ := cmd.Flags().GetBool("yes")
+	confirm, _ := cmd.Flags().GetBool("confirm")
+	return yes || confirm
+}
+
+func runConfigApply(cmd *cobra.Command, _ []string) error {
+	cand, _ := cmd.Flags().GetString("candidate")
+	if strings.TrimSpace(cand) == "" {
+		return usageError(fmt.Errorf("--candidate is required"))
+	}
+	dry, _ := cmd.Flags().GetBool("dry-run")
+	if !dry && !confirmed(cmd) {
+		return usageError(fmt.Errorf("apply requires --yes (or --confirm); use --dry-run to preview"))
+	}
+	live, _ := cmd.Flags().GetString("config")
+	return runTxn(cmd, "config.apply", txn.Input{
+		Candidate: cand,
+		LiveMain:  live,
+		RequestID: ensureRequestID(cmd),
+		Command:   "config.apply",
+		Summary:   "config apply",
+		DryRun:    dry,
+	})
+}
+
+func runConfigRollback(cmd *cobra.Command, _ []string) error {
+	ver, _ := cmd.Flags().GetString("version")
+	if strings.TrimSpace(ver) == "" {
+		return usageError(fmt.Errorf("--version is required"))
+	}
+	dry, _ := cmd.Flags().GetBool("dry-run")
+	if !dry && !confirmed(cmd) {
+		return usageError(fmt.Errorf("rollback requires --yes (or --confirm); use --dry-run to preview"))
+	}
+	root := cfgver.VersionDir(stateDir(), ver)
+	if info, err := os.Stat(root); err != nil || !info.IsDir() {
+		return &CLIError{Code: CodeNotFound, Command: "config.rollback", Message: "version not found: " + ver}
+	}
+	live, _ := cmd.Flags().GetString("config")
+	return runTxn(cmd, "config.rollback", txn.Input{
+		Candidate: root,
+		LiveMain:  live,
+		RequestID: ensureRequestID(cmd),
+		Command:   "config.rollback",
+		Summary:   "rollback to " + ver,
+		DryRun:    dry,
+		Args:      map[string]string{"version": ver, "live": live},
+	})
+}
+
+func runTxn(cmd *cobra.Command, id string, in txn.Input) error {
+	if err := rejectCandidateEscape(in.Candidate); err != nil {
+		return err
+	}
+	timeout := cmdTimeout(cmd, svcctl.DefaultTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	eng := newTxnEngine(in.LiveMain, timeout)
+	res, err := eng.Apply(ctx, in)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return fromTxnError(id, &txn.Error{Code: txn.CodeUnknown, Message: err.Error(), Err: err, Operation: opPtr(res.Operation)})
+		}
+		return fromTxnError(id, err)
+	}
+	return emitTxnResult(cmd, id, res)
+}
+
+func opPtr(rec operation.Record) *operation.Record {
+	if rec.ID == "" {
+		return nil
+	}
+	cp := rec
+	return &cp
+}
+
+func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
+	pidPath := config.PID_FILE
+	return &txn.Engine{
+		State: stateDir(),
+		Reloader: txn.FuncReloader(func(ctx context.Context) error {
+			st, pid, err := InspectProcess(pidPath)
+			if err != nil {
+				return err
+			}
+			if st != ProcessRunning {
+				return svcctl.ErrNotRunning
+			}
+			return svcctl.SignalReload(pid)
+		}),
+		Health: txn.FuncHealth(func(ctx context.Context) error {
+			st, pid, err := InspectProcess(pidPath)
+			if err != nil {
+				return err
+			}
+			if st != ProcessRunning {
+				return svcctl.ErrNotRunning
+			}
+			_, err = svcctl.WaitBasic(ctx, svcctl.Options{ConfigPath: liveMain, Timeout: timeout, PID: pid}, pid)
+			return err
+		}),
+	}
+}
+
+func emitTxnResult(cmd *cobra.Command, id string, res txn.Result) error {
+	data := map[string]any{
+		"dry_run":       res.DryRun,
+		"idempotent":    res.Idempotent,
+		"identical":     res.Diff.Identical,
+		"changes":       res.Diff.Changes,
+		"restore_point": res.RestorePoint,
+		"version":       res.Version,
+		"rolled_back":   res.RolledBack,
+		"config_state":  res.ConfigState,
+	}
+	if res.Operation.ID != "" {
+		data["operation_id"] = res.Operation.ID
+		data["status"] = res.Operation.Status
+		data["result"] = res.Operation.Result
+	}
+	if jsonMode(cmd) {
+		return emitOK(cmd, id, data, res.Warnings)
+	}
+	printWarnings(cmd.ErrOrStderr(), res.Warnings)
+	if res.DryRun {
+		if res.Diff.Identical {
+			fmt.Fprintln(cmd.OutOrStdout(), "dry-run: identical")
+			return nil
+		}
+		return printIndentedJSON(cmd.OutOrStdout(), res.Diff)
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %s restore=%s version=%s\n",
+		res.Operation.ID, res.Operation.Status, res.RestorePoint, res.Version)
+	return nil
 }

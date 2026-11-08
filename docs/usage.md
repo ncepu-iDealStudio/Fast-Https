@@ -481,10 +481,13 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `version` | 打印版本号，输出一行 `fast-https <版本>` |
 | `service version` | 查询 CLI 版本；加 `--json` 输出机器可读的封套（运行中进程的版本暂不可用，返回 `null`） |
 | `service status` | 只读查询：读 pid 文件判断进程，再对配置里的端口做一次回环连接，给出 `running`、`degraded`、`stopped`、`unknown`；服务没在跑也是成功的查询，退出码 0 |
+| `service reload` | 受控 reload：校验、预检新增端口、发信号、弱验证。不改配置文件。`--dry-run` 只校验与预检。服务没在跑退出码 4。记 operation，支持 `--request-id` 幂等 |
 | `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`waf`、`sites` |
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
 | `config versions` | 列出状态目录里的配置版本快照。`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照不含证书与私钥 |
 | `config diff --candidate` | 比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
+| `config apply --candidate` | 将候选目录受控应用到线上（校验、差异、恢复点、切换、reload、弱验证；失败则还原）。必须 `--yes`。`--dry-run` 不写正式文件、不 reload |
+| `config rollback --version` | 回滚到历史版本，本身是新 operation；先校验目标版本（含证书仍存在），不删除历史版本。必须 `--yes` |
 | `operation list` / `operation get` | 查询落盘的管理操作。`running` 且持有者进程已不在时对账为 `unknown` |
 | `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
 | `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |

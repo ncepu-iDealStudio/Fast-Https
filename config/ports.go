@@ -3,12 +3,30 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 )
 
 // ListenPortsFromFile 返回配置文件（含 http.include 展开的站点）声明的监听端口，
 // 去重后升序。只读：不替换运行期快照，也不写日志。
 func ListenPortsFromFile(path string) ([]int, error) {
+	return listenPortsAt(path, FAST_HTTPS_ETC_DIR, "", ".")
+}
+
+// ListenPortsFromTree 按候选目录解析 include，不读线上 conf.d。
+func ListenPortsFromTree(root string) ([]int, error) {
+	abs, err := ResolveCandidateRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	main := filepath.Join(abs, "fast-https.json")
+	if _, err := os.Stat(main); err != nil {
+		return nil, err
+	}
+	return listenPortsAt(main, abs, abs)
+}
+
+func listenPortsAt(path, includeBase, treeRoot string, fallbacks ...string) ([]int, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config file failed: %w", err)
@@ -19,7 +37,7 @@ func ListenPortsFromFile(path string) ([]int, error) {
 	}
 
 	servers := append([]jsonServer(nil), root.HTTP.Servers...)
-	files, err := includeFiles(root.HTTP.Include, FAST_HTTPS_ETC_DIR, "", ".")
+	files, err := includeFiles(root.HTTP.Include, includeBase, treeRoot, fallbacks...)
 	if err != nil {
 		return nil, err
 	}

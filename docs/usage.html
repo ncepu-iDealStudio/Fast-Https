@@ -439,10 +439,13 @@ fast-https site remove blog --yes</code></pre>
 <tr><td><code>version</code></td><td>打印版本号，输出一行 <code>fast-https &lt;版本&gt;</code></td></tr>
 <tr><td><code>service version</code></td><td>查询 CLI 版本；加 <code>--json</code> 输出机器可读的封套（运行中进程的版本暂不可用，返回 <code>null</code>）</td></tr>
 <tr><td><code>service status</code></td><td>只读查询：读 pid 文件判断进程，再对配置里的端口做一次回环连接，给出 <code>running</code>、<code>degraded</code>、<code>stopped</code>、<code>unknown</code>；服务没在跑也是成功的查询，退出码 0</td></tr>
+<tr><td><code>service reload</code></td><td>受控 reload：校验、预检新增端口、发信号、弱验证。不改配置文件。<code>--dry-run</code> 只校验与预检。服务没在跑退出码 4。记 operation，支持 <code>--request-id</code> 幂等</td></tr>
 <tr><td><code>config show</code></td><td>显示磁盘上的主配置与 <code>http.include</code> 站点，口令、令牌等敏感值一律脱敏；<code>--section</code> 可选 <code>http</code>、<code>acme</code>、<code>security</code>、<code>waf</code>、<code>sites</code></td></tr>
 <tr><td><code>config validate</code></td><td>校验当前配置，或用 <code>--candidate</code> 校验一棵候选目录（<code>fast-https.json</code> + <code>conf.d</code>）；只校验，不应用；失败退出码 5；路径含 <code>..</code> 或符号链接逃出目录时退出码 2</td></tr>
 <tr><td><code>config versions</code></td><td>列出状态目录里的配置版本快照。<code>active</code> 由当前磁盘配置树哈希决定，都不匹配则 <code>drift:true</code>。快照不含证书与私钥</td></tr>
 <tr><td><code>config diff --candidate</code></td><td>比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 <code>changed</code></td></tr>
+<tr><td><code>config apply --candidate</code></td><td>将候选目录受控应用到线上（校验、差异、恢复点、切换、reload、弱验证；失败则还原）。必须 <code>--yes</code>。<code>--dry-run</code> 不写正式文件、不 reload</td></tr>
+<tr><td><code>config rollback --version</code></td><td>回滚到历史版本，本身是新 operation；先校验目标版本（含证书仍存在），不删除历史版本。必须 <code>--yes</code></td></tr>
 <tr><td><code>operation list</code> / <code>operation get</code></td><td>查询落盘的管理操作。<code>running</code> 且持有者进程已不在时对账为 <code>unknown</code></td></tr>
 <tr><td><code>cert list</code></td><td>按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（<code>valid</code>、<code>expiring</code>、<code>expired</code>、<code>not_yet_valid</code>、<code>missing</code>、<code>unreadable</code>、<code>unknown</code>）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径</td></tr>
 <tr><td><code>cert check --domain &lt;域名&gt;</code></td><td>检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9</td></tr>

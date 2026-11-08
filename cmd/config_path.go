@@ -28,7 +28,7 @@ type RuntimePaths struct {
 func newConfigCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "config",
-		Short:        t("查看路径、显示、校验、版本与差异", "inspect paths, show, validate, versions and diff"),
+		Short:        t("查看路径、显示、校验、版本、差异、应用与回滚", "inspect paths, show, validate, versions, diff, apply and rollback"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
@@ -66,7 +66,7 @@ func newConfigCmd() *cobra.Command {
 			return nil
 		},
 	}
-	root.AddCommand(pathCmd, newConfigShowCmd(), newConfigValidateCmd(), newConfigVersionsCmd(), newConfigDiffCmd())
+	root.AddCommand(pathCmd, newConfigShowCmd(), newConfigValidateCmd(), newConfigVersionsCmd(), newConfigDiffCmd(), newConfigApplyCmd(), newConfigRollbackCmd())
 	return root
 }
 

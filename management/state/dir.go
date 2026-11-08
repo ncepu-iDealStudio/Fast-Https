@@ -87,6 +87,9 @@ func (d Dir) LockPath() string      { return filepath.Join(d.Root, lockName) }
 func (d Dir) VersionsDir() string   { return filepath.Join(d.Root, versionsName) }
 func (d Dir) OperationsDir() string { return filepath.Join(d.Root, operationsName) }
 func (d Dir) RequestsPath() string  { return filepath.Join(d.Root, requestsName) }
+func (d Dir) RecycleDir(opID string) string {
+	return filepath.Join(d.Root, "recycle", opID)
+}
 
 // Ensure 建好状态目录及其子目录，权限 0700（Windows 尽力而为）。
 func (d Dir) Ensure() error {
@@ -135,6 +138,10 @@ func (d Dir) Lock() (Release, error) {
 		if rerr := readJSON(path, &held); rerr != nil {
 			_ = os.Remove(path)
 			continue
+		}
+		if held.PID == rec.PID && d.alive(held.PID, held.StartKey) {
+			// 本进程已持有：嵌套获取返回空释放，避免 Snapshot/Begin 在事务持锁时死锁。
+			return func() {}, nil
 		}
 		if d.alive(held.PID, held.StartKey) {
 			return nil, fmt.Errorf("%w by pid %d", ErrLocked, held.PID)

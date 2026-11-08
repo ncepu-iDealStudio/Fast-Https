@@ -146,6 +146,16 @@ func Snapshot(dir state.Dir, mainPath, summary string, now time.Time) (Manifest,
 	return man, nil
 }
 
+// TreeHash 是当前磁盘配置树（主文件 + include 下的 json）的哈希。
+func TreeHash(mainPath string) (string, error) {
+	return treeHash(mainPath)
+}
+
+// VersionDir 返回某个版本快照目录。
+func VersionDir(dir state.Dir, version string) string {
+	return filepath.Join(dir.VersionsDir(), strings.TrimSpace(version))
+}
+
 // MainFile 返回某个版本里主配置文件的路径。
 func MainFile(dir state.Dir, version string) (string, error) {
 	ver := strings.TrimSpace(version)

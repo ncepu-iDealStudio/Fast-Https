@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -55,6 +58,26 @@ func jsonMode(cmd *cobra.Command) bool {
 func requestIDOf(cmd *cobra.Command) string {
 	v, _ := cmd.Flags().GetString("request-id")
 	return v
+}
+
+func ensureRequestID(cmd *cobra.Command) string {
+	id := strings.TrimSpace(requestIDOf(cmd))
+	if id != "" {
+		return id
+	}
+	var b [8]byte
+	_, _ = io.ReadFull(rand.Reader, b[:])
+	id = "req_" + hex.EncodeToString(b[:])
+	_ = cmd.Flags().Set("request-id", id)
+	return id
+}
+
+func cmdTimeout(cmd *cobra.Command, def time.Duration) time.Duration {
+	d, _ := cmd.Flags().GetDuration("timeout")
+	if d <= 0 {
+		return def
+	}
+	return d
 }
 
 // emitOK 在 --json 模式下输出成功封套。命令自己决定文本模式怎么输出。

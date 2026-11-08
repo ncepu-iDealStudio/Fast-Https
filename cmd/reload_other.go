@@ -4,11 +4,12 @@ package cmd
 
 import (
 	"os"
-	"syscall"
+
+	"fast-https/management/svcctl"
 )
 
 func sendCtrlC(_ int) error { return nil }
 
-func signalReloadProcess(process *os.Process, _ int) error {
-	return process.Signal(syscall.SIGINT)
+func signalReloadProcess(_ *os.Process, pid int) error {
+	return svcctl.SignalReload(pid)
 }

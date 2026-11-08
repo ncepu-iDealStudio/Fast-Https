@@ -162,6 +162,70 @@ func (s Store) Begin(in BeginInput) (Record, error) {
 	return rec, nil
 }
 
+// Lookup 按 request_id 找已有记录，不创建、目录不存在时视为没有。
+func (s Store) Lookup(requestID string) (Record, bool, error) {
+	id := strings.TrimSpace(requestID)
+	if id == "" {
+		return Record{}, false, nil
+	}
+	if _, err := os.Stat(s.Dir.RequestsPath()); os.IsNotExist(err) {
+		return Record{}, false, nil
+	}
+	release, err := s.Dir.Lock()
+	if err != nil {
+		return Record{}, false, err
+	}
+	defer release()
+	reqs, err := s.loadRequests()
+	if err != nil {
+		return Record{}, false, err
+	}
+	e, ok := reqs[id]
+	if !ok {
+		return Record{}, false, nil
+	}
+	rec, err := s.read(e.OperationID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return Record{}, false, nil
+		}
+		return Record{}, false, err
+	}
+	return rec, true, nil
+}
+
+// Save 原子写回一条记录。
+func (s Store) Save(rec Record) error {
+	release, err := s.Dir.Lock()
+	if err != nil {
+		return err
+	}
+	defer release()
+	return s.write(rec)
+}
+
+// Finish 把记录写成终态。
+func (s Store) Finish(rec Record, status, phase string, result map[string]any, errBody *ErrorBody) (Record, error) {
+	rec.Status = status
+	if phase != "" {
+		rec.Phase = phase
+	}
+	rec.FinishedAt = s.now().UTC().Format(time.RFC3339Nano)
+	if result != nil {
+		if rec.Result == nil {
+			rec.Result = map[string]any{}
+		}
+		for k, v := range result {
+			rec.Result[k] = v
+		}
+	}
+	rec.Error = errBody
+	if err := s.Save(rec); err != nil {
+		return Record{}, err
+	}
+	return rec, nil
+}
+
 // Get 读取一条记录，必要时把失联的 running 对账成 unknown。
 func (s Store) Get(id string) (Record, error) {
 	if _, err := os.Stat(s.Dir.OperationsDir()); os.IsNotExist(err) {
@@ -177,17 +241,26 @@ func (s Store) Get(id string) (Record, error) {
 		return Record{}, err
 	}
 	if rec.Status == StatusRunning && !s.Dir.IsAlive(rec.OwnerPID, rec.OwnerStartKey) {
-		rec.Status = StatusUnknown
-		if rec.Result == nil {
-			rec.Result = map[string]any{}
-		}
-		rec.Result["last_phase"] = rec.Phase
-		rec.FinishedAt = s.now().UTC().Format(time.RFC3339Nano)
+		rec = s.orphan(rec)
 		if err := s.write(rec); err != nil {
 			return Record{}, err
 		}
 	}
 	return rec, nil
+}
+
+func (s Store) orphan(rec Record) Record {
+	rec.Status = StatusUnknown
+	switch rec.Phase {
+	case "files_switched", "reloaded", "verified", "compensating", "restored":
+		rec.Status = StatusRecoveryRequired
+	}
+	if rec.Result == nil {
+		rec.Result = map[string]any{}
+	}
+	rec.Result["last_phase"] = rec.Phase
+	rec.FinishedAt = s.now().UTC().Format(time.RFC3339Nano)
+	return rec
 }
 
 // ListFilter 是 operation list 的白名单过滤。
@@ -233,12 +306,7 @@ func (s Store) List(f ListFilter) ([]Record, error) {
 			continue
 		}
 		if rec.Status == StatusRunning && !s.Dir.IsAlive(rec.OwnerPID, rec.OwnerStartKey) {
-			rec.Status = StatusUnknown
-			if rec.Result == nil {
-				rec.Result = map[string]any{}
-			}
-			rec.Result["last_phase"] = rec.Phase
-			rec.FinishedAt = s.now().UTC().Format(time.RFC3339Nano)
+			rec = s.orphan(rec)
 			_ = s.write(rec)
 		}
 		if f.Status != "" && rec.Status != f.Status {

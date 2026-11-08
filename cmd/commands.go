@@ -8,6 +8,7 @@ import (
 	"fast-https/infra/banner"
 	"fast-https/infra/logging"
 	initialization "fast-https/init"
+	"fast-https/management/svcctl"
 	"fast-https/runtime/server"
 	"fmt"
 	"os"
@@ -58,7 +59,7 @@ func commandList() []command {
 		},
 		{
 			name:        "service",
-			description: t("查询服务状态与版本", "query service status and version"),
+			description: t("查询服务状态、版本与受控 reload", "query service status and version, and reload"),
 			register:    newServiceCmd,
 		},
 		{
@@ -379,6 +380,10 @@ func reload(configPath, pidPath string) error {
 		_ = os.Remove(pidPath)
 		logging.ConsoleLog.Info().Msgf("fast-https is not running, nothing to reload (stale pid %d, config ok)", pid)
 		return nil
+	}
+
+	if _, err := svcctl.PrecheckAddedPorts(svcctl.Options{ConfigPath: configPath}); err != nil {
+		return err
 	}
 
 	process, err := os.FindProcess(pid)
