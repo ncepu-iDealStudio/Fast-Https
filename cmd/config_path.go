@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fast-https/config"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -33,7 +32,6 @@ func newConfigCmd() *cobra.Command {
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 
-	var asJSON bool
 	pathCmd := &cobra.Command{
 		Use:   "path",
 		Short: t("打印配置、证书、日志、pid 与根 CA 路径（绝对路径）", "print config, cert, log, pid and root CA paths (absolute)"),
@@ -50,20 +48,22 @@ func newConfigCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths := ResolvePaths()
-			if asJSON {
-				enc := json.NewEncoder(os.Stdout)
+			out := cmd.OutOrStdout()
+			// --json 是根命令的全局选项。这里保持原来的缩进 JSON、不套封套：
+			// 桌面端按这五个键直接解析。
+			if jsonMode(cmd) {
+				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(paths)
 			}
-			fmt.Printf("config   %s\n", paths.Config)
-			fmt.Printf("cert     %s\n", paths.Cert)
-			fmt.Printf("log      %s\n", paths.Log)
-			fmt.Printf("pid      %s\n", paths.Pid)
-			fmt.Printf("root_crt %s\n", paths.RootCRT)
+			fmt.Fprintf(out, "config   %s\n", paths.Config)
+			fmt.Fprintf(out, "cert     %s\n", paths.Cert)
+			fmt.Fprintf(out, "log      %s\n", paths.Log)
+			fmt.Fprintf(out, "pid      %s\n", paths.Pid)
+			fmt.Fprintf(out, "root_crt %s\n", paths.RootCRT)
 			return nil
 		},
 	}
-	pathCmd.Flags().BoolVar(&asJSON, "json", false, t("以 JSON 输出", "print as JSON"))
 	root.AddCommand(pathCmd)
 	return root
 }

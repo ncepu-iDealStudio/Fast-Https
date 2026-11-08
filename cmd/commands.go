@@ -21,10 +21,10 @@ import (
 // Command Structure Definition
 // 命令结构体定义
 type command struct {
-	name        string                 // 命令名称
-	description string                 // 命令描述（已按当前语言翻译）
-	handler     func() error           // 命令处理函数
-	register    func() *cobra.Command  // 需要子命令或 flags 时使用，与 handler 二选一
+	name        string                // 命令名称
+	description string                // 命令描述（已按当前语言翻译）
+	handler     func() error          // 命令处理函数
+	register    func() *cobra.Command // 需要子命令或 flags 时使用，与 handler 二选一
 }
 
 // commandList 每次建树时按当前语言生成描述。
@@ -55,6 +55,11 @@ func commandList() []command {
 			name:        "version",
 			description: t("打印版本号", "print the version"),
 			register:    newVersionCmd,
+		},
+		{
+			name:        "service",
+			description: t("查询服务状态与版本", "query service status and version"),
+			register:    newServiceCmd,
 		},
 		{
 			name:        "acme",
@@ -139,6 +144,8 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 		})
 	}
 
+	registerGlobalFlags(cmd)
+
 	// 不要 cobra 自带的 `completion` 子命令：它生成的是 shell 补全脚本，
 	// 与本项目无关（站点路径的 Tab 补全在 site init 的输入行里，是另一套实现）。
 	// 留着只会在 --help 里多一条看起来像是我们做的事。
@@ -148,6 +155,7 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 	// 两种语言的命令树才是同一棵（man 页不会缺项）；英文版沿用 cobra 的默认文案。
 	cmd.InitDefaultHelpCmd()
 
+	wrapArgsErrors(cmd)
 	localizeCobra(cmd)
 	return cmd
 }

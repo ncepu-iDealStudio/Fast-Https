@@ -479,6 +479,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `reload` | 先校验配置，通过才发信号热重载；校验失败直接返回原因，运行中的配置保持不动 |
 | `status` | 读 pid 文件，进程存在返回 0，否则非 0 |
 | `version` | 打印版本号，输出一行 `fast-https <版本>` |
+| `service version` | 查询 CLI 版本；加 `--json` 输出机器可读的封套（运行中进程的版本暂不可用，返回 `null`） |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型 |
 | `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块 |
@@ -506,6 +507,38 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 `--lang` 优先于环境变量；两者都没给时按中文输出。语言只在进程启动时读一次，不影响运行期日志。
 
 手册页也是两份：`man fast-https` 读到的是中文页，`LANG=en_US.UTF-8 man fast-https` 读英文页（装在 `/usr/share/man/en/man1/`）。
+
+### 10.2 机器可读输出与退出码
+
+根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`config path`），其它命令接受但不使用后两个。
+
+`--json` 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：
+
+```json
+{"ok":true,"command":"service.version","request_id":null,"data":{},"warnings":[]}
+{"ok":false,"command":"service.version","request_id":null,"error":{"code":"USAGE_ERROR","message":"...","details":[]}}
+```
+
+`config path --json` 保持原有格式（五个路径键，不套封套），桌面端按这些键解析。
+
+退出码与错误码一一对应：
+
+| 退出码 | 错误码 | 含义 |
+| ---: | --- | --- |
+| 0 | （成功） | |
+| 1 | `INTERNAL_ERROR` | 未分类错误；旧命令的一般错误也是 1，文本仍在标准错误输出 `Error: ...` |
+| 2 | `USAGE_ERROR` | 参数、flag 或命令使用错误（未知 flag、多余的位置参数、未知命令） |
+| 3 | `PERMISSION_DENIED` | 权限不足 |
+| 4 | `SERVICE_UNREACHABLE` | 目标服务不可达或未运行 |
+| 5 | `CONFIG_INVALID` | 配置校验失败 |
+| 6 | `OPERATION_FAILED`、`RECOVERY_REQUIRED` | 操作失败；恢复失败需人工处理 |
+| 7 | `OPERATION_UNKNOWN` | 状态未知，需查询 operation |
+| 8 | `TIMEOUT` | 超时 |
+| 9 | `NOT_FOUND` | 资源不存在 |
+| 10 | `CONFLICT`、`REQUEST_ID_CONFLICT` | 冲突 / 幂等键冲突 |
+| 11 | `UNMET_DEPENDENCY`、`NOT_SUPPORTED` | 依赖或环境不满足 / 功能未实现 |
+
+这张表是为后续管理类命令预留的稳定约定：目前只有用法错误（2）与一般错误（1）会实际出现。
 
 ## 11. 热重载与停机
 

@@ -70,9 +70,16 @@ func init() {
 	safeLog.Store(&nop)
 }
 
+// consoleOut 与 consoleLevel 记住控制台日志器当前的目标和级别，
+// 这样 SetLevel 与 SetConsoleOutput 各改各的，互不覆盖。
+var (
+	consoleOut   io.Writer = os.Stdout
+	consoleLevel           = zerolog.InfoLevel
+)
+
 // consoleLogger 构造控制台日志器。
 func consoleLogger(level zerolog.Level) zerolog.Logger {
-	return zerolog.New(os.Stdout).
+	return zerolog.New(consoleOut).
 		Level(level).
 		With().
 		Timestamp().
@@ -83,7 +90,19 @@ func consoleLogger(level zerolog.Level) zerolog.Logger {
 // SetLevel 设置控制台输出级别。文件日志固定记录 debug 及以上，不受影响。
 // 只允许在启动阶段调用，服务运行期间并发调用不受保护。
 func SetLevel(level zerolog.Level) {
+	consoleLevel = level
 	ConsoleLog = consoleLogger(level)
+}
+
+// SetConsoleOutput 改变控制台日志的输出目标。CLI 的 --json 模式用它把日志
+// 挪到标准错误，保证标准输出只有一个 JSON 文档。
+// 只允许在启动阶段、logging.Open 之前调用，约束与 SetLevel 相同。
+func SetConsoleOutput(w io.Writer) {
+	if w == nil {
+		w = os.Stdout
+	}
+	consoleOut = w
+	ConsoleLog = consoleLogger(consoleLevel)
 }
 
 // Open 打开四路日志文件，同时用于启动与 reload。
