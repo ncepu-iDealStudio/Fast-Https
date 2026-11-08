@@ -501,7 +501,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `operation list` / `operation get` | 查询落盘的管理操作。`running` 且持有者进程已不在时对账为 `unknown` |
 | `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
 | `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
-| `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。目前该文件只含 `PrintErr`，控制台错误尚未写入 |
+| `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。含 `PrintErr` 以及控制台 Warn/Error 的镜像（`source:"console"`，`kind:"error"`） |
 | `logs access` | 只读 `access.log`，过滤条件同上，另有 `--status`（`500`、`4xx` 或 `400-499`） |
 | `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
 | `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime`、`monitor` 目前为 `unavailable`，不拉低 `overall`。配置有问题也退出码 0 |

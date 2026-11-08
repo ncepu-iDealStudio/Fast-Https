@@ -5,6 +5,8 @@
 package logging
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -47,6 +49,9 @@ func Safe() *zerolog.Logger { return safeLog.Load() }
 var (
 	logMu    sync.Mutex
 	logFiles []*os.File
+	// errorFile 是 error.log 的文件写入器（不含 stdout 回显）。
+	// ConsoleLog 的 Warn 及以上往这里镜像；Open 之前为 nil，不缓冲。
+	errorFile atomic.Pointer[syncWriter]
 )
 
 // consoleEcho 控制四路文件日志是否同时回显到标准输出。
@@ -77,14 +82,67 @@ var (
 	consoleLevel           = zerolog.InfoLevel
 )
 
-// consoleLogger 构造控制台日志器。
+// consoleLogger 构造控制台日志器。写出时经 consoleWriter：原样到控制台，
+// Warn 及以上再镜像一份到 error.log（kind=error, source=console）。
 func consoleLogger(level zerolog.Level) zerolog.Logger {
-	return zerolog.New(consoleOut).
+	return zerolog.New(consoleWriter{}).
 		Level(level).
 		With().
 		Timestamp().
 		Str(FieldKind, KindConsole).
 		Logger()
+}
+
+// consoleWriter 把控制台日志写到当前 consoleOut，并按级别镜像到 error.log。
+type consoleWriter struct{}
+
+func (consoleWriter) Write(p []byte) (int, error) {
+	n, err := consoleOut.Write(p)
+	mirrorConsoleToError(p)
+	return n, err
+}
+
+func mirrorConsoleToError(p []byte) {
+	if !consoleLevelMirrored(p) {
+		return
+	}
+	w := errorFile.Load()
+	if w == nil {
+		return
+	}
+	line := rewriteErrorMirror(p)
+	if len(line) == 0 {
+		return
+	}
+	_, _ = w.Write(line)
+}
+
+func consoleLevelMirrored(p []byte) bool {
+	i := bytes.Index(p, []byte(`"level":"`))
+	if i < 0 {
+		return false
+	}
+	rest := p[i+len(`"level":"`):]
+	return bytes.HasPrefix(rest, []byte(`warn"`)) ||
+		bytes.HasPrefix(rest, []byte(`error"`)) ||
+		bytes.HasPrefix(rest, []byte(`fatal"`)) ||
+		bytes.HasPrefix(rest, []byte(`panic"`))
+}
+
+func rewriteErrorMirror(p []byte) []byte {
+	var rec map[string]any
+	if err := json.Unmarshal(p, &rec); err != nil {
+		return nil
+	}
+	rec[FieldKind] = KindError
+	rec[FieldSource] = SourceConsole
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(rec); err != nil {
+		return nil
+	}
+	return buf.Bytes()
 }
 
 // SetLevel 设置控制台输出级别。文件日志固定记录 debug 及以上，不受影响。
@@ -109,12 +167,15 @@ func SetConsoleOutput(w io.Writer) {
 //
 // 先打开新文件再关闭旧文件，因此失败时原有日志继续可写。
 func Open(logRootPath string) error {
-	files, err := openLogSet(logRootPath)
+	files, errW, err := openLogSet(logRootPath)
 	if err != nil {
 		ConsoleLog.Error().Err(err).Msg("log to file disabled")
 		return err
 	}
 	CloseLogFiles()
+	if errW != nil {
+		errorFile.Store(errW)
+	}
 	logMu.Lock()
 	logFiles = files
 	logMu.Unlock()
@@ -123,6 +184,7 @@ func Open(logRootPath string) error {
 
 // CloseLogFiles 关闭四路日志文件。
 func CloseLogFiles() {
+	errorFile.Store(nil)
 	logMu.Lock()
 	defer logMu.Unlock()
 	for _, file := range logFiles {
@@ -132,10 +194,10 @@ func CloseLogFiles() {
 }
 
 // openLogSet 打开四个文件并重建四路日志器。
-func openLogSet(path string) ([]*os.File, error) {
+func openLogSet(path string) ([]*os.File, *syncWriter, error) {
 	dir, err := mkdirLogDir(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	names := [...]string{SystemLogName, AccessLogName, ErrorLogName, SafeLogName}
 	opened := make([]*os.File, 0, len(names))
@@ -145,7 +207,7 @@ func openLogSet(path string) ([]*os.File, error) {
 			for _, f := range opened {
 				_ = f.Close()
 			}
-			return nil, err
+			return nil, nil, err
 		}
 		opened = append(opened, file)
 	}
@@ -154,16 +216,21 @@ func openLogSet(path string) ([]*os.File, error) {
 	systemLog.Store(&sys)
 	acc := fileLogger(opened[1], KindAccess)
 	accessLog.Store(&acc)
-	errL := fileLogger(opened[2], KindError)
+	errFile := &syncWriter{w: opened[2]}
+	errL := fileLoggerFrom(errFile, KindError)
 	errorLog.Store(&errL)
 	saf := fileLogger(opened[3], KindSafe)
 	safeLog.Store(&saf)
-	return opened, nil
+	return opened, errFile, nil
 }
 
 // fileLogger 构造一路文件日志器。默认同时回显到标准输出；
 // 后台子进程关掉回显后只写文件。
 func fileLogger(file *os.File, kind string) zerolog.Logger {
+	return fileLoggerFrom(file, kind)
+}
+
+func fileLoggerFrom(file io.Writer, kind string) zerolog.Logger {
 	var out io.Writer = file
 	if consoleEcho.Load() {
 		out = io.MultiWriter(os.Stdout, file)

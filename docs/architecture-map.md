@@ -64,7 +64,7 @@
 
 | 输出 | 变量 | `kind` | 目的地 | 级别 |
 | --- | --- | --- | --- | --- |
-| 控制台 | `ConsoleLog` | `console` | stdout | 默认 `info` |
+| 控制台 | `ConsoleLog` | `console` | stdout；Warn/Error/Fatal 同时镜像到 `error.log`（`kind:error`，`source:console`） | 默认 `info` |
 | 系统 | `SystemLog` | `system` | `logs/system.log` + stdout | `debug` 及以上 |
 | 访问 | `AccessLog` | `access` | `logs/access.log` + stdout | `debug` 及以上 |
 | 错误 | `ErrorLog` | `error` | `logs/error.log` + stdout | `debug` 及以上 |

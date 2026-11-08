@@ -38,7 +38,7 @@ fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操�
 
 ## 测试
 
-`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏，`cli_s8_test.go` 覆盖 apply/reload 用法与旧 reload 文案，`cli_s9_test.go` 覆盖站点写命令用法与旧 `site init/remove`）、`management/redact`、`management/view`、`management/svcctl`、`management/txn`（故障注入）、`management/siteops`、`management/pathguard`、`config/validate_warnings_test.go`。
+`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏，`cli_s8_test.go` 覆盖 apply/reload 用法与旧 reload 文案，`cli_s9_test.go` 覆盖站点写命令用法与旧 `site init/remove`，`logs_test.go` 覆盖 `logs error` 可读控制台镜像）、`management/redact`、`management/view`、`management/svcctl`、`management/txn`（故障注入）、`management/siteops`、`management/pathguard`、`config/validate_warnings_test.go`。
 
 ## 已知限制
 

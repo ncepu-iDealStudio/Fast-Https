@@ -87,7 +87,7 @@ func TestLogsStatusRejected(t *testing.T) {
 	}
 }
 
-func TestLogsErrorCoverageWarning(t *testing.T) {
+func TestLogsErrorCoverageWarningGone(t *testing.T) {
 	dir := t.TempDir()
 	cfg := writeLogConfig(t, dir)
 	if err := os.WriteFile(filepath.Join(dir, logging.ErrorLogName), nil, 0o644); err != nil {
@@ -99,7 +99,31 @@ func TestLogsErrorCoverageWarning(t *testing.T) {
 	}
 	doc := decodeOneDocument(t, out)
 	raw, _ := json.Marshal(doc["warnings"])
-	if !strings.Contains(string(raw), "console errors are not persisted until S10") {
+	if strings.Contains(string(raw), "not persisted until S10") {
+		t.Fatalf("S10 后不应再有覆盖不全告警：%s", raw)
+	}
+}
+
+func TestLogsErrorSeesConsoleMirror(t *testing.T) {
+	dir := t.TempDir()
+	cfg := writeLogConfig(t, dir)
+	t.Cleanup(logging.CloseLogFiles)
+	if err := logging.Open(dir); err != nil {
+		t.Fatal(err)
+	}
+	logging.ConsoleLog.Error().Msg("reload kept previous config")
+	logging.CloseLogFiles()
+
+	out, _, code := runCLI(t, "logs", "error", "--config", cfg, "--since", "5m", "--json")
+	if code != 0 {
+		t.Fatalf("exit = %d\n%s", code, out)
+	}
+	if !strings.Contains(out, "reload kept previous config") {
+		t.Fatalf("应能读到控制台镜像：%s", out)
+	}
+	doc := decodeOneDocument(t, out)
+	raw, _ := json.Marshal(doc["warnings"])
+	if strings.Contains(string(raw), "not persisted until S10") {
 		t.Fatalf("warnings = %s", raw)
 	}
 }

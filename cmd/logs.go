@@ -39,10 +39,8 @@ func newLogsErrorCmd() *cobra.Command {
 		Use:   "error",
 		Short: t("查询 error.log", "query error.log"),
 		Long: t(
-			"从 error.log 尾部读取。目前这个文件只含 PrintErr 写进去的行，\n"+
-				"控制台里的警告和错误要等后续步骤才会写入。",
-			"Read the tail of error.log. Today that file only contains lines written by PrintErr;\n"+
-				"console warnings and errors are not persisted yet."),
+			"从 error.log 尾部读取。含 PrintErr 以及控制台 Warn/Error 的镜像（source=console）。",
+			"Read the tail of error.log, including PrintErr and mirrored console Warn/Error lines (source=console)."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {

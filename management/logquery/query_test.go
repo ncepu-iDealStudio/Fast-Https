@@ -60,8 +60,10 @@ func TestRedactBearer(t *testing.T) {
 	if !strings.Contains(got, "Bearer "+redact.Mask) || !strings.Contains(got, "Basic "+redact.Mask) {
 		t.Fatalf("message = %s", got)
 	}
-	if !containsWarning(warnings, ErrorLogCoverageWarning) {
-		t.Fatalf("warnings = %v", warnings)
+	for _, w := range warnings {
+		if strings.Contains(w, "not persisted until S10") {
+			t.Fatalf("S10 后不应再有覆盖不全告警：%v", warnings)
+		}
 	}
 }
 

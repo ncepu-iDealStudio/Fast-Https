@@ -36,10 +36,6 @@ const (
 
 	chunkSize    = 64 << 10
 	maxLineBytes = 1 << 20
-
-	// ErrorLogCoverageWarning 说明 error.log 目前只覆盖 PrintErr。
-	// S10 把控制台警告也写入该文件之后，这条告警要去掉。
-	ErrorLogCoverageWarning = "error.log covers PrintErr only; console errors are not persisted until S10"
 )
 
 // 文件名由代码固定。不接受调用方传入的路径片段。
@@ -183,9 +179,6 @@ func Run(q Query) (Result, []string, error) {
 	var warnings []string
 	if limitWarning != "" {
 		warnings = append(warnings, limitWarning)
-	}
-	if q.Kind == logging.KindError {
-		warnings = append(warnings, ErrorLogCoverageWarning)
 	}
 
 	path := filepath.Join(q.Dir, fileName)
