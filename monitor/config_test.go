@@ -24,6 +24,34 @@ func TestConfigDefaultsWhenFileMissing(t *testing.T) {
 	if cfg.EventKeep != DefaultEventKeep || cfg.EventMaxBytes != DefaultEventMaxBytes {
 		t.Errorf("rotation = %d/%d", cfg.EventKeep, cfg.EventMaxBytes)
 	}
+	if !cfg.PortProbe || !cfg.StuckHint {
+		t.Errorf("optional rules = %v/%v, want both on by default", cfg.PortProbe, cfg.StuckHint)
+	}
+}
+
+// 两个可选规则默认开，写了 false 才是关掉。
+func TestConfigOptionalRulesCanBeDisabled(t *testing.T) {
+	t.Setenv(EnvDir, "")
+
+	on, err := LoadConfig(filepath.Join(t.TempDir(), "absent.json"))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !on.PortProbe || !on.StuckHint {
+		t.Fatalf("defaults = %v/%v, want both on", on.PortProbe, on.StuckHint)
+	}
+
+	path := filepath.Join(t.TempDir(), "monitor.json")
+	if err := os.WriteFile(path, []byte(`{"port_probe": false, "stuck_hint": false}`), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	off, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if off.PortProbe || off.StuckHint {
+		t.Fatalf("explicit false was ignored: %v/%v", off.PortProbe, off.StuckHint)
+	}
 }
 
 // Monitor 只读自己的配置文件：站点配置里的字段一律忽略，也不去读 fast-https.json。

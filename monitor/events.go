@@ -20,12 +20,16 @@ const (
 // StatusSchemaVersion 是状态文件的版本；CLI 只认这一个。
 const StatusSchemaVersion = "1"
 
-// 事件类型。规则只做确定性判断，类型名就是结论本身。
+// 事件类型。规则只做确定性判断，类型名就是结论本身；事件里的 rule 与 type 同名，
+// 便于按规则过滤。
 const (
 	EventUnreachable  = "unreachable"
 	EventRecovered    = "recovered"
 	EventRestarted    = "restarted"
 	EventCollectError = "collect_error"
+	EventFiveXXRatio  = "5xx_ratio"
+	EventPortProbe    = "port_probe"
+	EventStuck        = "stuck_suspected"
 )
 
 // 状态文件里的 status 取值。stale 由读侧按时间差推导，Monitor 不写。
@@ -39,18 +43,22 @@ const (
 type Event struct {
 	Time     string        `json:"time"`
 	Type     string        `json:"type"`
+	Rule     string        `json:"rule"`
 	Severity string        `json:"severity"`
 	Message  string        `json:"message"`
 	Summary  *EventSummary `json:"snapshot,omitempty"`
 }
 
-// EventSummary 是触发时的快照摘要，供事后回溯。
+// EventSummary 是触发时的快照摘要，供事后回溯。窗口规则的增量也放在这里，
+// 免得回头再算一遍。
 type EventSummary struct {
-	State         string `json:"state,omitempty"`
-	PID           int    `json:"pid,omitempty"`
-	StartedAt     string `json:"started_at,omitempty"`
-	RequestsTotal uint64 `json:"requests_total,omitempty"`
-	Responses5xx  uint64 `json:"responses_5xx_total,omitempty"`
+	State             string `json:"state,omitempty"`
+	PID               int    `json:"pid,omitempty"`
+	StartedAt         string `json:"started_at,omitempty"`
+	RequestsTotal     uint64 `json:"requests_total,omitempty"`
+	Responses5xx      uint64 `json:"responses_5xx_total,omitempty"`
+	RequestsDelta     uint64 `json:"requests_delta,omitempty"`
+	Responses5xxDelta uint64 `json:"responses_5xx_delta,omitempty"`
 }
 
 // MonitorStatus 与 CLI 读取的状态文件同形。写的是 Monitor 自己的 pid 与最近一次采集结果，

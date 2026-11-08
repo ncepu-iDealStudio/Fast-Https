@@ -26,6 +26,19 @@ const (
 	DefaultEventMaxBytes = int64(10 << 20)
 	DefaultEventKeep     = 3
 
+	// DefaultCooldown 是同一条规则触发后的冷却时间。
+	DefaultCooldown = 5 * time.Minute
+
+	// DefaultFiveXXRatio 是「5xx 升高」的默认阈值，DefaultFiveXXMinRequests
+	// 是算比例前要求的最小请求增量，避免除以一个很小的数。
+	DefaultFiveXXRatio       = 0.05
+	DefaultFiveXXMinRequests = 20
+
+	// 可选的两条提示规则默认开启：端口探测能发现「接口活着但业务端口不通」，
+	// 卡死提示只是 info 级别。嫌吵可以在配置里显式写 false 关掉。
+	DefaultPortProbe = true
+	DefaultStuckHint = true
+
 	// EnvDir 与 CLI 读状态文件时使用的环境变量一致。
 	EnvDir = "FASTHTTPS_MONITOR_DIR"
 )
@@ -64,6 +77,13 @@ type Config struct {
 	PidFile       string   `json:"pid_file"`
 	EventMaxBytes int64    `json:"event_max_bytes"`
 	EventKeep     int      `json:"event_keep"`
+
+	// 规则口径。Cooldown 为 0 表示不做冷却。
+	Cooldown          Duration `json:"cooldown"`
+	FiveXXRatio       float64  `json:"five_xx_ratio"`
+	FiveXXMinRequests int      `json:"five_xx_min_requests"`
+	PortProbe         bool     `json:"port_probe"`
+	StuckHint         bool     `json:"stuck_hint"`
 }
 
 // DefaultConfig 返回不带文件与环境变量影响的默认值。
@@ -76,7 +96,21 @@ func DefaultConfig() Config {
 		PidFile:       DefaultPidFile,
 		EventMaxBytes: DefaultEventMaxBytes,
 		EventKeep:     DefaultEventKeep,
+
+		Cooldown:          Duration(DefaultCooldown),
+		FiveXXRatio:       DefaultFiveXXRatio,
+		FiveXXMinRequests: DefaultFiveXXMinRequests,
+		PortProbe:         DefaultPortProbe,
+		StuckHint:         DefaultStuckHint,
 	}
+}
+
+// configFile 是配置文件的反序列化目标。两个可选规则用指针，
+// 才能区分「没写」（用默认值，默认开）和「写了 false」（显式关掉）。
+type configFile struct {
+	Config
+	PortProbe *bool `json:"port_probe"`
+	StuckHint *bool `json:"stuck_hint"`
 }
 
 // LoadConfig 读取 Monitor 自己的配置。
@@ -85,7 +119,7 @@ func DefaultConfig() Config {
 // 优先级：配置文件 > 环境变量 FASTHTTPS_MONITOR_DIR > 默认值。
 func LoadConfig(path string) (Config, error) {
 	cfg := DefaultConfig()
-	var file Config
+	var file configFile
 	if p := strings.TrimSpace(path); p != "" {
 		raw, err := os.ReadFile(p)
 		switch {
@@ -112,7 +146,7 @@ func LoadConfig(path string) (Config, error) {
 }
 
 // mergeConfig 用配置文件里的非零字段覆盖默认值。
-func mergeConfig(cfg *Config, file Config) {
+func mergeConfig(cfg *Config, file configFile) {
 	if file.Interval != 0 {
 		cfg.Interval = file.Interval
 	}
@@ -133,6 +167,22 @@ func mergeConfig(cfg *Config, file Config) {
 	}
 	if file.EventKeep > 0 {
 		cfg.EventKeep = file.EventKeep
+	}
+	if file.Cooldown != 0 {
+		cfg.Cooldown = file.Cooldown
+	}
+	if file.FiveXXRatio > 0 {
+		cfg.FiveXXRatio = file.FiveXXRatio
+	}
+	if file.FiveXXMinRequests > 0 {
+		cfg.FiveXXMinRequests = file.FiveXXMinRequests
+	}
+	// 两个可选规则默认开：只有显式写了才改，写成 false 就是关掉。
+	if file.PortProbe != nil {
+		cfg.PortProbe = *file.PortProbe
+	}
+	if file.StuckHint != nil {
+		cfg.StuckHint = *file.StuckHint
 	}
 }
 
@@ -155,6 +205,15 @@ func (c Config) Validate() error {
 	}
 	if c.EventKeep < 1 {
 		return fmt.Errorf("event_keep must be at least 1")
+	}
+	if c.Cooldown.D() < 0 {
+		return fmt.Errorf("cooldown must not be negative")
+	}
+	if c.FiveXXRatio <= 0 || c.FiveXXRatio > 1 {
+		return fmt.Errorf("five_xx_ratio must be in (0, 1], got %v", c.FiveXXRatio)
+	}
+	if c.FiveXXMinRequests < 1 {
+		return fmt.Errorf("five_xx_min_requests must be at least 1")
 	}
 	u, err := url.Parse(c.SnapshotURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
