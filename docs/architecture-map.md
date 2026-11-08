@@ -18,6 +18,7 @@
 | 数据面运行时 | `runtime/*` | `infra/*`、`config`、`core`、`runtime/*` | 不允许依赖 `modules` |
 | 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters,metrics}` |
 | 管理核心 | `management/*` | `infra`、`config`、`modules/site`、`modules/certmanager`、`management` | 不允许依赖数据面运行时、`core` 或组合根。读 `/runtime` 只走标准库 HTTP（`management/rtclient`），不 import `runtime/metrics` |
+| 独立监控进程 | `monitor` | 仅 `monitor` 与标准库 | 只读本机 `GET /runtime` 与 PID 文件，自己写状态与事件文件；不依赖数据面、管理核心与组合根，也不被 Server 启动 |
 | 组合根 | `cmd`、`init`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
 
 ## 2. Package 与生产职责
@@ -50,6 +51,7 @@
 | `management/rtclient` | 本机 `GET /runtime` 的标准库 HTTP 客户端；校验 `schema_version == "1"`，自身复制 JSON 结构，不依赖 `runtime/metrics` | CLI `runtime *`、`service status/version`、reload 强验证、`diagnose` |
 | `management/svcctl` | 受控 reload：校验、新增端口预检、发信号；读得到快照时 `WaitRuntime`（生成号加一、pid/`started_at` 不变），否则 `WaitBasic` | `service reload`、`config apply` |
 | `management/diagnose` | 只读健康汇总。`runtime` 检查项读 `/runtime`（连不上为 warning）；`monitor` 仍为 unavailable | `diagnose` |
+| `monitor` | 独立 Monitor 进程：周期读本机 `GET /runtime`，把原始快照追加到 `snapshots.jsonl`，写「不可达 / 恢复 / 进程重启 / 采集异常」事件到 `events.jsonl`，并原子更新 `status.json`；事件与快照按单文件上限自轮转 | 独立可执行程序，Server 不依赖它 |
 | `desktop/` | Wails v3 桌面管理端，独立 Go module | 独立可执行程序 |
 | `tests`、`tests/client_test`、`tests/unit_test/...`、`tests/arch` | 根测试入口、子进程 E2E、集中式单测、分层约束 | 测试专用 |
 

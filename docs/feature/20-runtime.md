@@ -33,6 +33,20 @@ Invoke-RestMethod http://127.0.0.1:9088/runtime | ConvertTo-Json -Depth 5
 
 `runtime/metrics/snapshot_test.go`、`runtime/events/duration_test.go`、`modules/proxy/metrics_test.go`、`cmd/runtime_endpoint_test.go`（测试绑定 `127.0.0.1:0`，不占用 9088）、`runtime/server/reload_state_test.go`。进程重启与 `stop` 后 `/runtime` 不可达见 `tests/client_test/runtime_e2e_test.go`（`FASTHTTPS_E2E_RUNTIME=1`）。
 
+## 性能
+
+2026-11-08 按 [Monitor 改造开发计划](../fast-https-Monitor改造开发计划.md) 2.2 第 5 条做的前后对比。三个版本用同一份配置、同一静态文件（1KB）、同一并发数，每版跑 4 轮取中位数；32 个 keep-alive 连接，每轮 2s 预热 + 8s 采样，访问日志保持默认开启。
+
+| 版本 | 代码状态 | rps（4 轮） | 中位 rps | p50 | p99 |
+| --- | --- | --- | --- | --- | --- |
+| a | 第 1 步后：只有连接计数 | 3758 / 3333 / 3832 / 3493 | 3626 | 7.8–8.9 ms | 14.6–18.1 ms |
+| b | 第 3 步后：加上请求与状态码计数（第 2 步） | 4322 / 4296 / 3023 / 3245 | 3771 | 7.2–9.8 ms | 11.2–21.9 ms |
+| c | 第 4 步后：加上耗时直方图与上游计数（HEAD） | 3679 / 3654 / 3622 / 3787 | 3667 | 7.9–8.2 ms | 14.9–16.5 ms |
+
+中位数差异：第 2 步 +4.0%，第 4 步 +1.1%；而 b 自身 4 轮的极差就有 30%（3023–4322），差异落在测量噪声内。p50/p99 没有系统性偏移。
+
+环境是 Windows 本机回环，单请求约 8 ms 主要由访问日志落盘决定，原子加减的开销在这个量级测不出来。因此不设「退化不超过 N%」的门槛——没有测到退化就不编一个阈值。Linux 上的对照留到隔离环境核对时补测。
+
 ## 已知限制
 
 - 端口写死 9088，没有配置项。
