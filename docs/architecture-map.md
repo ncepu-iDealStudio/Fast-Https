@@ -109,7 +109,7 @@
 - 源码邻近的 `*_test.go`：`cmd/`、`config/`、`infra/*`、`init/`、`core/`、`runtime/*`、`modules/*`。
 - 集中单测：`tests/unit_test/`，只保留存量，新单测写在被测包旁。
 - 分层约束：`tests/arch/layering_test.go` 校验 `infra`↔`config`、`core`、`runtime`、`modules` 的依赖方向，并禁止 viper 泄漏与生产代码依赖 `tests/`。
-- 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`。
+- 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`；`TestRuntimeProcessRestartE2E` 需要 `FASTHTTPS_E2E_RUNTIME=1`。
 - 根目录 `tests/fast-https_test.go` 覆盖初始化路径。
 
 不进入 `go test` 的文件：`tests/scripts/dev-test.sh`、`dev-test.ps1`（手工前台拉起服务），`tests/single/workloop.go`（独立 `main` 演示）。

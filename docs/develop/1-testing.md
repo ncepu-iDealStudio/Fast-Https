@@ -26,6 +26,7 @@ go vet ./...                  # 静态检查
 | 变量 | 测试 | 说明 |
 | --- | --- | --- |
 | `FASTHTTPS_E2E_RELOAD=1` | TestReloadPortSwitchE2E | 真实进程切端口热重载 |
+| `FASTHTTPS_E2E_RUNTIME=1` | TestRuntimeProcessRestartE2E | 两个短生命周期进程：新 PID / `started_at`，`requests.total` 从 0 开始；`stop` 后 `/runtime` 不可达且 pid 文件被清理 |
 | （内部 helper 变量） | TestProxyHTTPIntegration / TestH2Integration | 默认随 `go test` 运行 |
 
 涉及 reload 或防火墙的改动必须跑对应 E2E；它们使用子进程 + 临时运行目录，不改仓库内 `config/fast-https.json`（铁律）。

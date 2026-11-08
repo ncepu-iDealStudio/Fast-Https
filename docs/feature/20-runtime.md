@@ -31,7 +31,7 @@ Invoke-RestMethod http://127.0.0.1:9088/runtime | ConvertTo-Json -Depth 5
 
 ## 测试
 
-`runtime/metrics/snapshot_test.go`、`runtime/events/duration_test.go`、`modules/proxy/metrics_test.go`、`cmd/runtime_endpoint_test.go`（测试绑定 `127.0.0.1:0`，不占用 9088）。
+`runtime/metrics/snapshot_test.go`、`runtime/events/duration_test.go`、`modules/proxy/metrics_test.go`、`cmd/runtime_endpoint_test.go`（测试绑定 `127.0.0.1:0`，不占用 9088）、`runtime/server/reload_state_test.go`。进程重启与 `stop` 后 `/runtime` 不可达见 `tests/client_test/runtime_e2e_test.go`（`FASTHTTPS_E2E_RUNTIME=1`）。
 
 ## 已知限制
 

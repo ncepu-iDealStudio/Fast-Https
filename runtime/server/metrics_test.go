@@ -191,12 +191,22 @@ func TestConnCounterNotCountedWhenStopping(t *testing.T) {
 }
 
 func TestStopTimeoutCounter(t *testing.T) {
-	// Windows 上 stop 走 Kill，生产路径进不了 drainConnections；超时分支
-	// 本身与信号无关，这里在各平台都覆盖同一段计时代码。
+	// Windows 生产 stop 走 Kill，进不了 drainConnections；超时分支本身
+	// 与信号无关。用不返回的处理函数加很短超时覆盖，不等默认的 5 秒。
 	metrics.ResetForTest()
+	block := make(chan struct{})
+	stubServeConnHandler(t, func(*listener.Listener, net.Conn, context.Context) {
+		<-block
+	})
 	s := &Server{}
-	s.connWg.Add(1)
-	t.Cleanup(func() { s.connWg.Done() })
+	a, b := net.Pipe()
+	t.Cleanup(func() {
+		close(block)
+		_ = a.Close()
+		_ = b.Close()
+		s.connWg.Wait()
+	})
+	s.serveConn(&listener.Listener{}, b, context.Background())
 
 	before := metrics.StopTimeoutTotal()
 	s.drainConnections(20 * time.Millisecond)
