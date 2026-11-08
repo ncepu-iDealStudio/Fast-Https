@@ -44,7 +44,10 @@ func RegisterServices() {
 		// listenSsl 建 tls.Config 时读 TLSALPNEnabled()，晚一步就白重建。
 		BeforeListenReload: certmanager.ReconcileHooks,
 		AfterListen:        afterListen,
-		AfterStop:          afterStop,
+		AfterStop: func() {
+			StopRuntimeEndpoint()
+			afterStop()
+		},
 	})
 	// 按启动时的配置挂上 ACME 钩子。未启用时不挂任何钩子，
 	// 请求热路径保持不变。

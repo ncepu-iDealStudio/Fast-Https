@@ -12,7 +12,7 @@
 cmd/        组合根：CLI、handler 注册、core.Services 装配
 fast-https.go  入口
 core/       事件契约：Event/RRcircle、handler 注册表、服务钩子（不依赖 modules）
-runtime/    数据面：server（调度）、metrics（生命周期/连接计数）、listener（监听/证书）、
+runtime/    数据面：server（调度）、metrics（生命周期/连接/请求计数，供 /runtime 快照）、listener（监听/证书）、
             events（事件分发、h2）、request/response（协议解析与序列化）、
             filters（路由过滤）、dynlog（访问日志）
 modules/    功能面：static、proxy、proxy_tcp、websocket、rewrite、cache、compress、

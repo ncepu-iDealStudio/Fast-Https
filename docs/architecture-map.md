@@ -24,7 +24,7 @@
 | Package / 路径 | 职责和主要入口 | 默认服务器路径 |
 | --- | --- | --- |
 | 根 `fast-https` | 主服务器 `main`，调用 `cmd.RootCmd()` | 是 |
-| `cmd` | Cobra 命令、start/dev/stop/reload/check/status、`acme` 配置向导（`huh` 表单 + 参数模式）、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点 | 是 |
+| `cmd` | Cobra 命令、start/dev/stop/reload/check/status、`acme` 配置向导（`huh` 表单 + 参数模式）、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点；写完 PID 后在 `127.0.0.1:9088` 提供 `GET /runtime` | 是 |
 | `config` | 配置模型、JSON/include 读取、验证、路径和全局运行配置 | 是 |
 | `init` | 配置、日志、证书、缓存初始化 | 是 |
 | `infra/banner` | 彩色横幅、版本号与初始化阶段提示（版本由组合根注入） | 由组合根调用 |
@@ -34,7 +34,7 @@
 | `infra/files` | 原子写文件：先写 `.tmp` 再 rename，配置回写与 ACME PEM 落盘共用 | 是 |
 | `core` | `Event`、处理器注册表、默认命令变量、`Services` 生命周期钩子 | 是 |
 | `runtime/server` | 启停、信号、连接跟踪、listener 生命周期和 reload | 是 |
-| `runtime/metrics` | 进程内生命周期、连接/请求/状态码计数、reload 生成号与监听端口原子副本；尚无 HTTP 出口 | 是 |
+| `runtime/metrics` | 进程内生命周期、连接/请求/状态码计数、reload 生成号与监听端口原子副本；`TakeSnapshot()` 供组合根的 `/runtime` 读取 | 是 |
 | `runtime/listener` | 配置转 Listener/ListenCfg、虚拟主机表、TCP/TLS socket、端口 reload | 是 |
 | `runtime/events` | HTTP/1.x 连接事件、请求解析、统一事件分发；HTTP/2 走 `golang.org/x/net/http2`，这里只做 `http.Request`/`http.ResponseWriter` 与 `core.Event` 的适配 | 是 |
 | `runtime/filters` | 连接、监听、HTTP 解析、Host/Path 过滤 | 是。连接拒绝和监听分流调用 `core.Services` 钩子 |

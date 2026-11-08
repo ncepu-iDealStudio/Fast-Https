@@ -2,7 +2,7 @@
 // 请求与状态码、reload 结果和监听端口副本。读取只做原子 Load，不持 Server.mu，
 // 也不去读无锁的 Server.Listens。
 //
-// 本包尚无 HTTP 接口；快照出口由后续步骤加入。
+// 快照由 TakeSnapshot() 组装，HTTP 出口在组合根 cmd 的 127.0.0.1:9088/runtime。
 package metrics
 
 import (
@@ -177,4 +177,5 @@ func ResetForTest() {
 	responses4xx.Store(0)
 	responses5xx.Store(0)
 	responsesUnknown.Store(0)
+	resetSectionsForTest()
 }

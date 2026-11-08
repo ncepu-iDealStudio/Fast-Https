@@ -254,6 +254,10 @@ func StartHandler() error {
 			config.PID_FILE, err)
 	}
 
+	// 本机只读快照：写完 PID 就监听，InitSystem（含首次生成 CA）期间
+	// 返回 state:starting。绑定失败不影响业务端口。
+	_ = StartRuntimeEndpoint()
+
 	// output logo, make initialization and start server
 	banner.PrintLogo(config.CURRENT_VERSION)
 
