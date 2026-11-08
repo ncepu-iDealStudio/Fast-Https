@@ -144,6 +144,25 @@ func loadSites(mainPath string, main map[string]any) ([]map[string]any, []string
 	return sites, files, warnings, nil
 }
 
+// ConfigDrift 报告磁盘上的主配置和站点文件是否比 pid 文件新。
+// known 为假表示没有可比较的 pid 文件，不是「没有漂移」。
+func ConfigDrift(mainPath, pidFile string) (dirty, known bool, err error) {
+	if strings.TrimSpace(pidFile) == "" {
+		return false, false, nil
+	}
+	main, err := loadObject(mainPath)
+	if err != nil {
+		return false, false, err
+	}
+	_, files, _, err := loadSites(mainPath, main)
+	if err != nil {
+		return false, false, err
+	}
+	absMain, _ := filepath.Abs(mainPath)
+	dirty, known = configDirtyHint(pidFile, append([]string{absMain}, files...))
+	return dirty, known, nil
+}
+
 // configDirtyHint 在 pid 文件存在时，按「配置文件比 pid 文件新」判断是否改过未重载。
 // pid 是启动时写的，改配置不会动它。没有 pid 文件时无从判断，ok 为 false。
 func configDirtyHint(pidFile string, files []string) (dirty, ok bool) {

@@ -72,6 +72,11 @@ func commandList() []command {
 			register:    newLogsCmd,
 		},
 		{
+			name:        "diagnose",
+			description: t("只读汇总健康检查", "run a read-only health summary"),
+			register:    newDiagnoseCmd,
+		},
+		{
 			name:        "acme",
 			description: t("配置 ACME 证书签发", "configure ACME certificate issuance"),
 			register:    newAcmeCmd,

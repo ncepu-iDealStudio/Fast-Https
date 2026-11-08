@@ -488,6 +488,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。目前该文件只含 `PrintErr`，控制台错误尚未写入 |
 | `logs access` | 只读 `access.log`，过滤条件同上，另有 `--status`（`500`、`4xx` 或 `400-499`） |
 | `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
+| `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime`、`monitor`、状态目录目前为 `unavailable`，不拉低 `overall`。配置有问题也退出码 0 |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套 |
 | `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块；加 `--json` 输出脱敏后的封套（文本模式仍打印原文，包含写在文件里的口令） |
@@ -518,7 +519,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 
 ### 10.2 机器可读输出与退出码
 
-根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`service status`、`config show`、`config validate`、`site list`、`site show`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`，以及保持原格式的 `config path`），其它命令接受但不使用后两个。
+根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`service status`、`config show`、`config validate`、`site list`、`site show`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`、`diagnose`，以及保持原格式的 `config path`），其它命令接受但不使用后两个。
 
 `--json` 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：
 
