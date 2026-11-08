@@ -5,6 +5,7 @@ package config
 
 import (
 	"errors"
+	"fast-https/infra/logging"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -18,15 +19,29 @@ func CheckConfig() error {
 }
 
 // ValidateConfigFile validates the main json config file and included json files.
+// 告警只写控制台日志；需要拿到告警文本的调用方用 ValidateConfigFileWithWarnings。
 func ValidateConfigFile(configPath string) error {
+	warnings, err := ValidateConfigFileWithWarnings(configPath)
+	if err != nil {
+		return err
+	}
+	for _, w := range warnings {
+		logging.ConsoleLog.Warn().Msg(w)
+	}
+	return nil
+}
+
+// ValidateConfigFileWithWarnings 与 ValidateConfigFile 做同样的校验，
+// 但把非致命的告警作为返回值交给调用方，不写日志。校验失败时不返回告警。
+func ValidateConfigFileWithWarnings(configPath string) ([]string, error) {
 	content, err := os.ReadFile(configPath)
 	if err != nil {
-		return fmt.Errorf("read config file failed: %w", err)
+		return nil, fmt.Errorf("read config file failed: %w", err)
 	}
 
 	var root jsonConfig
 	if err := unmarshalConfig(content, &root); err != nil {
-		return fmt.Errorf("parse config json failed: %w", err)
+		return nil, fmt.Errorf("parse config json failed: %w", err)
 	}
 
 	baseDir := filepath.Dir(configPath)
@@ -35,33 +50,33 @@ func ValidateConfigFile(configPath string) error {
 		switch root.WAF.Mode {
 		case "", "enforce", "monitor", "disabled":
 		default:
-			return fmt.Errorf("waf.mode is invalid: %s (want enforce, monitor or disabled)", root.WAF.Mode)
+			return nil, fmt.Errorf("waf.mode is invalid: %s (want enforce, monitor or disabled)", root.WAF.Mode)
 		}
 	}
 
 	if err := root.Acme.validate(); err != nil {
-		return err
+		return nil, err
 	}
 	if err := root.Security.validate(); err != nil {
-		return err
+		return nil, err
 	}
 
 	serverCount := len(root.HTTP.Servers)
 	for i := range root.HTTP.Servers {
 		if err := validateServer(&root.HTTP.Servers[i], baseDir, baseDir,
 			fmt.Sprintf("http.server[%d]", i), true); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	includeServers, err := validateIncludes(root.HTTP.Include, baseDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// 站点允许只写在 include 目录里，主配置不出现 http.server；
 	// 但整体一个站点都没有就等于没配服务。
 	if serverCount+len(includeServers) == 0 {
-		return errors.New("no server configured: add http.server or a server file under http.include")
+		return nil, errors.New("no server configured: add http.server or a server file under http.include")
 	}
 
 	// http-01 需要对外暴露 80 端口，但也可能由前置反代转发，因此只告警不阻断。
@@ -70,8 +85,11 @@ func ValidateConfigFile(configPath string) error {
 	allServers := make([]jsonServer, 0, serverCount+len(includeServers))
 	allServers = append(allServers, root.HTTP.Servers...)
 	allServers = append(allServers, includeServers...)
-	root.Acme.warnHTTP01WithoutPort80(allServers)
-	return nil
+	var warnings []string
+	if w := root.Acme.http01Port80Warning(allServers); w != "" {
+		warnings = append(warnings, w)
+	}
+	return warnings, nil
 }
 
 // validateIncludes 校验 include 目录/文件，返回解析后的 server 块。

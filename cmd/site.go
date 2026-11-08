@@ -65,6 +65,9 @@ func newSiteCmd() *cobra.Command {
 		Short:        t("列出站点文件的 listen、server_name 与 location 类型", "list site files with listen, server_name and location types"),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if jsonMode(cmd) {
+				return runSiteListJSON(cmd)
+			}
 			return runSiteList(siteOptionsFrom(cmd, args))
 		},
 	}
@@ -74,6 +77,9 @@ func newSiteCmd() *cobra.Command {
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if jsonMode(cmd) {
+				return runSiteShowJSON(cmd, args[0])
+			}
 			return runSiteShow(siteOptionsFrom(cmd, args))
 		},
 	}

@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -237,8 +238,11 @@ func SnapshotServer(mainPath, name string) ([]byte, string, error) {
 			}
 		}
 	}
-	return nil, "", fmt.Errorf("no server block with server_name %q", name)
+	return nil, "", fmt.Errorf("%w with server_name %q", ErrNoServerBlock, name)
 }
+
+// ErrNoServerBlock 表示合并视图里没有指定名字的 server 块，调用方据此区分「不存在」与其它读取错误。
+var ErrNoServerBlock = errors.New("no server block")
 
 func marshalServerSpec(server *jsonServer) ([]byte, error) {
 	data, err := json.MarshalIndent(server, "", "  ")
@@ -247,5 +251,3 @@ func marshalServerSpec(server *jsonServer) ([]byte, error) {
 	}
 	return append(data, '\n'), nil
 }
-
-

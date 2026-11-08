@@ -16,7 +16,7 @@ func newServiceCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
-	root.AddCommand(newServiceVersionCmd())
+	root.AddCommand(newServiceVersionCmd(), newServiceStatusCmd())
 	return root
 }
 

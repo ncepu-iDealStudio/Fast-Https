@@ -12,7 +12,8 @@
 
 ```
 fast-https start|stop|reload|status|version
-fast-https service version [--json]     # 机器可读的版本查询
+fast-https service version|status [--json]   # 机器可读的版本 / 状态查询
+fast-https config path|show|validate [--json] # 路径 / 脱敏后的磁盘配置 / 只校验不应用
 fast-https acme [setup|show]     # 交互向导 / 参数式配置 / 查看当前生效值
 fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
 ```
@@ -28,11 +29,19 @@ fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
 - **handler 注册**：`cmd.RegisterHandlers` 把 static/proxy/rewrite/devmod 注册进 core 注册表；`RegisterServices` 把 safe（黑名单/限流）、auth、tcp/websocket 劫持、缓存清理装配进 `core.Services` 钩子——core 不反向依赖功能包。
 - **`acme` 命令**：`cmd/acme.go` 用 `charmbracelet/huh` 做交互表单（非 TTY 自动降级为逐行问答，`--non-interactive` 全走 flags），写回时走 `config.WriteACMESection` 的文本级局部替换，只改顶层 `acme` 段，注释与其它字段保持原样。
 - **`site` 命令组**：`cmd/site.go` 只做参数解析与输出；文件生成、命名校验、原子落盘在 `modules/site`，合并视图与文件级校验复用 `config`（`SiteDirsFromFile`、`ValidateSiteFile`、`ValidateNewSiteFile`、`SnapshotServer`）。`command` 结构新增 `register func() *cobra.Command`，带子命令的命令走它注册，扁平命令保持原样。
+- **只读视图与脱敏**：`management/view` 把磁盘配置、站点与进程状态整理成输出数据（纯只读，不依赖 `cmd`），`management/redact` 按键名遮蔽口令、令牌、EAB 密钥和敏感请求头的值，路径不算秘密。`management` 是分层测试里的独立一层，只依赖 `infra`、`config`、`modules/site`、`modules/certmanager`。`cmd/service_status.go`、`cmd/config_cmd.go`、`cmd/site_json.go` 只做参数解析与输出，`cmd/view_errors.go` 把视图层错误转成错误码。
+- **`service status` 判定**：进程在且至少一个配置端口回环可连是 `running`，进程在但端口都连不上是 `degraded`，没进程也没端口是 `stopped`（pid 文件残留时带 `stale_pid`），证据互相矛盾（没进程却有端口可连、pid 文件读不出）是 `unknown`。端口取自 `config.ListenPortsFromFile`，只读、不替换运行期快照。
+- **`config validate` 的告警**：`config.ValidateConfigFileWithWarnings` 把非致命告警作为返回值交出来；旧的 `ValidateConfigFile` 仍写同一条控制台日志。
 
 ## 测试
 
-`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出）。
+`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏）、`management/redact`、`management/view`、`config/validate_warnings_test.go`。
 
 ## 已知限制
 
 - `status` 依赖 pid 文件。进程异常退出留下的陈旧 pid 会被识别为 `stale`，`stop` / `reload` 遇到时按「没在跑」处理并清理文件，`status` 仍以非 0 退出。
+- `config show` 的来源是磁盘，不是运行中进程实际生效的配置；`config_dirty_hint` 只是按修改时间的提示，且只在进程确实在跑时给出。
+- `config validate --candidate` 目前只覆盖主配置文件本身，`http.include` 与证书路径仍按运行期布局解析。
+- `config show` 只展开 `http.include` 目录下直接的 `*.json`（与 `site list` 一致）；include 写成单个文件或不存在的目录时会给出告警。
+- 不带 `--json` 的 `site show` 仍打印站点文件原文，包含写在文件里的口令；要脱敏输出请加 `--json`。
+- `service status` 的端口探测会对配置端口各发起一次回环 TCP 连接，TLS 端口上服务端会看到一次未完成的握手。

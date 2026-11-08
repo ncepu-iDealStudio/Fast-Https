@@ -69,6 +69,12 @@ var layers = []layer{
 		why: "功能包只允许依赖下层与请求模型，不允许依赖 server/events/filters 这些调度层",
 	},
 	{
+		name:  "management",
+		match: prefix("management"),
+		allow: []string{"infra", "config", "modules/site", "modules/certmanager", "management"},
+		why:   "管理核心只依赖基础设施、配置与站点/证书模块，不允许依赖数据面运行时、core 或组合根",
+	},
+	{
 		name: "composition",
 		match: func(pkg string) bool {
 			return pkg == "cmd" || pkg == "init" || pkg == "."
