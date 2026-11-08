@@ -63,6 +63,22 @@ else
     logrotate -d /etc/logrotate.d/fast-https 2>&1 | tail -5
 fi
 
+echo "=== Monitor：装包与「Server 未启动」判断 ==="
+expect_present /usr/bin/fast-https-monitor "Monitor 二进制在 /usr/bin"
+expect_present /usr/lib/systemd/system/fast-https-monitor.service "Monitor 单元已安装"
+expect_present /etc/fast-https/monitor.json "Monitor 配置在 /etc/fast-https"
+# 直接前台跑一次：此时 Server 还没起，应当如实判为「从未启动」并以非零退出。
+if /usr/bin/fast-https-monitor -once -config /etc/fast-https/monitor.json >/dev/null 2>&1; then
+    bad "Server 未启动时 Monitor 应返回非零"
+else
+    pass "Monitor 如实报告不可达"
+fi
+if grep -q 'not started' /var/log/fast-https/monitor/status.json 2>/dev/null; then
+    pass "status.json 记录「从未启动」"
+else
+    bad "status.json 未记录判断依据"
+fi
+
 echo "=== 运行期路径 ==="
 fast-https config path --json || bad "config path"
 
@@ -94,6 +110,8 @@ if [ -s /var/log/fast-https/access.log ]; then pass "截断后进程仍在写当
 echo "=== 重装：%config(noreplace) 保留本地修改 ==="
 stop_service
 echo '{"http":{"servers_limit":{"limit":7}}}' > /etc/fast-https/fast-https.json
+# Monitor 的阈值是运维会改的东西，重装/升级同样不能覆盖。
+echo '{"interval":"7s"}' > /etc/fast-https/monitor.json
 if rpm -U --replacepkgs "$PKG" >/tmp/reinstall.log 2>&1; then
     pass "同版本重装"
 else
@@ -104,6 +122,11 @@ if grep -q '"limit":7' /etc/fast-https/fast-https.json; then
     pass "重装后本地配置保留（noreplace 生效）"
 else
     bad "重装后本地配置被覆盖"
+fi
+if grep -q '"interval":"7s"' /etc/fast-https/monitor.json; then
+    pass "重装后 Monitor 配置保留（noreplace 生效）"
+else
+    bad "重装后 Monitor 配置被覆盖"
 fi
 if [ -e /etc/fast-https/fast-https.json.rpmnew ]; then
     pass "新默认值落为 .rpmnew（管理员可对比）"
@@ -121,6 +144,8 @@ expect_absent /run/fast-https "卸载后 run 目录已删"
 expect_absent /etc/logrotate.d/fast-https "卸载后 logrotate 配置已删"
 expect_absent /usr/share/fast-https/httpdoc/root/root.crt "卸载后孤儿 CA 证书已删"
 expect_absent /usr/bin/fast-https "卸载后二进制已删"
+expect_absent /usr/bin/fast-https-monitor "卸载后 Monitor 二进制已删"
+expect_absent /etc/fast-https/monitor.json "卸载后 Monitor 配置已删"
 expect_present /usr/share/fast-https/httpdoc/root/user.html "卸载保留用户自建网页"
 if rpm -q fast-https >/dev/null 2>&1; then bad "rpm 数据库仍记录 fast-https"; else pass "rpm 数据库已清除"; fi
 

@@ -93,7 +93,7 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 | --- | --- |
 | `config/` | 配置解析、路径基准、校验。改路径先看 `base_dir*.go` 与 `consts.go` |
 | `cmd/` | 命令行。新增子命令要重新生成 man 页 |
-| `management/` | 管理核心：配置事务、只读视图、受控 reload、`rtclient`（读本机 `/runtime`）。不允许依赖 `runtime/` 或 `core` |
+| `management/` | 管理核心：状态目录、配置事务、只读视图、受控 reload、`rtclient`（读本机 `/runtime`）、`monview`（读 Monitor 文件）。不允许依赖 `runtime/` 或 `core` |
 | `runtime/` | 监听、连接、请求/响应、reload、进程内运行状态计数（本机 `GET /runtime` 在 `cmd/`） |
 | `modules/` | 各功能模块（proxy/static/cache/compress/auth/waf/certmanager…） |
 | `init/` | 启动编排：证书初始化、自签 CA |

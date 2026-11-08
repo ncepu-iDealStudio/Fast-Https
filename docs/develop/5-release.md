@@ -28,7 +28,7 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 .\build\package.ps1 -SkipBuild
 ```
 
-产物在 `dist/`；压缩包内打入 `config/fast-https.json`、`config/mime.json`、`docs/usage.html`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。
+产物在 `dist/`；压缩包内打入 `fast-https` 与 `fast-https-monitor` 两个可执行文件，以及 `config/fast-https.json`、`config/mime.json`、`docs/usage.html`、`httpdoc/root/`、`README.md`，并用 `.keep` 保留 `config/cert/`、`config/conf.d/`、`logs/` 空目录。
 
 `dist/` 里除了最终产物还会出现 GoReleaser 的中间目录（`unix_linux_amd64_v1/` 等）、`config.yaml`、`metadata.json`、`artifacts.json`。`build/package.ps1` 收尾会把它们删掉，只留下：
 
@@ -53,7 +53,7 @@ checksums.txt
 
 `build/package.ps1` 先准备桌面端前端与 `.desktop`，再由 goreleaser 用 `purego` 无 CGO 交叉编译 Linux 二进制，产出 `dist/fast-https-desktop_<version>_linux_{amd64,arm64}.{deb,rpm,apk}`，都带 `.desktop` 与图标，依赖按格式使用 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包名。
 
-桌面端包是「主程序包 + 桌面端」：同时带 `/usr/bin/fast-https`（与独立主程序包同一二进制）、`/etc/fast-https` 配置与站点、systemd unit、logrotate 与维护脚本，因此离线只装这一个包也能启动服务；它与独立主程序包声明 `Conflicts` / `Replaces`，最终 `/usr/bin/fast-https` 只有一份。实机验证走 `sh tests/packaging/distro/run.sh desktop`。Linux 二进制不在 Windows 上执行，GUI 行为仍需在带桌面的 Linux 实机验证。
+桌面端包是「主程序包 + 桌面端」：同时带 `/usr/bin/fast-https`（与独立主程序包同一二进制）、`/usr/bin/fast-https-monitor`、`/etc/fast-https` 配置与站点、两个 systemd unit、logrotate 与维护脚本，因此离线只装这一个包也能启动服务与监控；它与独立主程序包声明 `Conflicts` / `Replaces`，最终 `/usr/bin/fast-https` 只有一份。实机验证走 `sh tests/packaging/distro/run.sh desktop`。Linux 二进制不在 Windows 上执行，GUI 行为仍需在带桌面的 Linux 实机验证。
 
 ## Windows 安装包（NSIS）
 
@@ -90,6 +90,7 @@ go run ./tools/docgen
 `build/goreleaser.yaml` 的 `nfpms` 段用 `linux-pkg` 构建（带 `-tags=rpm`）产出三种包：
 
 - 程序装到 `/usr/bin/fast-https`；配置与证书 `/etc/fast-https/`、站点 `/usr/share/fast-https/httpdoc/`、日志 `/var/log/fast-https/`、pid `/run/fast-https/`
+- 独立 Monitor 装到 `/usr/bin/fast-https-monitor`（`monitor-linux-pkg` 构建，不 import 仓库其他包，因此不需要 `-tags=rpm`），配置装到 `/etc/fast-https/monitor.json`（`config|noreplace`），单元 `build/packaging/systemd/fast-https-monitor.service` 装到 `/usr/lib/systemd/system/`。`nfpms` 的四条包（主程序包 + 三个桌面包）都要带这几项，`tests/packaging` 按行数守着
 - 单元文件 `build/packaging/systemd/fast-https.service` 装到 `/usr/lib/systemd/system/`
 - 手册页中英各一份：`build/packaging/man/fast-https.1` 装到 `/usr/share/man/man1/`，`fast-https.en.1` 装到 `/usr/share/man/en/man1/`；两份都由 `go run ./tools/manpage` 从命令树生成，改子命令后必须重新生成
 - 日志轮转 `build/packaging/logrotate/fast-https` 装到 `/etc/logrotate.d/fast-https`，登记为配置文件（deb conffile、rpm `%config(noreplace)`）。四个日志文件在进程里常开 fd 且 `O_APPEND` 追加，所以配置用 `copytruncate`，不走 `create` + `postrotate`；`nfpms.dependencies` 因此包含 `logrotate`，没有它日志会无上限增长

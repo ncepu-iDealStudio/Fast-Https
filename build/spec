@@ -26,6 +26,8 @@ go env -w GOPROXY=https://goproxy.io,direct
 %build
 export PATH=$PATH:`pwd`/go/bin
 go build -ldflags="-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n')" -tags=rpm .
+# 独立 Monitor：不 import 仓库其他包，不需要 -tags=rpm，路径由命令行/单元给出。
+go build -o fast-https-monitor -ldflags="-B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \n')" ./monitor
 
 %install
 # FHS 分离：配置与证书进 /etc，站点进 /usr/share，日志进 /var/log。
@@ -40,11 +42,14 @@ install -d -m 0700 %{buildroot}%{_sharedstatedir}/%{name}
 
 # Installing the binary
 install -m 0755 %{name} %{buildroot}/%{_bindir}/%{name}
+install -m 0755 fast-https-monitor %{buildroot}/%{_bindir}/fast-https-monitor
 
 # Installing additional files config
 install -m 0644 config/fast-https.json %{buildroot}/%{_sysconfdir}/%{name}/fast-https.json
 install -m 0644 config/mime.json %{buildroot}/%{_sysconfdir}/%{name}/mime.json
 install -m 0644 config/conf.d/default.json %{buildroot}/%{_sysconfdir}/%{name}/conf.d/default.json
+# Monitor 的配置：端口阈值、采集周期与事件目录，独立于站点配置。
+install -m 0644 build/packaging/monitor.json %{buildroot}/%{_sysconfdir}/%{name}/monitor.json
 
 
 # Installing additional files httpdoc
@@ -56,9 +61,11 @@ install -m 0644 httpdoc/root/index.html %{buildroot}/%{_datadir}/%{name}/httpdoc
 
 %files
 %{_bindir}/%{name}
+%{_bindir}/fast-https-monitor
 %config(noreplace) %{_sysconfdir}/%{name}/fast-https.json
 %config(noreplace) %{_sysconfdir}/%{name}/mime.json
 %config(noreplace) %{_sysconfdir}/%{name}/conf.d/default.json
+%config(noreplace) %{_sysconfdir}/%{name}/monitor.json
 %dir %{_sysconfdir}/%{name}
 %dir %{_sysconfdir}/%{name}/conf.d
 %dir %{_sysconfdir}/%{name}/cert

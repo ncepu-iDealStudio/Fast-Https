@@ -26,6 +26,8 @@ case "$1" in
     purge|0)
         rm -rf /etc/fast-https/cert /etc/fast-https/conf.d
         rm -f /etc/fast-https/fast-https.json /etc/fast-https/mime.json
+        # Monitor 自己的配置；快照与事件在 /var/log/fast-https/monitor，随下面一行清掉。
+        rm -f /etc/fast-https/monitor.json
         rm -rf /var/log/fast-https /var/lib/fast-https /run/fast-https
         rmdir /etc/fast-https 2>/dev/null || true
 

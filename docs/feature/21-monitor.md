@@ -1,6 +1,6 @@
 # 21. 独立 Monitor 进程
 
-状态：✅ 已实现（第 6、7 步；打包见后续步骤）
+状态：✅ 已实现（第 6、7 步；第 8 步已进 deb / rpm / apk 与 tar.gz / Windows zip）
 
 ## 功能
 
@@ -94,25 +94,40 @@ go run ./monitor -config .\config\monitor.json
 - `monitor/clock.go`：可替换时钟，测试用假时钟推进，不真的等 5 秒。
 - 不 import 仓库内任何其他包，`tests/arch/layering_test.go` 的 `monitor` 层只放行它自己。
 
-## 部署（第一阶段）
+## 部署
 
-只给 systemd 单元草案，随安装包发布的打包留到后续步骤。目录按包布局取 `/var/log/fast-https/monitor`，不新增基址。
+### 发行版包（deb / rpm / apk）
 
-```ini
-[Unit]
-Description=Fast-Https Monitor
-After=network.target
-# 不 Requires= fast-https：Server 没起时 Monitor 也要能跑，并写「不可达」
+包内随主程序一起装四处：
 
-[Service]
-Type=simple
-ExecStart=/usr/bin/fast-https-monitor -dir /var/log/fast-https/monitor -config /etc/fast-https/monitor.json
-Restart=on-failure
-RestartSec=5
+| 路径 | 内容 |
+| --- | --- |
+| `/usr/bin/fast-https-monitor` | Monitor 二进制（`build/goreleaser.yaml` 的 `monitor-linux-pkg` 构建） |
+| `/usr/lib/systemd/system/fast-https-monitor.service` | 独立单元 |
+| `/etc/fast-https/monitor.json` | 阈值与采集周期，登记为 `config|noreplace` |
+| `/var/log/fast-https/monitor/` | 快照、事件与状态，首次落盘时自建 |
 
-[Install]
-WantedBy=multi-user.target
+桌面端包（`fast-https-desktop`）与主程序包内容一致，同样带这四处。`build/spec`（OpenEuler / COPR 路线）装二进制与 `monitor.json`；该 spec 目前不装任何 systemd 单元，与 Server 的现状一致。
+
+单元内容以 `build/packaging/systemd/fast-https-monitor.service` 为准，要点：
+
+- 不写 `Requires=` / `After=fast-https.service`：Server 没起时 Monitor 也要能跑，并把「不可达」如实写进事件。Server 单元也不引用 Monitor。
+- `ExecStart` 用 `-config /etc/fast-https/monitor.json -dir /var/log/fast-https/monitor` 显式给出路径；Monitor 自己不做发行版判断。
+- `Restart=on-failure`、`RestartSec=5s`；只声明 `LogsDirectory=fast-https`，事件子目录由 Monitor 自建。
+- 不接 logrotate：快照与事件由 Monitor 自己按大小轮转。
+
+卸载语义跟主程序一致：`apt remove` / `dnf remove` 保留配置、证书与事件；`apt purge` / `rpm -e` 清掉 `/etc/fast-https/monitor.json` 与 `/var/log/fast-https/monitor/`；升什么都不动。`prerm` 先停 Monitor 再停 Server，避免卸载本身在事件里留下一条假的「不可达」。
+
+### 归档与 Windows
+
+tar.gz 与 Windows zip 里只是多一个 `fast-https-monitor` 可执行文件（Windows 下为 `fast-https-monitor.exe`），默认值按工作目录解析（`./logs/monitor`、`./fast-https.pid`），不需要配置文件：
+
+```bash
+./fast-https-monitor -once                    # 单次采集
+./fast-https-monitor -dir ./logs/monitor      # 常驻
 ```
+
+Windows 安装包（`build/installer/windows/fast-https.nsi`）把解压好的发行目录整体复制进去，所以 `fast-https-monitor.exe` 随 zip 一起进 `setup.exe`，没有单独的组件或快捷方式。安装/升级与卸载前都会 `taskkill /F /IM fast-https-monitor.exe`：它由使用者手工启动、不在任何服务管理器里，不停掉会占着文件，表现为「升级后还是旧版本」或「卸载后目录还在」。Windows 下没有 systemd，也不打包 `monitor.json`，需要改阈值时按上表命令行参数或自建配置文件。
 
 Windows 与容器下由使用者自行托管；容器里 Monitor 与 Server 必须在同一网络命名空间，否则 `127.0.0.1:9088` 不可达。
 

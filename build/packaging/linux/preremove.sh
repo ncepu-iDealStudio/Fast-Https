@@ -6,6 +6,8 @@
 set -e
 
 BIN=/usr/bin/fast-https
+# 独立 Monitor 的二进制也应该在卸载时被认出来：手工启动时它同样会脱离单元。
+MON=/usr/bin/fast-https-monitor
 PID_FILE=/run/fast-https/fast-https.pid
 # 优雅停机上限：服务端收到 SIGTERM 会关闭监听并等在途请求（GracefulStopTimeout 5s）。
 # 用 0.1s 的 tick 计数，避免依赖 sleep 的小数支持以外的工具。
@@ -20,12 +22,12 @@ is_our_process() {
     _pid=$1
     _exe=$(readlink "/proc/$_pid/exe" 2>/dev/null) || _exe=""
     case "$_exe" in
-        "$BIN" | "$BIN (deleted)") return 0 ;;
+        "$BIN" | "$BIN (deleted)" | "$MON" | "$MON (deleted)") return 0 ;;
     esac
     # /proc/PID/exe 读不到时（容器、权限受限）退回比对 argv[0]。
     _cmd=$(tr '\0' ' ' <"/proc/$_pid/cmdline" 2>/dev/null) || _cmd=""
     case "$_cmd" in
-        "$BIN " | "$BIN") return 0 ;;
+        "$BIN " | "$BIN" | "$MON " | "$MON") return 0 ;;
     esac
     return 1
 }
@@ -59,8 +61,12 @@ pid_from_file() {
 }
 
 # stop_unit 停掉 systemd 单元并取消开机自启。
+# 先停 Monitor 再停 Server：反过来的话 Monitor 会先看到一次「不可达」，
+# 那是卸载造成的，不是要观测的故障。
 stop_unit() {
     if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop fast-https-monitor >/dev/null 2>&1 || true
+        systemctl disable fast-https-monitor >/dev/null 2>&1 || true
         systemctl stop fast-https >/dev/null 2>&1 || true
         systemctl disable fast-https >/dev/null 2>&1 || true
     fi

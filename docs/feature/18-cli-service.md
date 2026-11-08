@@ -51,7 +51,9 @@ fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操�
 - `config show` 的来源是磁盘，不是运行中进程实际生效的配置；`config_dirty_hint` 只是按修改时间的提示，且只在进程确实在跑时给出。
 - `config validate --candidate` 校验整棵候选目录（主文件 + `conf.d`），不再读线上 `conf.d`。
 - `service reload` / `config apply` 在 `/runtime` 可达时是强验证（`verification.level: runtime`，`reload_confirmed` 在生成号加一时为 true）；快照不可达时退回弱验证（`basic`）。`--dry-run` 始终是 basic。
-- Monitor 进程本体还不在本仓库里（Monitor 计划第 6、7 步）。在它开始写状态文件之前，`monitor status` 一直是 `not_installed`。CLI 不启停 Monitor。
+- Monitor 采集进程在 `monitor/`，作为独立可执行程序随 deb / rpm / apk 与归档发布，有独立的 systemd 单元。CLI 只读它的 `status.json` 与 `events.jsonl`，不启停它；文件不存在时 `monitor status` 是 `not_installed`。
+- `cert renew` 未实现。续期要在 Server 里加写通道，本阶段明确不做；`cert list` 与 `cert check` 覆盖读取。
+- 命令字段、错误码与退出码见 [docs/usage.md](../usage.md) 第 10 节；示例只收录实际跑过的命令输出。
 - `config apply --dry-run` 不写正式配置、不 reload、默认不创建 operation。非 dry-run 必须 `--yes`（`--confirm` 同义）。`site add/update/delete/enable/disable` 同样要求 `--yes`（除非 `--dry-run`）。
 - 旧顶层 `reload` 仍保留原文案；`FindProcess`/发信号失败时仍 `Fatal`。新增端口被占用时改为命令失败，避免 Server 在 reload 时 `Fatal` 退出。
 - `config show` 只展开 `http.include` 目录下直接的 `*.json`（与 `site list` 一致）；include 写成单个文件或不存在的目录时会给出告警。

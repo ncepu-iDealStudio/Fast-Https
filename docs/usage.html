@@ -47,7 +47,7 @@ footer{max-width:1180px;margin:0 auto;padding:16px 24px 40px;color:var(--muted);
 <body>
 <header class="top"><span class="brand">Fast-Https</span><span class="ver">V1.6.1</span></header>
 <div class="layout">
-<nav class="toc"><p class="toc-title">目录</p><ul><li><a href="#sec-2">1. 能力一览</a></li><li><a href="#sec-3">2. 获取与安装</a></li><li class="lvl3"><a href="#sec-4">发行包</a></li><li class="lvl3"><a href="#sec-5">Linux 发行版包（deb / rpm / apk）</a></li><li class="lvl3"><a href="#sec-6">容器</a></li><li><a href="#sec-7">3. 目录布局</a></li><li><a href="#sec-8">4. 快速开始</a></li><li class="lvl3"><a href="#sec-9">4.1 默认配置</a></li><li class="lvl3"><a href="#sec-10">4.2 启动并验证</a></li><li class="lvl3"><a href="#sec-11">4.3 HTTPS 与 HTTP/2</a></li><li class="lvl3"><a href="#sec-12">4.4 用 site 命令管理站点文件</a></li><li class="lvl3"><a href="#sec-13">4.5 停止</a></li><li><a href="#sec-14">5. 配置文件</a></li><li class="lvl3"><a href="#sec-15">5.1 顶层键</a></li><li class="lvl3"><a href="#sec-16">5.2 <code>http</code> 段</a></li><li class="lvl3"><a href="#sec-17">5.3 <code>server</code> 段</a></li><li class="lvl3"><a href="#sec-18">5.4 <code>location</code> 段</a></li><li class="lvl3"><a href="#sec-19">5.5 <code>security</code> 段</a></li><li><a href="#sec-20">6. 典型配置</a></li><li class="lvl3"><a href="#sec-21">6.1 静态站点 + try_files</a></li><li class="lvl3"><a href="#sec-22">6.2 反向代理</a></li><li class="lvl3"><a href="#sec-23">6.3 TCP 转发</a></li><li class="lvl3"><a href="#sec-24">6.4 压缩</a></li><li class="lvl3"><a href="#sec-25">6.5 代理缓存</a></li><li class="lvl3"><a href="#sec-26">6.6 Basic 认证与限流</a></li><li><a href="#sec-27">7. TLS 与证书</a></li><li class="lvl3"><a href="#sec-28">7.1 ACME 自动签发</a></li><li><a href="#sec-29">8. HTTP/2</a></li><li><a href="#sec-30">9. 日志</a></li><li><a href="#sec-31">10. 命令行</a></li><li class="lvl3"><a href="#sec-32">10.1 帮助信息的语言</a></li><li class="lvl3"><a href="#sec-33">10.2 机器可读输出与退出码</a></li><li><a href="#sec-34">11. 热重载与停机</a></li><li><a href="#sec-35">12. 排错</a></li><li><a href="#sec-36">13. 已知限制</a></li><li><a href="#sec-37">14. 版本与许可</a></li></ul></nav>
+<nav class="toc"><p class="toc-title">目录</p><ul><li><a href="#sec-2">1. 能力一览</a></li><li><a href="#sec-3">2. 获取与安装</a></li><li class="lvl3"><a href="#sec-4">发行包</a></li><li class="lvl3"><a href="#sec-5">Linux 发行版包（deb / rpm / apk）</a></li><li class="lvl3"><a href="#sec-6">容器</a></li><li><a href="#sec-7">3. 目录布局</a></li><li><a href="#sec-8">4. 快速开始</a></li><li class="lvl3"><a href="#sec-9">4.1 默认配置</a></li><li class="lvl3"><a href="#sec-10">4.2 启动并验证</a></li><li class="lvl3"><a href="#sec-11">4.3 HTTPS 与 HTTP/2</a></li><li class="lvl3"><a href="#sec-12">4.4 用 site 命令管理站点文件</a></li><li class="lvl3"><a href="#sec-13">4.5 停止</a></li><li><a href="#sec-14">5. 配置文件</a></li><li class="lvl3"><a href="#sec-15">5.1 顶层键</a></li><li class="lvl3"><a href="#sec-16">5.2 <code>http</code> 段</a></li><li class="lvl3"><a href="#sec-17">5.3 <code>server</code> 段</a></li><li class="lvl3"><a href="#sec-18">5.4 <code>location</code> 段</a></li><li class="lvl3"><a href="#sec-19">5.5 <code>security</code> 段</a></li><li><a href="#sec-20">6. 典型配置</a></li><li class="lvl3"><a href="#sec-21">6.1 静态站点 + try_files</a></li><li class="lvl3"><a href="#sec-22">6.2 反向代理</a></li><li class="lvl3"><a href="#sec-23">6.3 TCP 转发</a></li><li class="lvl3"><a href="#sec-24">6.4 压缩</a></li><li class="lvl3"><a href="#sec-25">6.5 代理缓存</a></li><li class="lvl3"><a href="#sec-26">6.6 Basic 认证与限流</a></li><li><a href="#sec-27">7. TLS 与证书</a></li><li class="lvl3"><a href="#sec-28">7.1 ACME 自动签发</a></li><li><a href="#sec-29">8. HTTP/2</a></li><li><a href="#sec-30">9. 日志</a></li><li><a href="#sec-31">10. 命令行</a></li><li class="lvl3"><a href="#sec-32">10.1 帮助信息的语言</a></li><li class="lvl3"><a href="#sec-33">10.2 机器可读输出与退出码</a></li><li class="lvl3"><a href="#sec-34">10.3 <code>--request-id</code>、operation 与 SSH 断线</a></li><li><a href="#sec-35">11. 热重载与停机</a></li><li><a href="#sec-36">12. 排错</a></li><li><a href="#sec-37">13. 已知限制</a></li><li><a href="#sec-38">14. 版本与许可</a></li></ul></nav>
 <main>
 <h1 id="sec-1">Fast-Https 使用文档</h1>
 <p>本文面向部署与运维人员，只讲&#34;怎么装、怎么配、怎么跑、怎么排错&#34;。开发、架构与测试相关内容在仓库 <code>docs/</code> 下的其他目录，不随发行包分发。</p>
@@ -517,10 +517,21 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 </tbody>
 </table>
 <p>管理类命令按这张表退出。例如配置校验失败是 5，站点或日志文件不存在是 9。旧的 <code>start</code> / <code>stop</code> / <code>reload</code> / <code>status</code> 仍用原来的文本和退出码。</p>
-<h2 id="sec-34">11. 热重载与停机</h2>
+<h3 id="sec-34">10.3 <code>--request-id</code>、operation 与 SSH 断线</h3>
+<p><code>service reload</code>、<code>config apply</code>、<code>config rollback</code>、<code>site add</code>、<code>site update</code>、<code>site delete</code>、<code>site enable</code>、<code>site disable</code> 会在状态目录写下一条 operation。<code>--request-id</code> 由调用方提供：</p>
+<ul>
+<li>相同的 <code>--request-id</code> 加上相同参数：返回已有 operation，不重复执行。</li>
+<li>相同的 <code>--request-id</code> 但参数不同：退出码 10，错误码 <code>REQUEST_ID_CONFLICT</code>。</li>
+<li>没传时 CLI 自己生成一个，并写进 JSON 的 <code>request_id</code> 和 operation 记录。</li>
+</ul>
+<p><code>--dry-run</code> 不写正式配置、不 reload，默认也不建 operation。非 dry-run 的 <code>config apply</code>、<code>config rollback</code> 和受控站点写命令必须加 <code>--yes</code>（<code>--confirm</code> 同义）。</p>
+<p>Unix 上，事务执行期间忽略 <code>SIGHUP</code> 与 <code>SIGPIPE</code>，避免 SSH 断开把正在写状态的进程杀掉。命令超时或调用方断开后，用响应里的 <code>operation_id</code> 执行 <code>operation get</code>。若记录仍是 <code>running</code> 而持有者进程已经不在，查询时会把它对账成 <code>unknown</code>。不要在状态未明时换一个新的 <code>--request-id</code> 再执行一次。</p>
+<p>Windows 没有 <code>SIGHUP</code>。这条断线语义只在 Unix 上实现，Windows 上的断线行为未在本环境验证。</p>
+<p>状态目录默认是 <code>./state</code>（安装包布局是 <code>/var/lib/fast-https</code>）。可用 <code>FASTHTTPS_STATE_DIR</code> 指到别处。<code>operation list</code> 与 <code>operation get</code> 只读这个目录。</p>
+<h2 id="sec-35">11. 热重载与停机</h2>
 <p><code>reload</code> 的流程是：解析并校验新配置 → 校验失败则继续用旧快照 → 校验通过则原子替换快照 → 按差异增删改监听器 → 重新打开证书表与日志文件。整个过程中已有连接不受影响。</p>
 <p>守护进程模式下的等价操作是向主进程发送 <code>SIGINT</code>。停止时先停止接受新连接，再等待在途请求完成。</p>
-<h2 id="sec-35">12. 排错</h2>
+<h2 id="sec-36">12. 排错</h2>
 <table>
 <thead><tr><th>现象</th><th>原因与处理</th></tr></thead>
 <tbody>
@@ -536,7 +547,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <tr><td>日志没有写到新目录</td><td>新 <code>log_root</code> 打不开时程序继续写原文件，检查目录权限</td></tr>
 </tbody>
 </table>
-<h2 id="sec-36">13. 已知限制</h2>
+<h2 id="sec-37">13. 已知限制</h2>
 <table>
 <thead><tr><th>项</th><th>说明</th></tr></thead>
 <tbody>
@@ -545,9 +556,11 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <tr><td><code>engine</code> 配置段</td><td>主从注册的预留字段，当前不参与运行逻辑</td></tr>
 <tr><td>上游故障转移</td><td>未实现，单个上游不可用时直接返回错误页</td></tr>
 <tr><td>配置文件自动重载</td><td>暂不支持，监听文件变化后自动 reload 仍未排期</td></tr>
+<tr><td><code>cert renew</code></td><td>未实现。续期需要服务端写通道，本阶段不做；读取用 <code>cert list</code> 与 <code>cert check</code></td></tr>
+<tr><td>Monitor 进程</td><td>采集进程是独立二进制 <code>fast-https-monitor</code>，随 deb / rpm / apk 与归档发布，包内另有独立单元 <code>fast-https-monitor.service</code>；CLI 不启停它，只读 <code>status.json</code> 与 <code>events.jsonl</code>，文件不存在时 <code>monitor status</code> 为 <code>not_installed</code></td></tr>
 </tbody>
 </table>
-<h2 id="sec-37">14. 版本与许可</h2>
+<h2 id="sec-38">14. 版本与许可</h2>
 <p>版本号取自 <code>config/consts.go</code> 的 <code>CURRENT_VERSION</code>，启动横幅会打印。许可证见发行包内的 <code>LICENSE</code>。</p>
 </main>
 </div>

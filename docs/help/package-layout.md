@@ -2,6 +2,8 @@
 
 同一个二进制有两种布局，由编译期 build tag 决定。运行时不检测发行版，所以行为永远可预测。
 
+Monitor 是另一个二进制，不区分 build tag：它不读站点配置，也不判断发行版，目录全部由命令行给出（包里由 systemd 单元的 `-config` / `-dir` 指定，归档下走默认的 `./logs/monitor`）。
+
 ## 对照表
 
 | 内容 | 归档 / Docker / Windows（无 tag） | deb / rpm / apk（`-tags=rpm`） |
@@ -15,7 +17,10 @@
 | 日志 | `./logs/` | `/var/log/fast-https/` |
 | pid | `./fast-https.pid` | `/run/fast-https/fast-https.pid` |
 | 程序 | `fast-https` | `/usr/bin/fast-https` |
-| systemd 单元 | — | `/usr/lib/systemd/system/fast-https.service` |
+| Monitor 程序 | `fast-https-monitor` | `/usr/bin/fast-https-monitor` |
+| Monitor 配置 | — | `/etc/fast-https/monitor.json` |
+| Monitor 快照 / 事件 / 状态 | `./logs/monitor/` | `/var/log/fast-https/monitor/` |
+| systemd 单元 | — | `/usr/lib/systemd/system/fast-https.service`、`fast-https-monitor.service` |
 | 使用文档 | `docs/usage.html` | `/usr/share/doc/fast-https/usage.html` |
 | man 页 | — | `/usr/share/man/man1/fast-https.1` |
 | 日志轮转 | — | `/etc/logrotate.d/fast-https` |
@@ -38,19 +43,25 @@ FHS 的核心是"按内容性质分区"，不是"按项目分区"：
 | `/etc/fast-https` 及配置、证书目录 | 包内 `type: dir` 声明 + `.keep` 占位 |
 | `/etc/fast-https/cert` 权限 | postinstall `chmod 0700` |
 | `/var/log/fast-https` | 包内 `type: dir`；运行时 `mkdirLogDir` 也会补建 |
+| `/var/log/fast-https/monitor` | Monitor 首次落盘时自建（不写进包，也不依赖 logrotate） |
 | `/run/fast-https` | systemd `RuntimeDirectory=`；手工启动时 `writePidTo` 自建父目录 |
 
 `/etc/logrotate.d/fast-https` 由包安装并登记为配置文件，轮转动作由 logrotate 自己的定时器（Debian/RHEL 的 `logrotate.timer` 或 cron）驱动，程序不参与。
+
+Monitor 的 `snapshots.jsonl` 与 `events.jsonl` 不接 logrotate：Monitor 自己按单文件上限轮转（默认 10MB、保留 3 份，见 `/etc/fast-https/monitor.json` 的 `event_max_bytes` 与 `event_keep`）。这样在归档与容器里同样不会无限增长。
 
 `/run` 下的内容**不写进包**——rpm 不接受包内 `/run` 文件，且重启后会被清空。
 
 ## systemd 单元里的目录指令
 
 ```ini
+# fast-https.service
 ConfigurationDirectory=fast-https
 LogsDirectory=fast-https
 RuntimeDirectory=fast-https
 ```
+
+Monitor 的单元只声明 `LogsDirectory=fast-https`（保证 `/var/log/fast-https` 存在且属主正确），事件子目录 `/var/log/fast-https/monitor` 由 Monitor 自己创建；它不用 `RuntimeDirectory`，也不读 pid 文件之外的任何运行期状态。
 
 systemd 236+ 在启动前按 `User=` 建好目录并设属主权限，停止时清理 `/run` 下的。这比在 postinstall 里 `mkdir` 更可靠，因为权限会跟着服务用户走。Alpine 没有 systemd，仍由 postinstall 兜底。
 

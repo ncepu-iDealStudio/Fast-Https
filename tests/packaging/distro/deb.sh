@@ -57,6 +57,22 @@ else
     logrotate -d /etc/logrotate.d/fast-https 2>&1 | tail -5
 fi
 
+echo "=== Monitor：装包与「Server 未启动」判断 ==="
+expect_present /usr/bin/fast-https-monitor "Monitor 二进制在 /usr/bin"
+expect_present /usr/lib/systemd/system/fast-https-monitor.service "Monitor 单元已安装"
+expect_present /etc/fast-https/monitor.json "Monitor 配置在 /etc/fast-https"
+# 直接前台跑一次：此时 Server 还没起，应当如实判为「从未启动」并以非零退出。
+if /usr/bin/fast-https-monitor -once -config /etc/fast-https/monitor.json >/dev/null 2>&1; then
+    bad "Server 未启动时 Monitor 应返回非零"
+else
+    pass "Monitor 如实报告不可达"
+fi
+if grep -q 'not started' /var/log/fast-https/monitor/status.json 2>/dev/null; then
+    pass "status.json 记录「从未启动」"
+else
+    bad "status.json 未记录判断依据"
+fi
+
 echo "=== 运行期路径 ==="
 fast-https config path --json || bad "config path"
 
@@ -92,7 +108,9 @@ expect_present /etc/fast-https/fast-https.json "remove 后主配置保留"
 expect_present /etc/fast-https/cert/localhost.pem "remove 后证书保留"
 expect_present /var/log/fast-https/access.log "remove 后日志保留"
 expect_present /var/lib/fast-https "remove 后状态目录保留"
+expect_present /var/log/fast-https/monitor "remove 后 Monitor 事件目录保留"
 expect_absent /usr/bin/fast-https "remove 后二进制已删"
+expect_absent /usr/bin/fast-https-monitor "remove 后 Monitor 二进制已删"
 expect_present /etc/logrotate.d/fast-https "remove 后 logrotate 配置保留（conffile）"
 
 echo "=== purge：清理 ==="
@@ -100,7 +118,8 @@ apt-get purge -y -qq fast-https
 expect_absent /etc/fast-https/cert "purge 后证书目录已删"
 expect_absent /etc/fast-https/conf.d "purge 后站点片段目录已删"
 expect_absent /etc/fast-https/fast-https.json "purge 后主配置已删"
-expect_absent /var/log/fast-https "purge 后日志目录已删"
+expect_absent /etc/fast-https/monitor.json "purge 后 Monitor 配置已删"
+expect_absent /var/log/fast-https "purge 后日志目录已删（含 Monitor 事件）"
 expect_absent /var/lib/fast-https "purge 后状态目录已删"
 expect_absent /run/fast-https "purge 后 run 目录已删"
 expect_absent /etc/logrotate.d/fast-https "purge 后 logrotate 配置已删"

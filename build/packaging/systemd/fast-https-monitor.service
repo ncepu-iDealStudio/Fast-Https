@@ -1,0 +1,25 @@
+[Unit]
+Description=Fast-Https monitor
+Documentation=https://gitee.com/ncepu-bj/fast-https
+After=network-online.target
+Wants=network-online.target
+# 故意不 Requires=/After= fast-https.service：Server 没启动时 Monitor 也要能跑，
+# 并把「不可达」如实写进事件文件——那正是要观测的状态。Server 单元也不依赖本单元，
+# 停掉 Monitor 不影响业务端口与 /runtime。
+
+[Service]
+Type=simple
+# Monitor 不读发行版判断，路径全部由命令行给出：
+#   配置在 /etc/fast-https/monitor.json（config|noreplace，升级不覆盖）
+#   快照、事件与状态在 /var/log/fast-https/monitor（Monitor 首次落盘时自建）
+# WorkingDirectory 指向只读目录，与 Server 单元保持一致，避免相对路径落到 /。
+WorkingDirectory=/usr/share/fast-https
+ExecStart=/usr/bin/fast-https-monitor -config /etc/fast-https/monitor.json -dir /var/log/fast-https/monitor
+Restart=on-failure
+RestartSec=5s
+# 事件文件与快照由 Monitor 自己按大小轮转，不需要 logrotate；
+# 这里只保证 /var/log/fast-https 存在且属主正确。
+LogsDirectory=fast-https
+
+[Install]
+WantedBy=multi-user.target

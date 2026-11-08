@@ -573,6 +573,22 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 
 管理类命令按这张表退出。例如配置校验失败是 5，站点或日志文件不存在是 9。旧的 `start` / `stop` / `reload` / `status` 仍用原来的文本和退出码。
 
+### 10.3 `--request-id`、operation 与 SSH 断线
+
+`service reload`、`config apply`、`config rollback`、`site add`、`site update`、`site delete`、`site enable`、`site disable` 会在状态目录写下一条 operation。`--request-id` 由调用方提供：
+
+- 相同的 `--request-id` 加上相同参数：返回已有 operation，不重复执行。
+- 相同的 `--request-id` 但参数不同：退出码 10，错误码 `REQUEST_ID_CONFLICT`。
+- 没传时 CLI 自己生成一个，并写进 JSON 的 `request_id` 和 operation 记录。
+
+`--dry-run` 不写正式配置、不 reload，默认也不建 operation。非 dry-run 的 `config apply`、`config rollback` 和受控站点写命令必须加 `--yes`（`--confirm` 同义）。
+
+Unix 上，事务执行期间忽略 `SIGHUP` 与 `SIGPIPE`，避免 SSH 断开把正在写状态的进程杀掉。命令超时或调用方断开后，用响应里的 `operation_id` 执行 `operation get`。若记录仍是 `running` 而持有者进程已经不在，查询时会把它对账成 `unknown`。不要在状态未明时换一个新的 `--request-id` 再执行一次。
+
+Windows 没有 `SIGHUP`。这条断线语义只在 Unix 上实现，Windows 上的断线行为未在本环境验证。
+
+状态目录默认是 `./state`（安装包布局是 `/var/lib/fast-https`）。可用 `FASTHTTPS_STATE_DIR` 指到别处。`operation list` 与 `operation get` 只读这个目录。
+
 ## 11. 热重载与停机
 
 `reload` 的流程是：解析并校验新配置 → 校验失败则继续用旧快照 → 校验通过则原子替换快照 → 按差异增删改监听器 → 重新打开证书表与日志文件。整个过程中已有连接不受影响。
@@ -603,6 +619,8 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 | `engine` 配置段 | 主从注册的预留字段，当前不参与运行逻辑 |
 | 上游故障转移 | 未实现，单个上游不可用时直接返回错误页 |
 | 配置文件自动重载 | 暂不支持，监听文件变化后自动 reload 仍未排期 |
+| `cert renew` | 未实现。续期需要服务端写通道，本阶段不做；读取用 `cert list` 与 `cert check` |
+| Monitor 进程 | 采集进程是独立二进制 `fast-https-monitor`，随 deb / rpm / apk 与归档发布，包内另有独立单元 `fast-https-monitor.service`；CLI 不启停它，只读 `status.json` 与 `events.jsonl`，文件不存在时 `monitor status` 为 `not_installed` |
 
 ## 14. 版本与许可
 

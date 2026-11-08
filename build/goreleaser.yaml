@@ -60,6 +60,45 @@ builds:
     tags:
       - rpm
 
+  # 独立 Monitor：只读本机 /runtime 与 PID 文件，不 import 仓库其他包，
+  # 因此不需要 rpm tag——发行版包里的路径由 systemd 单元的 -config/-dir 给出。
+  - id: monitor-unix
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https-monitor
+    main: ./monitor
+
+  - id: monitor-windows
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https-monitor
+    main: ./monitor
+
+  # 发行版包专用：同一份代码，单独 id 让 nfpms 只取 linux 产物。
+  - id: monitor-linux-pkg
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https-monitor
+    main: ./monitor
+    ldflags:
+      - "-s -w"
+
   # 桌面管理端：独立 Go module。Linux 后端必须 CGO_ENABLED=0 + purego 才能在
   # Windows 上交叉编译（buildguard 要求二者之一），运行期再加载系统 GTK4/WebKitGTK。
   # 前端 dist 与 .desktop 由 build/package.ps1 在调用 goreleaser 之前准备好。
@@ -84,6 +123,7 @@ archives:
   - id: unix
     ids:
       - unix
+      - monitor-unix
     formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
@@ -108,6 +148,7 @@ archives:
   - id: windows-amd64
     ids:
       - windows-amd64
+      - monitor-windows
     formats: [zip]
     name_template: >-
       {{ .ProjectName }}_
@@ -132,6 +173,7 @@ archives:
   - id: windows-arm64
     ids:
       - windows-arm64
+      - monitor-windows
     formats: [zip]
     name_template: >-
       {{ .ProjectName }}_
@@ -157,6 +199,7 @@ nfpms:
   - id: linux-packages
     ids:
       - linux-pkg
+      - monitor-linux-pkg
     package_name: fast-https
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
@@ -216,6 +259,13 @@ nfpms:
         dst: /usr/lib/systemd/system/fast-https.service
       # 轮转策略跟包走：日志目录是 /var/log/fast-https（root 所有），
       # 用户不该为了不让磁盘写满而自己写一份 logrotate 配置。
+      # Monitor 与主程序分开的单元：Server 起不来时它仍要能跑，所以不并进
+      # fast-https.service。配置登记为 config|noreplace，升级不覆盖运维改过的阈值。
+      - src: build/packaging/systemd/fast-https-monitor.service
+        dst: /usr/lib/systemd/system/fast-https-monitor.service
+      - src: build/packaging/monitor.json
+        dst: /etc/fast-https/monitor.json
+        type: config|noreplace
       - src: build/packaging/logrotate/fast-https
         dst: /etc/logrotate.d/fast-https
         type: config|noreplace
@@ -259,6 +309,7 @@ nfpms:
   - id: desktop-deb
     ids:
       - desktop-linux
+      - monitor-linux-pkg
     package_name: fast-https-desktop
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
@@ -320,6 +371,13 @@ nfpms:
         dst: /usr/share/licenses/fast-https/LICENSE
       - src: build/packaging/systemd/fast-https.service
         dst: /usr/lib/systemd/system/fast-https.service
+      # Monitor 与主程序分开的单元：Server 起不来时它仍要能跑，所以不并进
+      # fast-https.service。配置登记为 config|noreplace，升级不覆盖运维改过的阈值。
+      - src: build/packaging/systemd/fast-https-monitor.service
+        dst: /usr/lib/systemd/system/fast-https-monitor.service
+      - src: build/packaging/monitor.json
+        dst: /etc/fast-https/monitor.json
+        type: config|noreplace
       - src: build/packaging/logrotate/fast-https
         dst: /etc/logrotate.d/fast-https
         type: config|noreplace
@@ -350,6 +408,7 @@ nfpms:
   - id: desktop-rpm
     ids:
       - desktop-linux
+      - monitor-linux-pkg
     package_name: fast-https-desktop
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
@@ -413,6 +472,13 @@ nfpms:
         dst: /usr/share/licenses/fast-https/LICENSE
       - src: build/packaging/systemd/fast-https.service
         dst: /usr/lib/systemd/system/fast-https.service
+      # Monitor 与主程序分开的单元：Server 起不来时它仍要能跑，所以不并进
+      # fast-https.service。配置登记为 config|noreplace，升级不覆盖运维改过的阈值。
+      - src: build/packaging/systemd/fast-https-monitor.service
+        dst: /usr/lib/systemd/system/fast-https-monitor.service
+      - src: build/packaging/monitor.json
+        dst: /etc/fast-https/monitor.json
+        type: config|noreplace
       - src: build/packaging/logrotate/fast-https
         dst: /etc/logrotate.d/fast-https
         type: config|noreplace
@@ -443,6 +509,7 @@ nfpms:
   - id: desktop-apk
     ids:
       - desktop-linux
+      - monitor-linux-pkg
     package_name: fast-https-desktop
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
@@ -502,6 +569,13 @@ nfpms:
         dst: /usr/share/licenses/fast-https/LICENSE
       - src: build/packaging/systemd/fast-https.service
         dst: /usr/lib/systemd/system/fast-https.service
+      # Monitor 与主程序分开的单元：Server 起不来时它仍要能跑，所以不并进
+      # fast-https.service。配置登记为 config|noreplace，升级不覆盖运维改过的阈值。
+      - src: build/packaging/systemd/fast-https-monitor.service
+        dst: /usr/lib/systemd/system/fast-https-monitor.service
+      - src: build/packaging/monitor.json
+        dst: /etc/fast-https/monitor.json
+        type: config|noreplace
       - src: build/packaging/logrotate/fast-https
         dst: /etc/logrotate.d/fast-https
         type: config|noreplace

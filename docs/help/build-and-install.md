@@ -73,6 +73,24 @@ sudo ss -ltnp | grep -E ':(80|443)'
 
 首次启动会用本地 CA 生成证书；在那之前 `fast-https reload` 报 `ssl_certificate not found` 是正常的，先跑一次 `start` 即可。
 
+## 独立 Monitor（可选）
+
+包里另装了一个独立进程 `/usr/bin/fast-https-monitor` 与它自己的单元 `fast-https-monitor.service`。它周期读本机 `/runtime`（`127.0.0.1:9088`），把快照与事件写进 `/var/log/fast-https/monitor/`。
+
+```bash
+sudo systemctl enable --now fast-https-monitor
+systemctl status fast-https-monitor --no-pager
+tail -f /var/log/fast-https/monitor/events.jsonl     # 一行一条事件
+cat /var/log/fast-https/monitor/status.json          # Monitor 自己的状态
+```
+
+两个单元互不依赖，可以单独启停：
+
+- 只起 Monitor、不起 Server：`status.json` 的 `last_error` 会写 `server not started (no pid file)`，事件里出一条「不可达」。这是预期行为，不是故障。
+- 停掉 Monitor：业务端口与 `/runtime` 都不受影响，Server 运行完全不变。
+
+阈值与采集周期在 `/etc/fast-https/monitor.json`（包管理器登记的配置文件，升级不覆盖）。快照与事件由 Monitor 自己按大小轮转，不接 logrotate。详见 [feature/21-monitor.md](../feature/21-monitor.md)。
+
 ## 日志轮转
 
 包会装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份、单文件超过 100MB 也提前轮转、gzip 压缩。`logrotate` 是包的硬依赖，装包时一并装上。
@@ -103,7 +121,7 @@ sudo apt purge  fast-https   # 确定不要了，连证书、ACME 缓存、日�
 sudo dpkg --audit            # 无输出即数据库干净
 ```
 
-`remove` / `purge` 时 `prerm` 会先停 systemd 单元，再把单元之外的残留进程一并停掉（先 `SIGTERM`，5 秒不退补 `SIGKILL`）。这一步不能省：直接执行 `fast-https`（不带子命令）时进程会自己 daemonize 到 init 下面，`systemctl stop` 管不到它，不强杀就会变成"包删了、进程还在占 80/443"。
+`remove` / `purge` 时 `prerm` 会先停 systemd 单元，再把单元之外的残留进程一并停掉（先 `SIGTERM`，5 秒不退补 `SIGKILL`）。这一步不能省：直接执行 `fast-https`（不带子命令）时进程会自己 daemonize 到 init 下面，`systemctl stop` 管不到它，不强杀就会变成"包删了、进程还在占 80/443"。Monitor 亦在其列：`prerm` 先停 `fast-https-monitor` 再停 `fast-https`，避免卸载过程本身在事件里留下一条假的「不可达」。
 
 升级不走这段逻辑，服务不被打断；但此时运行中的仍是旧二进制（deleted inode），要让新二进制生效跑一次 `sudo systemctl restart fast-https`。
 
@@ -114,7 +132,8 @@ purge 删的是本程序生成的东西：
 | `/etc/fast-https/cert` | CA 私钥、站点证书、ACME 账户与缓存 |
 | `/etc/fast-https/conf.d` | 站点片段 |
 | `/etc/fast-https/{fast-https,mime}.json` | 主配置与 MIME 表（conffile） |
-| `/var/log/fast-https` | 四路日志 |
+| `/etc/fast-https/monitor.json` | Monitor 的阈值与采集周期（conffile） |
+| `/var/log/fast-https` | 四路日志，以及 Monitor 的快照、事件与状态 |
 | `/run/fast-https` | pid |
 | `/usr/share/fast-https/httpdoc/root/root.crt` | 本地自签 CA 证书；私钥在 `cert/` 里，不删会留下孤儿证书 |
 
@@ -128,8 +147,8 @@ sudo rm -rf /usr/share/fast-https
 
 apk 是另一套语义：它没有 purge，`post-deinstall` 也拿不到参数（分不清升级与卸载），所以
 
-- 包内的默认配置随包删除：`/etc/fast-https/fast-https.json`、`mime.json`、`conf.d/default.json`、`/etc/logrotate.d/fast-https`
-- 运行期生成的东西保留：`/etc/fast-https/cert/`（含 `localhost.pem` 与 ACME 账户）、`/var/log/fast-https/`
+- 包内的默认配置随包删除：`/etc/fast-https/fast-https.json`、`mime.json`、`conf.d/default.json`、`monitor.json`、`/etc/logrotate.d/fast-https`
+- 运行期生成的东西保留：`/etc/fast-https/cert/`（含 `localhost.pem` 与 ACME 账户）、`/var/log/fast-https/`（含 `monitor/` 下的快照与事件）
 - 想要彻底清干净，卸载后手工 `sudo rm -rf /etc/fast-https /var/log/fast-https`
 
 实测记录见 `docs/help/dev-issues.md` 的 002。
@@ -166,9 +185,9 @@ sh tests/packaging/distro/run.sh all      # deb → upgrade → rpm → apk
 
 | 目标 | 镜像 | 覆盖 |
 | --- | --- | --- |
-| `deb` | `ubuntu:24.04` | 文件树、conffile 登记、logrotate、启动监听 80/443、轮转、`remove` 保留、`purge` 清理 |
+| `deb` | `ubuntu:24.04` | 文件树、conffile 登记、logrotate、启动监听 80/443、轮转、`remove` 保留、`purge` 清理；Monitor 二进制/单元/配置在位，Server 未启动时 `-once` 如实报「不可达」 |
 | `upgrade` | `ubuntu:24.04` | 旧版 `/usr/share/fast-https/config` 迁移到 `/etc/fast-https`、不覆盖现场文件、迁移后服务可用 |
-| `rpm` | `almalinux:9` | 同 deb，另加 `%config(noreplace)` 重装保留与 `rpm -e` 清理 |
+| `rpm` | `almalinux:9` | 同 deb，另加 `%config(noreplace)` 重装保留（含 `monitor.json`）与 `rpm -e` 清理 |
 | `apk` | `alpine:3.21` | 无 systemd 时的目录兜底、logrotate 依赖、卸载语义 |
 
 脚本依赖容器内的 `fast-https start` 自己转后台（容器里 `runInForeground()` 为真，`start` 不 daemonize），退出时统一 `stop`，否则后台进程会一直占着 80/443。
