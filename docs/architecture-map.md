@@ -34,7 +34,7 @@
 | `infra/files` | 原子写文件：先写 `.tmp` 再 rename，配置回写与 ACME PEM 落盘共用 | 是 |
 | `core` | `Event`、处理器注册表、默认命令变量、`Services` 生命周期钩子 | 是 |
 | `runtime/server` | 启停、信号、连接跟踪、listener 生命周期和 reload | 是 |
-| `runtime/metrics` | 进程内生命周期、连接计数、reload 生成号与监听端口原子副本；尚无 HTTP 出口 | 是 |
+| `runtime/metrics` | 进程内生命周期、连接/请求/状态码计数、reload 生成号与监听端口原子副本；尚无 HTTP 出口 | 是 |
 | `runtime/listener` | 配置转 Listener/ListenCfg、虚拟主机表、TCP/TLS socket、端口 reload | 是 |
 | `runtime/events` | HTTP/1.x 连接事件、请求解析、统一事件分发；HTTP/2 走 `golang.org/x/net/http2`，这里只做 `http.Request`/`http.ResponseWriter` 与 `core.Event` 的适配 | 是 |
 | `runtime/filters` | 连接、监听、HTTP 解析、Host/Path 过滤 | 是。连接拒绝和监听分流调用 `core.Services` 钩子 |

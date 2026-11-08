@@ -1,8 +1,8 @@
 // Package metrics 保存进程内可原子读取的运行状态：生命周期、连接计数、
-// reload 结果和监听端口副本。读取只做原子 Load，不持 Server.mu，
+// 请求与状态码、reload 结果和监听端口副本。读取只做原子 Load，不持 Server.mu，
 // 也不去读无锁的 Server.Listens。
 //
-// 本包不含请求计数和 HTTP 接口；那些由后续步骤加入。
+// 本包尚无 HTTP 接口；快照出口由后续步骤加入。
 package metrics
 
 import (
@@ -167,4 +167,14 @@ func ResetForTest() {
 	closedTotal.Store(0)
 	active.Store(0)
 	listeners.Store(nil)
+	requestsTotal.Store(0)
+	requestsActive.Store(0)
+	parseErrorsTotal.Store(0)
+	abortedTotal.Store(0)
+	rejectedTotal.Store(0)
+	responses2xx.Store(0)
+	responses3xx.Store(0)
+	responses4xx.Store(0)
+	responses5xx.Store(0)
+	responsesUnknown.Store(0)
 }

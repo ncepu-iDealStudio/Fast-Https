@@ -10,6 +10,7 @@ import (
 )
 
 func TestHandleEventExitsWhenContextCanceled(t *testing.T) {
+	resetMetrics(t)
 	server, client := net.Pipe()
 	t.Cleanup(func() { _ = client.Close() })
 
