@@ -23,8 +23,7 @@ const (
 	DEFAULT_MAX_HEADER_SIZE        = 4096
 	DEFAULT_MAX_BODY_SIZE          = 512 * 1024 // 32K
 
-	DEFAULT_LOG_ROOT       string = FAST_HTTPS_LOG_DIR
-	MONIITOR_LOG_FILE_PATH string = "monitor.log"
+	DEFAULT_LOG_ROOT string = FAST_HTTPS_LOG_DIR
 
 	/* log message*/
 	SYSTEM_LOG_NAME string = logging.SystemLogName

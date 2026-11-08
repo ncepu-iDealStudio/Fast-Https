@@ -483,6 +483,8 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `service status` | 只读查询：读 pid 文件判断进程，再对配置里的端口做一次回环连接，给出 `running`、`degraded`、`stopped`、`unknown`；服务没在跑也是成功的查询，退出码 0 |
 | `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`waf`、`sites` |
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一个候选主配置文件；只校验，不应用；失败退出码 5 |
+| `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
+| `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套 |
 | `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块；加 `--json` 输出脱敏后的封套（文本模式仍打印原文，包含写在文件里的口令） |
@@ -513,7 +515,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 
 ### 10.2 机器可读输出与退出码
 
-根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`service status`、`config show`、`config validate`、`site list`、`site show`，以及保持原格式的 `config path`），其它命令接受但不使用后两个。
+根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`service status`、`config show`、`config validate`、`site list`、`site show`、`cert list`、`cert check`，以及保持原格式的 `config path`），其它命令接受但不使用后两个。
 
 `--json` 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：
 

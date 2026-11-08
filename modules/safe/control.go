@@ -126,7 +126,6 @@ func applyBlacklistOverlay() {
 
 // applyRateOverlay 在 limitInit 重建后重新应用控制面的限流参数。
 func applyRateOverlay() {
-	println("APPLYRATE enter")
 	runtimeOverlay.mu.Lock()
 	set, rate, burst := runtimeOverlay.rateSet, runtimeOverlay.rate, runtimeOverlay.burst
 	runtimeOverlay.mu.Unlock()

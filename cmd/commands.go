@@ -62,6 +62,11 @@ func commandList() []command {
 			register:    newServiceCmd,
 		},
 		{
+			name:        "cert",
+			description: t("查看证书状态与检查证书", "list and check certificates"),
+			register:    newCertCmd,
+		},
+		{
 			name:        "acme",
 			description: t("配置 ACME 证书签发", "configure ACME certificate issuance"),
 			register:    newAcmeCmd,

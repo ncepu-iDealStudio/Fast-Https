@@ -14,6 +14,7 @@
 fast-https start|stop|reload|status|version
 fast-https service version|status [--json]   # 机器可读的版本 / 状态查询
 fast-https config path|show|validate [--json] # 路径 / 脱敏后的磁盘配置 / 只校验不应用
+fast-https cert list|check --domain <d> [--json] # 只读的证书状态 / 检查
 fast-https acme [setup|show]     # 交互向导 / 参数式配置 / 查看当前生效值
 fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
 ```
@@ -32,6 +33,7 @@ fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
 - **只读视图与脱敏**：`management/view` 把磁盘配置、站点与进程状态整理成输出数据（纯只读，不依赖 `cmd`），`management/redact` 按键名遮蔽口令、令牌、EAB 密钥和敏感请求头的值，路径不算秘密。`management` 是分层测试里的独立一层，只依赖 `infra`、`config`、`modules/site`、`modules/certmanager`。`cmd/service_status.go`、`cmd/config_cmd.go`、`cmd/site_json.go` 只做参数解析与输出，`cmd/view_errors.go` 把视图层错误转成错误码。
 - **`service status` 判定**：进程在且至少一个配置端口回环可连是 `running`，进程在但端口都连不上是 `degraded`，没进程也没端口是 `stopped`（pid 文件残留时带 `stale_pid`），证据互相矛盾（没进程却有端口可连、pid 文件读不出）是 `unknown`。端口取自 `config.ListenPortsFromFile`，只读、不替换运行期快照。
 - **`config validate` 的告警**：`config.ValidateConfigFileWithWarnings` 把非致命告警作为返回值交出来；旧的 `ValidateConfigFile` 仍写同一条控制台日志。
+- **`cert` 命令组**：`cmd/cert.go` 只做参数与输出，`management/view/cert_view.go` 把 `config.SSLServersFromFile`（按运行期规则把 server 块展开成「域名 → 证书文件」：第一个域名用 `ssl_certificate`，其余域名用 `<证书目录>/<域名>.pem`）与 `modules/certmanager.Inspect`（解析 PEM）合成输出。“是否由 ACME 管理”直接复用 `certmanager.Plan`，与运行期判断一致。私钥只在 `CheckKeyPair` 里在内存中参与一次配对计算，返回固定枚举值，不带出底层错误文本。
 
 ## 测试
 
@@ -45,3 +47,4 @@ fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
 - `config show` 只展开 `http.include` 目录下直接的 `*.json`（与 `site list` 一致）；include 写成单个文件或不存在的目录时会给出告警。
 - 不带 `--json` 的 `site show` 仍打印站点文件原文，包含写在文件里的口令；要脱敏输出请加 `--json`。
 - `service status` 的端口探测会对配置端口各发起一次回环 TCP 连接，TLS 端口上服务端会看到一次未完成的握手。
+- `cert list/check` 只读取配置里写明的证书路径，不遍历证书目录；`days_left` 向零取整（剩余 9.9 天显示 9）；不做证书链验证，`chain.checked` 恒为 false；当前用户读不了私钥时配对检查标为 `checked:false`，不算失败。
