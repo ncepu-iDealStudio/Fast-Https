@@ -90,39 +90,161 @@ Monitor 自己的周期采集、规则和告警不是 Server 缺陷，排在核�
 
 采集就是几次原子读，不遍历连接。版本不兼容时加 `schema_version`，不改旧字段的含义。
 
-## 6. 落地顺序
+## 6. 落地执行计划
 
-按改动从小到大。前五步是 Server 核心，后两步才是 Monitor 进程。
+第 4 节只说明缺什么。本节按依赖从少到多拆成七步，每一步都能单独合并，并且在进入下一步之前用本节给出的测试收口。不要把后一步的接口或进程提前做进来。
 
-1. **生命周期状态和基础计数。** 只加原子变量和 `defer`，不加端口，也不改配置文件。这是后面所有步骤的数据来源。工作量最小。
-2. **状态码分桶和解析失败计数。** 仍然只在进程内。所有提前返回的路径用同一个 `defer` 盖住。
-3. **本机只读 `/runtime`。** 这是第一个需要新监听的台阶，也是独立 Monitor 的前提。绑定失败只记日志，不阻止 `start`。
-4. **耗时直方图，以及上游失败计数。** 错误类型和请求出口已经在了，比连接状态机小。
-5. **用测试把数字对清楚。** 包括 reload 不清计数、进程重启后计数从零开始、快照里能看到新的 PID 和启动时间。这一步只验证，不增加产品能力。
-6. **再写独立 Monitor。** 先做周期采集和「连不上 / 进程没了」的事件记录。采样、阈值、告警目标放在 Monitor 自己的配置里。Server 启动不得等待它。
-7. **最后才加规则和一种告警。** 先写本地事件文件。内存、文件描述符、CPU 在这一步由 Monitor 读操作系统。连接的读/写/空闲阶段、多上游健康检查，排在这些都稳定之后。
+分层约束：`runtime` 不能 import `modules`（`tests/arch/layering_test.go`）。连接和请求计数放在 `runtime` 里。上游计数留在 `modules/proxy`，由 `cmd` 在组装时注册到快照，不能让 `runtime/server` 去引用代理包。`modules/safe.Snapshot` 继续只服务控制面，不拿来当监控出口。
 
-建议的第一版采样周期是 5 秒。接口刚加上时不要用 1 秒把本机打满。告警先做一种渠道。邮件和 Webhook 不在这一版。
+计数规则贯穿各步：
 
-## 7. 待运行验证
+- Counter 只增。Gauge 是当前值，用 `defer` 减回去，覆盖提前返回和 panic。
+- reload 不清任何累计值，也不改 `started_at`。进程重启后内存计数自然从零开始，快照用新的 PID 和 `started_at` 让 Monitor 认出重置。
+- 没有测到的字段不要写 `0`。接口还没做出来之前，测试直接读进程内快照函数。
 
-补上 P0 之后，在测试机上核对，不要在线上做：
+每一步结束时至少跑：
 
-- 启动、停止、reload。
-- 并发请求下，活动连接和活动请求在结束后回到零，累计值只增。
-- 4xx 与 5xx 落在对应计数，而不是扫访问日志才知道。
-- 慢请求落在预期的耗时桶。
-- 客户端中途断开后，活动连接被减回去。
-- `kill -9` 之后 PID 消失，查询接口不再响应。
-- 关掉查询监听时，业务端口仍能访问。
-- 每秒多次拉取快照时，业务请求延迟没有明显上升。
+```bash
+go test ./runtime/... ./modules/proxy/... ./cmd/...
+go test -race ./runtime/server/ ./runtime/events/ ./runtime/metrics/ ./modules/proxy/
+go test ./tests/arch/
+```
+
+Windows 上全量测试用 `go test -p 1 ./...`。改动没碰到的包不必为了这一步重跑打包和发行版安装。
+
+### 第 1 步：生命周期和连接计数
+
+只加进程内数据，不加端口，不改 JSON 配置。
+
+改动落点：新建 `runtime/metrics`，在包初始化时把状态写成 `starting`。字符串的零值是空串，不能把空串当成 `starting`。在 `ServerInit` 记下 `started_at`、`os.Getpid()` 和 `config.CURRENT_VERSION`。状态只用这几个值：`starting`、`running`、`reloading`、`stopping`。`ServerInit` 在监听建立后进入 `running`。测试之间要清掉进程内计数，不要用 `t.Parallel` 跑这些用例，否则全局原子量会串。`Reload` 开头进入 `reloading`，无论配置成功还是失败，函数返回前都回到 `running`（失败时旧监听仍在服务）。`gracefulStop` 进入 `stopping`。监听失败仍保持现在的 `Fatal` 退出，这一步不发明「降级」状态。
+
+连接只加三个数：`accepted_total`、`closed_total`、`active`。在 `serveConn` 确认不是停机丢弃后加接受数和活动数，在处理协程的 `defer` 里加结束数并减活动数。HTTP/1.1 和 HTTP/2 都走 `serveConn`，所以两种连接都算进去。停机时尚未进入处理的连接直接关掉，不计入接受数。
+
+这一步不做请求数、状态码、耗时、上游和 HTTP 接口。
+
+测试放在 `runtime/metrics` 与 `runtime/server`：
+
+- 初始状态是 `starting`，`ListenWithCfg` 成功后的测试替身调用后变为 `running`。
+- `Reload` 失败（沿用现有「保留旧配置」路径）结束后状态是 `running`，`started_at` 不变，已有计数不变。
+- 两个连接先后进入并退出后，`accepted_total` 为 2，`closed_total` 为 2，`active` 为 0。
+- 处理函数 panic 时，`defer` 仍然把 `active` 减回去。
+- `go test -race` 下并发加减，`active` 不为负。
+
+做完才算通过：上面的测试全绿，业务请求路径的行为测试没有新增失败，`go test ./tests/arch/` 通过。
+
+### 第 2 步：请求数、状态码和解析失败
+
+仍然只在进程内。
+
+一条连接上的多次 keep-alive 请求要逐条计数，不能把活动连接当成活动请求。计数点放在 `runtime/events`：
+
+- `parseRequest` 返回 1 之后、调用 `EventHandler` 之前，活动请求和累计请求加一；用 `defer` 在 `EventHandler` 返回时减活动数。
+- `parseRequest` 写出 400 的那条路径计入 `parse_errors_total`。客户端主动关掉（读到空或读错误）只算连接结束，不算解析失败。
+- 状态码在 `defer` 里读取。`response.Response` 没有单独的状态码字段，`SetFirstLine` 只把码写进 `FirstLine` 字符串。从这行解析前三位数字；解析不出时计入 `responses_unknown_total`，不要算进 2xx。若在 `SetFirstLine` 里另存一个整数，也必须以 `FirstLine` 为准，避免两个来源不一致。
+- HTTP/2 进入 `EventHandler` 的请求走同一套计数。`h2Handler.ServeHTTP` 里 `fillRequest` 返回 false 时已经写了 400 且没有进入 `EventHandler`，这条计入 `parse_errors_total`，不计入 `requests_total`。其它还分不清的 H2 流错误先不要猜，记在实现说明里留到后面。
+
+`modules/safe` 的 `totalChecked` 仍是每条连接的限流检查次数，测试里断言它和 `requests_total` 不是同一个数。
+
+测试：
+
+- 同一连接上两轮请求：`requests_total` 为 2，结束后 `requests.active` 为 0，`connections.active` 仍按连接算。
+- 静态 200、未命中 location 的 404、处理函数的 500，分别只增加对应分桶。
+- 畸形请求头走 400 时 `parse_errors_total` 加 1，且不增加 `requests_total`。
+- 读到一半客户端断开：活动连接回到 0，`parse_errors_total` 不增加。
+
+做完才算通过：第 1 步的测试仍然全绿，新测试全绿。这一步还没有对外接口，不写 E2E。
+
+### 第 3 步：本机只读快照
+
+这是独立 Monitor 的前提，也是第一次增加监听。
+
+在 `cmd` 里于业务监听之外再起一个只绑 `127.0.0.1` 的 HTTP 服务，路径固定为 `/runtime`，默认端口 `9088`。测试使用 `:0`，不占用固定端口。绑定失败只打错误日志，`StartHandler` 照常进入业务服务。不读取站点 JSON，不挂到现有 location 上。
+
+`GET /runtime` 返回 JSON，`Content-Type: application/json`。第一版字段只有第 1、2 步已经有的量，加上 `schema_version`（字符串 `"1"`）、`observed_at`、`server.state`、`server.pid`、`server.version`、`server.started_at`。耗时和上游还没有时，省略这两个对象，不要填 0。响应里不得出现黑名单、证书路径、Cookie、`Authorization`、请求 URI。
+
+只允许来自回环地址的连接。其它路径返回 404，不带业务站点内容。读取过程只调用原子 `Load`，不拿 `Server.mu`，不遍历连接。
+
+测试：
+
+- `httptest` 或本地 `:0`：字段与进程内计数一致，`schema_version` 为 `"1"`。
+- 绑定一个已经被占用的地址时，函数返回错误，调用方可以继续跑业务监听。用现有的小监听测试代替真正的 `start`。
+- 非 `/runtime` 得到 404。
+- 响应体用固定的禁止词扫描，确认没有 `blacklist`、`ssl_certificate`、`cookie`、`authorization`。
+
+做完才算通过：上述测试全绿，并且 `tests/client_test` 里现有的代理与 HTTP/2 集成测试仍然通过。不在这一步加 CLI 子命令；以后的 `runtime status` 只读取这个接口，不另写一套计数。
+
+### 第 4 步：耗时直方图和上游计数
+
+请求耗时：在第 2 步那个 `defer` 里用开始时的 `time.Now()` 做 `time.Since`。`time.Since` 用的是单调时钟，不受中途对时影响。桶边界固定为 1ms、5ms、10ms、25ms、50ms、100ms、250ms、500ms、1s、5s，另加一个 `+Inf`。上报各桶的累计个数和总次数，单位是毫秒。不引入 Prometheus 客户端。
+
+上游：在 `ProxyErrorDialUpstream`、`ProxyErrorSendToUpstreamTimeout`、`ProxyErrorReadFromUpstreamTimeout` 三处各加一个只增计数。连接池在已有的锁内顺便给出空闲连接数，不要为了读数再扫一遍所有业务连接。这三个数由 `cmd` 注册进 `/runtime` 的 `upstream` 对象。没有代理流量时计数是 0，这是真实的零，不是未知。
+
+`/runtime` 从这一步起带上 `request_duration` 和 `upstream`。旧字段的名字和含义不变。
+
+测试：
+
+- 立即返回的请求落在最小桶；测试里把一个处理函数睡过 30ms，只增加 25ms 以上的桶。
+- 拨号到没有人监听的地址，`dial_fail_total` 加 1，业务仍返回现有的上游失败响应。
+- 用现有上游读超时测试，确认读超时计数加 1，且不会把同一次失败再记进拨号失败。
+- reload 之后这些累计值不变。
+
+做完才算通过：`go test ./modules/proxy/ ./runtime/metrics/ ./runtime/events/` 与 `-race` 全绿。
+
+### 第 5 步：停机、重载和重启的语义收口
+
+这一步不增加新指标种类，只把前面几步在真实启停路径上对死，避免 Monitor 以后把 reload 看成重启。
+
+在已有测试上补这三件：
+
+- reload 成功：状态经历 `reloading` 后回到 `running`，`started_at` 与各项 Counter 不变，Gauge 仍反映当前连接。
+- reload 失败：状态回到 `running`，`reload_failed_total` 加 1。这个计数在 `Reload` 返回错误时加，和状态放在一起，实现可以落在第 1 步的同一个包里，但验收放在这里。
+- 停机超时：`drainConnections` 走到超时分支时 `stop_timeout_total` 加 1。用一个不返回的处理函数和很短的超时，不要真的等 5 秒。
+
+进程重启不在进程内测试。用 `tests/client_test` 起两个短生命周期子进程：第二个进程的 `/runtime` 必须是新 PID、新的 `started_at`，`requests_total` 从 0 开始。测试结束要清掉子进程和临时配置，不改仓库里的 `config/fast-https.json`。
+
+做完才算通过：`go test ./runtime/server/ ./tests/client_test/ -count=1` 全绿。Windows 上这一步若 E2E 因进程权限失败，记下具体错误，不要改成跳过还宣称通过。
+
+### 第 6 步：独立采集进程
+
+Server 核心到第 5 步就可以被外部读取。这一步才新建 Monitor，建议放在仓库里单独的 `monitor/` 目录，独立 `go.mod` 也可以，只要它不进 Server 的请求路径、不被 `fast-https` 的 `start` import。
+
+第一版只做三件事：按配置的周期 `GET 127.0.0.1:9088/runtime`，把原始快照追加到本地 JSON 行文件，在连续失败时写一条「不可达」事件。默认周期 5 秒，超时 1 秒。失败要区分连不上、HTTP 非 200、JSON 不合 schema。PID 或 `started_at` 变化时写一条「进程已重启」，并且不要把计数变小算成负流量。
+
+Monitor 自己的配置单独一个文件，例如采样周期、快照地址、事件文件路径。不写入站点 `fast-https.json`。Server 的 systemd 单元不 `Requires=` Monitor。Monitor 没启动时，第 3 步的测试仍然能直接访问 `/runtime`。
+
+测试用 `httptest` 模拟快照服务：正常一条、连不上、错误 JSON、PID 变化。不要在单元测试里真的循环 5 秒，把时钟换成测试替身。
+
+做完才算通过：Monitor 包测试全绿，同时 `go test ./runtime/...` 不因 Monitor 的依赖变红。
+
+### 第 7 步：一条规则和一种记录
+
+规则先做确定性的，不做模型。第一版只实现两条，并且只写本地事件文件：
+
+- 连续 3 次采集失败，写「不可达」；之后有一次成功，写「恢复」。
+- 最近 1 分钟的 5xx 增量除以请求增量，超过配置阈值且请求增量至少 20，写「5xx 升高」。请求增量不足 20 时不告警，避免除以很小的数。
+
+同一条规则在触发后的冷却时间内不重复写。冷却默认 5 分钟。事件含时间、规则名、严重级别和触发时的快照摘要。不发邮件，不调 Webhook。
+
+内存、文件描述符和 CPU 仍不在 Server 里做。这一步如果要做，只在 Monitor 里对快照中的 PID 读操作系统；读不到就在事件里写未知，不要当成 0。连接的读/写/空闲、多上游健康检查不在这七步里。
+
+做完才算通过：用假的计数序列驱动规则，断言不可达、恢复、样本不足不告警、冷却期内不重复。不需要把规则接到线上进程才能合并这一步。
+
+## 7. 每一步之外仍需隔离环境核对的事项
+
+第 1 到第 5 步的单测覆盖功能正确性。下面几项要在测试机上对真实进程做一次，不在生产上做，也不是每一笔提交都做：
+
+- 第 3 步合并后：业务端口正常响应时，关掉 `9088` 或让它绑定失败，业务端口仍然可访问。
+- 第 5 步合并后：对运行中的进程发 reload，再发 `SIGTERM`，`/runtime` 在进程退出后连接失败，PID 文件按现有 `stop` 行为清理。
+- 第 5 步合并后：几十个并发连接打完，`connections.active` 与 `requests.active` 回到 0。
+- 第 6 步合并后：停掉 Monitor 进程，再请求业务端口，响应与 `/runtime` 都不受影响。
+- 第 3 步之后抽查一次：每秒拉取 `/runtime` 约 10 次、持续 30 秒，业务请求没有出现新增的错误。这一项没有现成基准，只记录有没有错误和延迟是否明显变长，不设一个还没测过的毫秒门槛。
 
 ## 8. 不在 Server 里做的事
 
 以下属于未来 Monitor，或明确不做：
 
-- 周期采集、采集超时、识别计数器重置。
-- 5xx 比例、耗时升高、内存增长这类窗口规则。
-- 告警去重、恢复事件、重试。第一版只写本地事件文件。
+- 周期采集、采集超时、识别计数器重置。这些在第 6 步，不进 Server。
+- 耗时升高、内存增长这类窗口规则。第 7 步只做「不可达」和「5xx 比例」两条，耗时和内存不做。
+- 邮件、Webhook、自动重试。第 7 步的去重和恢复只写本地事件文件。
 - Prometheus、数据库、消息队列、大模型、自动修复。
 - 为了监控而增加多上游或健康检查。
