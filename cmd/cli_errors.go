@@ -18,6 +18,7 @@ const (
 	CodeOperationUnknown = "OPERATION_UNKNOWN"
 	CodeTimeout          = "TIMEOUT"
 	CodeNotFound         = "NOT_FOUND"
+	CodeLogUnavailable   = "LOG_SOURCE_UNAVAILABLE"
 	CodeConflict         = "CONFLICT"
 	CodeRequestIDClash   = "REQUEST_ID_CONFLICT"
 	CodeUnmetDependency  = "UNMET_DEPENDENCY"
@@ -35,6 +36,7 @@ var exitCodes = map[string]int{
 	CodeOperationUnknown: 7,
 	CodeTimeout:          8,
 	CodeNotFound:         9,
+	CodeLogUnavailable:   9,
 	CodeConflict:         10,
 	CodeRequestIDClash:   10,
 	CodeUnmetDependency:  11,

@@ -67,6 +67,11 @@ func commandList() []command {
 			register:    newCertCmd,
 		},
 		{
+			name:        "logs",
+			description: t("按白名单条件查询日志", "query logs with an allow-listed filter"),
+			register:    newLogsCmd,
+		},
+		{
 			name:        "acme",
 			description: t("配置 ACME 证书签发", "configure ACME certificate issuance"),
 			register:    newAcmeCmd,

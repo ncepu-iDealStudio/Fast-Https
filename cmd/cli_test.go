@@ -106,6 +106,7 @@ func TestExitCodeTable(t *testing.T) {
 		CodeOperationUnknown: 7,
 		CodeTimeout:          8,
 		CodeNotFound:         9,
+		CodeLogUnavailable:   9,
 		CodeConflict:         10,
 		CodeRequestIDClash:   10,
 		CodeUnmetDependency:  11,
@@ -132,7 +133,7 @@ func TestEveryErrorCodeHasExitCode(t *testing.T) {
 	for _, code := range []string{
 		CodeInternal, CodeUsage, CodePermissionDenied, CodeServiceDown, CodeConfigInvalid,
 		CodeOperationFailed, CodeRecoveryRequired, CodeOperationUnknown, CodeTimeout,
-		CodeNotFound, CodeConflict, CodeRequestIDClash, CodeUnmetDependency, CodeNotSupported,
+		CodeNotFound, CodeLogUnavailable, CodeConflict, CodeRequestIDClash, CodeUnmetDependency, CodeNotSupported,
 	} {
 		if _, ok := exitCodes[code]; !ok {
 			t.Errorf("错误码 %s 没有退出码", code)

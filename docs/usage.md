@@ -485,6 +485,9 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一个候选主配置文件；只校验，不应用；失败退出码 5 |
 | `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
 | `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
+| `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。目前该文件只含 `PrintErr`，控制台错误尚未写入 |
+| `logs access` | 只读 `access.log`，过滤条件同上，另有 `--status`（`500`、`4xx` 或 `400-499`） |
+| `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套 |
 | `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块；加 `--json` 输出脱敏后的封套（文本模式仍打印原文，包含写在文件里的口令） |
@@ -515,7 +518,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 
 ### 10.2 机器可读输出与退出码
 
-根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`service status`、`config show`、`config validate`、`site list`、`site show`、`cert list`、`cert check`，以及保持原格式的 `config path`），其它命令接受但不使用后两个。
+根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`service status`、`config show`、`config validate`、`site list`、`site show`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`，以及保持原格式的 `config path`），其它命令接受但不使用后两个。
 
 `--json` 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：
 
@@ -539,11 +542,11 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 | 6 | `OPERATION_FAILED`、`RECOVERY_REQUIRED` | 操作失败；恢复失败需人工处理 |
 | 7 | `OPERATION_UNKNOWN` | 状态未知，需查询 operation |
 | 8 | `TIMEOUT` | 超时 |
-| 9 | `NOT_FOUND` | 资源不存在 |
+| 9 | `NOT_FOUND`、`LOG_SOURCE_UNAVAILABLE` | 资源不存在；日志文件不存在或是符号链接 |
 | 10 | `CONFLICT`、`REQUEST_ID_CONFLICT` | 冲突 / 幂等键冲突 |
 | 11 | `UNMET_DEPENDENCY`、`NOT_SUPPORTED` | 依赖或环境不满足 / 功能未实现 |
 
-这张表是为后续管理类命令预留的稳定约定：目前只有用法错误（2）与一般错误（1）会实际出现。
+管理类命令按这张表退出。例如配置校验失败是 5，站点或日志文件不存在是 9。旧的 `start` / `stop` / `reload` / `status` 仍用原来的文本和退出码。
 
 ## 11. 热重载与停机
 

@@ -443,6 +443,9 @@ fast-https site remove blog --yes</code></pre>
 <tr><td><code>config validate</code></td><td>校验当前配置，或用 <code>--candidate</code> 校验一个候选主配置文件；只校验，不应用；失败退出码 5</td></tr>
 <tr><td><code>cert list</code></td><td>按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（<code>valid</code>、<code>expiring</code>、<code>expired</code>、<code>not_yet_valid</code>、<code>missing</code>、<code>unreadable</code>、<code>unknown</code>）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径</td></tr>
 <tr><td><code>cert check --domain &lt;域名&gt;</code></td><td>检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9</td></tr>
+<tr><td><code>logs error</code></td><td>只读 <code>error.log</code>。<code>--since</code>、<code>--limit</code>（默认 100，超过 1000 钳到 1000）、<code>--domain</code>。目前该文件只含 <code>PrintErr</code>，控制台错误尚未写入</td></tr>
+<tr><td><code>logs access</code></td><td>只读 <code>access.log</code>，过滤条件同上，另有 <code>--status</code>（<code>500</code>、<code>4xx</code> 或 <code>400-499</code>）</td></tr>
+<tr><td><code>logs query</code></td><td><code>--kind</code> 必填（<code>access</code>、<code>error</code>、<code>system</code>、<code>safe</code>），一次只查一个文件。另可按 <code>--level</code>、<code>--method</code>、<code>--path-prefix</code>、<code>--reason</code>、<code>--until</code> 过滤。没有 <code>--file</code>，不读已轮转的文件，日志内容只作为数据返回</td></tr>
 <tr><td><code>site init [name]</code></td><td>在 <code>http.include</code> 目录下生成 <code>&lt;name&gt;.json</code>（交互向导或 <code>--listen/--server-name/--type/--proxy-pass/--tls</code>；<code>--listen</code> 可重复以生成多端口站点）</td></tr>
 <tr><td><code>site list</code></td><td>列出站点文件、监听、<code>server_name</code> 与 location 类型；加 <code>--json</code> 输出封套</td></tr>
 <tr><td><code>site show &lt;name&gt;</code></td><td>打印站点文件原文；加 <code>--merged</code> 输出合并后的完整 server 块；加 <code>--json</code> 输出脱敏后的封套（文本模式仍打印原文，包含写在文件里的口令）</td></tr>
@@ -466,7 +469,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <p><code>--lang</code> 优先于环境变量；两者都没给时按中文输出。语言只在进程启动时读一次，不影响运行期日志。</p>
 <p>手册页也是两份：<code>man fast-https</code> 读到的是中文页，<code>LANG=en_US.UTF-8 man fast-https</code> 读英文页（装在 <code>/usr/share/man/en/man1/</code>）。</p>
 <h3 id="sec-33">10.2 机器可读输出与退出码</h3>
-<p>根命令有三个全局选项：<code>--json</code>、<code>--timeout</code>、<code>--request-id</code>。目前只有 <code>--json</code> 在部分命令上有效（<code>service version</code>、<code>service status</code>、<code>config show</code>、<code>config validate</code>、<code>site list</code>、<code>site show</code>、<code>cert list</code>、<code>cert check</code>，以及保持原格式的 <code>config path</code>），其它命令接受但不使用后两个。</p>
+<p>根命令有三个全局选项：<code>--json</code>、<code>--timeout</code>、<code>--request-id</code>。目前只有 <code>--json</code> 在部分命令上有效（<code>service version</code>、<code>service status</code>、<code>config show</code>、<code>config validate</code>、<code>site list</code>、<code>site show</code>、<code>cert list</code>、<code>cert check</code>、<code>logs error</code>、<code>logs access</code>、<code>logs query</code>，以及保持原格式的 <code>config path</code>），其它命令接受但不使用后两个。</p>
 <p><code>--json</code> 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：</p>
 <pre><code class="language-json">{&#34;ok&#34;:true,&#34;command&#34;:&#34;service.version&#34;,&#34;request_id&#34;:null,&#34;data&#34;:{},&#34;warnings&#34;:[]}
 {&#34;ok&#34;:false,&#34;command&#34;:&#34;service.version&#34;,&#34;request_id&#34;:null,&#34;error&#34;:{&#34;code&#34;:&#34;USAGE_ERROR&#34;,&#34;message&#34;:&#34;...&#34;,&#34;details&#34;:[]}}</code></pre>
@@ -484,12 +487,12 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <tr><td>6</td><td><code>OPERATION_FAILED</code>、<code>RECOVERY_REQUIRED</code></td><td>操作失败；恢复失败需人工处理</td></tr>
 <tr><td>7</td><td><code>OPERATION_UNKNOWN</code></td><td>状态未知，需查询 operation</td></tr>
 <tr><td>8</td><td><code>TIMEOUT</code></td><td>超时</td></tr>
-<tr><td>9</td><td><code>NOT_FOUND</code></td><td>资源不存在</td></tr>
+<tr><td>9</td><td><code>NOT_FOUND</code>、<code>LOG_SOURCE_UNAVAILABLE</code></td><td>资源不存在；日志文件不存在或是符号链接</td></tr>
 <tr><td>10</td><td><code>CONFLICT</code>、<code>REQUEST_ID_CONFLICT</code></td><td>冲突 / 幂等键冲突</td></tr>
 <tr><td>11</td><td><code>UNMET_DEPENDENCY</code>、<code>NOT_SUPPORTED</code></td><td>依赖或环境不满足 / 功能未实现</td></tr>
 </tbody>
 </table>
-<p>这张表是为后续管理类命令预留的稳定约定：目前只有用法错误（2）与一般错误（1）会实际出现。</p>
+<p>管理类命令按这张表退出。例如配置校验失败是 5，站点或日志文件不存在是 9。旧的 <code>start</code> / <code>stop</code> / <code>reload</code> / <code>status</code> 仍用原来的文本和退出码。</p>
 <h2 id="sec-34">11. 热重载与停机</h2>
 <p><code>reload</code> 的流程是：解析并校验新配置 → 校验失败则继续用旧快照 → 校验通过则原子替换快照 → 按差异增删改监听器 → 重新打开证书表与日志文件。整个过程中已有连接不受影响。</p>
 <p>守护进程模式下的等价操作是向主进程发送 <code>SIGINT</code>。停止时先停止接受新连接，再等待在途请求完成。</p>
