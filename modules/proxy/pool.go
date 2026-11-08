@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"fast-https/infra/logging"
@@ -26,11 +27,12 @@ type pooledIdle struct {
 }
 
 type connPool struct {
-	mu      sync.Mutex
-	idle    map[string][]*pooledIdle
-	maxIdle int
-	idleTTL time.Duration
-	sweep   sync.Once
+	mu        sync.Mutex
+	idle      map[string][]*pooledIdle
+	maxIdle   int
+	idleTTL   time.Duration
+	sweep     sync.Once
+	idleCount atomic.Int64
 }
 
 func newConnPool(maxIdle int, idleTTL time.Duration) *connPool {
@@ -51,6 +53,7 @@ func (cp *connPool) get(addr string, dial func() (*Proxy, error)) (*Proxy, error
 		last := len(cp.idle[addr]) - 1
 		pc := cp.idle[addr][last]
 		cp.idle[addr] = cp.idle[addr][:last]
+		cp.idleCount.Add(-1)
 		cp.mu.Unlock()
 
 		if timeNow().Sub(pc.lastUsed) < cp.idleTTL {
@@ -76,6 +79,7 @@ func (cp *connPool) put(addr string, p *Proxy) {
 		return
 	}
 	cp.idle[addr] = append(cp.idle[addr], &pooledIdle{p: p, lastUsed: timeNow()})
+	cp.idleCount.Add(1)
 	cp.mu.Unlock()
 }
 
@@ -87,32 +91,48 @@ func (cp *connPool) startSweeper() {
 			ticker := time.NewTicker(cp.idleTTL / 2)
 			defer ticker.Stop()
 			for range ticker.C {
-				now := timeNow()
-				var expired []*Proxy
-				cp.mu.Lock()
-				for addr, conns := range cp.idle {
-					kept := conns[:0]
-					for _, pc := range conns {
-						if now.Sub(pc.lastUsed) >= cp.idleTTL {
-							expired = append(expired, pc.p)
-						} else {
-							kept = append(kept, pc)
-						}
-					}
-					if len(kept) == 0 {
-						delete(cp.idle, addr)
-					} else {
-						cp.idle[addr] = kept
-					}
-				}
-				cp.mu.Unlock()
-				for _, p := range expired {
-					p.Close()
-				}
-				if len(expired) > 0 {
-					logging.ConsoleLog.Debug().Msgf("proxy pool closed %d expired idle connections", len(expired))
+				n := cp.sweepExpired()
+				if n > 0 {
+					logging.ConsoleLog.Debug().Msgf("proxy pool closed %d expired idle connections", n)
 				}
 			}
 		}()
 	})
+}
+
+func (cp *connPool) sweepExpired() int {
+	now := timeNow()
+	var expired []*Proxy
+	cp.mu.Lock()
+	for addr, conns := range cp.idle {
+		kept := conns[:0]
+		for _, pc := range conns {
+			if now.Sub(pc.lastUsed) >= cp.idleTTL {
+				expired = append(expired, pc.p)
+				cp.idleCount.Add(-1)
+			} else {
+				kept = append(kept, pc)
+			}
+		}
+		if len(kept) == 0 {
+			delete(cp.idle, addr)
+		} else {
+			cp.idle[addr] = kept
+		}
+	}
+	cp.mu.Unlock()
+	for _, p := range expired {
+		p.Close()
+	}
+	return len(expired)
+}
+
+func (cp *connPool) idleLen() int {
+	cp.mu.Lock()
+	defer cp.mu.Unlock()
+	n := 0
+	for _, conns := range cp.idle {
+		n += len(conns)
+	}
+	return n
 }

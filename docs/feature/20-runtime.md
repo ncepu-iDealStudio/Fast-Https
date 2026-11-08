@@ -1,6 +1,6 @@
 # 20. 本机运行快照 `/runtime`
 
-状态：✅ 已实现（第 1–3 步字段；耗时与上游见后续步骤）
+状态：✅ 已实现
 
 ## 功能
 
@@ -18,18 +18,20 @@ Invoke-RestMethod http://127.0.0.1:9088/runtime | ConvertTo-Json -Depth 5
 
 其它路径返回 404。`schema_version` 目前为 `"1"`：只新增字段不升版本；改变已有字段含义或删除字段才升。调用方对不认识的字段忽略，对不认识的版本拒绝。
 
-尚未实现的段（`request_duration`、`upstream`）不会出现，不会用 `0` 冒充未知。
+`request_duration` 始终出现，桶计数和 `count` 为 0 表示还没有请求。`upstream` 由组合根挂入；未装配代理时该对象省略，装配后即使没有代理流量也输出 0（真实的零）。
 
 ## 实现方案
 
-- 计数与状态在 `runtime/metrics`：生命周期、连接、请求、状态码、reload 生成号、监听端口原子副本。快照只做原子 `Load`，不持 `Server.mu`，不读无锁的 `Server.Listens`。
-- HTTP 出口在组合根 `cmd/runtime_endpoint.go`。`StartHandler` 在写 PID 之后、`InitSystem` 之前启动监听；`RegisterServices` 把关闭挂到 `core.Services.AfterStop`。
-- 分段注册：`metrics.RegisterSection` 供组合根挂入功能包数据（例如以后的 upstream），`runtime` 不 import `modules`。
+- 计数与状态在 `runtime/metrics`：生命周期、连接、请求、状态码、耗时直方图、reload 生成号、监听端口原子副本。快照只做原子 `Load`，不持 `Server.mu`，不读无锁的 `Server.Listens`。
+- HTTP 出口在组合根 `cmd/runtime_endpoint.go`。`StartHandler` 在写 PID 之后、`InitSystem` 之前启动监听；`RegisterServices` 把关闭挂到 `core.Services.AfterStop`，并把 `modules/proxy` 的上游计数挂为 `upstream` 分段。
+- 分段注册：`metrics.RegisterSection` 供组合根挂入功能包数据，`runtime` 不 import `modules`。
+- `request_duration` 口径是进入 `EventHandler` 到返回，不含读请求头；HTTP/2 在 `EventHandler` 返回后才写响应的那部分不在内。桶为累积 `le`（1/5/10/25/50/100/250/500/1000/5000 ms 与 `+Inf`）。
+- 上游失败只在错误产生处计数：`dialUpstream` 的拨号失败、`sendToUpstreamServer` 的写超时、`proxy_read.go` 两处读超时。websocket 的 `CircleData` 类型转换失败不算拨号失败。
 - `requests.total` 只含进入 `EventHandler` 的请求；解析失败与被拒绝连接单独计，不进入 `responses_*_total`。TCP / WebSocket 会话计入 `connections.active`，升级握手那一次请求计入 `requests.total`。
 
 ## 测试
 
-`runtime/metrics/snapshot_test.go`、`cmd/runtime_endpoint_test.go`（测试绑定 `127.0.0.1:0`，不占用 9088）。
+`runtime/metrics/snapshot_test.go`、`runtime/events/duration_test.go`、`modules/proxy/metrics_test.go`、`cmd/runtime_endpoint_test.go`（测试绑定 `127.0.0.1:0`，不占用 9088）。
 
 ## 已知限制
 

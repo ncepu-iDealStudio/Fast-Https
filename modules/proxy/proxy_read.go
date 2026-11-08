@@ -2,9 +2,9 @@ package proxy
 
 import (
 	"fast-https/config"
+	"fast-https/infra/logging"
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
-	"fast-https/infra/logging"
 	"io"
 	"net"
 	"strconv"
@@ -130,6 +130,7 @@ func (rka *ReadKeepAlive) ReadBytes(size int) error {
 		tempLen, err := rka.Read(tmpBuf)
 		if err != nil {
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+				noteReadTimeout()
 				return ProxyErrorReadFromUpstreamTimeout
 			}
 			return err
@@ -151,6 +152,7 @@ readAgain:
 	if err != nil {
 		neterr, ok := err.(net.Error)
 		if ok && neterr.Timeout() {
+			noteReadTimeout()
 			return ProxyErrorReadFromUpstreamTimeout
 		} else if ok {
 			logging.ConsoleLog.Debug().Msgf("proxy: unhandled net error: %v", err)

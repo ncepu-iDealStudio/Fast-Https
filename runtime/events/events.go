@@ -73,7 +73,9 @@ func watchClose(ctx context.Context, ev *core.Event) func() {
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
 	metrics.RequestBegin()
+	started := time.Now()
 	defer func() {
+		metrics.ObserveDuration(time.Since(started))
 		line := ""
 		if ev != nil && ev.RR.Res != nil {
 			line = ev.RR.Res.FirstLine

@@ -30,6 +30,12 @@ func RegisterSection(name string, fn func() (any, bool)) {
 	}
 	sectionMu.Lock()
 	defer sectionMu.Unlock()
+	for i, s := range sections {
+		if s.name == name {
+			sections[i].fn = fn
+			return
+		}
+	}
 	sections = append(sections, section{name: name, fn: fn})
 }
 
@@ -70,18 +76,19 @@ type RequestsInfo struct {
 
 // Snapshot 是 /runtime 的可序列化结构。只 Load 原子值。
 type Snapshot struct {
-	SchemaVersion    string          `json:"schema_version"`
-	ObservedAt       string          `json:"observed_at"`
-	Server           ServerInfo      `json:"server"`
-	Listeners        []ListenerInfo  `json:"listeners,omitempty"`
-	Connections      ConnectionsInfo `json:"connections"`
-	Requests         RequestsInfo    `json:"requests"`
-	Responses2xx     uint64          `json:"responses_2xx_total"`
-	Responses3xx     uint64          `json:"responses_3xx_total"`
-	Responses4xx     uint64          `json:"responses_4xx_total"`
-	Responses5xx     uint64          `json:"responses_5xx_total"`
-	ResponsesUnknown uint64          `json:"responses_unknown_total"`
-	extra            map[string]any  `json:"-"`
+	SchemaVersion    string            `json:"schema_version"`
+	ObservedAt       string            `json:"observed_at"`
+	Server           ServerInfo        `json:"server"`
+	Listeners        []ListenerInfo    `json:"listeners,omitempty"`
+	Connections      ConnectionsInfo   `json:"connections"`
+	Requests         RequestsInfo      `json:"requests"`
+	Responses2xx     uint64            `json:"responses_2xx_total"`
+	Responses3xx     uint64            `json:"responses_3xx_total"`
+	Responses4xx     uint64            `json:"responses_4xx_total"`
+	Responses5xx     uint64            `json:"responses_5xx_total"`
+	ResponsesUnknown uint64            `json:"responses_unknown_total"`
+	RequestDuration  DurationHistogram `json:"request_duration"`
+	extra            map[string]any    `json:"-"`
 }
 
 func (s Snapshot) MarshalJSON() ([]byte, error) {
@@ -100,7 +107,8 @@ func (s Snapshot) MarshalJSON() ([]byte, error) {
 	return json.Marshal(m)
 }
 
-// TakeSnapshot 组装当前进程内状态。耗时和上游尚未注册时不出现这两个对象。
+// TakeSnapshot 组装当前进程内状态。request_duration 始终出现（零是真实的零）；
+// upstream 由组合根经 RegisterSection 挂入，未注册则省略。
 func TakeSnapshot() Snapshot {
 	srv := ServerInfo{
 		State:             State().String(),
@@ -147,6 +155,7 @@ func TakeSnapshot() Snapshot {
 		Responses4xx:     Responses4xx(),
 		Responses5xx:     Responses5xx(),
 		ResponsesUnknown: ResponsesUnknown(),
+		RequestDuration:  DurationSnapshot(),
 	}
 
 	sectionMu.Lock()

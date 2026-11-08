@@ -51,7 +51,18 @@ func TestSnapshotOmitsUnmeasuredReload(t *testing.T) {
 	if strings.Contains(string(raw), "last_reload_at") || strings.Contains(string(raw), "last_reload_ok") {
 		t.Fatalf("never-reloaded snapshot should omit reload result: %s", raw)
 	}
-	if strings.Contains(string(raw), "request_duration") {
-		t.Fatalf("duration must be omitted until step 4: %s", raw)
+	if !strings.Contains(string(raw), "request_duration") {
+		t.Fatalf("request_duration is measured from process start and must appear: %s", raw)
+	}
+}
+
+func TestUpstreamSectionOmittedWithoutProxy(t *testing.T) {
+	ResetForTest()
+	raw, err := json.Marshal(TakeSnapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"upstream"`) {
+		t.Fatalf("unregistered upstream must be omitted: %s", raw)
 	}
 }

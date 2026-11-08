@@ -76,6 +76,7 @@ func dialUpstream(addr string, proxyType int) (*Proxy, error) {
 
 	if err != nil {
 		logging.ConsoleLog.Debug().Msgf("proxy event: can't connect to upstream server %s", err.Error())
+		noteDialFail()
 		return nil, ProxyErrorDialUpstream // no server
 	}
 	p.ProxyConn = conn
@@ -286,6 +287,7 @@ func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
 		if ok && neterr.Timeout() {
 			logging.ConsoleLog.Debug().Msg("send to upstream server time out")
 			err = ProxyErrorSendToUpstreamTimeout
+			noteSendTimeout()
 		} else {
 			// 非 net.Error 的写错误（io.ErrClosedPipe、TLS 包装错误等）
 			// 也必须按普通错误处理：此前这里走 Fatal（os.Exit），一条

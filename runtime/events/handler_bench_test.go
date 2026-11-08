@@ -24,6 +24,9 @@ import (
 // 计数前 823 ns/op  1956 B/op  15 allocs/op
 // 计数后 1292 ns/op 2005 B/op  16 allocs/op
 // 热路径多一次 defer 与几次原子加减；不设未经测量的门槛。
+//
+// 2026-11-08 第 4 步直方图后同一负载 count=3：941–994 ns/op，2004 B/op，16 allocs/op
+// 相对计数后：分配不变；延迟仍在噪声范围内。
 func BenchmarkEventHandlerSmallResponse(b *testing.B) {
 	core.RegisterHandler(config.DEVMOD,
 		func(cfg *listener.ListenCfg, ev *core.Event) bool { return true },

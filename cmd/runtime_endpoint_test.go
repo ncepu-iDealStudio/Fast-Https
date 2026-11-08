@@ -12,6 +12,7 @@ import (
 
 	"fast-https/config"
 	"fast-https/core"
+	"fast-https/modules/proxy"
 	"fast-https/runtime/metrics"
 )
 
@@ -208,5 +209,21 @@ func TestRuntimeLoopbackOnly(t *testing.T) {
 	}
 	if host != "127.0.0.1" {
 		t.Fatalf("bound host = %q, want 127.0.0.1 (not 0.0.0.0)", host)
+	}
+}
+
+func TestRuntimeUpstreamSection(t *testing.T) {
+	addr := startTestRuntime(t)
+	_, body := getRuntime(t, addr)
+	if strings.Contains(string(body), `"upstream"`) {
+		t.Fatalf("upstream must be omitted until RegisterServices: %s", body)
+	}
+
+	metrics.RegisterSection("upstream", func() (any, bool) {
+		return proxy.Snapshot()
+	})
+	_, body = getRuntime(t, addr)
+	if !strings.Contains(string(body), `"dial_fail_total"`) {
+		t.Fatalf("registered upstream missing: %s", body)
 	}
 }

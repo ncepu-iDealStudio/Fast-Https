@@ -15,6 +15,7 @@ import (
 	"fast-https/modules/static"
 	"fast-https/modules/websocket"
 	"fast-https/runtime/listener"
+	"fast-https/runtime/metrics"
 	"strings"
 )
 
@@ -52,6 +53,9 @@ func RegisterServices() {
 	// 按启动时的配置挂上 ACME 钩子。未启用时不挂任何钩子，
 	// 请求热路径保持不变。
 	certmanager.ReconcileHooks()
+	metrics.RegisterSection("upstream", func() (any, bool) {
+		return proxy.Snapshot()
+	})
 }
 
 // rejectWAF 把防火墙的"放行"语义翻译成 Reject 钩子的"拒绝"语义。
