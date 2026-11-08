@@ -2,6 +2,8 @@
 
 日期：2026-11-08。依据 [CLI 代码扫描报告](fast-https-CLI代码扫描报告.md) 的结论，把 [CLI 命令与接口开发规范](fast-https-CLI开发规范_AI代码智能体版.md) 落到可逐步执行的方案。Server 侧的指标与 Monitor 部分另有文档，见 [Monitor 代码扫描报告](fast-https-Monitor代码扫描报告.md) 与 [Monitor 改造开发计划](fast-https-Monitor改造开发计划.md)，本文只引用它的步骤号，不重复。
 
+**执行状态（2026-11-08）：** S0–S12 与 S14 的文档已落地。现行行为看 [feature/18-cli-service.md](feature/18-cli-service.md)、[docs/cli/command-spec.md](cli/command-spec.md)。S13 `cert renew` 未做。尚未跑完的验收见 [cli-monitor-followup.md](develop/plans/cli-monitor-followup.md)。下文逐步说明保留开工时的设计，不再表示「尚未开始」。
+
 ## 0. 怎么读这份文档
 
 - 第 1 节是给你看的「改造代价」：每一步改了现有代码的哪里、风险多大、做完能得到什么。
@@ -39,7 +41,7 @@
 | S9 | `site add/update/delete/enable/disable` | 约 2：`modules/site/site.go`（列出停用站点）、`cmd/site.go` | 约 6 | `modules/site` 小改 | 无 | 中：路径边界校验、停用与 include 约定 | M |
 | S10 | `ConsoleLog` 的 Warn/Error 同时写 `error.log` | 约 2：`infra/logging/logger.go` 及测试 | 约 1 | `infra/logging`（全进程日志出口） | 日志量略增 | 中 | M |
 | S11 | Server 计数、生命周期状态、本机 `/runtime`；CLI 的 `runtime status/stats`；强验证 | 约 8（Monitor 计划第 1–5 步）+ CLI 约 3 | 约 8 | `runtime/server`、`runtime/events`、`cmd`、`modules/proxy` | **有**：热路径加原子计数 | **高**：热路径、性能、并发 | XL |
-| S12 | `monitor status/events` | 0 | 约 3 | 无（依赖 Monitor 进程） | 无 | 阻塞：Monitor 尚未存在 | M（含 Monitor 本体则 XL） |
+| S12 | `monitor status/events` | 0 | 约 3 | 无（只读 Monitor 状态文件） | 无 | 已落地：`management/monview`、`cmd/monitor.go` | M |
 | S13 | `cert renew` | 约 3 | 约 5 | `modules/certmanager`、`cmd` 起控制监听 | 有：新增写接口 | **高**：安全面 | XL |
 | S14 | 收口：文档、示例、全量回归、交付清单 | 约 5 | 约 3 | 无 | 无 | 低 | S |
 
@@ -821,9 +823,11 @@ Copy-Item .\config $env:TEMP\cand -Recurse -Force
 
 **目标：** 查询独立 Monitor 进程的状态与事件。
 
-**影响：** CLI 侧无；**依赖 Monitor 进程本体存在**（Monitor 计划第 6、7 步）。目前仓库里没有 Monitor 源码（`monitor/` 只有一个未入库的 `monitor.exe`，是提交 `5ab84d6` 移除的旧托盘程序的构建残留），所以本步在 Monitor 计划第 6 步之前**保持阻塞**。
+**状态：** 已落地。Monitor 进程在 `monitor/`（见 [feature/21-monitor.md](feature/21-monitor.md)）。CLI 只读它写下的文件，实现在 `management/monview` 与 `cmd/monitor.go`。开工前 `monitor/` 里曾有未入库的旧托盘 `monitor.exe`，该残留已不在，不能再当成「没有源码」。
 
-**设计（供届时执行）：**
+**影响：** CLI 侧无。启停归 systemd 或使用者自己的进程管理。
+
+**设计（已按此实现）：**
 
 - Monitor 自己维护两样东西：状态文件（最近采集时间、最近事件时间、健康、最近一次采集错误）和事件 JSONL 文件。CLI 只读它们，不连接 Monitor 进程。
 - `monitor status`：状态文件不存在 → `ok:true`、`status:"not_installed"`（规范 §4.9「如果已安装」）；文件过旧 → `stale`。
@@ -831,7 +835,7 @@ Copy-Item .\config $env:TEMP\cand -Recurse -Force
 - 事件内容属不可信数据，只作字符串返回。
 - Monitor 的启停归 systemd 或现有服务管理，CLI 不做。
 
-**验收测试（自动，Monitor 就绪后）：** 未安装 → `not_installed`；状态陈旧 → `stale`；`--severity` 过滤；`--limit` 与截断；坏行（非 JSON）被跳过并计数；事件里的注入文本只作数据。
+**验收测试（自动）：** 未安装 → `not_installed`；状态陈旧 → `stale`；`--severity` 过滤；`--limit` 与截断；坏行（非 JSON）被跳过并计数；事件里的注入文本只作数据。对应 `cmd/cli_s12_test.go`、`management/monview`。
 
 **回退：** revert。
 

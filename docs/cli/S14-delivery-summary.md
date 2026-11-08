@@ -25,7 +25,7 @@
 - 管理核心：`management/state`、`txn`、`svcctl`、`view`、`rtclient`、`monview` 等。
 - 证书：`modules/certmanager` + `cert list/check`；续期写通道未做。
 - Runtime：`127.0.0.1:9088/runtime`，`schema_version: "1"`。
-- Monitor：CLI 只读 `<log_root>/monitor/` 下文件；独立 `monitor/` 可执行体在仓内，随包发布工作未完成本阶段验收。
+- Monitor：独立进程在 `monitor/`，CLI 只读其状态文件。打包与 systemd 见 [feature/21-monitor.md](../feature/21-monitor.md)。本摘要写于收口当时，其中「第 6–7 步未做」已过时，以功能文档与 [遗留改进计划](../develop/plans/cli-monitor-followup.md) 为准。
 
 ## 2. 实现文件清单（S14 本轮）
 
@@ -46,7 +46,7 @@ S11/S12 代码见历史提交（`management/rtclient`、`cmd/runtime.go`、`mana
 |---|---|
 | P0 | 无 |
 | P1 | `cert renew`；`logs access`/`logs query` 若规范列出的子能力有缺口以 usage 为准 |
-| 其它 | Monitor **进程**对状态文件的持续写入（CLI 已就绪） |
+| 其它 | 无（Monitor 进程与 CLI 只读查询均已落地；未做的是验证与 `cert renew`） |
 
 ## 4–5. 接口与安全
 
@@ -70,9 +70,9 @@ S11/S12 代码见历史提交（`management/rtclient`、`cmd/runtime.go`、`mana
 
 ## 7. 未完成项
 
-- S13 `cert renew`（用户明确推迟）。
-- Monitor 安装单元与生产环境持续写 `status.json` / `events.jsonl`（计划 §6–7）。
+- S13 `cert renew`（明确不做；连 `NOT_SUPPORTED` 命令壳也未加）。
 - 全量 `-race ./...`、distro 容器、desktop、goreleaser、DSH 手工联调。
+- Monitor 第 6–7 步代码已在 `monitor/`；本条在收口当时误记为未做。后续验证见遗留改进计划。
 
 ## 8. 运行示例
 
@@ -86,9 +86,8 @@ S11/S12 代码见历史提交（`management/rtclient`、`cmd/runtime.go`、`mana
 
 ## 10. 后续建议（仅第一阶段相关）
 
-1. 实施 Monitor 第 6–7 步后，用真实 `status.json` 补 examples 一条「已安装」样例。
-2. 在 Linux CI 跑 `go test -p 1 ./...` 与 distro 脚本，规避 Windows banner 测试噪声。
-3. 再做 S13 前单独安全评审（规范要求）。
+1. 在 Linux CI 跑 `go test -p 1 ./...` 与 distro 脚本，规避 Windows banner 测试噪声。
+2. 再做 `cert renew` 前单独安全评审（规范要求）。后续条目见 [cli-monitor-followup.md](../develop/plans/cli-monitor-followup.md)。
 
 ---
 

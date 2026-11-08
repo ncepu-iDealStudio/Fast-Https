@@ -66,4 +66,14 @@
 {"ok":true,"command":"service.status","request_id":null,"data":{"status":"stopped","stale_pid":true,"observed_at":"2026-11-08T20:25:22+08:00","source":"pid_file+port_probe","ports":[{"port":80,"reachable":false},{"port":443,"reachable":false}]},"warnings":[]}
 ```
 
-退出码：`0`
+退出码：`0`。`stale_pid` 来自工作目录里残留的 pid 文件。
+
+## `monitor status --json`（已采集，Server 未监听 9088）
+
+2026-11-08：临时目录里放一份 `monitor.json`（`pid_file` 指向不存在的文件），执行 `go run ./monitor -once -config <该文件> -dir <临时目录>`。采集失败，Monitor 退出码 1。再把 `FASTHTTPS_MONITOR_DIR` 指到该目录，执行 `go run . monitor status --json`。
+
+```text
+{"ok":true,"command":"monitor.status","request_id":null,"data":{"status":"unhealthy","observed_at":"2026-11-08T20:45:54+08:00","source":"monitor_status_file","version":"dev","pid":2708,"healthy":false,"last_collect_at":"2026-11-08T20:45:54.011+08:00","last_event_at":"2026-11-08T20:45:54.011+08:00","last_error":"unreachable: Get \"http://127.0.0.1:9088/runtime\": dial tcp 127.0.0.1:9088: connectex: No connection could be made because the target machine actively refused it.; server not started (no pid file)"},"warnings":[]}
+```
+
+退出码：`0`。`unhealthy` 表示状态文件在、最近一次采集失败；上面的 `not_installed` 表示没有状态文件。`version` 为 `dev` 是因为这次没有用 `-ldflags` 注入版本。

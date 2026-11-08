@@ -2,6 +2,8 @@
 
 日期：2026-11-08。依据 [Monitor 代码扫描报告](fast-https-Monitor代码扫描报告.md) 的结论，把 [开发前置条件与代码扫描清单](fast-https-Monitor开发前置条件与代码扫描清单.md) 落到可逐步执行的方案。CLI 一侧对 `/runtime` 的使用见 [CLI 改造开发计划](fast-https-CLI改造开发计划.md) 的 S11，衔接约定在本文第 3 节。
 
+**执行状态（2026-11-08）：** 第 0–8 步的代码已落地。现行行为看 [feature/20-runtime.md](feature/20-runtime.md) 与 [feature/21-monitor.md](feature/21-monitor.md)。`monitor/` 是独立进程源码，不是旧托盘残留。隔离环境核对与发行版容器实装仍见 [cli-monitor-followup.md](develop/plans/cli-monitor-followup.md)。下文逐步说明保留开工时的设计。
+
 ## 0. 怎么读这份文档
 
 - 第 1 节是给你看的「改造代价」：每一步改了现有代码的哪里、风险多大、做完能得到什么。
@@ -138,7 +140,7 @@ go build -o $fh .
 | 类型 | 文件 | 内容 |
 | --- | --- | --- |
 | 修改 | `modules/safe/limit.go`、`modules/safe/control.go` | 删除两处调试用 `println`（决策 MD4；单独提交，不与功能混在一起） |
-| 删除 | `monitor/monitor.exe` | 旧托盘 Monitor 的构建残留，未入库（决策 MD5） |
+| 删除 | `monitor/monitor.exe` | 开工前的旧托盘构建残留，未入库（决策 MD5）。落地后的 `monitor/` 是本计划第 6 步的源码，不要再删 |
 | 修改 | `config/consts.go` | 删除没有任何引用的 `MONIITOR_LOG_FILE_PATH`（决策 MD5；`go build ./...` 确认无引用） |
 
 **执行：**

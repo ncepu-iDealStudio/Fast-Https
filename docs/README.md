@@ -35,6 +35,7 @@ docs/
 | 看整体架构图（分层与请求链） | [architecture.html](architecture.html)、[images/architecture.png](images/architecture.png) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
 | 了解历史决策与演进 | [develop/README.md](develop/README.md)（`plans/` 未实施，`archive/` 已归档） |
+| CLI / Monitor 落地后还剩什么 | [develop/plans/cli-monitor-followup.md](develop/plans/cli-monitor-followup.md) |
 
 ## 维护约定
 

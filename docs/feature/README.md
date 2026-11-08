@@ -34,6 +34,6 @@
 ## 约定
 
 - 每篇文档描述**当前主干**的实现，历史演进见 `docs/develop/archive/`（架构收敛计划、迭代计划）。
-- 尚未实现的方案不进本目录：上游故障转移见 [upstream-failover-plan.md](../develop/plans/upstream-failover-plan.md)，配置自动重载见 [config-autoreload-plan.md](../develop/plans/config-autoreload-plan.md)。
+- 尚未实现的方案不进本目录：上游故障转移见 [upstream-failover-plan.md](../develop/plans/upstream-failover-plan.md)，配置自动重载见 [config-autoreload-plan.md](../develop/plans/config-autoreload-plan.md)。CLI 与 Monitor 改造计划的代码主路径已落地，尚未闭环的验证与可选能力见 [cli-monitor-followup.md](../develop/plans/cli-monitor-followup.md)。
 - 涉及并发语义的功能均以 `go test -race ./...` 全绿为底线（29 个包）。
 - 依赖清单与选型理由见根目录 `README.md` 依赖表。
