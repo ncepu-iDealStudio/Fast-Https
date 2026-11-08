@@ -46,8 +46,11 @@ func siteFlagChanged(opts siteOptions, name string) bool {
 
 func newSiteCmd() *cobra.Command {
 	root := &cobra.Command{
-		Use:          "site",
-		Short:        t("管理 http.include 目录下的站点文件", "manage site files under http.include"),
+		Use:   "site",
+		Short: t("管理 http.include 目录下的站点文件", "manage site files under http.include"),
+		Long: t(
+			"旧的 site init / site remove 只写文件并提示 reload。新增、更新、删除、启用、停用请用 site add/update/delete/enable/disable，它们走配置事务。",
+			"Legacy site init / site remove only write files and tell you to reload. Prefer site add/update/delete/enable/disable, which go through the config transaction."),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
@@ -110,6 +113,7 @@ func newSiteCmd() *cobra.Command {
 	removeCmd.Flags().Bool("yes", false, t("确认删除", "confirm deletion"))
 
 	root.AddCommand(initCmd, listCmd, showCmd, removeCmd)
+	addSiteWriteCommands(root)
 	return root
 }
 

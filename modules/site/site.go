@@ -25,6 +25,7 @@ type Entry struct {
 	ServerName string
 	Types      []string
 	Invalid    string // 文件解析或校验失败时的原因
+	Enabled    bool
 }
 
 // ValidateName 检查站点名能否安全地当文件名用。
@@ -46,10 +47,26 @@ func Path(dir, name string) string {
 	return filepath.Join(dir, name+".json")
 }
 
+// DisabledPath 返回停用站点文件路径（<name>.json.disabled）。
+func DisabledPath(dir, name string) string {
+	return filepath.Join(dir, name+".json.disabled")
+}
+
 // Find 在多个 include 目录里找站点文件，返回第一个存在的路径。
 func Find(dirs []string, name string) (string, bool) {
 	for _, dir := range dirs {
 		path := Path(dir, name)
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			return path, true
+		}
+	}
+	return "", false
+}
+
+// FindDisabled 找停用的站点文件。
+func FindDisabled(dirs []string, name string) (string, bool) {
+	for _, dir := range dirs {
+		path := DisabledPath(dir, name)
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
 			return path, true
 		}
@@ -174,11 +191,13 @@ func Remove(dirs []string, name string) (string, error) {
 	}
 	path, ok := Find(dirs, name)
 	if !ok {
-		return "", fmt.Errorf("找不到站点文件：%s.json", name)
+		path, ok = FindDisabled(dirs, name)
+		if !ok {
+			return "", fmt.Errorf("找不到站点文件：%s.json", name)
+		}
 	}
 	if err := config.ValidateSiteFile(path); err != nil {
 		// 校验失败也允许删除：用户可能正是想删掉一个写坏的文件。
-		// 这里只要求它是 .json 文件，路径已由 Find 保证。
 		_ = err
 	}
 	if err := os.Remove(path); err != nil {
@@ -200,7 +219,7 @@ func List(dirs []string) ([]Entry, error) {
 				continue
 			}
 			path := filepath.Join(dir, file.Name())
-			entry := Entry{Name: strings.TrimSuffix(file.Name(), ".json"), File: path}
+			entry := Entry{Name: strings.TrimSuffix(file.Name(), ".json"), File: path, Enabled: true}
 
 			raw, err := os.ReadFile(path)
 			if err != nil {
@@ -224,6 +243,95 @@ func List(dirs []string) ([]Entry, error) {
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return entries, nil
+}
+
+// ListAll 列出启用与停用（*.json.disabled）的站点。
+func ListAll(dirs []string) ([]Entry, error) {
+	enabled, err := List(dirs)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	for _, e := range enabled {
+		seen[e.Name] = struct{}{}
+	}
+	var extra []Entry
+	for _, dir := range dirs {
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			return nil, fmt.Errorf("read include dir %s: %w", dir, err)
+		}
+		for _, file := range files {
+			if file.IsDir() || !strings.HasSuffix(strings.ToLower(file.Name()), ".json.disabled") {
+				continue
+			}
+			name := file.Name()[:len(file.Name())-len(".json.disabled")]
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			path := filepath.Join(dir, file.Name())
+			entry := Entry{Name: name, File: path, Enabled: false}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				entry.Invalid = err.Error()
+				extra = append(extra, entry)
+				continue
+			}
+			in, err := config.ParseSiteInput(raw)
+			if err != nil {
+				entry.Invalid = err.Error()
+				extra = append(extra, entry)
+				continue
+			}
+			entry.Listen = in.ListenSummary()
+			entry.ServerName = in.ServerName
+			for _, location := range in.Locations {
+				entry.Types = append(entry.Types, describeLocation(location))
+			}
+			extra = append(extra, entry)
+		}
+	}
+	entries := append(enabled, extra...)
+	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
+	return entries, nil
+}
+
+// Disable 把 <name>.json 改名为 <name>.json.disabled。
+func Disable(dirs []string, name string) (string, error) {
+	if err := ValidateName(name); err != nil {
+		return "", err
+	}
+	if _, ok := FindDisabled(dirs, name); ok {
+		return "", fmt.Errorf("site %s is already disabled", name)
+	}
+	path, ok := Find(dirs, name)
+	if !ok {
+		return "", fmt.Errorf("找不到站点文件：%s.json", name)
+	}
+	dest := path + ".disabled"
+	if err := os.Rename(path, dest); err != nil {
+		return "", err
+	}
+	return dest, nil
+}
+
+// Enable 把 <name>.json.disabled 改回 <name>.json。
+func Enable(dirs []string, name string) (string, error) {
+	if err := ValidateName(name); err != nil {
+		return "", err
+	}
+	if _, ok := Find(dirs, name); ok {
+		return "", fmt.Errorf("site %s is already enabled", name)
+	}
+	path, ok := FindDisabled(dirs, name)
+	if !ok {
+		return "", fmt.Errorf("找不到停用的站点文件：%s.json.disabled", name)
+	}
+	dest := strings.TrimSuffix(path, ".disabled")
+	if err := os.Rename(path, dest); err != nil {
+		return "", err
+	}
+	return dest, nil
 }
 
 func describeLocation(location config.SiteLocation) string {

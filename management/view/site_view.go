@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"fast-https/config"
 	"fast-https/infra/jsonc"
@@ -20,6 +21,8 @@ type SiteRow struct {
 	Listen     string   `json:"listen"`
 	ServerName string   `json:"server_name"`
 	Locations  []string `json:"locations"`
+	Enabled    bool     `json:"enabled"`
+	CertStatus string   `json:"cert_status,omitempty"`
 	Error      string   `json:"error,omitempty"`
 }
 
@@ -43,15 +46,25 @@ func SiteList(mainPath string) (SiteListData, []string, error) {
 		return data, []string{"http.include has no usable directory"}, nil
 	}
 
-	entries, err := site.List(dirs)
+	entries, err := site.ListAll(dirs)
 	if err != nil {
 		return data, nil, err
 	}
+	certs, _, _ := CertList(mainPath, time.Now())
+	certByDomain := map[string]string{}
+	for _, c := range certs.Certificates {
+		for _, d := range c.Domains {
+			certByDomain[strings.ToLower(d)] = c.Status
+		}
+	}
 	for _, e := range entries {
 		row := SiteRow{Name: e.Name, File: e.File, Listen: e.Listen, ServerName: e.ServerName,
-			Locations: e.Types, Error: e.Invalid}
+			Locations: e.Types, Enabled: e.Enabled, Error: e.Invalid}
 		if row.Locations == nil {
 			row.Locations = []string{}
+		}
+		if st := certByDomain[strings.ToLower(e.ServerName)]; st != "" {
+			row.CertStatus = st
 		}
 		data.Sites = append(data.Sites, row)
 	}

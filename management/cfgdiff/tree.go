@@ -4,7 +4,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"sort"
-	"strings"
+
+	"fast-https/config"
 )
 
 // Trees 比较两棵配置目录树里的 JSON 文件（主配置 + conf.d）。
@@ -74,10 +75,7 @@ func listJSON(root string) (map[string]string, error) {
 		if d.IsDir() {
 			return nil
 		}
-		if strings.EqualFold(d.Name(), "manifest.json") {
-			return nil
-		}
-		if strings.ToLower(filepath.Ext(path)) != ".json" {
+		if !config.IsTreeConfigFile(d.Name()) {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)

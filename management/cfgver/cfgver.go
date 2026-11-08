@@ -185,7 +185,7 @@ func collect(mainPath string) ([]diskFile, error) {
 		if isCert(abs) {
 			return nil
 		}
-		if strings.ToLower(filepath.Ext(abs)) != ".json" {
+		if !config.IsTreeConfigFile(filepath.Base(abs)) {
 			return nil
 		}
 		sum, err := fileSHA(abs)

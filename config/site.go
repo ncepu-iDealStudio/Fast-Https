@@ -10,6 +10,15 @@ import (
 	"strings"
 )
 
+// IsTreeConfigFile 判断文件名是否属于配置树：主/站点 json，以及停用的 *.json.disabled。
+func IsTreeConfigFile(name string) bool {
+	n := strings.ToLower(name)
+	if n == "manifest.json" {
+		return false
+	}
+	return strings.HasSuffix(n, ".json") || strings.HasSuffix(n, ".json.disabled")
+}
+
 // 站点文件（config/conf.d/<name>.json）与 http.server[] 的元素同构，
 // 合并后就是主配置里的一个 server 块。这里只暴露 CLI 需要编辑的子集：
 // 没列出的字段（rewrite、try、proxy_cache…）由用户手写，读写时原样保留。

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"fast-https/config"
 	"fast-https/infra/files"
 )
 
@@ -61,10 +62,7 @@ func listJSONRel(root string) (map[string]string, error) {
 			return nil
 		}
 		name := d.Name()
-		if strings.EqualFold(name, "manifest.json") {
-			return nil
-		}
-		if strings.ToLower(filepath.Ext(name)) != ".json" {
+		if !config.IsTreeConfigFile(name) {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
@@ -112,7 +110,7 @@ func (e *Engine) switchFiles(liveMain, candRoot, recycle string) error {
 		return err
 	}
 	for _, ent := range entries {
-		if ent.IsDir() || strings.ToLower(filepath.Ext(ent.Name())) != ".json" {
+		if ent.IsDir() || !config.IsTreeConfigFile(ent.Name()) {
 			continue
 		}
 		rel := "conf.d/" + ent.Name()
