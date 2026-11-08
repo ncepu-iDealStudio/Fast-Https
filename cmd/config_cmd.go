@@ -2,10 +2,16 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"fast-https/config"
+	"fast-https/management/cfgdiff"
+	"fast-https/management/cfgver"
 	"fast-https/management/view"
 
 	"github.com/spf13/cobra"
@@ -77,13 +83,11 @@ func newConfigValidateCmd() *cobra.Command {
 		Use:   "validate",
 		Short: t("校验配置，不应用", "validate a config without applying it"),
 		Long: t(
-			"校验当前配置，或用 --candidate 校验一个候选主配置文件；只校验，不应用、不重载。\n"+
-				"校验失败时退出码为 5，原因在错误信息里。\n\n"+
-				"候选文件目前只覆盖主配置本身：http.include 与证书路径仍按运行期布局解析。",
-			"validate the current config, or a candidate main config file with --candidate; it never\n"+
-				"applies or reloads anything. A failed validation exits with code 5.\n\n"+
-				"A candidate currently covers the main file only: http.include and certificate paths\n"+
-				"are still resolved against the running layout."),
+			"校验当前配置，或用 --candidate 校验一棵候选目录（fast-https.json + conf.d）。\n"+
+				"只校验，不应用、不重载。校验失败时退出码为 5。候选路径含 .. 或符号链接逃出目录时退出码为 2。",
+			"validate the current config, or a candidate directory (fast-https.json + conf.d) with --candidate.\n"+
+				"It never applies or reloads anything. A failed validation exits with code 5.\n"+
+				"A candidate path containing .. or a symlink that escapes the tree exits with code 2."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -95,6 +99,9 @@ func newConfigValidateCmd() *cobra.Command {
 
 			data, warnings, err := view.ConfigValidate(path, candidate)
 			if err != nil {
+				if errors.Is(err, config.ErrCandidatePath) {
+					return usageError(err)
+				}
 				return fromViewError("config.validate", err)
 			}
 			if jsonMode(cmd) {
@@ -106,6 +113,147 @@ func newConfigValidateCmd() *cobra.Command {
 		},
 	}
 	addConfigFlag(c)
-	c.Flags().String("candidate", "", t("候选主配置文件（只校验，不应用）", "candidate main config file (validated only, never applied)"))
+	c.Flags().String("candidate", "", t("候选配置目录（只校验，不应用）", "candidate config directory (validated only, never applied)"))
 	return c
+}
+
+func newConfigVersionsCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "versions",
+		Short: t("列出配置版本快照", "list configuration version snapshots"),
+		Long: t(
+			"列出状态目录里的配置版本。active 不靠标志位，而是当前磁盘配置树的哈希与快照哈希相同的那一个。\n"+
+				"都不相同则 drift 为 true。快照不含证书与私钥。",
+			"List configuration versions in the state directory. active is not stored as a flag:\n"+
+				"the version whose tree hash matches the on-disk config is active. If none match, drift is true.\n"+
+				"Snapshots never include certificates or private keys."),
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path, _ := cmd.Flags().GetString("config")
+			data, err := cfgver.List(stateDir(), path)
+			if err != nil {
+				return fromStateError("config.versions", err)
+			}
+			if jsonMode(cmd) {
+				return emitOK(cmd, "config.versions", data, nil)
+			}
+			if len(data.Versions) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "(no versions)")
+				return nil
+			}
+			for _, v := range data.Versions {
+				mark := ""
+				if v.Active {
+					mark = " active"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "%s%s  %s  %s\n", v.Version, mark, v.CreatedAt, v.Summary)
+			}
+			if data.Drift {
+				fmt.Fprintln(cmd.OutOrStdout(), "drift: true")
+			}
+			return nil
+		},
+	}
+	addConfigFlag(c)
+	return c
+}
+
+func newConfigDiffCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "diff",
+		Short: t("比较当前配置与候选配置", "compare the current config with a candidate"),
+		Long: t(
+			"比较当前配置与 --candidate（目录、主配置文件或版本号，例如 v001）。只展示差异，不应用。\n"+
+				"敏感键只显示 changed，不输出新旧值。无法解析时失败，不会用空差异冒充一致。\n"+
+				"候选为目录或版本快照时比较整棵 JSON 树（主文件 + conf.d）。",
+			"Compare the current config with --candidate (a directory, main file, or version such as v001).\n"+
+				"It only shows differences and never applies them. Sensitive keys are reported as changed\n"+
+				"without old or new values. A parse failure is an error, never an empty diff.\n"+
+				"A directory or version snapshot is compared as a whole JSON tree (main file + conf.d)."),
+		Args:         cobra.NoArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			current, _ := cmd.Flags().GetString("current")
+			if strings.TrimSpace(current) == "" {
+				current, _ = cmd.Flags().GetString("config")
+			}
+			candidate, _ := cmd.Flags().GetString("candidate")
+			if strings.TrimSpace(candidate) == "" {
+				return usageError(fmt.Errorf("--candidate is required"))
+			}
+			if err := rejectCandidateEscape(candidate); err != nil {
+				return err
+			}
+			candPath, err := resolveDiffCandidate(candidate)
+			if err != nil {
+				return err
+			}
+			data, err := diffConfig(current, candPath)
+			if err != nil {
+				return fromViewError("config.diff", err)
+			}
+			if jsonMode(cmd) {
+				return emitOK(cmd, "config.diff", data, nil)
+			}
+			if data.Identical {
+				fmt.Fprintln(cmd.OutOrStdout(), "identical: true")
+				return nil
+			}
+			return printIndentedJSON(cmd.OutOrStdout(), data)
+		},
+	}
+	addConfigFlag(c)
+	c.Flags().String("current", "", t("当前配置文件或目录，默认与 --config 相同", "current config file or directory, defaults to --config"))
+	c.Flags().String("candidate", "", t("候选配置目录、文件或版本号（必填）", "candidate config directory, file, or version (required)"))
+	return c
+}
+
+func rejectCandidateEscape(path string) error {
+	if _, err := config.ResolveCandidateRoot(path); err != nil {
+		if errors.Is(err, config.ErrCandidatePath) {
+			return usageError(err)
+		}
+	}
+	return nil
+}
+
+func diffConfig(current, candidate string) (cfgdiff.Result, error) {
+	candDir := isDir(candidate)
+	curDir := isDir(current)
+	if candDir || curDir {
+		curRoot := current
+		if !curDir {
+			curRoot = filepath.Dir(current)
+		}
+		candRoot := candidate
+		if !candDir {
+			candRoot = filepath.Dir(candidate)
+		}
+		return cfgdiff.Trees(curRoot, candRoot)
+	}
+	return cfgdiff.Files(current, candidate)
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+func resolveDiffCandidate(candidate string) (string, error) {
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate, nil
+	}
+	if strings.HasPrefix(candidate, "v") {
+		dest := filepath.Join(stateDir().VersionsDir(), candidate)
+		if info, err := os.Stat(dest); err == nil && info.IsDir() {
+			return dest, nil
+		}
+		p, err := cfgver.MainFile(stateDir(), candidate)
+		if err != nil {
+			return "", &CLIError{Code: CodeNotFound, Command: "config.diff", Message: "version not found: " + candidate, Cause: err}
+		}
+		return p, nil
+	}
+	return "", &CLIError{Code: CodeNotFound, Command: "config.diff", Message: "candidate not found: " + candidate}
 }

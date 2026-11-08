@@ -33,6 +33,7 @@ expect_present /etc/fast-https/fast-https.json "主配置在 /etc/fast-https"
 expect_present /etc/fast-https/conf.d/default.json "站点片段在 /etc/fast-https/conf.d"
 expect_present /etc/fast-https/cert "证书目录已创建"
 expect_present /var/log/fast-https "日志目录在 /var/log/fast-https"
+expect_present /var/lib/fast-https "状态目录在 /var/lib/fast-https"
 expect_present /etc/logrotate.d/fast-https "logrotate 配置已安装"
 expect_absent /run/fast-https/fast-https.pid "rpm 包内不含 /run 下的 pid"
 
@@ -70,6 +71,7 @@ if start_server; then pass "start 且 443 已监听"; else bad "start"; fi
 if listen_http;  then pass "80 在听";  else bad "80 未监听"; fi
 if listen_https; then pass "443 在听"; else bad "443 未监听"; fi
 expect_present /run/fast-https/fast-https.pid "pid 写在 /run/fast-https"
+echo used > /var/lib/fast-https/.used
 expect_present /var/log/fast-https/access.log "访问日志已创建"
 expect_present /etc/fast-https/cert/localhost.pem "自签证书已生成"
 if curl -sk --max-time 5 https://127.0.0.1/ | grep -qi 'html'; then pass "HTTPS 返回页面"; else bad "HTTPS 无响应"; fi
@@ -114,6 +116,7 @@ if rpm -e fast-https >/tmp/erase.log 2>&1; then pass "rpm -e"; else bad "rpm -e"
 expect_absent /etc/fast-https/cert "卸载后证书目录已删"
 expect_absent /etc/fast-https/conf.d "卸载后站点片段目录已删"
 expect_absent /var/log/fast-https "卸载后日志目录已删"
+expect_absent /var/lib/fast-https "卸载后状态目录已删"
 expect_absent /run/fast-https "卸载后 run 目录已删"
 expect_absent /etc/logrotate.d/fast-https "卸载后 logrotate 配置已删"
 expect_absent /usr/share/fast-https/httpdoc/root/root.crt "卸载后孤儿 CA 证书已删"

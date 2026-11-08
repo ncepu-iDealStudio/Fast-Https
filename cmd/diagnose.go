@@ -32,6 +32,7 @@ func newDiagnoseCmd() *cobra.Command {
 			report := diagnose.Run(diagnose.Input{
 				ConfigPath: path,
 				PidFile:    config.PID_FILE,
+				StateDir:   resolveStateDir(),
 				Inspect: func() (view.ProcState, int, error) {
 					state, pid, err := InspectProcess(config.PID_FILE)
 					return procStateOf(state), pid, err

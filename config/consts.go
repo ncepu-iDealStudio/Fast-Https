@@ -24,6 +24,7 @@ const (
 	DEFAULT_MAX_BODY_SIZE          = 512 * 1024 // 32K
 
 	DEFAULT_LOG_ROOT string = FAST_HTTPS_LOG_DIR
+	STATE_DIR        string = FAST_HTTPS_STATE_DIR
 
 	/* log message*/
 	SYSTEM_LOG_NAME string = logging.SystemLogName

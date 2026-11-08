@@ -12,7 +12,7 @@ import (
 // 桌面端与 systemd 依赖下面这些旧命令的输出与退出码，CLI 改造期间必须保持不变。
 // 这里锁住的是对外契约，不是实现细节。
 
-// config path --json 的键恰好是这五个：桌面端按键解析。
+// config path --json 原有五个键保持不变：桌面端按键解析，多一个 state 不影响。
 func TestLegacyConfigPathJSONKeys(t *testing.T) {
 	out, _, code := runCLI(t, "config", "path", "--json")
 	if code != 0 {
@@ -20,19 +20,22 @@ func TestLegacyConfigPathJSONKeys(t *testing.T) {
 	}
 
 	doc := decodeOneDocument(t, out)
-	var keys []string
-	for k := range doc {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	want := []string{"cert", "config", "log", "pid", "root_crt"}
-	if strings.Join(keys, ",") != strings.Join(want, ",") {
-		t.Fatalf("config path --json 的键 = %v, want %v", keys, want)
-	}
-	for _, k := range want {
+	legacy := []string{"cert", "config", "log", "pid", "root_crt"}
+	for _, k := range legacy {
 		if s, _ := doc[k].(string); s == "" {
 			t.Errorf("%s 不应为空", k)
 		}
+	}
+	if s, _ := doc["state"].(string); s == "" {
+		t.Fatal("state 不应为空")
+	}
+	if len(doc) != 6 {
+		var keys []string
+		for k := range doc {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		t.Fatalf("config path --json 的键 = %v, want 原五个加上 state", keys)
 	}
 }
 
@@ -42,7 +45,7 @@ func TestLegacyConfigPathText(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
 	}
-	for _, name := range []string{"config", "cert", "log", "pid", "root_crt"} {
+	for _, name := range []string{"config", "cert", "log", "pid", "root_crt", "state"} {
 		if !strings.Contains(out, name) {
 			t.Errorf("文本输出缺少 %q：\n%s", name, out)
 		}

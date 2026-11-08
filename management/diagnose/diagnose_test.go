@@ -28,7 +28,7 @@ func TestDiagnoseAllOK(t *testing.T) {
 		t.Fatal("missing observed_at")
 	}
 	byName := checksByName(report)
-	for _, name := range []string{"service", "config", "certs", "ports", "logs"} {
+	for _, name := range []string{"service", "config", "certs", "ports", "logs", "state"} {
 		if byName[name].Status != StatusOK {
 			t.Errorf("%s = %+v", name, byName[name])
 		}
@@ -65,10 +65,13 @@ func TestDiagnoseUnavailableVsFailed(t *testing.T) {
 		t.Fatalf("overall = %s，unavailable 不应拉低", report.Overall)
 	}
 	byName := checksByName(report)
-	for _, name := range []string{"runtime", "monitor", "state"} {
+	for _, name := range []string{"runtime", "monitor"} {
 		if byName[name].Status != StatusUnavailable {
 			t.Errorf("%s = %+v, want unavailable", name, byName[name])
 		}
+	}
+	if byName["state"].Status != StatusOK {
+		t.Errorf("state = %+v, want ok", byName["state"])
 	}
 }
 
@@ -146,9 +149,14 @@ func healthyInput(t *testing.T) Input {
 	if err := os.WriteFile(pid, []byte("7"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	st := filepath.Join(dir, "state")
+	if err := os.MkdirAll(st, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	return Input{
 		ConfigPath: main,
 		PidFile:    pid,
+		StateDir:   st,
 		Inspect:    runningInspect(7),
 		Probe:      func(int) bool { return true },
 		Timeout:    time.Second,

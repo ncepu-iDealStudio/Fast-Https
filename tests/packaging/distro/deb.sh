@@ -25,6 +25,7 @@ expect_present /etc/fast-https/fast-https.json "主配置在 /etc/fast-https"
 expect_present /etc/fast-https/conf.d/default.json "站点片段在 /etc/fast-https/conf.d"
 expect_present /etc/fast-https/cert/.keep "cert 下的 .keep 占位已安装"
 expect_present /var/log/fast-https "日志目录在 /var/log/fast-https"
+expect_present /var/lib/fast-https "状态目录在 /var/lib/fast-https"
 expect_present /etc/logrotate.d/fast-https "logrotate 配置已安装"
 expect_absent /run/fast-https/fast-https.pid "包内不含 /run 下的 pid"
 
@@ -64,6 +65,7 @@ if start_server; then pass "start 且 443 已监听"; else bad "start"; fi
 if listen_http;  then pass "80 在听";  else bad "80 未监听"; fi
 if listen_https; then pass "443 在听"; else bad "443 未监听"; fi
 expect_present /run/fast-https/fast-https.pid "pid 写在 /run/fast-https"
+echo used > /var/lib/fast-https/.used
 expect_present /var/log/fast-https/access.log "访问日志已创建"
 expect_present /etc/fast-https/cert/localhost.pem "自签证书已生成"
 if curl -sk --max-time 5 https://127.0.0.1/ | grep -qi 'html'; then pass "HTTPS 返回页面"; else bad "HTTPS 无响应"; fi
@@ -89,6 +91,7 @@ apt-get remove -y -qq fast-https
 expect_present /etc/fast-https/fast-https.json "remove 后主配置保留"
 expect_present /etc/fast-https/cert/localhost.pem "remove 后证书保留"
 expect_present /var/log/fast-https/access.log "remove 后日志保留"
+expect_present /var/lib/fast-https "remove 后状态目录保留"
 expect_absent /usr/bin/fast-https "remove 后二进制已删"
 expect_present /etc/logrotate.d/fast-https "remove 后 logrotate 配置保留（conffile）"
 
@@ -98,6 +101,7 @@ expect_absent /etc/fast-https/cert "purge 后证书目录已删"
 expect_absent /etc/fast-https/conf.d "purge 后站点片段目录已删"
 expect_absent /etc/fast-https/fast-https.json "purge 后主配置已删"
 expect_absent /var/log/fast-https "purge 后日志目录已删"
+expect_absent /var/lib/fast-https "purge 后状态目录已删"
 expect_absent /run/fast-https "purge 后 run 目录已删"
 expect_absent /etc/logrotate.d/fast-https "purge 后 logrotate 配置已删"
 expect_absent /usr/share/fast-https/httpdoc/root/root.crt "purge 后孤儿 CA 证书已删"

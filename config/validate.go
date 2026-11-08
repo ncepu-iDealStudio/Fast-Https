@@ -34,6 +34,45 @@ func ValidateConfigFile(configPath string) error {
 // ValidateConfigFileWithWarnings 与 ValidateConfigFile 做同样的校验，
 // 但把非致命的告警作为返回值交给调用方，不写日志。校验失败时不返回告警。
 func ValidateConfigFileWithWarnings(configPath string) ([]string, error) {
+	return validateConfigAt(configPath, liveValidateOpts(filepath.Dir(configPath)))
+}
+
+// ValidateConfigTree 校验一棵候选目录：<root>/fast-https.json 与其 http.include。
+// include 与相对证书路径按 root 解析，不读线上 conf.d；证书若不在候选树里，
+// 再查引用的绝对路径或运行期证书目录。
+func ValidateConfigTree(root string) ([]string, error) {
+	abs, err := ResolveCandidateRoot(root)
+	if err != nil {
+		return nil, err
+	}
+	main := filepath.Join(abs, "fast-https.json")
+	if _, err := os.Stat(main); err != nil {
+		return nil, err
+	}
+	return validateConfigAt(main, validateOpts{
+		includeBase: abs,
+		treeRoot:    abs,
+		certBase:    abs,
+	})
+}
+
+func liveValidateOpts(configDir string) validateOpts {
+	return validateOpts{
+		includeBase:      FAST_HTTPS_ETC_DIR,
+		includeFallbacks: []string{"."},
+		certBase:         configDir,
+	}
+}
+
+type validateOpts struct {
+	includeBase      string
+	includeFallbacks []string
+	// treeRoot 非空表示候选树：include 不得逃出该根；证书先查树内再查运行期证书目录。
+	treeRoot string
+	certBase string
+}
+
+func validateConfigAt(configPath string, opts validateOpts) ([]string, error) {
 	content, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("read config file failed: %w", err)
@@ -44,7 +83,10 @@ func ValidateConfigFileWithWarnings(configPath string) ([]string, error) {
 		return nil, fmt.Errorf("parse config json failed: %w", err)
 	}
 
-	baseDir := filepath.Dir(configPath)
+	baseDir := opts.certBase
+	if baseDir == "" {
+		baseDir = filepath.Dir(configPath)
+	}
 
 	if root.WAF != nil {
 		switch root.WAF.Mode {
@@ -63,13 +105,13 @@ func ValidateConfigFileWithWarnings(configPath string) ([]string, error) {
 
 	serverCount := len(root.HTTP.Servers)
 	for i := range root.HTTP.Servers {
-		if err := validateServer(&root.HTTP.Servers[i], baseDir, baseDir,
-			fmt.Sprintf("http.server[%d]", i), true); err != nil {
+		if err := validateServerWith(&root.HTTP.Servers[i], baseDir, baseDir,
+			fmt.Sprintf("http.server[%d]", i), true, opts); err != nil {
 			return nil, err
 		}
 	}
 
-	includeServers, err := validateIncludes(root.HTTP.Include, baseDir)
+	includeServers, err := validateIncludes(root.HTTP.Include, baseDir, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -94,8 +136,8 @@ func ValidateConfigFileWithWarnings(configPath string) ([]string, error) {
 
 // validateIncludes 校验 include 目录/文件，返回解析后的 server 块。
 // 返回值给 http-01 端口判断用：只看主配置会漏掉写在 conf.d 里的站点。
-func validateIncludes(includes []string, rootBaseDir string) ([]jsonServer, error) {
-	files, err := includeFiles(includes)
+func validateIncludes(includes []string, rootBaseDir string, opts validateOpts) ([]jsonServer, error) {
+	files, err := includeFiles(includes, opts.includeBase, opts.treeRoot, opts.includeFallbacks...)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +153,7 @@ func validateIncludes(includes []string, rootBaseDir string) ([]jsonServer, erro
 			return nil, fmt.Errorf("parse include json failed (%s): %w", path, err)
 		}
 
-		if err := validateServer(&s, filepath.Dir(path), rootBaseDir, path, true); err != nil {
+		if err := validateServerWith(&s, filepath.Dir(path), rootBaseDir, path, true, opts); err != nil {
 			return nil, err
 		}
 		servers = append(servers, s)
@@ -120,16 +162,21 @@ func validateIncludes(includes []string, rootBaseDir string) ([]jsonServer, erro
 }
 
 // includeFiles 把 http.include 展开成具体的 .json 文件列表：目录递归收集，
-// 单个文件必须带 .json 后缀。路径统一按 ETC 基址解析，
-// 校验与加载因此用同一个基准，不再依赖进程工作目录。
-func includeFiles(includes []string) ([]string, error) {
+// 单个文件必须带 .json 后缀。baseDir 是解析相对路径的基准；treeRoot 非空时
+// 拒绝逃出该根（含符号链接）。fallbacks 传给 absPathIn，线上入口传 "."。
+func includeFiles(includes []string, baseDir, treeRoot string, fallbacks ...string) ([]string, error) {
 	var files []string
 	for _, includePath := range includes {
 		if strings.TrimSpace(includePath) == "" {
 			return nil, errors.New("http.include must contain non-empty paths")
 		}
 
-		fullPath := absETCPath(includePath)
+		fullPath := absPathIn(baseDir, includePath, fallbacks...)
+		if treeRoot != "" {
+			if err := withinRoot(treeRoot, fullPath); err != nil {
+				return nil, err
+			}
+		}
 		info, err := os.Stat(fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("include path not found: %s", fullPath)
@@ -150,6 +197,11 @@ func includeFiles(includes []string) ([]string, error) {
 			if info.IsDir() || filepath.Ext(path) != ".json" {
 				return nil
 			}
+			if treeRoot != "" {
+				if err := withinRoot(treeRoot, path); err != nil {
+					return err
+				}
+			}
 			files = append(files, path)
 			return nil
 		})
@@ -162,6 +214,10 @@ func includeFiles(includes []string) ([]string, error) {
 
 // validateServer 校验一个 server 块（主配置数组元素或 include 文件）。
 func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string, requireCerts bool) error {
+	return validateServerWith(s, certBaseDir, rootBaseDir, where, requireCerts, validateOpts{})
+}
+
+func validateServerWith(s *jsonServer, certBaseDir, rootBaseDir, where string, requireCerts bool, opts validateOpts) error {
 	if len(s.Listen) == 0 {
 		return fmt.Errorf("%s: listen must be non-empty", where)
 	}
@@ -186,12 +242,12 @@ func validateServer(s *jsonServer, certBaseDir, rootBaseDir, where string, requi
 		}
 		// 新建站点时证书由首次 start 生成，落盘那一步不要求文件已经存在。
 		// 报错里补一句怎么办：装完包直接 start 是新用户最常见的卡点。
-		if requireCerts && !pathExists(s.SSLCertificate, certBaseDir, rootBaseDir) {
+		if requireCerts && !pathExistsWith(s.SSLCertificate, certBaseDir, rootBaseDir, opts) {
 			return fmt.Errorf("%s: ssl_certificate not found: %s "+
 				"(首次 start 会用本地 CA 生成自签证书，先跑一次 fast-https start；或用 acme 申请后指向生成的证书)",
 				where, s.SSLCertificate)
 		}
-		if requireCerts && !pathExists(s.SSLCertificateKey, certBaseDir, rootBaseDir) {
+		if requireCerts && !pathExistsWith(s.SSLCertificateKey, certBaseDir, rootBaseDir, opts) {
 			return fmt.Errorf("%s: ssl_certificate_key not found: %s "+
 				"(首次 start 会用本地 CA 生成自签证书，先跑一次 fast-https start)", where, s.SSLCertificateKey)
 		}
@@ -288,8 +344,15 @@ func validateListenPort(listen string) error {
 }
 
 func pathExists(path, baseDir, rootBaseDir string) bool {
+	return pathExistsWith(path, baseDir, rootBaseDir, validateOpts{})
+}
+
+func pathExistsWith(path, baseDir, rootBaseDir string, opts validateOpts) bool {
 	if strings.TrimSpace(path) == "" {
 		return false
+	}
+	if opts.treeRoot != "" {
+		return candidateCertExists(path, baseDir, opts.treeRoot)
 	}
 	// Certificate paths in the main config are relative to the ETC base
 	// (./config for archives, /etc/fast-https for packages), which is also how
@@ -302,9 +365,33 @@ func pathExists(path, baseDir, rootBaseDir string) bool {
 			filepath.Join(rootBaseDir, path),
 		)
 	}
+	return anyFileExists(candidates)
+}
+
+func candidateCertExists(path, fileDir, treeRoot string) bool {
+	var candidates []string
+	if filepath.IsAbs(path) {
+		candidates = append(candidates, path)
+	} else {
+		candidates = append(candidates,
+			absPathIn(treeRoot, path),
+			filepath.Join(fileDir, path),
+		)
+	}
+	if anyFileExists(candidates) {
+		return true
+	}
+	// 候选树没有时，按绝对路径（已试过）或运行期证书目录再查一次，不走 "." 兜底。
+	return anyFileExists([]string{
+		absPathIn(FAST_HTTPS_ETC_DIR, path),
+		absPathIn(CERT_DIR, path),
+	})
+}
+
+func anyFileExists(paths []string) bool {
 	seen := map[string]bool{}
-	for _, candidate := range candidates {
-		if seen[candidate] {
+	for _, candidate := range paths {
+		if candidate == "" || seen[candidate] {
 			continue
 		}
 		seen[candidate] = true

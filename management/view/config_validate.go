@@ -1,6 +1,8 @@
 package view
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 
 	"fast-https/config"
@@ -14,10 +16,27 @@ type ConfigValidateData struct {
 	Candidate bool   `json:"candidate"`
 }
 
-// ConfigValidate 校验一个主配置文件及其 include。candidate 为真表示这是用户给的候选文件。
-// 注意此阶段 include 与证书路径仍按运行期基址解析，所以候选只覆盖「主配置文件」本身。
+// ConfigValidate 校验当前配置或一棵候选目录树。
+// candidate 为真时 path 是候选目录（或其中的 fast-https.json），include 与证书按该树解析。
 func ConfigValidate(path string, candidate bool) (ConfigValidateData, []string, error) {
 	data := ConfigValidateData{File: path, Candidate: candidate}
+	if candidate {
+		root, err := config.ResolveCandidateRoot(path)
+		if err != nil {
+			return data, nil, err
+		}
+		data.File = root
+		warnings, err := config.ValidateConfigTree(root)
+		if err != nil {
+			if errors.Is(err, config.ErrCandidatePath) || errors.Is(err, fs.ErrNotExist) {
+				return data, nil, err
+			}
+			return data, nil, &InvalidError{Message: err.Error()}
+		}
+		data.Valid = true
+		return data, warnings, nil
+	}
+
 	if _, err := os.Stat(path); err != nil {
 		return data, nil, err
 	}
@@ -25,10 +44,6 @@ func ConfigValidate(path string, candidate bool) (ConfigValidateData, []string, 
 	warnings, err := config.ValidateConfigFileWithWarnings(path)
 	if err != nil {
 		return data, nil, &InvalidError{Message: err.Error()}
-	}
-	if candidate {
-		warnings = append(warnings,
-			"candidate scope is main file only: http.include and certificate paths are resolved against the running layout")
 	}
 	data.Valid = true
 	return data, warnings, nil

@@ -59,6 +59,7 @@ func absLogPath(path string) string {
 // 拆掉安装根下的 config 层之后，老配置里的 "./config/xxx" 会多出一级前缀，
 // 因此拼出来的路径不存在时剥掉该前缀再试一次；新配置一次命中，不触发回退。
 // fallbacks 是最后才尝试的兜底基准，用于兼容 旧版 按启动目录解析的行为。
+// 严格模式不传 fallbacks：候选树缺文件时不会落到 "." 下的线上文件。
 func absPathIn(base, path string, fallbacks ...string) string {
 	path = strings.TrimSpace(path)
 	if path == "" || filepath.IsAbs(path) {

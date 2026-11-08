@@ -35,6 +35,7 @@ func TestPostremovePurgesOnlyOnExplicitRemoval(t *testing.T) {
 	for _, target := range []string{
 		"/etc/fast-https/cert",
 		"/var/log/fast-https",
+		"/var/lib/fast-https",
 		"/run/fast-https",
 	} {
 		idx := strings.Index(code, target)

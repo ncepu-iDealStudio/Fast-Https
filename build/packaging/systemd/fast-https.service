@@ -7,8 +7,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 # -tags=rpm 编译的二进制把配置定位到 /etc/fast-https、站点到 /usr/share/fast-https、
-# 日志到 /var/log/fast-https、pid 到 /run/fast-https。工作目录保留是为了配置文件里
-# 偶尔出现的相对路径仍能解析，它指向只读目录，不影响写入。
+# 日志到 /var/log/fast-https、pid 到 /run/fast-https、状态目录到 /var/lib/fast-https。
+# 工作目录保留是为了配置文件里偶尔出现的相对路径仍能解析，它指向只读目录，不影响写入。
 WorkingDirectory=/usr/share/fast-https
 Environment=FASTHTTPS_FOREGROUND=1
 ExecStart=/usr/bin/fast-https start
@@ -20,6 +20,8 @@ LimitNOFILE=65535
 # /etc/fast-https 只在缺失时创建，不覆盖已有配置。
 ConfigurationDirectory=fast-https
 LogsDirectory=fast-https
+StateDirectory=fast-https
+StateDirectoryMode=0700
 # /run/fast-https 在服务停止时由 systemd 清理。
 RuntimeDirectory=fast-https
 

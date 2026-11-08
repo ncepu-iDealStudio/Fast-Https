@@ -47,7 +47,7 @@ func SSLServersFromFile(path string) ([]SSLDecl, *AcmeConfig, error) {
 		decls = append(decls, sslDecls("main", absMain, mainDir, mainDir, &root.HTTP.Servers[i])...)
 	}
 
-	files, err := includeFiles(root.HTTP.Include)
+	files, err := includeFiles(root.HTTP.Include, FAST_HTTPS_ETC_DIR, "", ".")
 	if err != nil {
 		return nil, nil, err
 	}

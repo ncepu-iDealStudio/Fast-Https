@@ -18,6 +18,7 @@ fi
 #   /etc/fast-https/cert       CA 私钥、站点证书、ACME 账户与缓存
 #   /etc/fast-https/conf.d     站点片段（default.json 是 conffile，dpkg 已删）
 #   /var/log/fast-https        四路日志
+#   /var/lib/fast-https        配置版本与 operation
 #   /run/fast-https            pid
 #   httpdoc/root/root.crt      本地 CA 证书，私钥在 cert/ 里，留着会成为孤儿
 # 站点根下用户自己放的网页一律不动；目录只在变空时 rmdir。
@@ -25,7 +26,7 @@ case "$1" in
     purge|0)
         rm -rf /etc/fast-https/cert /etc/fast-https/conf.d
         rm -f /etc/fast-https/fast-https.json /etc/fast-https/mime.json
-        rm -rf /var/log/fast-https /run/fast-https
+        rm -rf /var/log/fast-https /var/lib/fast-https /run/fast-https
         rmdir /etc/fast-https 2>/dev/null || true
 
         rm -f /usr/share/fast-https/httpdoc/root/root.crt
@@ -33,7 +34,7 @@ case "$1" in
         rmdir /usr/share/fast-https/httpdoc 2>/dev/null || true
         rmdir /usr/share/fast-https 2>/dev/null || true
 
-        echo "fast-https: purged config, certs and logs under /etc/fast-https and /var/log/fast-https"
+        echo "fast-https: purged config, certs, logs and state under /etc/fast-https, /var/log/fast-https and /var/lib/fast-https"
         ;;
 esac
 

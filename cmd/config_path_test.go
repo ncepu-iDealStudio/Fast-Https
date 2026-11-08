@@ -21,6 +21,7 @@ func TestResolvePathsAreAbsolute(t *testing.T) {
 		{"cert", paths.Cert, config.CERT_DIR},
 		{"log", paths.Log, config.DEFAULT_LOG_ROOT},
 		{"pid", paths.Pid, config.PID_FILE},
+		{"state", paths.State, config.STATE_DIR},
 	}
 	for _, c := range cases {
 		if c.got == "" {

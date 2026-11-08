@@ -44,6 +44,33 @@ func TestAbsPathInPrefersPrimaryPath(t *testing.T) {
 	}
 }
 
+// 不传 fallbacks 时不得用 "." 兜底：候选树缺文件不能读到工作目录里的同名文件。
+func TestAbsPathInStrictSkipsDotFallback(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	trap := t.TempDir()
+	if err := os.Chdir(trap); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	if err := os.WriteFile(filepath.Join(trap, "live.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	base := t.TempDir()
+	got := absPathIn(base, "live.json")
+	want := filepath.Join(base, "live.json")
+	if got != want {
+		t.Fatalf("strict absPathIn = %q, want %q", got, want)
+	}
+	withDot := absPathIn(base, "live.json", ".")
+	if withDot != filepath.Join(trap, "live.json") {
+		t.Fatalf("dot fallback = %q, want cwd file", withDot)
+	}
+}
+
 // 绝对路径与空串原样返回，不参与基址拼接。
 func TestAbsPathInPassThrough(t *testing.T) {
 	base := t.TempDir()

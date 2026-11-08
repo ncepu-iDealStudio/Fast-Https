@@ -39,8 +39,8 @@ func TestDiagnoseUnavailableVsFailed(t *testing.T) {
 		t.Fatalf("exit = %d\n%s", code, out)
 	}
 	data := decodeOneDocument(t, out)["data"].(map[string]any)
-	if checkStatus(t, data, "runtime") != "unavailable" || checkStatus(t, data, "monitor") != "unavailable" || checkStatus(t, data, "state") != "unavailable" {
-		t.Fatalf("runtime/monitor/state 现在应是 unavailable：%v", data["checks"])
+	if checkStatus(t, data, "runtime") != "unavailable" || checkStatus(t, data, "monitor") != "unavailable" {
+		t.Fatalf("runtime/monitor 现在应是 unavailable：%v", data["checks"])
 	}
 	if data["overall"] == "error" && checkStatus(t, data, "config") == "ok" {
 		t.Fatalf("unavailable 不应把 overall 拉成 error：%v", data)

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 	"time"
 
 	"fast-https/config"
@@ -59,6 +60,7 @@ type Input struct {
 	Inspect    func() (view.ProcState, int, error)
 	Ports      func() ([]int, error)
 	Probe      func(int) bool
+	StateDir   string
 	Extra      []NamedCheck
 }
 
@@ -82,7 +84,7 @@ func Run(in Input) Report {
 		timed(timeout, "logs", func(ctx context.Context) Check { return checkLogs(in, now) }),
 		{Name: "runtime", Status: StatusUnavailable, Message: "runtime snapshot is not available until S11"},
 		{Name: "monitor", Status: StatusUnavailable, Message: "monitor is not available until S12"},
-		{Name: "state", Status: StatusUnavailable, Message: "state directory is not available until S6"},
+		timed(timeout, "state", func(ctx context.Context) Check { return checkState(in) }),
 	}
 	for _, extra := range in.Extra {
 		if extra.Fn == nil {
@@ -298,6 +300,24 @@ func checkLogs(in Input, now time.Time) Check {
 		return Check{Name: "logs", Status: StatusOK, Message: msg}
 	}
 	return Check{Name: "logs", Status: StatusWarning, Message: msg}
+}
+
+func checkState(in Input) Check {
+	dir := strings.TrimSpace(in.StateDir)
+	if dir == "" {
+		return Check{Name: "state", Status: StatusUnavailable, Message: "state directory is not configured"}
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Check{Name: "state", Status: StatusWarning, Message: "state directory does not exist yet"}
+		}
+		return Check{Name: "state", Status: StatusError, Message: "state directory is not accessible"}
+	}
+	if !info.IsDir() {
+		return Check{Name: "state", Status: StatusError, Message: "state path is not a directory"}
+	}
+	return Check{Name: "state", Status: StatusOK, Message: "state directory is present"}
 }
 
 func inspectOf(in Input) func() (view.ProcState, int, error) {

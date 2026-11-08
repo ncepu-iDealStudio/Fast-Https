@@ -232,6 +232,10 @@ nfpms:
         type: config|noreplace
       - dst: /var/log/fast-https
         type: dir
+      - dst: /var/lib/fast-https
+        type: dir
+        file_info:
+          mode: 0700
       # 与 Windows 归档一样用 .keep 占住这三个目录：只留空目录时，
       # 打包工具或解包工具容易把它们当成空壳丢掉。
       - src: config/cert/.keep
@@ -242,6 +246,8 @@ nfpms:
         dst: /etc/fast-https/conf.d/.keep
       - src: logs/.keep
         dst: /var/log/fast-https/.keep
+      - src: config/cert/acme/.keep
+        dst: /var/lib/fast-https/.keep
     scripts:
       postinstall: build/packaging/linux/postinstall.sh
       preremove: build/packaging/linux/preremove.sh

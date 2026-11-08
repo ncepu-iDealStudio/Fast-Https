@@ -36,6 +36,7 @@ install -d %{buildroot}%{_sysconfdir}/%{name}/conf.d
 install -d %{buildroot}%{_sysconfdir}/%{name}/cert
 install -d %{buildroot}%{_datadir}/%{name}/httpdoc/root
 install -d %{buildroot}%{_localstatedir}/log/%{name}
+install -d -m 0700 %{buildroot}%{_sharedstatedir}/%{name}
 
 # Installing the binary
 install -m 0755 %{name} %{buildroot}/%{_bindir}/%{name}
@@ -64,6 +65,7 @@ install -m 0644 httpdoc/root/index.html %{buildroot}/%{_datadir}/%{name}/httpdoc
 %{_datadir}/%{name}/httpdoc/root/favicon.ico
 %{_datadir}/%{name}/httpdoc/root/index.html
 %dir %{_localstatedir}/log/%{name}
+%dir %{_sharedstatedir}/%{name}
 
 
 %doc README.md

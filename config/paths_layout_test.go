@@ -15,6 +15,7 @@ func TestArchiveLayoutPaths(t *testing.T) {
 		{"ROOT_CRT_DIR", ROOT_CRT_DIR, "./httpdoc/root"},
 		{"PID_FILE", PID_FILE, "./fast-https.pid"},
 		{"DEFAULT_LOG_ROOT", DEFAULT_LOG_ROOT, "./logs"},
+		{"STATE_DIR", STATE_DIR, "./state"},
 	}
 	for _, c := range cases {
 		if c.got != c.want {

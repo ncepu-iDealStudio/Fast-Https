@@ -19,7 +19,7 @@ func ListenPortsFromFile(path string) ([]int, error) {
 	}
 
 	servers := append([]jsonServer(nil), root.HTTP.Servers...)
-	files, err := includeFiles(root.HTTP.Include)
+	files, err := includeFiles(root.HTTP.Include, FAST_HTTPS_ETC_DIR, "", ".")
 	if err != nil {
 		return nil, err
 	}

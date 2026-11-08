@@ -482,13 +482,16 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `service version` | 查询 CLI 版本；加 `--json` 输出机器可读的封套（运行中进程的版本暂不可用，返回 `null`） |
 | `service status` | 只读查询：读 pid 文件判断进程，再对配置里的端口做一次回环连接，给出 `running`、`degraded`、`stopped`、`unknown`；服务没在跑也是成功的查询，退出码 0 |
 | `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`waf`、`sites` |
-| `config validate` | 校验当前配置，或用 `--candidate` 校验一个候选主配置文件；只校验，不应用；失败退出码 5 |
+| `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
+| `config versions` | 列出状态目录里的配置版本快照。`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照不含证书与私钥 |
+| `config diff --candidate` | 比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
+| `operation list` / `operation get` | 查询落盘的管理操作。`running` 且持有者进程已不在时对账为 `unknown` |
 | `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
 | `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
 | `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。目前该文件只含 `PrintErr`，控制台错误尚未写入 |
 | `logs access` | 只读 `access.log`，过滤条件同上，另有 `--status`（`500`、`4xx` 或 `400-499`） |
 | `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
-| `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime`、`monitor`、状态目录目前为 `unavailable`，不拉低 `overall`。配置有问题也退出码 0 |
+| `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime`、`monitor` 目前为 `unavailable`，不拉低 `overall`。配置有问题也退出码 0 |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套 |
 | `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块；加 `--json` 输出脱敏后的封套（文本模式仍打印原文，包含写在文件里的口令） |
@@ -519,7 +522,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 
 ### 10.2 机器可读输出与退出码
 
-根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`service status`、`config show`、`config validate`、`site list`、`site show`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`、`diagnose`，以及保持原格式的 `config path`），其它命令接受但不使用后两个。
+根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前只有 `--json` 在部分命令上有效（`service version`、`service status`、`config show`、`config validate`、`config versions`、`config diff`、`site list`、`site show`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`、`diagnose`、`operation list`、`operation get`，以及保持原格式的 `config path`），其它命令接受但不使用后两个。`config path --json` 现有六个键，其中 `state` 是新增的管理状态目录。
 
 `--json` 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：
 
@@ -528,7 +531,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 {"ok":false,"command":"service.version","request_id":null,"error":{"code":"USAGE_ERROR","message":"...","details":[]}}
 ```
 
-`config path --json` 保持原有格式（五个路径键，不套封套），桌面端按这些键解析。
+`config path --json` 保持原有格式（不套封套）。原有五个键不变，S6 增加 `state`；桌面端按键解析，多一个键不影响。
 
 退出码与错误码一一对应：
 

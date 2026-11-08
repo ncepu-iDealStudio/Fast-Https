@@ -22,35 +22,36 @@ type RuntimePaths struct {
 	Log     string `json:"log"`
 	Pid     string `json:"pid"`
 	RootCRT string `json:"root_crt"`
+	State   string `json:"state"`
 }
 
 func newConfigCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "config",
-		Short:        t("查看路径、显示与校验配置", "inspect paths, show and validate the config"),
+		Short:        t("查看路径、显示、校验、版本与差异", "inspect paths, show, validate, versions and diff"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 
 	pathCmd := &cobra.Command{
 		Use:   "path",
-		Short: t("打印配置、证书、日志、pid 与根 CA 路径（绝对路径）", "print config, cert, log, pid and root CA paths (absolute)"),
+		Short: t("打印配置、证书、日志、pid、根 CA 与状态目录路径（绝对路径）", "print config, cert, log, pid, root CA and state paths (absolute)"),
 		Long: t(
-			"打印配置、证书、日志、pid 与本地根 CA 证书的路径（绝对路径）。\n\n"+
+			"打印配置、证书、日志、pid、本地根 CA 证书与管理状态目录的路径（绝对路径）。\n\n"+
 				"log 是当前布局的默认日志目录；配置里写了 log_root 时以配置为准，\n"+
 				"控制面可读取配置文件同名字段覆盖本值。root_crt 由当前布局的\n"+
-				"数据目录算出，控制面不要自行拼接。",
-			"print config, cert, log, pid and local root CA paths (absolute).\n\n"+
+				"数据目录算出，控制面不要自行拼接。state 是配置版本与 operation 的目录。",
+			"print config, cert, log, pid, local root CA and management state paths (absolute).\n\n"+
 				"log defaults to the directory of the current layout; when log_root is set in\n"+
 				"the config, that value wins and the control plane may override it as well.\n"+
 				"root_crt is derived from the current data dir; control planes must not\n"+
-				"assemble it themselves."),
+				"assemble it themselves. state holds config versions and operations."),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths := ResolvePaths()
 			out := cmd.OutOrStdout()
 			// --json 是根命令的全局选项。这里保持原来的缩进 JSON、不套封套：
-			// 桌面端按这五个键直接解析。
+			// 桌面端按键解析，多一个 state 不影响原有五个键。
 			if jsonMode(cmd) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
@@ -61,10 +62,11 @@ func newConfigCmd() *cobra.Command {
 			fmt.Fprintf(out, "log      %s\n", paths.Log)
 			fmt.Fprintf(out, "pid      %s\n", paths.Pid)
 			fmt.Fprintf(out, "root_crt %s\n", paths.RootCRT)
+			fmt.Fprintf(out, "state    %s\n", paths.State)
 			return nil
 		},
 	}
-	root.AddCommand(pathCmd, newConfigShowCmd(), newConfigValidateCmd())
+	root.AddCommand(pathCmd, newConfigShowCmd(), newConfigValidateCmd(), newConfigVersionsCmd(), newConfigDiffCmd())
 	return root
 }
 
@@ -76,6 +78,7 @@ func ResolvePaths() RuntimePaths {
 		Log:     toAbs(config.DEFAULT_LOG_ROOT),
 		Pid:     toAbs(config.PID_FILE),
 		RootCRT: toAbs(filepath.Join(config.ROOT_CRT_DIR, config.ROOT_CRT_NAME+".crt")),
+		State:   toAbs(config.STATE_DIR),
 	}
 }
 

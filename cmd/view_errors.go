@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 
+	"fast-https/config"
 	"fast-https/management/view"
 )
 
@@ -22,7 +23,7 @@ func fromViewError(cmdID string, err error) *CLIError {
 		ce.Details = []ErrorDetail{{Code: CodeConfigInvalid, Message: invalid.Message}}
 	case view.IsNotFound(err):
 		ce.Code = CodeNotFound
-	case errors.Is(err, view.ErrBadSection), errors.Is(err, view.ErrBadName):
+	case errors.Is(err, view.ErrBadSection), errors.Is(err, view.ErrBadName), errors.Is(err, config.ErrCandidatePath):
 		ce.Code = CodeUsage
 	case errors.Is(err, fs.ErrPermission):
 		ce.Code = CodePermissionDenied

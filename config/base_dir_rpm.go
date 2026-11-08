@@ -9,9 +9,11 @@ package config
 //	/usr/share/fast-https —— 站点根等架构无关只读数据
 //	/var/log/fast-https   —— 日志
 //	/run/fast-https       —— pid
+//	/var/lib/fast-https   —— 管理核心的配置版本与 operation
 const (
-	FAST_HTTPS_ETC_DIR  string = "/etc/fast-https"
-	FAST_HTTPS_DATA_DIR string = "/usr/share/fast-https"
-	FAST_HTTPS_LOG_DIR  string = "/var/log/fast-https"
-	FAST_HTTPS_RUN_DIR  string = "/run/fast-https"
+	FAST_HTTPS_ETC_DIR   string = "/etc/fast-https"
+	FAST_HTTPS_DATA_DIR  string = "/usr/share/fast-https"
+	FAST_HTTPS_LOG_DIR   string = "/var/log/fast-https"
+	FAST_HTTPS_RUN_DIR   string = "/run/fast-https"
+	FAST_HTTPS_STATE_DIR string = "/var/lib/fast-https"
 )

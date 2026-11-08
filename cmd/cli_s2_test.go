@@ -244,24 +244,23 @@ func TestConfigValidateInvalid(t *testing.T) {
 func TestConfigValidateCandidate(t *testing.T) {
 	f := writeFixture(t, defaultAcmeJSON)
 
-	out, _, code := runCLI(t, "config", "validate", "--candidate", f.main, "--json")
+	out, _, code := runCLI(t, "config", "validate", "--candidate", f.dir, "--json")
 	if code != 0 {
-		t.Fatalf("exit = %d", code)
+		t.Fatalf("exit = %d\n%s", code, out)
 	}
 	doc := decodeOneDocument(t, out)
-	if doc["data"].(map[string]any)["candidate"] != true {
-		t.Fatalf("data = %v", doc["data"])
+	data := doc["data"].(map[string]any)
+	if data["candidate"] != true || data["valid"] != true {
+		t.Fatalf("data = %v", data)
 	}
-	found := false
 	for _, w := range doc["warnings"].([]any) {
-		found = found || strings.Contains(w.(string), "candidate scope is main file only")
-	}
-	if !found {
-		t.Fatalf("候选校验应提示范围限制：%v", doc["warnings"])
+		if strings.Contains(w.(string), "candidate scope is main file only") {
+			t.Fatalf("S7 起候选目录应整树校验，不应再提示主文件限制：%v", doc["warnings"])
+		}
 	}
 
-	if _, _, code := runCLI(t, "config", "validate", "--candidate", filepath.Join(t.TempDir(), "x.json"), "--json"); code != 9 {
-		t.Fatalf("候选文件不存在 exit = %d, want 9", code)
+	if _, _, code := runCLI(t, "config", "validate", "--candidate", filepath.Join(t.TempDir(), "missing-cand"), "--json"); code != 9 {
+		t.Fatalf("候选目录不存在 exit = %d, want 9", code)
 	}
 }
 

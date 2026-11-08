@@ -77,6 +77,11 @@ func commandList() []command {
 			register:    newDiagnoseCmd,
 		},
 		{
+			name:        "operation",
+			description: t("查询管理操作记录", "query management operations"),
+			register:    newOperationCmd,
+		},
+		{
 			name:        "acme",
 			description: t("配置 ACME 证书签发", "configure ACME certificate issuance"),
 			register:    newAcmeCmd,

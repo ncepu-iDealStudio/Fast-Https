@@ -43,7 +43,7 @@ fast-https site init|list|show|remove   # 管理 conf.d 下的站点文件
 
 - `status` 依赖 pid 文件。进程异常退出留下的陈旧 pid 会被识别为 `stale`，`stop` / `reload` 遇到时按「没在跑」处理并清理文件，`status` 仍以非 0 退出。
 - `config show` 的来源是磁盘，不是运行中进程实际生效的配置；`config_dirty_hint` 只是按修改时间的提示，且只在进程确实在跑时给出。
-- `config validate --candidate` 目前只覆盖主配置文件本身，`http.include` 与证书路径仍按运行期布局解析。
+- `config validate --candidate` 校验整棵候选目录（主文件 + `conf.d`），不再读线上 `conf.d`。
 - `config show` 只展开 `http.include` 目录下直接的 `*.json`（与 `site list` 一致）；include 写成单个文件或不存在的目录时会给出告警。
 - 不带 `--json` 的 `site show` 仍打印站点文件原文，包含写在文件里的口令；要脱敏输出请加 `--json`。
 - `service status` 的端口探测会对配置端口各发起一次回环 TCP 连接，TLS 端口上服务端会看到一次未完成的握手。
