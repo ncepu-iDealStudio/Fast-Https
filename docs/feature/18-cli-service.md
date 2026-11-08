@@ -43,7 +43,7 @@ fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操�
 
 ## 测试
 
-`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏，`cli_s8_test.go` 覆盖 apply/reload 用法与旧 reload 文案，`cli_s9_test.go` 覆盖站点写命令用法与旧 `site init/remove`，`cli_s11_test.go` 覆盖 `runtime status/stats` 与强验证相关 CLI 契约，`logs_test.go` 覆盖 `logs error` 可读控制台镜像）、`management/redact`、`management/view`、`management/rtclient`、`management/svcctl`、`management/txn`（故障注入）、`management/siteops`、`management/pathguard`、`config/validate_warnings_test.go`。`tests/client_test/runtime_e2e_test.go` 在 `FASTHTTPS_E2E_RUNTIME=1` 下核对真实进程的累计请求数。
+`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏，`cli_s8_test.go` 覆盖 apply/reload 用法与旧 reload 文案，`cli_s9_test.go` 覆盖站点写命令用法与旧 `site init/remove`，`cli_s11_test.go` 覆盖 `runtime status/stats` 与强验证相关 CLI 契约，`cli_s12_test.go` 覆盖 `monitor status/events`，`logs_test.go` 覆盖 `logs error` 可读控制台镜像）、`management/redact`、`management/view`、`management/rtclient`、`management/monview`、`management/svcctl`、`management/txn`（故障注入）、`management/siteops`、`management/pathguard`、`config/validate_warnings_test.go`。`tests/client_test/runtime_e2e_test.go` 在 `FASTHTTPS_E2E_RUNTIME=1` 下核对真实进程的累计请求数。
 
 ## 已知限制
 
