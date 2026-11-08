@@ -18,11 +18,11 @@ func newDiagnoseCmd() *cobra.Command {
 		Short: t("只读汇总健康检查", "run a read-only health summary"),
 		Long: t(
 			"汇总服务、配置、证书、端口和近期错误日志等只读检查。\n"+
-				"检查失败与检查不可用分开：runtime、monitor、状态目录目前标为不可用，不拉低 overall。\n"+
+				"检查失败与检查不可用分开：runtime 读 /runtime（连不上是 warning）；monitor 目前仍为 unavailable，不拉低 overall。\n"+
 				"诊断本身是一次成功的查询，配置有问题也退出码 0；不自动修复，不写报告文件，不输出敏感值。",
 			"Summarize read-only checks for the service, config, certificates, ports, and recent error logs.\n"+
-				"Failed checks and unavailable checks are distinct: runtime, monitor, and the state directory\n"+
-				"are currently unavailable and do not lower overall.\n"+
+				"Failed checks and unavailable checks are distinct: runtime reads /runtime (unreachable is a warning);\n"+
+				"monitor stays unavailable and does not lower overall.\n"+
 				"The command itself is a successful query and exits 0 even when the config is invalid;\n"+
 				"it never repairs, never writes a report file, and never prints secrets."),
 		Args:         cobra.NoArgs,

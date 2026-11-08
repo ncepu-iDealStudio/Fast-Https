@@ -21,15 +21,18 @@ type PortStatus struct {
 	Reachable bool `json:"reachable"`
 }
 
-// ServiceStatus 是 service status 的数据。拿不到的字段省略，不编造：
-// 运行时长、启动时刻、配置版本要等 Server 提供只读快照后才有。
+// ServiceStatus 是 service status 的数据。拿不到的字段省略，不编造。
 type ServiceStatus struct {
-	Status     string       `json:"status"`
-	PID        *int         `json:"pid,omitempty"`
-	StalePID   bool         `json:"stale_pid,omitempty"`
-	ObservedAt string       `json:"observed_at"`
-	Source     string       `json:"source"`
-	Ports      []PortStatus `json:"ports"`
+	Status        string       `json:"status"`
+	PID           *int         `json:"pid,omitempty"`
+	StalePID      bool         `json:"stale_pid,omitempty"`
+	ObservedAt    string       `json:"observed_at"`
+	Source        string       `json:"source"`
+	Ports         []PortStatus `json:"ports"`
+	UptimeSeconds *int64       `json:"uptime_seconds,omitempty"`
+	StartedAt     string       `json:"started_at,omitempty"`
+	ConfigVersion string       `json:"config_version,omitempty"`
+	Version       string       `json:"version,omitempty"`
 }
 
 // ServiceStatusInput 把外部依赖都做成可替换的函数，便于测试。

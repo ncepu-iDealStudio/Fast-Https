@@ -56,6 +56,8 @@ func fromTxnError(id string, err error) *CLIError {
 		ce.Code = CodeServiceDown
 	case errors.Is(err, svcctl.ErrTimeout):
 		ce.Code = CodeTimeout
+	case errors.Is(err, svcctl.ErrReloadNotApplied), errors.Is(err, svcctl.ErrReloadedAsRestart):
+		ce.Code = CodeOperationFailed
 	case errors.Is(err, os.ErrPermission):
 		ce.Code = CodePermissionDenied
 	default:

@@ -9,6 +9,7 @@ import (
 )
 
 func TestDiagnoseConfigInvalid(t *testing.T) {
+	t.Setenv("FASTHTTPS_RUNTIME_URL", deadRuntimeURL(t))
 	dir := t.TempDir()
 	main := filepath.Join(dir, "fast-https.json")
 	if err := os.WriteFile(main, []byte("{"), 0o644); err != nil {
@@ -33,14 +34,18 @@ func TestDiagnoseConfigInvalid(t *testing.T) {
 }
 
 func TestDiagnoseUnavailableVsFailed(t *testing.T) {
+	t.Setenv("FASTHTTPS_RUNTIME_URL", deadRuntimeURL(t))
 	f := writeFixture(t, defaultAcmeJSON)
 	out, _, code := runCLI(t, "diagnose", "--config", f.main, "--json")
 	if code != 0 {
 		t.Fatalf("exit = %d\n%s", code, out)
 	}
 	data := decodeOneDocument(t, out)["data"].(map[string]any)
-	if checkStatus(t, data, "runtime") != "unavailable" || checkStatus(t, data, "monitor") != "unavailable" {
-		t.Fatalf("runtime/monitor 现在应是 unavailable：%v", data["checks"])
+	if checkStatus(t, data, "runtime") == "unavailable" {
+		t.Fatalf("runtime 已接入 /runtime，连不上应是 warning 而不是 unavailable：%v", data["checks"])
+	}
+	if checkStatus(t, data, "monitor") != "unavailable" {
+		t.Fatalf("monitor 现在应是 unavailable：%v", data["checks"])
 	}
 	if data["overall"] == "error" && checkStatus(t, data, "config") == "ok" {
 		t.Fatalf("unavailable 不应把 overall 拉成 error：%v", data)
@@ -48,6 +53,7 @@ func TestDiagnoseUnavailableVsFailed(t *testing.T) {
 }
 
 func TestDiagnoseReadOnly(t *testing.T) {
+	t.Setenv("FASTHTTPS_RUNTIME_URL", deadRuntimeURL(t))
 	f := writeFixture(t, defaultAcmeJSON)
 	before := hashTree(t, f.dir)
 	if _, _, code := runCLI(t, "diagnose", "--config", f.main, "--json"); code != 0 {
@@ -65,6 +71,7 @@ func TestDiagnoseReadOnly(t *testing.T) {
 }
 
 func TestDiagnoseNoSecrets(t *testing.T) {
+	t.Setenv("FASTHTTPS_RUNTIME_URL", deadRuntimeURL(t))
 	f := writeFixture(t, defaultAcmeJSON)
 	out, errOut, code := runCLI(t, "diagnose", "--config", f.main, "--json")
 	if code != 0 {

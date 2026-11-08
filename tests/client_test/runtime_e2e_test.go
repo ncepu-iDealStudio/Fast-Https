@@ -203,6 +203,101 @@ func waitRuntimeReady(timeout time.Duration) error {
 	return last
 }
 
+func TestRuntimeStatsTotalsE2E(t *testing.T) {
+	if os.Getenv("FASTHTTPS_E2E_RUNTIME") != "1" {
+		t.Skip("set FASTHTTPS_E2E_RUNTIME=1 to run runtime stats totals e2e")
+	}
+	if runtimeBusy() {
+		t.Fatal("127.0.0.1:9088 is already in use; stop the other Fast-Https instance before this e2e")
+	}
+
+	repo, err := findRepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := t.TempDir()
+	for _, dir := range []string{"config/cert", "config/conf.d", "httpdoc/root", "logs"} {
+		if err := os.MkdirAll(filepath.Join(work, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := copyFile(filepath.Join(repo, "config", "mime.json"), filepath.Join(work, "config", "mime.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "httpdoc", "root", "index.html"), []byte("runtime-stats"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	port := reserveTCPPort(t)
+	writeRuntimeSite(t, work, port)
+
+	bin := filepath.Join(work, "fast-https-runtime-stats-e2e.exe")
+	build := exec.Command("go", "build", "-o", bin, "fast-https.go")
+	build.Dir = repo
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+
+	proc, procLog := startRuntimeServer(t, bin, work)
+	t.Cleanup(func() { stopRuntimeWork(bin, work, proc) })
+
+	site := fmt.Sprintf("http://127.0.0.1:%d/", port)
+	if err := waitPortState(fmt.Sprintf("127.0.0.1:%d", port), true, 30*time.Second); err != nil {
+		t.Fatalf("site: %v\n%s", err, procLog.String())
+	}
+	if err := waitRuntimeReady(15 * time.Second); err != nil {
+		t.Fatalf("/runtime: %v\n%s", err, procLog.String())
+	}
+
+	before := getRuntimeSnapshot(t)
+	const n = 40
+	errCh := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func() { errCh <- httpGetResponds(site) }()
+	}
+	for i := 0; i < n; i++ {
+		if err := <-errCh; err != nil {
+			t.Fatalf("GET site: %v", err)
+		}
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	var after metrics.Snapshot
+	for {
+		after = getRuntimeSnapshot(t)
+		if after.Connections.Active == 0 && after.Requests.Active == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("active gauges did not return to 0: conn=%d req=%d", after.Connections.Active, after.Requests.Active)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	want := before.Requests.Total + n
+	if after.Requests.Total != want {
+		t.Fatalf("requests.total = %d, want %d (before %d + %d)", after.Requests.Total, want, before.Requests.Total, n)
+	}
+
+	cli := exec.Command(bin, "runtime", "stats", "--json")
+	cli.Dir = work
+	out, err := cli.Output()
+	if err != nil {
+		t.Fatalf("runtime stats: %v\n%s", err, out)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(out, &doc); err != nil {
+		t.Fatalf("stats json: %v\n%s", err, out)
+	}
+	data, _ := doc["data"].(map[string]any)
+	req, _ := data["requests"].(map[string]any)
+	if req["total"].(float64) != float64(after.Requests.Total) {
+		t.Fatalf("cli requests.total = %v, snapshot %d", req["total"], after.Requests.Total)
+	}
+	if data["window"] != "since_process_start" {
+		t.Fatalf("window = %v", data["window"])
+	}
+}
+
 func getRuntimeSnapshot(t *testing.T) metrics.Snapshot {
 	t.Helper()
 	resp, err := http.Get("http://127.0.0.1:9088/runtime")

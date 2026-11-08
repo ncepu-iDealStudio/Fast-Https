@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"fast-https/infra/logging"
+	"fast-https/management/rtclient"
 	"fast-https/management/view"
 )
 
@@ -28,7 +29,7 @@ func TestDiagnoseAllOK(t *testing.T) {
 		t.Fatal("missing observed_at")
 	}
 	byName := checksByName(report)
-	for _, name := range []string{"service", "config", "certs", "ports", "logs", "state"} {
+	for _, name := range []string{"service", "config", "certs", "ports", "logs", "runtime", "state"} {
 		if byName[name].Status != StatusOK {
 			t.Errorf("%s = %+v", name, byName[name])
 		}
@@ -46,6 +47,7 @@ func TestDiagnoseConfigInvalid(t *testing.T) {
 		Inspect:    runningInspect(9),
 		Probe:      func(int) bool { return true },
 		Timeout:    time.Second,
+		Runtime:    func() (rtclient.Snapshot, error) { return rtclient.Snapshot{}, rtclient.ErrUnreachable },
 	})
 	if report.Overall != StatusError {
 		t.Fatalf("overall = %s", report.Overall)
@@ -65,14 +67,47 @@ func TestDiagnoseUnavailableVsFailed(t *testing.T) {
 		t.Fatalf("overall = %s，unavailable 不应拉低", report.Overall)
 	}
 	byName := checksByName(report)
-	for _, name := range []string{"runtime", "monitor"} {
-		if byName[name].Status != StatusUnavailable {
-			t.Errorf("%s = %+v, want unavailable", name, byName[name])
-		}
+	if byName["runtime"].Status != StatusOK {
+		t.Errorf("runtime = %+v, want ok（已接入 /runtime）", byName["runtime"])
+	}
+	if byName["monitor"].Status != StatusUnavailable {
+		t.Errorf("monitor = %+v, want unavailable", byName["monitor"])
 	}
 	if byName["state"].Status != StatusOK {
 		t.Errorf("state = %+v, want ok", byName["state"])
 	}
+}
+
+func TestDiagnoseRuntimeStates(t *testing.T) {
+	t.Run("unreachable is warning", func(t *testing.T) {
+		in := healthyInput(t)
+		in.Runtime = func() (rtclient.Snapshot, error) { return rtclient.Snapshot{}, rtclient.ErrUnreachable }
+		got := checksByName(Run(in))["runtime"]
+		if got.Status != StatusWarning {
+			t.Fatalf("runtime = %+v, want warning", got)
+		}
+		if Run(in).Overall == StatusError {
+			t.Fatal("unreachable 不应把 overall 拉成 error")
+		}
+	})
+	t.Run("starting is warning", func(t *testing.T) {
+		in := healthyInput(t)
+		in.Runtime = func() (rtclient.Snapshot, error) {
+			return rtclient.Snapshot{Server: rtclient.ServerInfo{State: "starting"}}, nil
+		}
+		got := checksByName(Run(in))["runtime"]
+		if got.Status != StatusWarning {
+			t.Fatalf("runtime = %+v, want warning", got)
+		}
+	})
+	t.Run("schema is warning", func(t *testing.T) {
+		in := healthyInput(t)
+		in.Runtime = func() (rtclient.Snapshot, error) { return rtclient.Snapshot{}, rtclient.ErrSchema }
+		got := checksByName(Run(in))["runtime"]
+		if got.Status != StatusWarning {
+			t.Fatalf("runtime = %+v, want warning", got)
+		}
+	})
 }
 
 func TestDiagnoseCheckTimeout(t *testing.T) {
@@ -161,6 +196,12 @@ func healthyInput(t *testing.T) Input {
 		Probe:      func(int) bool { return true },
 		Timeout:    time.Second,
 		Now:        func() time.Time { return time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC) },
+		Runtime: func() (rtclient.Snapshot, error) {
+			return rtclient.Snapshot{
+				SchemaVersion: rtclient.SchemaVersion,
+				Server:        rtclient.ServerInfo{State: "running", PID: 7},
+			}, nil
+		},
 	}
 }
 

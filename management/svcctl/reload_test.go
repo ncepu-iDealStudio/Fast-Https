@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"fast-https/management/rtclient"
 )
 
 func writeReloadCfg(t *testing.T, port int) string {
@@ -98,5 +100,114 @@ func TestReloadNotRunning(t *testing.T) {
 	})
 	if !errors.Is(err, ErrNotRunning) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func baseSnap() rtclient.Snapshot {
+	return rtclient.Snapshot{
+		SchemaVersion: rtclient.SchemaVersion,
+		Server: rtclient.ServerInfo{
+			State:            "running",
+			PID:              7,
+			StartedAt:        "2026-11-08T12:00:00.000Z",
+			ConfigGeneration: 1,
+		},
+		Listeners: []rtclient.ListenerInfo{{Port: "18080"}},
+	}
+}
+
+func TestApplyRuntimeVerification(t *testing.T) {
+	path := writeReloadCfg(t, 18080)
+	base := baseSnap()
+
+	t.Run("generation bump", func(t *testing.T) {
+		n := 0
+		res, err := Reload(context.Background(), Options{
+			ConfigPath: path,
+			PID:        7,
+			Timeout:    time.Second,
+			Probe:      func(int) bool { return true },
+			Bind:       func(int) error { return nil },
+			Alive:      func(int) bool { return true },
+			Signal:     func(int) error { return nil },
+			Sleep:      func(time.Duration) {},
+			Snapshot: func(context.Context) (rtclient.Snapshot, error) {
+				n++
+				s := base
+				if n > 1 {
+					s.Server.ConfigGeneration = 2
+				}
+				return s, nil
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Verification.Level != "runtime" || !res.Verification.ReloadConfirmed {
+			t.Fatalf("verification = %+v", res.Verification)
+		}
+	})
+
+	t.Run("unchanged generation", func(t *testing.T) {
+		_, err := Reload(context.Background(), Options{
+			ConfigPath: path,
+			PID:        7,
+			Timeout:    50 * time.Millisecond,
+			Probe:      func(int) bool { return true },
+			Bind:       func(int) error { return nil },
+			Alive:      func(int) bool { return true },
+			Signal:     func(int) error { return nil },
+			Sleep:      func(time.Duration) {},
+			Snapshot:   func(context.Context) (rtclient.Snapshot, error) { return base, nil },
+		})
+		if !errors.Is(err, ErrReloadNotApplied) {
+			t.Fatalf("err = %v, want ErrReloadNotApplied", err)
+		}
+	})
+
+	t.Run("started_at changed", func(t *testing.T) {
+		n := 0
+		_, err := Reload(context.Background(), Options{
+			ConfigPath: path,
+			PID:        7,
+			Timeout:    time.Second,
+			Probe:      func(int) bool { return true },
+			Bind:       func(int) error { return nil },
+			Alive:      func(int) bool { return true },
+			Signal:     func(int) error { return nil },
+			Sleep:      func(time.Duration) {},
+			Snapshot: func(context.Context) (rtclient.Snapshot, error) {
+				n++
+				s := base
+				if n > 1 {
+					s.Server.StartedAt = "2026-11-08T12:01:00.000Z"
+					s.Server.ConfigGeneration = 2
+				}
+				return s, nil
+			},
+		})
+		if !errors.Is(err, ErrReloadedAsRestart) {
+			t.Fatalf("err = %v, want ErrReloadedAsRestart", err)
+		}
+	})
+}
+
+func TestReloadFallsBackToBasicWithoutSnapshot(t *testing.T) {
+	path := writeReloadCfg(t, 18080)
+	res, err := Reload(context.Background(), Options{
+		ConfigPath: path,
+		PID:        7,
+		Timeout:    time.Second,
+		Probe:      func(int) bool { return true },
+		Bind:       func(int) error { return nil },
+		Alive:      func(int) bool { return true },
+		Signal:     func(int) error { return nil },
+		Sleep:      func(time.Duration) {},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Verification.Level != "basic" || res.Verification.ReloadConfirmed {
+		t.Fatalf("verification = %+v", res.Verification)
 	}
 }

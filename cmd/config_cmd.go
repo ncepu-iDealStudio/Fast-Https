@@ -15,6 +15,7 @@ import (
 	"fast-https/management/cfgdiff"
 	"fast-https/management/cfgver"
 	"fast-https/management/operation"
+	"fast-https/management/rtclient"
 	"fast-https/management/svcctl"
 	"fast-https/management/txn"
 	"fast-https/management/view"
@@ -268,9 +269,10 @@ func newConfigApplyCmd() *cobra.Command {
 		Use:   "apply",
 		Short: t("将候选配置目录受控应用到线上", "apply a candidate config directory under management control"),
 		Long: t(
-			"校验候选目录、生成差异、保存恢复点、切换配置、reload 并做弱验证。失败则从恢复点还原。\n"+
+			"校验候选目录、生成差异、保存恢复点、切换配置、reload。读得到 /runtime 时做强验证，否则退回弱验证。失败则从恢复点还原。\n"+
 				"必须加 --yes（或 --confirm）。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建恢复点。",
-			"Validate the candidate directory, diff it, save a restore point, switch files, reload, and run a basic check.\n"+
+			"Validate the candidate directory, diff it, save a restore point, switch files, reload, and verify.\n"+
+				"When /runtime is reachable the check is strong; otherwise it falls back to a basic process/port check.\n"+
 				"Failure rolls back from the restore point. --yes (or --confirm) is required.\n"+
 				"--dry-run only reports validation and the diff; it writes nothing, does not reload, and creates no restore point."),
 		Args:         cobra.NoArgs,
@@ -385,6 +387,7 @@ func opPtr(rec operation.Record) *operation.Record {
 
 func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 	pidPath := config.PID_FILE
+	var before *rtclient.Snapshot
 	return &txn.Engine{
 		State: stateDir(),
 		Reloader: txn.FuncReloader(func(ctx context.Context) error {
@@ -394,6 +397,11 @@ func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 			}
 			if st != ProcessRunning {
 				return svcctl.ErrNotRunning
+			}
+			before = nil
+			if snap, err := rtclient.Default().Get(ctx); err == nil {
+				cp := snap
+				before = &cp
 			}
 			return svcctl.SignalReload(pid)
 		}),
@@ -405,7 +413,19 @@ func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 			if st != ProcessRunning {
 				return svcctl.ErrNotRunning
 			}
-			_, err = svcctl.WaitBasic(ctx, svcctl.Options{ConfigPath: liveMain, Timeout: timeout, PID: pid}, pid)
+			opts := svcctl.Options{
+				ConfigPath: liveMain,
+				Timeout:    timeout,
+				PID:        pid,
+				Snapshot: func(ctx context.Context) (rtclient.Snapshot, error) {
+					return rtclient.Default().Get(ctx)
+				},
+			}
+			if before != nil {
+				_, err = svcctl.WaitRuntime(ctx, opts, *before)
+				return err
+			}
+			_, err = svcctl.WaitBasic(ctx, opts, pid)
 			return err
 		}),
 	}

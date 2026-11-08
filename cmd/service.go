@@ -7,6 +7,7 @@ import (
 
 	"fast-https/config"
 	"fast-https/management/operation"
+	"fast-https/management/rtclient"
 	"fast-https/management/svcctl"
 
 	"github.com/spf13/cobra"
@@ -30,11 +31,13 @@ func newServiceReloadCmd() *cobra.Command {
 		Use:   "reload",
 		Short: t("受控重新加载已生效配置", "reload the running configuration under management control"),
 		Long: t(
-			"校验当前配置、预检新增端口，再向运行中进程发 reload 信号，并做弱验证（进程仍在、端口可连）。\n"+
+			"校验当前配置、预检新增端口，再向运行中进程发 reload 信号。\n"+
+				"读得到 /runtime 时做强验证（pid 与 started_at 不变，config_generation 加一）；否则退回弱验证（进程仍在、端口可连）。\n"+
 				"不改配置文件。服务没在跑时退出码 4。--dry-run 只校验与预检，不发信号。",
-			"Validate the current config, pre-check newly added ports, signal the running process to reload,\n"+
-				"then run a basic check (process still alive, ports reachable). It does not change config files.\n"+
-				"A stopped service exits with code 4. --dry-run only validates and pre-checks."),
+			"Validate the current config, pre-check newly added ports, then signal the running process to reload.\n"+
+				"When /runtime is reachable, verification requires an unchanged pid/started_at and a bumped config_generation;\n"+
+				"otherwise it falls back to a basic check (process still alive, ports reachable).\n"+
+				"It does not change config files. A stopped service exits with code 4. --dry-run only validates and pre-checks."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         runServiceReload,
@@ -72,7 +75,16 @@ func runServiceReload(cmd *cobra.Command, _ []string) error {
 		return &CLIError{Code: CodeServiceDown, Command: "service.reload", Message: "service is not running"}
 	}
 
-	opts := svcctl.Options{ConfigPath: path, PidPath: config.PID_FILE, Timeout: timeout, DryRun: dry, PID: pid}
+	opts := svcctl.Options{
+		ConfigPath: path,
+		PidPath:    config.PID_FILE,
+		Timeout:    timeout,
+		DryRun:     dry,
+		PID:        pid,
+		Snapshot: func(ctx context.Context) (rtclient.Snapshot, error) {
+			return rtclient.Default().Get(ctx)
+		},
+	}
 	if dry {
 		res, err := svcctl.Reload(ctx, opts)
 		if err != nil {
@@ -148,11 +160,18 @@ func newServiceVersionCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "fast-https %s\n", config.CURRENT_VERSION)
 				return nil
 			}
-			// 运行中进程的版本要等 /runtime 才能取到，现在如实标为不可用。
+			var server any
+			var warnings []string
+			if snap, err := fetchRuntime(cmd.Context()); err == nil && snap.Server.Version != "" {
+				server = snap.Server.Version
+			} else {
+				server = nil
+				warnings = []string{"server_version unavailable: runtime snapshot unreachable"}
+			}
 			return emitOK(cmd, "service.version", map[string]any{
 				"cli_version":    config.CURRENT_VERSION,
-				"server_version": nil,
-			}, []string{"server_version unavailable: the running server does not expose it yet"})
+				"server_version": server,
+			}, warnings)
 		},
 	}
 }

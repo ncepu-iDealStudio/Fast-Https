@@ -1,4 +1,5 @@
-// Package svcctl 受控 reload：校验、新增端口预检、发信号、弱验证。返回 error，不 Fatal。
+// Package svcctl 受控 reload：校验、新增端口预检、发信号、验证。返回 error，不 Fatal。
+// 读得到 /runtime 时用 WaitRuntime（强验证）；否则退回 WaitBasic。
 package svcctl
 
 import (
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"fast-https/config"
+	"fast-https/management/rtclient"
 	"fast-https/management/state"
 	"fast-https/management/view"
 )
@@ -18,8 +20,10 @@ import (
 const DefaultTimeout = 30 * time.Second
 
 var (
-	ErrNotRunning = errors.New("service is not running")
-	ErrTimeout    = errors.New("reload timed out")
+	ErrNotRunning        = errors.New("service is not running")
+	ErrTimeout           = errors.New("reload timed out")
+	ErrReloadNotApplied  = errors.New("reload did not apply a new config generation")
+	ErrReloadedAsRestart = errors.New("process restarted instead of reloading")
 )
 
 // PortError 是新增端口被占用。
@@ -43,9 +47,11 @@ type Options struct {
 	Alive      func(pid int) bool
 	Signal     func(pid int) error
 	Sleep      func(d time.Duration)
+	// Snapshot 拉取 /runtime。有值时 Reload 在发信号前拍一次，之后走 WaitRuntime。
+	Snapshot func(ctx context.Context) (rtclient.Snapshot, error)
 }
 
-// Verification 是弱验证结果。无法确认 Server 已应用新配置。
+// Verification 是 reload 后的健康验证结果。level 为 runtime 时 ReloadConfirmed 表示生成号已加一。
 type Verification struct {
 	Level           string `json:"level"`
 	ReloadConfirmed bool   `json:"reload_confirmed"`
@@ -61,7 +67,7 @@ type Result struct {
 	AddedPorts   []int        `json:"added_ports,omitempty"`
 }
 
-// Reload 校验 → 新增端口预检 →（非 dry-run）发信号 → 弱验证。
+// Reload 校验 → 新增端口预检 →（非 dry-run）发信号 → 验证。
 func Reload(ctx context.Context, opts Options) (Result, error) {
 	if err := config.ValidateConfigFile(opts.ConfigPath); err != nil {
 		return Result{}, err
@@ -90,11 +96,23 @@ func Reload(ctx context.Context, opts Options) (Result, error) {
 	if opts.DryRun {
 		return out, nil
 	}
+	var before *rtclient.Snapshot
+	if opts.Snapshot != nil {
+		if snap, err := opts.Snapshot(ctx); err == nil {
+			cp := snap
+			before = &cp
+		}
+	}
 	sig := opts.Signal
 	if sig == nil {
 		sig = SignalReload
 	}
 	if err := sig(pid); err != nil {
+		return out, err
+	}
+	if before != nil {
+		ver, err := WaitRuntime(ctx, opts, *before)
+		out.Verification = ver
 		return out, err
 	}
 	ver, err := WaitBasic(ctx, opts, pid)
@@ -258,4 +276,122 @@ func WaitBasic(ctx context.Context, opts Options, pid int) (Verification, error)
 		}
 		sleep(100 * time.Millisecond)
 	}
+}
+
+// WaitRuntime 用 /runtime 做强验证：pid 与 started_at 不变、state 为 running、
+// config_generation 比发信号前加一。started_at/pid 变化视为重启失败。
+func WaitRuntime(ctx context.Context, opts Options, before rtclient.Snapshot) (Verification, error) {
+	timeout := opts.Timeout
+	if timeout <= 0 {
+		timeout = DefaultTimeout
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		if d := time.Until(deadline); d > 0 && d < timeout {
+			timeout = d
+		}
+	}
+	fetch := opts.Snapshot
+	if fetch == nil {
+		return WaitBasic(ctx, opts, opts.PID)
+	}
+	probe := opts.Probe
+	if probe == nil {
+		probe = view.ProbeLoopback
+	}
+	alive := opts.Alive
+	if alive == nil {
+		alive = func(pid int) bool { return state.DefaultAlive(pid, "") }
+	}
+	sleep := opts.Sleep
+	if sleep == nil {
+		sleep = time.Sleep
+	}
+	fallbackPorts, _ := config.ListenPortsFromFile(opts.ConfigPath)
+	pid := opts.PID
+
+	deadline := time.Now().Add(timeout)
+	last := Verification{Level: "runtime", ReloadConfirmed: false}
+	sawUnchanged := false
+	for {
+		if err := ctx.Err(); err != nil {
+			return finishRuntime(last, sawUnchanged, err)
+		}
+		last.ProcessAlive = alive(pid)
+		if !last.ProcessAlive {
+			return last, fmt.Errorf("%w: process %d exited after reload signal", ErrNotRunning, pid)
+		}
+		snap, err := fetch(ctx)
+		if err == nil {
+			if restarted(before, snap) {
+				return last, fmt.Errorf("%w: started_at or pid changed", ErrReloadedAsRestart)
+			}
+			ports := portsFromSnapshot(snap, fallbackPorts)
+			ok := true
+			for _, p := range ports {
+				if !probe(p) {
+					ok = false
+					break
+				}
+			}
+			last.PortsReachable = ok || len(ports) == 0
+			if snap.Server.State == "running" && snap.Server.ConfigGeneration > before.Server.ConfigGeneration && last.PortsReachable {
+				last.ReloadConfirmed = true
+				return last, nil
+			}
+			if snap.Server.ConfigGeneration <= before.Server.ConfigGeneration {
+				sawUnchanged = true
+			}
+		}
+		if time.Now().After(deadline) {
+			return finishRuntime(last, sawUnchanged, ErrTimeout)
+		}
+		sleep(100 * time.Millisecond)
+	}
+}
+
+func finishRuntime(last Verification, sawUnchanged bool, cause error) (Verification, error) {
+	if last.ReloadConfirmed {
+		return last, nil
+	}
+	if sawUnchanged {
+		return last, fmt.Errorf("%w: %v", ErrReloadNotApplied, cause)
+	}
+	if errors.Is(cause, ErrTimeout) || cause == nil {
+		return last, ErrTimeout
+	}
+	return last, fmt.Errorf("%w: %v", ErrTimeout, cause)
+}
+
+func restarted(before, after rtclient.Snapshot) bool {
+	if before.Server.StartedAt != "" && after.Server.StartedAt != "" && before.Server.StartedAt != after.Server.StartedAt {
+		return true
+	}
+	if before.Server.PID != 0 && after.Server.PID != 0 && before.Server.PID != after.Server.PID {
+		return true
+	}
+	return false
+}
+
+func portsFromSnapshot(snap rtclient.Snapshot, fallback []int) []int {
+	var out []int
+	for _, l := range snap.Listeners {
+		p, err := strconv.Atoi(l.Port)
+		if err != nil {
+			_, port, err := net.SplitHostPort(l.Port)
+			if err != nil {
+				continue
+			}
+			p, err = strconv.Atoi(port)
+			if err != nil {
+				continue
+			}
+		}
+		if p > 0 {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return fallback
+	}
+	return out
 }

@@ -12,12 +12,14 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
 	"fast-https/config"
 	"fast-https/infra/logging"
 	"fast-https/management/logquery"
+	"fast-https/management/rtclient"
 	"fast-https/management/view"
 )
 
@@ -62,6 +64,8 @@ type Input struct {
 	Probe      func(int) bool
 	StateDir   string
 	Extra      []NamedCheck
+	// Runtime 拉取 /runtime。测试注入，避免碰到本机真实的 9088。
+	Runtime func() (rtclient.Snapshot, error)
 }
 
 // Run 按固定顺序执行检查。一项卡住只让那一项超时，其余照常返回。
@@ -82,7 +86,7 @@ func Run(in Input) Report {
 		timed(timeout, "certs", func(ctx context.Context) Check { return checkCerts(in, now) }),
 		timed(timeout, "ports", func(ctx context.Context) Check { return checkPorts(in) }),
 		timed(timeout, "logs", func(ctx context.Context) Check { return checkLogs(in, now) }),
-		{Name: "runtime", Status: StatusUnavailable, Message: "runtime snapshot is not available until S11"},
+		timed(timeout, "runtime", func(ctx context.Context) Check { return checkRuntime(in) }),
 		{Name: "monitor", Status: StatusUnavailable, Message: "monitor is not available until S12"},
 		timed(timeout, "state", func(ctx context.Context) Check { return checkState(in) }),
 	}
@@ -252,6 +256,11 @@ func checkPorts(in Input) Check {
 	if err != nil {
 		return Check{Name: "ports", Status: StatusWarning, Message: "could not read listen ports from the config"}
 	}
+	if snap, e := runtimeOf(in); e == nil {
+		if fromSnap := listenerPorts(snap); len(fromSnap) > 0 {
+			ports = fromSnap
+		}
+	}
 	if len(ports) == 0 {
 		return Check{Name: "ports", Status: StatusWarning, Message: "no listen port is configured"}
 	}
@@ -300,6 +309,38 @@ func checkLogs(in Input, now time.Time) Check {
 		return Check{Name: "logs", Status: StatusOK, Message: msg}
 	}
 	return Check{Name: "logs", Status: StatusWarning, Message: msg}
+}
+
+func checkRuntime(in Input) Check {
+	fetch := in.Runtime
+	if fetch == nil {
+		fetch = func() (rtclient.Snapshot, error) {
+			return rtclient.Default().Get(context.Background())
+		}
+	}
+	snap, err := fetch()
+	if err != nil {
+		if errors.Is(err, rtclient.ErrSchema) {
+			return Check{Name: "runtime", Status: StatusWarning, Message: "runtime snapshot schema is not supported"}
+		}
+		return Check{Name: "runtime", Status: StatusWarning, Message: "runtime snapshot unreachable"}
+	}
+	switch snap.Server.State {
+	case "running":
+		msg := "runtime snapshot reachable (state running)"
+		if snap.Server.PID != 0 {
+			msg = fmt.Sprintf("runtime snapshot reachable (state running, pid %d)", snap.Server.PID)
+		}
+		return Check{Name: "runtime", Status: StatusOK, Message: msg}
+	case "starting", "stopping", "reloading":
+		return Check{Name: "runtime", Status: StatusWarning, Message: "runtime snapshot state is " + snap.Server.State}
+	default:
+		state := snap.Server.State
+		if state == "" {
+			state = "unknown"
+		}
+		return Check{Name: "runtime", Status: StatusWarning, Message: "runtime snapshot state is " + state}
+	}
 }
 
 func checkState(in Input) Check {
@@ -352,4 +393,25 @@ func portsOf(in Input) []int {
 func portsErrOf(in Input) error {
 	_, err := portsResult(in)
 	return err
+}
+
+func runtimeOf(in Input) (rtclient.Snapshot, error) {
+	if in.Runtime != nil {
+		return in.Runtime()
+	}
+	return rtclient.Default().Get(context.Background())
+}
+
+func listenerPorts(snap rtclient.Snapshot) []int {
+	var out []int
+	for _, l := range snap.Listeners {
+		p, err := strconv.Atoi(l.Port)
+		if err != nil {
+			continue
+		}
+		if p > 0 {
+			out = append(out, p)
+		}
+	}
+	return out
 }

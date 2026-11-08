@@ -8,7 +8,7 @@
 
 ## 1. 分层结构与依赖方向
 
-`go list ./...` 当前枚举 62 个 package。分层与允许的依赖方向如下，任何反向边都会被 `tests/arch/layering_test.go` 拦下：
+`go list ./...` 当前枚举的 package 数以 `go list` 为准。分层与允许的依赖方向如下，任何反向边都会被 `tests/arch/layering_test.go` 拦下：
 
 | 层 | 包 | 允许依赖 | 说明 |
 | --- | --- | --- | --- |
@@ -17,6 +17,7 @@
 | 契约 | `core` | `infra/*`、`config`、`runtime/{listener,request,response}` | 只放 `Event`、处理器注册表与生命周期钩子；后三个是 `Event` 内嵌的数据模型，属登记例外 |
 | 数据面运行时 | `runtime/*` | `infra/*`、`config`、`core`、`runtime/*` | 不允许依赖 `modules` |
 | 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters,metrics}` |
+| 管理核心 | `management/*` | `infra`、`config`、`modules/site`、`modules/certmanager`、`management` | 不允许依赖数据面运行时、`core` 或组合根。读 `/runtime` 只走标准库 HTTP（`management/rtclient`），不 import `runtime/metrics` |
 | 组合根 | `cmd`、`init`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
 
 ## 2. Package 与生产职责
@@ -24,7 +25,7 @@
 | Package / 路径 | 职责和主要入口 | 默认服务器路径 |
 | --- | --- | --- |
 | 根 `fast-https` | 主服务器 `main`，调用 `cmd.RootCmd()` | 是 |
-| `cmd` | Cobra 命令、start/dev/stop/reload/check/status、`acme` 配置向导（`huh` 表单 + 参数模式）、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点；写完 PID 后在 `127.0.0.1:9088` 提供 `GET /runtime` | 是 |
+| `cmd` | Cobra 命令、start/stop/reload/status、`service`/`runtime`/`config`/`site` 等管理命令、`acme` 配置向导（`huh` 表单 + 参数模式）、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点；写完 PID 后在 `127.0.0.1:9088` 提供 `GET /runtime` | 是 |
 | `config` | 配置模型、JSON/include 读取、验证、路径和全局运行配置 | 是 |
 | `init` | 配置、日志、证书、缓存初始化 | 是 |
 | `infra/banner` | 彩色横幅、版本号与初始化阶段提示（版本由组合根注入） | 由组合根调用 |
@@ -46,6 +47,9 @@
 | `modules/auth`、`safe`、`appfirewall`、`cache`、`compress` | 认证、安全检查/限流、防火墙、代理缓存和静态压缩 | 配置或请求路径启用时 |
 | `modules/certmanager` | ACME 证书编排（certmagic + acmez）：账户、订单、续期调度、PEM 落盘与热替换；挑战应答通过 `core.Services.HandleEarlyRequest` 与 `listener.RegisterTLSALPNProvider` 注入数据面 | `acme.enabled` 为真时 |
 | `modules/site` | 站点文件（`conf.d/<name>.json`）的命名校验、原子落盘与目录扫描；合并与校验复用 `config`，不碰运行期对象 | `site` 命令组 |
+| `management/rtclient` | 本机 `GET /runtime` 的标准库 HTTP 客户端；校验 `schema_version == "1"`，自身复制 JSON 结构，不依赖 `runtime/metrics` | CLI `runtime *`、`service status/version`、reload 强验证、`diagnose` |
+| `management/svcctl` | 受控 reload：校验、新增端口预检、发信号；读得到快照时 `WaitRuntime`（生成号加一、pid/`started_at` 不变），否则 `WaitBasic` | `service reload`、`config apply` |
+| `management/diagnose` | 只读健康汇总。`runtime` 检查项读 `/runtime`（连不上为 warning）；`monitor` 仍为 unavailable | `diagnose` |
 | `desktop/` | Wails v3 桌面管理端，独立 Go module | 独立可执行程序 |
 | `tests`、`tests/client_test`、`tests/unit_test/...`、`tests/arch` | 根测试入口、子进程 E2E、集中式单测、分层约束 | 测试专用 |
 
@@ -109,7 +113,7 @@
 - 源码邻近的 `*_test.go`：`cmd/`、`config/`、`infra/*`、`init/`、`core/`、`runtime/*`、`modules/*`。
 - 集中单测：`tests/unit_test/`，只保留存量，新单测写在被测包旁。
 - 分层约束：`tests/arch/layering_test.go` 校验 `infra`↔`config`、`core`、`runtime`、`modules` 的依赖方向，并禁止 viper 泄漏与生产代码依赖 `tests/`。
-- 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`；`TestRuntimeProcessRestartE2E` 需要 `FASTHTTPS_E2E_RUNTIME=1`。
+- 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`；`TestRuntimeProcessRestartE2E`、`TestRuntimeStatsTotalsE2E` 需要 `FASTHTTPS_E2E_RUNTIME=1`。
 - 根目录 `tests/fast-https_test.go` 覆盖初始化路径。
 
 不进入 `go test` 的文件：`tests/scripts/dev-test.sh`、`dev-test.ps1`（手工前台拉起服务），`tests/single/workloop.go`（独立 `main` 演示）。

@@ -63,6 +63,11 @@ func commandList() []command {
 			register:    newServiceCmd,
 		},
 		{
+			name:        "runtime",
+			description: t("查询本机运行快照", "query the local runtime snapshot"),
+			register:    newRuntimeCmd,
+		},
+		{
 			name:        "cert",
 			description: t("查看证书状态与检查证书", "list and check certificates"),
 			register:    newCertCmd,

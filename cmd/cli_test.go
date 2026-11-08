@@ -224,6 +224,7 @@ func TestCLIErrorKeepsItsCode(t *testing.T) {
 }
 
 func TestServiceVersionJSON(t *testing.T) {
+	t.Setenv("FASTHTTPS_RUNTIME_URL", deadRuntimeURL(t))
 	out, _, code := runCLI(t, "service", "version", "--json")
 	if code != 0 {
 		t.Fatalf("exit = %d, want 0", code)
