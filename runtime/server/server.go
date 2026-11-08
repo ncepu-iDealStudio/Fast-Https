@@ -10,6 +10,7 @@ import (
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/events"
 	"fast-https/runtime/listener"
+	"fast-https/runtime/metrics"
 	"fmt"
 	"net"
 	"os"
@@ -60,6 +61,7 @@ func initModules() {
 // 设置信号处理，初始化监听器和其他模块
 func ServerInit() *Server {
 	s := Server{}
+	metrics.RecordProcessStart()
 	sigchnl := make(chan os.Signal, 1)
 	signal.Notify(sigchnl)
 	go func(s *Server) {
@@ -76,8 +78,10 @@ func ServerInit() *Server {
 
 	// 端口横幅由组合根打印，调度层不依赖展示层。
 	s.Listens = listener.ListenWithCfg()
+	publishListeners(s.Listens)
 
 	initModules()
+	metrics.MarkRunning()
 
 	return &s
 }
@@ -138,6 +142,7 @@ func (s *Server) SigHandler(sig os.Signal) {
 func (s *Server) gracefulStop() {
 	s.stopOnce.Do(func() {
 		logging.PrintInfo("The server got a stop signal")
+		metrics.MarkStopping()
 		core.RunBeforeStop()
 		s.drainConnections(GracefulStopTimeout)
 		core.RunAfterStop()
@@ -166,6 +171,19 @@ func (s *Server) drainConnections(timeout time.Duration) {
 	case <-done:
 	case <-timer.C:
 		logging.ConsoleLog.Info().Msg("graceful stop timed out")
+		metrics.NoteStopTimeout()
+	}
+}
+
+// serveConnHandler 默认把连接交给 HTTP/1.1 或 HTTP/2 事件循环。
+// 测试替换它，避免走到真实解析。
+var serveConnHandler = dispatchConn
+
+func dispatchConn(lis *listener.Listener, conn net.Conn, ctx context.Context) {
+	if lis.LisType == 10 {
+		events.H2HandleEvent(lis, conn, ctx)
+	} else {
+		events.HandleEvent(lis, conn, ctx)
 	}
 }
 
@@ -178,19 +196,17 @@ func (s *Server) serveConn(lis *listener.Listener, conn net.Conn, ctx context.Co
 	}
 	s.connWg.Add(1)
 	s.mu.Unlock()
+	metrics.ConnAccepted()
 	go func() {
 		defer s.connWg.Done()
+		defer metrics.ConnClosed()
 		// 单个连接内模块代码的 panic 只能带走这条连接，不能带走进程。
 		defer func() {
 			if r := recover(); r != nil {
 				logging.ConsoleLog.Error().Msgf("connection handler panic: %v\n%s", r, debug.Stack())
 			}
 		}()
-		if lis.LisType == 10 {
-			events.H2HandleEvent(lis, conn, ctx)
-		} else {
-			events.HandleEvent(lis, conn, ctx)
-		}
+		serveConnHandler(lis, conn, ctx)
 	}()
 }
 
@@ -260,8 +276,12 @@ var reloadConfig = config.Reload
 // Reload reloads the server configuration.
 // An invalid file, including a missing certificate, leaves the current listeners open.
 func (s *Server) Reload() {
+	metrics.MarkReloading()
+	defer metrics.MarkRunning()
+
 	if err := reloadConfig(); err != nil {
 		logging.ConsoleLog.Error().Msgf("reload kept previous config: %s", err.Error())
+		metrics.NoteReloadFailure()
 		return
 	}
 	if err := logging.Open(config.Current().LogRoot); err != nil {
@@ -303,8 +323,31 @@ func (s *Server) Reload() {
 	s.RunAdded(lisAdded)
 
 	initModules()
+	publishListeners(s.Listens)
+	metrics.NoteReloadSuccess()
 
 	logging.ConsoleLog.Info().Msg("========= server reload  end  ========")
+}
+
+// publishListeners 把当前监听器写成原子副本。快照读这份副本，不读 Server.Listens。
+// LisType：0 HTTP，1 TLS，2 TCP 代理，10 HTTP/2。
+func publishListeners(listens []*listener.Listener) {
+	out := make([]metrics.ListenerInfo, 0, len(listens))
+	for _, lis := range listens {
+		if lis == nil {
+			continue
+		}
+		info := metrics.ListenerInfo{Port: lis.Port}
+		switch lis.LisType {
+		case 10:
+			info.SSL = true
+			info.H2 = true
+		case 1:
+			info.SSL = true
+		}
+		out = append(out, info)
+	}
+	metrics.ReplaceListeners(out)
 }
 
 // RunAdded starts newly added listeners

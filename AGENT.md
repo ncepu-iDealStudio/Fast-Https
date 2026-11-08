@@ -93,7 +93,7 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 | --- | --- |
 | `config/` | 配置解析、路径基准、校验。改路径先看 `base_dir*.go` 与 `consts.go` |
 | `cmd/` | 命令行。新增子命令要重新生成 man 页 |
-| `runtime/` | 监听、连接、请求/响应、reload |
+| `runtime/` | 监听、连接、请求/响应、reload、进程内运行状态计数 |
 | `modules/` | 各功能模块（proxy/static/cache/compress/auth/waf/certmanager…） |
 | `init/` | 启动编排：证书初始化、自签 CA |
 | `build/packaging/` | 打包资源：systemd 单元、安装脚本、man 页、仓库脚本 |

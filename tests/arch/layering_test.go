@@ -66,7 +66,7 @@ var layers = []layer{
 			// 只允许读取与请求模型相关的运行时包，禁止触碰调度层。
 			"runtime/listener", "runtime/request", "runtime/response", "runtime/dynlog",
 		},
-		why: "功能包只允许依赖下层与请求模型，不允许依赖 server/events/filters 这些调度层",
+		why: "功能包只允许依赖下层与请求模型，不允许依赖 server/events/filters/metrics 这些调度层",
 	},
 	{
 		name:  "management",

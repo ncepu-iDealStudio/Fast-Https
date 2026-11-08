@@ -1,6 +1,6 @@
 # Fast-Https 当前架构地图与验证基线
 
-更新时间：2026-10-24。本文记录当前 package 盘点与依赖方向。目录和依赖关系以源码 import 及 `tests/arch` 的约束测试为准。
+更新时间：2026-11-08。本文记录当前 package 盘点与依赖方向。目录和依赖关系以源码 import 及 `tests/arch` 的约束测试为准。
 
 2026-10-24 数据面重构要点：`utils/*` 上移为 `infra/*`；`modules/core` 拆分为契约层 `core` 与数据面运行时 `runtime`；处理器注册表由定长数组改为 map；`core.Services` 补齐停机钩子；日志统一为 zerolog 单出口 JSON。
 
@@ -8,7 +8,7 @@
 
 ## 1. 分层结构与依赖方向
 
-`go list ./...` 当前枚举 49 个 package。分层与允许的依赖方向如下，任何反向边都会被 `tests/arch/layering_test.go` 拦下：
+`go list ./...` 当前枚举 62 个 package。分层与允许的依赖方向如下，任何反向边都会被 `tests/arch/layering_test.go` 拦下：
 
 | 层 | 包 | 允许依赖 | 说明 |
 | --- | --- | --- | --- |
@@ -16,7 +16,7 @@
 | 配置 | `config` | `infra/*` | 配置 schema、校验、快照与站点文件；JSONC 解析交给 `infra/jsonc`。`TestNoViperLeak` 保证配置库不外泄 |
 | 契约 | `core` | `infra/*`、`config`、`runtime/{listener,request,response}` | 只放 `Event`、处理器注册表与生命周期钩子；后三个是 `Event` 内嵌的数据模型，属登记例外 |
 | 数据面运行时 | `runtime/*` | `infra/*`、`config`、`core`、`runtime/*` | 不允许依赖 `modules` |
-| 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters}` |
+| 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters,metrics}` |
 | 组合根 | `cmd`、`init`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
 
 ## 2. Package 与生产职责
@@ -34,6 +34,7 @@
 | `infra/files` | 原子写文件：先写 `.tmp` 再 rename，配置回写与 ACME PEM 落盘共用 | 是 |
 | `core` | `Event`、处理器注册表、默认命令变量、`Services` 生命周期钩子 | 是 |
 | `runtime/server` | 启停、信号、连接跟踪、listener 生命周期和 reload | 是 |
+| `runtime/metrics` | 进程内生命周期、连接计数、reload 生成号与监听端口原子副本；尚无 HTTP 出口 | 是 |
 | `runtime/listener` | 配置转 Listener/ListenCfg、虚拟主机表、TCP/TLS socket、端口 reload | 是 |
 | `runtime/events` | HTTP/1.x 连接事件、请求解析、统一事件分发；HTTP/2 走 `golang.org/x/net/http2`，这里只做 `http.Request`/`http.ResponseWriter` 与 `core.Event` 的适配 | 是 |
 | `runtime/filters` | 连接、监听、HTTP 解析、Host/Path 过滤 | 是。连接拒绝和监听分流调用 `core.Services` 钩子 |
