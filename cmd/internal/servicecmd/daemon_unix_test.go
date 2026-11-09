@@ -1,9 +1,8 @@
 //go:build !windows
 
-package cmd
+package servicecmd
 
 import (
-	"fast-https/cmd/internal/servicecmd"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +28,7 @@ func TestWaitDaemonStartedReady(t *testing.T) {
 		t.Fatalf("close write end: %v", err)
 	}
 
-	if err := servicecmd.WaitDaemonStarted(12345, time.Second); err != nil {
+	if err := WaitDaemonStarted(12345, time.Second); err != nil {
 		t.Fatalf("ready signal should be reported as started, got %v", err)
 	}
 }
@@ -56,7 +55,7 @@ func TestWaitDaemonStartedChildExited(t *testing.T) {
 	t.Cleanup(func() { daemonReadyPipe = nil })
 	_ = w.Close() // 子进程没写 ready 就退出了
 
-	err = servicecmd.WaitDaemonStarted(4321, time.Second)
+	err = WaitDaemonStarted(4321, time.Second)
 	if err == nil {
 		t.Fatal("child exiting before ready must fail the start")
 	}
@@ -81,7 +80,7 @@ func TestWaitDaemonStartedTimeout(t *testing.T) {
 		_ = w.Close()
 	})
 
-	if err := servicecmd.WaitDaemonStarted(5678, 20*time.Millisecond); err != nil {
+	if err := WaitDaemonStarted(5678, 20*time.Millisecond); err != nil {
 		t.Fatalf("slow start should only warn, got %v", err)
 	}
 }
@@ -91,14 +90,14 @@ func TestTailFileKeepsLastLines(t *testing.T) {
 	if err := os.WriteFile(path, []byte("1\n2\n3\n4\n5\n"), 0o644); err != nil {
 		t.Fatalf("write file: %v", err)
 	}
-	got := tailFile(path, 2)
+	got := TailFile(path, 2)
 	if got != "4\n5" {
 		t.Fatalf("tail = %q, want %q", got, "4\n5")
 	}
 }
 
 func TestTailFileMissing(t *testing.T) {
-	got := tailFile(filepath.Join(t.TempDir(), "absent.log"), 5)
+	got := TailFile(filepath.Join(t.TempDir(), "absent.log"), 5)
 	if !strings.Contains(got, "read") {
 		t.Fatalf("missing file should be reported, got %q", got)
 	}
