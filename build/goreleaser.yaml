@@ -74,13 +74,26 @@ builds:
     binary: fast-https-monitor
     main: ./monitor
 
-  - id: monitor-windows
+  # Windows 的 zip 是「一个架构一个包」，这里必须按架构拆开：若同一个
+  # build 同时产出 amd64 与 arm64，`windows-amd64` 归档在 amd64 下能拿到
+  # 两份二进制、在 arm64 下只拿得到一份，goreleaser 会以
+  # `invalid archive: ... different count of binaries for each platform` 拒绝。
+  - id: monitor-windows-amd64
     env:
       - CGO_ENABLED=0
     goos:
       - windows
     goarch:
       - amd64
+    binary: fast-https-monitor
+    main: ./monitor
+
+  - id: monitor-windows-arm64
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
       - arm64
     binary: fast-https-monitor
     main: ./monitor
@@ -148,7 +161,7 @@ archives:
   - id: windows-amd64
     ids:
       - windows-amd64
-      - monitor-windows
+      - monitor-windows-amd64
     formats: [zip]
     name_template: >-
       {{ .ProjectName }}_
@@ -173,7 +186,7 @@ archives:
   - id: windows-arm64
     ids:
       - windows-arm64
-      - monitor-windows
+      - monitor-windows-arm64
     formats: [zip]
     name_template: >-
       {{ .ProjectName }}_
