@@ -1,7 +1,8 @@
-package main
+package configops
 
 import (
 	"encoding/json"
+	"fast-https-desktop/internal/view"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,7 +52,7 @@ func fieldByPath(form ConfigForm, path string) (ConfigField, bool) {
 
 func TestReadConfigFormValues(t *testing.T) {
 	p := writeFormConfig(t, sampleFormConfig)
-	form, err := readConfigForm(p)
+	form, err := ReadConfigForm(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +117,7 @@ func readFormJSON(t *testing.T, p string) map[string]any {
 
 func TestSaveConfigFormKeepsUnknownFields(t *testing.T) {
 	p := writeFormConfig(t, sampleFormConfig)
-	_, err := saveConfigForm(p, map[string]string{
+	_, err := SaveConfigForm(p, map[string]string{
 		"waf.mode":                         "monitor",
 		"http.servers_limit.max_body_size": "1024",
 		"acme.enabled":                     "true",
@@ -173,7 +174,7 @@ func TestSaveConfigFormRejectsBadValues(t *testing.T) {
 		{"security.host_check": "strict"},
 	}
 	for _, values := range bad {
-		if _, err := saveConfigForm(p, values); err == nil {
+		if _, err := SaveConfigForm(p, values); err == nil {
 			t.Fatalf("应拒绝 %v", values)
 		}
 		got, _ := os.ReadFile(p)
@@ -181,7 +182,7 @@ func TestSaveConfigFormRejectsBadValues(t *testing.T) {
 			t.Fatal("校验失败时原文件不能变")
 		}
 	}
-	if _, err := saveConfigForm(p, map[string]string{}); err == nil {
+	if _, err := SaveConfigForm(p, map[string]string{}); err == nil {
 		t.Fatal("空改动应拒绝")
 	}
 }
@@ -200,7 +201,7 @@ func TestResolvePathsFallsBackToRepoLayoutInDev(t *testing.T) {
 	if err := os.WriteFile(want, []byte(`{"http":{}}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if got := resolvePaths(bin).Config; got != want {
+	if got := view.ResolvePaths(bin).Config; got != want {
 		t.Fatalf("开发布局应回退到 %s，实际 %s", want, got)
 	}
 }

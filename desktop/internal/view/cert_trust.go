@@ -1,6 +1,7 @@
-package main
+package view
 
 import (
+	"fast-https-desktop/internal/model"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,24 +12,14 @@ import (
 
 // CertTrustGuide 是「信任本地 CA」弹窗的数据。桌面端不擅自改系统信任库：
 // 默认只把路径、风险、步骤和命令展示给用户，自动导入必须再确认一次。
-type CertTrustGuide struct {
-	Platform      string   `json:"platform"`
-	PlatformLabel string   `json:"platformLabel"`
-	CertPath      string   `json:"certPath"`
-	DirPath       string   `json:"dirPath"`
-	KeyPath       string   `json:"keyPath"`
-	Exists        bool     `json:"exists"`
-	Command       string   `json:"command"`
-	Steps         []string `json:"steps"`
-	Risk          string   `json:"risk"`
-}
+type CertTrustGuide = model.CertTrustGuide
 
 // localCAPath 取本地根 CA 证书：路径完全由主程序 `config path --json` 的
 // root_crt 提供（归档 / FHS 布局由主程序按编译期基址算好），桌面端不拼
 // 数据目录、也不猜安装布局。主程序不可用或旧版本没有该字段时，才回退到
 // 归档布局的相对推导。
 func localCAPath(dir string) string {
-	p := resolvePaths(dir)
+	p := ResolvePaths(dir)
 	if p.RootCRT != "" {
 		return p.RootCRT
 	}
@@ -39,7 +30,7 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func trustGuideFor(goos, path string) CertTrustGuide {
+func TrustGuideFor(goos, path string) CertTrustGuide {
 	labels := map[string]string{"windows": "Windows", "linux": "Linux", "darwin": "macOS"}
 	label := labels[goos]
 	if label == "" {
@@ -79,12 +70,12 @@ func trustGuideFor(goos, path string) CertTrustGuide {
 	return g
 }
 
-// CertTrustGuide 返回当前平台的引导信息；证书不存在也照常返回，
+// LocalCATrustGuide 返回当前平台的引导信息；证书不存在也照常返回，
 // 由弹窗提示先启动服务生成，而不是直接报错。
-func (s *DesktopService) CertTrustGuide() (CertTrustGuide, error) {
-	paths := resolvePaths(s.baseDir)
-	p := localCAPath(s.baseDir)
-	g := trustGuideFor(runtime.GOOS, p)
+func LocalCATrustGuide(dir string) (CertTrustGuide, error) {
+	paths := ResolvePaths(dir)
+	p := localCAPath(dir)
+	g := TrustGuideFor(runtime.GOOS, p)
 	// CA 私钥目录与 root.crt 一样由主程序按布局给出，不在文案里写死。
 	g.KeyPath = filepath.Join(paths.Cert, "root.key")
 	_, err := os.Stat(p)
@@ -94,8 +85,8 @@ func (s *DesktopService) CertTrustGuide() (CertTrustGuide, error) {
 
 // ImportLocalCA 在用户二次确认后发起提权导入。Windows 走 UAC，
 // Linux 走 pkexec；失败时把系统输出带回去，让弹窗提示改用手动命令。
-func (s *DesktopService) ImportLocalCA() (string, error) {
-	p := localCAPath(s.baseDir)
+func ImportLocalCA(dir string) (string, error) {
+	p := localCAPath(dir)
 	if _, err := os.Stat(p); err != nil {
 		return "", fmt.Errorf("找不到本地根 CA 证书 %s：请先启动一次服务让它生成", p)
 	}

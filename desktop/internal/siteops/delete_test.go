@@ -1,4 +1,4 @@
-package main
+package siteops
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 
 func TestDeleteSiteRemovesFileAndKeepsBackup(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	if _, err := addSiteFile(dir, SiteInput{
+	if _, err := AddSiteFile(dir, SiteInput{
 		Name: "gone.local", Listen: "8081", Type: "local", Root: "./x",
 	}); err != nil {
 		t.Fatal(err)
@@ -19,7 +19,7 @@ func TestDeleteSiteRemovesFileAndKeepsBackup(t *testing.T) {
 		t.Fatal("前置条件：站点文件应存在")
 	}
 
-	msg, err := deleteSiteFile(dir, "conf.d/gone.local.json")
+	msg, err := DeleteSiteFile(dir, "conf.d/gone.local.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestDeleteSiteRemovesFileAndKeepsBackup(t *testing.T) {
 // 主配置里内联的站点没有独立文件，不能删。
 func TestDeleteSiteRejectsInlineServer(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	if _, err := deleteSiteFile(dir, "fast-https.json"); err == nil {
+	if _, err := DeleteSiteFile(dir, "fast-https.json"); err == nil {
 		t.Fatal("主配置内联站点应拒绝删除")
 	}
 }
@@ -51,7 +51,7 @@ func TestDeleteSiteRejectsOutsideConfD(t *testing.T) {
 		"conf.d/a.json/../../b.json",
 		"",
 	} {
-		if _, err := deleteSiteFile(dir, source); err == nil {
+		if _, err := DeleteSiteFile(dir, source); err == nil {
 			t.Fatalf("source %q 应被拒绝", source)
 		}
 	}
@@ -59,7 +59,7 @@ func TestDeleteSiteRejectsOutsideConfD(t *testing.T) {
 
 func TestDeleteSiteMissingFile(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	if _, err := deleteSiteFile(dir, "conf.d/nope.json"); err == nil {
+	if _, err := DeleteSiteFile(dir, "conf.d/nope.json"); err == nil {
 		t.Fatal("不存在的站点文件应报错")
 	}
 }

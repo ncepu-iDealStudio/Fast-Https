@@ -1,8 +1,9 @@
-package main
+package view
 
 import (
 	"bytes"
 	"encoding/json"
+	"fast-https-desktop/internal/model"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,25 +26,8 @@ type LogQuery struct {
 }
 
 // LogEntry 是把一行 JSON 日志摊平后的展示字段；Raw 始终保留原文。
-type LogEntry struct {
-	Raw        string `json:"raw"`
-	Time       string `json:"time"`
-	Level      string `json:"level"`
-	Kind       string `json:"kind"`
-	Message    string `json:"message"`
-	Method     string `json:"method"`
-	Path       string `json:"path"`
-	Status     string `json:"status"`
-	Size       string `json:"size"`
-	Host       string `json:"host"`
-	RemoteAddr string `json:"remoteAddr"`
-}
-
-type LogPage struct {
-	Lines   []LogEntry `json:"lines"`
-	HasMore bool       `json:"hasMore"`
-	Matched int        `json:"matched"`
-}
+type LogEntry = model.LogEntry
+type LogPage = model.LogPage
 
 const (
 	logChunkSize = 64 * 1024
@@ -52,13 +36,7 @@ const (
 	logPageMax   = 200
 )
 
-// QueryLogs 只读日志、不跟随写入句柄；倒序按块扫描，避免大 access.log
-// 整文件进内存，同时支持「往下滚动加载更早的记录」。
-func (s *DesktopService) QueryLogs(q LogQuery) (LogPage, error) {
-	return queryLogs(resolvePaths(s.baseDir).Log, q)
-}
-
-func queryLogs(logDir string, q LogQuery) (LogPage, error) {
+func QueryLogs(logDir string, q LogQuery) (LogPage, error) {
 	name := q.Name
 	if name == "" {
 		name = "access"

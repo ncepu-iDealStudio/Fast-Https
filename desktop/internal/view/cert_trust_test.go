@@ -1,4 +1,4 @@
-package main
+package view
 
 import (
 	"os"
@@ -44,7 +44,7 @@ func TestLocalCAPathFallsBackWhenMissing(t *testing.T) {
 
 func TestTrustGuidePerPlatform(t *testing.T) {
 	for _, goos := range []string{"windows", "linux", "darwin"} {
-		g := trustGuideFor(goos, "/tmp/root.crt")
+		g := TrustGuideFor(goos, "/tmp/root.crt")
 		if g.Platform != goos || g.CertPath != "/tmp/root.crt" {
 			t.Fatalf("%s: %+v", goos, g)
 		}
@@ -59,7 +59,7 @@ func TestTrustGuidePerPlatform(t *testing.T) {
 
 func TestTrustGuideWindowsQuotesPathWithSpaces(t *testing.T) {
 	p := `C:\Program Files\Fast-Https\httpdoc\root\root.crt`
-	g := trustGuideFor("windows", p)
+	g := TrustGuideFor("windows", p)
 	if !strings.Contains(g.Command, "certutil") || !strings.Contains(g.Command, p) {
 		t.Fatalf("Windows 命令应带 certutil 与带空格的路径：%q", g.Command)
 	}
@@ -77,9 +77,9 @@ func TestShellQuoteEscapesSingleQuotes(t *testing.T) {
 // 桌面端在 Windows 与 Linux 图形环境都会用这个弹窗；通用文案不能写死
 // 某个平台的目录写法或工具名，命令才按平台区分。
 func TestTrustGuideIsPlatformNeutral(t *testing.T) {
-	win := trustGuideFor("windows", "/tmp/root.crt")
-	linux := trustGuideFor("linux", "/tmp/root.crt")
-	mac := trustGuideFor("darwin", "/tmp/root.crt")
+	win := TrustGuideFor("windows", "/tmp/root.crt")
+	linux := TrustGuideFor("linux", "/tmp/root.crt")
+	mac := TrustGuideFor("darwin", "/tmp/root.crt")
 
 	if win.PlatformLabel != "Windows" || linux.PlatformLabel != "Linux" || mac.PlatformLabel != "macOS" {
 		t.Fatalf("平台标签不对：%s / %s / %s", win.PlatformLabel, linux.PlatformLabel, mac.PlatformLabel)
@@ -108,8 +108,7 @@ func TestCertTrustGuideReportsMissingCert(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "config", "fast-https.json"), []byte(`{}`), 0644); err != nil {
 		t.Fatal(err)
 	}
-	s := &DesktopService{baseDir: dir}
-	g, err := s.CertTrustGuide()
+	g, err := LocalCATrustGuide(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

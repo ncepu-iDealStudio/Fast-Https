@@ -1,4 +1,4 @@
-package main
+package siteops
 
 import (
 	"encoding/json"
@@ -42,7 +42,7 @@ func readNewSite(t *testing.T, dir, file string) map[string]any {
 
 func TestAddSiteLocalCreatesFile(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	_, err := addSiteFile(dir, SiteInput{
+	_, err := AddSiteFile(dir, SiteInput{
 		Name: "example.com", Listen: "8080", Type: "local", Root: "./httpdoc/root",
 	})
 	if err != nil {
@@ -71,7 +71,7 @@ func TestAddSiteLocalCreatesFile(t *testing.T) {
 
 func TestAddSiteProxyWithMixedListen(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	_, err := addSiteFile(dir, SiteInput{
+	_, err := AddSiteFile(dir, SiteInput{
 		Name: "api.local", Listen: "8081, 8443 ssl h2", Type: "proxy",
 		ProxyPass: "http://127.0.0.1:9000", Cert: "./cert/a.pem", CertKey: "./cert/a-key.pem",
 	})
@@ -110,7 +110,7 @@ func TestAddSiteRejectsInvalidWithoutCreatingFile(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			dir := writeSiteWorkspace(t)
-			if _, err := addSiteFile(dir, c.in); err == nil {
+			if _, err := AddSiteFile(dir, c.in); err == nil {
 				t.Fatal("应拒绝")
 			}
 			entries, err := os.ReadDir(filepath.Join(dir, "config", "conf.d"))
@@ -127,10 +127,10 @@ func TestAddSiteRejectsInvalidWithoutCreatingFile(t *testing.T) {
 func TestAddSiteRejectsExistingFile(t *testing.T) {
 	dir := writeSiteWorkspace(t)
 	in := SiteInput{Name: "example.com", Listen: "8080", Type: "local", Root: "./x"}
-	if _, err := addSiteFile(dir, in); err != nil {
+	if _, err := AddSiteFile(dir, in); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := addSiteFile(dir, in); err == nil || !strings.Contains(err.Error(), "已存在") {
+	if _, err := AddSiteFile(dir, in); err == nil || !strings.Contains(err.Error(), "已存在") {
 		t.Fatal("同名文件应拒绝覆盖")
 	}
 }
@@ -138,7 +138,7 @@ func TestAddSiteRejectsExistingFile(t *testing.T) {
 func TestAddSiteAllowsSamePortDifferentName(t *testing.T) {
 	dir := writeSiteWorkspace(t)
 	// default.json 已用 localhost:80，换一个域名共用 80 是合法的虚拟主机写法
-	if _, err := addSiteFile(dir, SiteInput{Name: "other.local", Listen: "80", Type: "local", Root: "./x"}); err != nil {
+	if _, err := AddSiteFile(dir, SiteInput{Name: "other.local", Listen: "80", Type: "local", Root: "./x"}); err != nil {
 		t.Fatal("不同域名共用同一端口应允许：", err)
 	}
 }
@@ -157,7 +157,7 @@ func TestRelativeToEtc(t *testing.T) {
 
 func TestAddSiteSanitizesNonASCIIName(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	if _, err := addSiteFile(dir, SiteInput{Name: "示例 站点", Listen: "8080", Type: "local", Root: "./x"}); err != nil {
+	if _, err := AddSiteFile(dir, SiteInput{Name: "示例 站点", Listen: "8080", Type: "local", Root: "./x"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "config", "conf.d", "site.json")); err != nil {
@@ -167,7 +167,7 @@ func TestAddSiteSanitizesNonASCIIName(t *testing.T) {
 
 func TestReadSiteDetail(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	d, err := readSiteDetail(dir, "conf.d/default.json")
+	d, err := ReadSiteDetail(dir, "conf.d/default.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestReadSiteDetail(t *testing.T) {
 func TestReadSiteDetailRejectsTraversal(t *testing.T) {
 	dir := writeSiteWorkspace(t)
 	for _, src := range []string{"../../etc/passwd", "conf.d/../../../../x.json"} {
-		if _, err := readSiteDetail(dir, src); err == nil {
+		if _, err := ReadSiteDetail(dir, src); err == nil {
 			t.Fatalf("%s 应被拒绝", src)
 		}
 	}
@@ -196,7 +196,7 @@ func TestReadSiteDetailRejectsTraversal(t *testing.T) {
 
 func TestReadSiteDetailInlineMainConfig(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	d, err := readSiteDetail(dir, "fast-https.json")
+	d, err := ReadSiteDetail(dir, "fast-https.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestSaveSiteDetailKeepsOtherFields(t *testing.T) {
 	if err := os.WriteFile(path, []byte(extra), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := saveSiteDetail(dir, SiteInput{
+	if _, err := SaveSiteDetail(dir, SiteInput{
 		Source: "conf.d/default.json", Name: "changed.local", Listen: "8080", Type: "local", Root: "./new-root",
 	}); err != nil {
 		t.Fatal(err)

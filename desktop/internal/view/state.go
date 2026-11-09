@@ -1,4 +1,4 @@
-package main
+package view
 
 // 桌面端是独立进程，不 import 主项目的 config 包：
 // 主配置的 schema 结构体未导出，且路径解析依赖编译期 build tag 与进程 CWD，
@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fast-https-desktop/internal/model"
 	"fmt"
 	"io"
 	"net"
@@ -26,56 +27,16 @@ import (
 const desktopVersion = "1.7.0"
 
 // RuntimePaths 与 cmd/config_path.go 的 RuntimePaths 一致。
-type RuntimePaths struct {
-	Config  string `json:"config"`
-	Cert    string `json:"cert"`
-	Log     string `json:"log"`
-	Pid     string `json:"pid"`
-	RootCRT string `json:"root_crt"`
-}
+type RuntimePaths = model.RuntimePaths
 
 // Overview 是概览页一次拉取的全部内容。
-type Overview struct {
-	Running         bool         `json:"running"`
-	PID             int          `json:"pid"`
-	Version         string       `json:"version"`
-	Ports           []string     `json:"ports"`
-	SiteCount       int          `json:"siteCount"`
-	TLSCount        int          `json:"tlsCount"`
-	NearestCertDays int          `json:"nearestCertDays"`
-	ConfigDirty     bool         `json:"configDirty"`
-	Paths           RuntimePaths `json:"paths"`
-	CheckedAt       string       `json:"checkedAt"`
-	Error           string       `json:"error"`
-}
+type Overview = model.Overview
 
 // Site 是一个 server 块，可能来自主配置 http.server[] 或 conf.d/*.json。
-type Site struct {
-	Name     string `json:"name"`
-	Port     string `json:"port"`
-	Listen   string `json:"listen"`
-	TLS      bool   `json:"tls"`
-	Root     string `json:"root"`
-	CertFile string `json:"certFile"`
-	Source   string `json:"source"`
-	Enabled  bool   `json:"enabled"`
-}
+type Site = model.Site
 
 // Cert 是从 PEM 里读出的证书摘要。
-type Cert struct {
-	Domain     string `json:"domain"`
-	Subject    string `json:"subject"`
-	Names      string `json:"names"`
-	Issuer     string `json:"issuer"`
-	NotAfter   string `json:"notAfter"`
-	DaysLeft   int    `json:"daysLeft"`
-	SelfSigned bool   `json:"selfSigned"`
-	// Local 表示「本机自动生成的证书」：自签，或由本地 CA（O=fast-https）签发。
-	// 后者 Issuer != Subject，只用 selfSigned 会误标成外部 CA 已签发。
-	Local bool   `json:"local"`
-	Note  string `json:"note"`
-}
-
+type Cert = model.Cert
 type mainConfig struct {
 	LogRoot string `json:"log_root"`
 	HTTP    struct {
@@ -94,7 +55,7 @@ type siteFile struct {
 	} `json:"location"`
 }
 
-func exeDir() string {
+func ExeDir() string {
 	e, err := os.Executable()
 	if err != nil {
 		return "."
@@ -102,7 +63,7 @@ func exeDir() string {
 	return filepath.Dir(e)
 }
 
-func serverBinary(dir string) string {
+func ServerBinary(dir string) string {
 	name := "fast-https"
 	if runtime.GOOS == "windows" {
 		name += ".exe"
@@ -110,10 +71,10 @@ func serverBinary(dir string) string {
 	return filepath.Join(dir, name)
 }
 
-// resolvePaths 优先让主程序自己报路径（归档 / deb / rpm / apk 布局不同），
+// ResolvePaths 优先让主程序自己报路径（归档 / deb / rpm / apk 布局不同），
 // 报不出来再按归档布局兜底。
-func resolvePaths(dir string) RuntimePaths {
-	exe := serverBinary(dir)
+func ResolvePaths(dir string) RuntimePaths {
+	exe := ServerBinary(dir)
 	if _, err := os.Stat(exe); err == nil {
 		cmd := exec.Command(exe, "config", "path", "--json")
 		cmd.Dir = dir
@@ -143,9 +104,9 @@ func resolvePaths(dir string) RuntimePaths {
 	}
 }
 
-// runServerCommand 把操作交给主程序，桌面端不自己实现进程管理。
-func runServerCommand(dir string, args ...string) (string, error) {
-	exe := serverBinary(dir)
+// RunServerCommand 把操作交给主程序，桌面端不自己实现进程管理。
+func RunServerCommand(dir string, args ...string) (string, error) {
+	exe := ServerBinary(dir)
 	if _, err := os.Stat(exe); err != nil {
 		return "", fmt.Errorf("未找到主程序 %s：桌面端需要与主程序放在同一目录", exe)
 	}
@@ -159,10 +120,10 @@ func runServerCommand(dir string, args ...string) (string, error) {
 	return text, nil
 }
 
-// startServer 用 Start 而非 Run：start 子命令会派生后台进程，
+// StartServer 用 Start 而非 Run：start 子命令会派生后台进程，
 // 桌面端不能等它退出，但要 Wait 回收，避免留下僵尸进程。
-func startServer(dir string) (string, error) {
-	exe := serverBinary(dir)
+func StartServer(dir string) (string, error) {
+	exe := ServerBinary(dir)
 	if _, err := os.Stat(exe); err != nil {
 		return "", fmt.Errorf("未找到主程序 %s", exe)
 	}
@@ -175,16 +136,16 @@ func startServer(dir string) (string, error) {
 	return "启动指令已发送，状态会在 2 秒后刷新", nil
 }
 
-// stopServer 跑完 stop 再用端口探测复核。pid 文件缺失时 stop 会当作
+// StopServer 跑完 stop 再用端口探测复核。pid 文件缺失时 stop 会当作
 // 「没在跑」直接成功，而服务可能仍在监听（安装目录不可写 pid 时就是
 // 这种表现）；此时把真实原因交回界面，而不是报一句「已停止」。
-func stopServer(dir string) (string, error) {
-	text, err := runServerCommand(dir, "stop")
+func StopServer(dir string) (string, error) {
+	text, err := RunServerCommand(dir, "stop")
 	if err != nil {
 		return text, err
 	}
 	time.Sleep(1200 * time.Millisecond)
-	ov := collectOverview(dir)
+	ov := CollectOverview(dir)
 	if ov.Running {
 		return text, fmt.Errorf("服务仍在监听 %s：pid 文件 %s 未生成或不可写，stop 无法定位进程",
 			strings.Join(ov.Ports, " "), ov.Paths.Pid)
@@ -192,9 +153,9 @@ func stopServer(dir string) (string, error) {
 	return text, nil
 }
 
-// stripJSONC 去掉 // 与 /* */ 注释以及尾逗号。
+// StripJSONC 去掉 // 与 /* */ 注释以及尾逗号。
 // 主配置与站点文件都允许 JSONC，标准库的 json 不接受这些写法。
-func stripJSONC(b []byte) []byte {
+func StripJSONC(b []byte) []byte {
 	var out []byte
 	inStr, esc, line, block := false, false, false, false
 	for i := 0; i < len(b); i++ {
@@ -321,9 +282,9 @@ func portOf(listen string) string {
 	return ":" + p
 }
 
-// etcPath 复刻主程序 absETCPath 的常见情形：相对路径以主配置所在目录为基址。
+// EtcPath 复刻主程序 absETCPath 的常见情形：相对路径以主配置所在目录为基址。
 // 旧配置里还会出现 "./config/xxx" 这种带前缀的写法，一并兼容。
-func etcPath(etcDir, p string) string {
+func EtcPath(etcDir, p string) string {
 	if p == "" {
 		return ""
 	}
@@ -354,14 +315,14 @@ func collectJSONFiles(root string) []string {
 	return files
 }
 
-func readSites(dir string) ([]Site, RuntimePaths, error) {
-	paths := resolvePaths(dir)
+func ReadSites(dir string) ([]Site, RuntimePaths, error) {
+	paths := ResolvePaths(dir)
 	raw, err := os.ReadFile(paths.Config)
 	if err != nil {
 		return nil, paths, fmt.Errorf("读不到主配置 %s：%w", paths.Config, err)
 	}
 	var cfg mainConfig
-	if err := json.Unmarshal(stripJSONC(raw), &cfg); err != nil {
+	if err := json.Unmarshal(StripJSONC(raw), &cfg); err != nil {
 		return nil, paths, fmt.Errorf("主配置不是合法 JSON：%w", err)
 	}
 	etcDir := filepath.Dir(paths.Config)
@@ -377,7 +338,7 @@ func readSites(dir string) ([]Site, RuntimePaths, error) {
 		}{file: filepath.Base(paths.Config), body: s})
 	}
 	for _, inc := range cfg.HTTP.Include {
-		target := etcPath(etcDir, inc)
+		target := EtcPath(etcDir, inc)
 		info, err := os.Stat(target)
 		if err != nil {
 			continue
@@ -394,7 +355,7 @@ func readSites(dir string) ([]Site, RuntimePaths, error) {
 				continue
 			}
 			var s siteFile
-			if json.Unmarshal(stripJSONC(b), &s) != nil {
+			if json.Unmarshal(StripJSONC(b), &s) != nil {
 				continue
 			}
 			rel, _ := filepath.Rel(etcDir, f)
@@ -418,7 +379,7 @@ func readSites(dir string) ([]Site, RuntimePaths, error) {
 		root := ""
 		for _, l := range s.Locations {
 			if l.Root != "" {
-				root = etcPath(etcDir, l.Root)
+				root = EtcPath(etcDir, l.Root)
 				break
 			}
 		}
@@ -433,7 +394,7 @@ func readSites(dir string) ([]Site, RuntimePaths, error) {
 				Listen:   listen,
 				TLS:      strings.Contains(listen, "ssl"),
 				Root:     root,
-				CertFile: etcPath(etcDir, s.SSLCertificate),
+				CertFile: EtcPath(etcDir, s.SSLCertificate),
 				Source:   src.file,
 				// 主配置内联站点恒为启用；独立文件看有没有 .disabled 后缀。
 				Enabled: !strings.HasSuffix(src.file, ".disabled"),
@@ -443,8 +404,8 @@ func readSites(dir string) ([]Site, RuntimePaths, error) {
 	return sites, paths, nil
 }
 
-func readCerts(dir string) ([]Cert, error) {
-	sites, _, err := readSites(dir)
+func ReadCerts(dir string) ([]Cert, error) {
+	sites, _, err := ReadSites(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +519,7 @@ func configDirty(paths RuntimePaths, sites []Site) bool {
 	}
 	for _, s := range sites {
 		if s.Source != "" && !filepath.IsAbs(s.Source) {
-			files = append(files, etcPath(filepath.Dir(paths.Config), s.Source))
+			files = append(files, EtcPath(filepath.Dir(paths.Config), s.Source))
 		}
 	}
 	for _, f := range files {
@@ -569,12 +530,12 @@ func configDirty(paths RuntimePaths, sites []Site) bool {
 	return false
 }
 
-func collectOverview(dir string) Overview {
+func CollectOverview(dir string) Overview {
 	ov := Overview{
 		Version:   desktopVersion,
 		CheckedAt: time.Now().Format("15:04:05"),
 	}
-	sites, paths, err := readSites(dir)
+	sites, paths, err := ReadSites(dir)
 	ov.Paths = paths
 	if err != nil {
 		ov.Error = err.Error()
@@ -594,10 +555,10 @@ func collectOverview(dir string) Overview {
 	sort.Strings(ov.Ports)
 	ov.Running = probePorts(ov.Ports)
 	ov.PID = readPID(paths.Pid)
-	if out, err := runServerCommand(dir, "version"); err == nil && out != "" {
+	if out, err := RunServerCommand(dir, "version"); err == nil && out != "" {
 		ov.Version = strings.TrimSpace(strings.Split(out, "\n")[0])
 	}
-	if certs, err := readCerts(dir); err == nil {
+	if certs, err := ReadCerts(dir); err == nil {
 		for _, c := range certs {
 			if c.DaysLeft > 0 && (ov.NearestCertDays == 0 || c.DaysLeft < ov.NearestCertDays) {
 				ov.NearestCertDays = c.DaysLeft
@@ -608,8 +569,8 @@ func collectOverview(dir string) Overview {
 	return ov
 }
 
-// tailLog 只读文件尾部，避免 access.log 很大时整文件进内存。
-func tailLog(logDir, name string, n int) ([]string, error) {
+// TailLog 只读文件尾部，避免 access.log 很大时整文件进内存。
+func TailLog(logDir, name string, n int) ([]string, error) {
 	if name == "" {
 		name = "access"
 	}
@@ -653,8 +614,8 @@ func tailLog(logDir, name string, n int) ([]string, error) {
 	return out, nil
 }
 
-// openPath 用系统默认方式打开文件或目录。
-func openPath(path string) (string, error) {
+// OpenPath 用系统默认方式打开文件或目录。
+func OpenPath(path string) (string, error) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":

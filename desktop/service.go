@@ -1,6 +1,10 @@
 package main
 
 import (
+	"fast-https-desktop/internal/configops"
+	"fast-https-desktop/internal/model"
+	"fast-https-desktop/internal/siteops"
+	"fast-https-desktop/internal/view"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,7 +30,7 @@ type DesktopService struct {
 }
 
 func NewDesktopService() *DesktopService {
-	return &DesktopService{baseDir: exeDir()}
+	return &DesktopService{baseDir: view.ExeDir()}
 }
 
 // ------------------------------------------------------------ 自绘标题栏窗口按钮
@@ -59,7 +63,7 @@ func (s *DesktopService) QuitApp() {
 	appQuitting.Store(true)
 	// 先停服务再退出：桌面端拉起服务后，关掉窗口不应该把端口一直占着。
 	// 服务若不是本端启动（例如用 CLI 起的），stop 找不到 pid，属于空操作。
-	_, _ = runServerCommand(s.baseDir, "stop")
+	_, _ = view.RunServerCommand(s.baseDir, "stop")
 	if appRef != nil {
 		appRef.Quit()
 	}
@@ -76,7 +80,7 @@ func (s *DesktopService) OpenHelp() (string, error) {
 	}
 	for _, p := range candidates {
 		if _, err := os.Stat(p); err == nil {
-			return openPath(p)
+			return view.OpenPath(p)
 		}
 	}
 	return "", fmt.Errorf("找不到帮助文档 docs/usage.html：已尝试 %s（发行包请把桌面端与主程序放在同一目录）", candidates[0])
@@ -84,30 +88,30 @@ func (s *DesktopService) OpenHelp() (string, error) {
 
 // ------------------------------------------------------------ 设置页：主配置表单
 
-func (s *DesktopService) ReadConfigForm() (ConfigForm, error) {
-	return readConfigForm(resolvePaths(s.baseDir).Config)
+func (s *DesktopService) ReadConfigForm() (model.ConfigForm, error) {
+	return configops.ReadConfigForm(view.ResolvePaths(s.baseDir).Config)
 }
 
 func (s *DesktopService) SaveConfigForm(values map[string]string) (string, error) {
-	return saveConfigForm(resolvePaths(s.baseDir).Config, values)
+	return configops.SaveConfigForm(view.ResolvePaths(s.baseDir).Config, values)
 }
 
 // ------------------------------------------------------------ 站点页：添加站点
 
-func (s *DesktopService) AddSite(in SiteInput) (string, error) {
-	return addSiteFile(s.baseDir, in)
+func (s *DesktopService) AddSite(in model.SiteInput) (string, error) {
+	return siteops.AddSiteFile(s.baseDir, in)
 }
 
-func (s *DesktopService) ReadSiteDetail(source string) (SiteDetail, error) {
-	return readSiteDetail(s.baseDir, source)
+func (s *DesktopService) ReadSiteDetail(source string) (model.SiteDetail, error) {
+	return siteops.ReadSiteDetail(s.baseDir, source)
 }
 
-func (s *DesktopService) SaveSiteDetail(in SiteInput) (string, error) {
-	return saveSiteDetail(s.baseDir, in)
+func (s *DesktopService) SaveSiteDetail(in model.SiteInput) (string, error) {
+	return siteops.SaveSiteDetail(s.baseDir, in)
 }
 
 func (s *DesktopService) DeleteSite(source string) (string, error) {
-	return deleteSiteFile(s.baseDir, source)
+	return siteops.DeleteSiteFile(s.baseDir, source)
 }
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
@@ -131,43 +135,89 @@ func (s *DesktopService) SetSiteEnabled(source string, enabled bool) (string, er
 
 // ------------------------------------------------------------ 本机状态与操作
 
-func (s *DesktopService) GetOverview() (Overview, error) {
-	return collectOverview(s.baseDir), nil
+func (s *DesktopService) GetOverview() (model.Overview, error) {
+	return view.CollectOverview(s.baseDir), nil
 }
 
-func (s *DesktopService) ListSites() ([]Site, error) {
-	sites, _, err := readSites(s.baseDir)
+func (s *DesktopService) ListSites() ([]model.Site, error) {
+	sites, _, err := view.ReadSites(s.baseDir)
 	return sites, err
 }
 
-func (s *DesktopService) ListCerts() ([]Cert, error) {
-	return readCerts(s.baseDir)
+func (s *DesktopService) ListCerts() ([]model.Cert, error) {
+	return view.ReadCerts(s.baseDir)
 }
 
 func (s *DesktopService) TailLog(name string, lines int) ([]string, error) {
-	return tailLog(resolvePaths(s.baseDir).Log, name, lines)
+	return view.TailLog(view.ResolvePaths(s.baseDir).Log, name, lines)
 }
 
-func (s *DesktopService) Paths() (RuntimePaths, error) {
-	return resolvePaths(s.baseDir), nil
+func (s *DesktopService) Paths() (model.RuntimePaths, error) {
+	return view.ResolvePaths(s.baseDir), nil
 }
 
 func (s *DesktopService) StartServer() (string, error) {
-	return startServer(s.baseDir)
+	return view.StartServer(s.baseDir)
 }
 
 func (s *DesktopService) StopServer() (string, error) {
-	return stopServer(s.baseDir)
+	return view.StopServer(s.baseDir)
 }
 
 func (s *DesktopService) ReloadServer() (string, error) {
-	return runServerCommand(s.baseDir, "reload")
+	return view.RunServerCommand(s.baseDir, "reload")
 }
 
 func (s *DesktopService) ServerStatus() (string, error) {
-	return runServerCommand(s.baseDir, "status")
+	return view.RunServerCommand(s.baseDir, "status")
 }
 
 func (s *DesktopService) OpenPath(path string) (string, error) {
-	return openPath(path)
+	return view.OpenPath(path)
+}
+
+// ImportLocalCA / QueryLogs 的实现在 view 包里，这里只做 Service 转发，
+// 保持 Wails bindings 的方法集合不变。
+func (s *DesktopService) ImportLocalCA() (string, error) {
+	return view.ImportLocalCA(s.baseDir)
+}
+
+func (s *DesktopService) QueryLogs(q view.LogQuery) (view.LogPage, error) {
+	return view.QueryLogs(view.ResolvePaths(s.baseDir).Log, q)
+}
+
+func (s *DesktopService) CertTrustGuide() (model.CertTrustGuide, error) {
+	return view.LocalCATrustGuide(s.baseDir)
+}
+
+// PickPath 调系统原生选择框，返回相对 config 目录的路径。
+// kind 为 "dir" 时选目录，否则选文件；用户取消返回空串。
+func (s *DesktopService) PickPath(kind string) (string, error) {
+	if appRef == nil {
+		return "", fmt.Errorf("应用尚未就绪")
+	}
+	etcDir := filepath.Dir(view.ResolvePaths(s.baseDir).Config)
+	d := appRef.Dialog.OpenFile().SetDirectory(etcDir)
+	if mainWindow != nil {
+		d.AttachToWindow(mainWindow)
+	}
+	if kind == "dir" {
+		d.SetTitle("选择站点根目录").CanChooseDirectories(true).CanChooseFiles(false)
+	} else {
+		d.SetTitle("选择证书文件").CanChooseDirectories(false).CanChooseFiles(true).
+			AddFilter("PEM 证书", "*.pem;*.crt;*.cer").
+			AddFilter("所有文件", "*.*")
+	}
+	p, err := d.PromptForSingleSelection()
+	if err != nil {
+		return "", err
+	}
+	if p == "" {
+		return "", nil
+	}
+	rel, relErr := filepath.Rel(etcDir, p)
+	if relErr != nil {
+		return p, nil
+	}
+	return rel, nil
 }

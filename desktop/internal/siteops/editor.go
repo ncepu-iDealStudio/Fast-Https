@@ -1,7 +1,10 @@
-package main
+package siteops
 
 import (
 	"encoding/json"
+	"fast-https-desktop/internal/configops"
+	"fast-https-desktop/internal/model"
+	"fast-https-desktop/internal/view"
 	"fmt"
 	"net/url"
 	"os"
@@ -13,36 +16,10 @@ import (
 
 // SiteInput 是「添加 / 编辑站点」弹窗提交的字段。新站点写成 conf.d 下的独立
 // JSON 文件，不改主配置，也不覆盖已有文件；编辑只回写表单覆盖的字段。
-type SiteInput struct {
-	Name      string `json:"name"`
-	Listen    string `json:"listen"`
-	Type      string `json:"type"`
-	Root      string `json:"root"`
-	ProxyPass string `json:"proxyPass"`
-	Index     string `json:"index"`
-	Cert      string `json:"cert"`
-	CertKey   string `json:"certKey"`
-	FileName  string `json:"fileName"`
-	Source    string `json:"source"`
-}
+type SiteInput = model.SiteInput
 
 // SiteDetail 是详情弹窗一次拉取的内容：表单字段 + 原始 JSON + 是否可编辑。
-type SiteDetail struct {
-	Source    string `json:"source"`
-	Path      string `json:"path"`
-	Editable  bool   `json:"editable"`
-	Note      string `json:"note"`
-	Name      string `json:"name"`
-	Listen    string `json:"listen"`
-	Type      string `json:"type"`
-	Root      string `json:"root"`
-	ProxyPass string `json:"proxyPass"`
-	Index     string `json:"index"`
-	Cert      string `json:"cert"`
-	CertKey   string `json:"certKey"`
-	Raw       string `json:"raw"`
-}
-
+type SiteDetail = model.SiteDetail
 type newSiteLocation struct {
 	URL       string   `json:"url"`
 	Type      string   `json:"type"`
@@ -151,7 +128,7 @@ func parseSiteInput(in SiteInput) (parsedSite, error) {
 	return p, nil
 }
 
-func addSiteFile(dir string, in SiteInput) (string, error) {
+func AddSiteFile(dir string, in SiteInput) (string, error) {
 	p, err := parseSiteInput(in)
 	if err != nil {
 		return "", err
@@ -167,7 +144,7 @@ func addSiteFile(dir string, in SiteInput) (string, error) {
 		return "", fmt.Errorf("文件名只能包含字母、数字、点、下划线与连字符，且不能以点开头")
 	}
 
-	etcDir := filepath.Dir(resolvePaths(dir).Config)
+	etcDir := filepath.Dir(view.ResolvePaths(dir).Config)
 	target := filepath.Join(etcDir, "conf.d", file+".json")
 	// 同名文件先报，比端口冲突更直接，也不会覆盖用户已有配置。
 	if _, err := os.Stat(target); err == nil {
@@ -177,7 +154,7 @@ func addSiteFile(dir string, in SiteInput) (string, error) {
 	// 同一端口挂不同 server_name 是合法的虚拟主机写法，只有同名又同端口
 	// 才是真冲突；这里在写文件前拦下，避免 reload 时才报错。
 	// 多域名：逐个域名检查是否与已有站点冲突。
-	if sites, _, err := readSites(dir); err == nil {
+	if sites, _, err := view.ReadSites(dir); err == nil {
 		newNames := strings.Fields(p.name)
 		for _, s := range sites {
 			existingNames := strings.Fields(s.Name)
@@ -223,12 +200,12 @@ func addSiteFile(dir string, in SiteInput) (string, error) {
 	return fmt.Sprintf("已创建 conf.d/%s.json（%s，监听 %s）。请点「重载配置」使站点生效。", file, p.name, strings.Join(p.ports, " ")), nil
 }
 
-// deleteSiteFile 删除 conf.d 下的站点文件。source 必须是 readSites 给出的相对
+// DeleteSiteFile 删除 conf.d 下的站点文件。source 必须是 readSites 给出的相对
 // 路径（conf.d/xxx.json）；主配置 http.server[] 内联的站点没有独立文件，不可删。
 // 删除用 rename 成 .bak 而不是直接 unlink：conf.d 的 include 只收集 *.json，
 // .bak 不会被加载，误删后可手工找回。
-func deleteSiteFile(dir, source string) (string, error) {
-	paths := resolvePaths(dir)
+func DeleteSiteFile(dir, source string) (string, error) {
+	paths := view.ResolvePaths(dir)
 	etcDir := filepath.Dir(paths.Config)
 	rel := filepath.ToSlash(strings.TrimSpace(source))
 	if rel == "" {
@@ -259,10 +236,10 @@ func deleteSiteFile(dir, source string) (string, error) {
 	return fmt.Sprintf("已删除 %s（备份为 %s.bak）。请点「重载配置」使删除生效。", rel, rel), nil
 }
 
-// readSiteDetail 读取站点文件的表单字段与原文。主配置 http.server[] 里的内联
+// ReadSiteDetail 读取站点文件的表单字段与原文。主配置 http.server[] 里的内联
 // 站点不在这里编辑，返回 editable=false 加提示。
-func readSiteDetail(dir, source string) (SiteDetail, error) {
-	paths := resolvePaths(dir)
+func ReadSiteDetail(dir, source string) (SiteDetail, error) {
+	paths := view.ResolvePaths(dir)
 	etcDir := filepath.Dir(paths.Config)
 	rel := filepath.ToSlash(strings.TrimSpace(source))
 	if rel == "" {
@@ -283,7 +260,7 @@ func readSiteDetail(dir, source string) (SiteDetail, error) {
 		return SiteDetail{}, fmt.Errorf("读不到站点文件 %s：%w", rel, err)
 	}
 	var m map[string]any
-	if err := json.Unmarshal(stripJSONC(raw), &m); err != nil {
+	if err := json.Unmarshal(view.StripJSONC(raw), &m); err != nil {
 		return SiteDetail{}, fmt.Errorf("站点文件不是合法 JSON：%w", err)
 	}
 	d := SiteDetail{Source: rel, Path: full, Editable: true, Raw: string(raw)}
@@ -311,14 +288,14 @@ func readSiteDetail(dir, source string) (SiteDetail, error) {
 	return d, nil
 }
 
-// saveSiteDetail 只回写表单覆盖的字段，location 里未涉及的键（rewrite、auth、
+// SaveSiteDetail 只回写表单覆盖的字段，location 里未涉及的键（rewrite、auth、
 // proxy_set_header 等）与其余 location 原样保留。
-func saveSiteDetail(dir string, in SiteInput) (string, error) {
+func SaveSiteDetail(dir string, in SiteInput) (string, error) {
 	p, err := parseSiteInput(in)
 	if err != nil {
 		return "", err
 	}
-	paths := resolvePaths(dir)
+	paths := view.ResolvePaths(dir)
 	etcDir := filepath.Dir(paths.Config)
 	rel := filepath.ToSlash(strings.TrimSpace(in.Source))
 	if rel == "" {
@@ -336,7 +313,7 @@ func saveSiteDetail(dir string, in SiteInput) (string, error) {
 		return "", fmt.Errorf("读不到站点文件 %s：%w", rel, err)
 	}
 	var m map[string]any
-	if err := json.Unmarshal(stripJSONC(raw), &m); err != nil {
+	if err := json.Unmarshal(view.StripJSONC(raw), &m); err != nil {
 		return "", fmt.Errorf("站点文件不是合法 JSON：%w", err)
 	}
 
@@ -377,7 +354,7 @@ func saveSiteDetail(dir string, in SiteInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return saveConfigFile(full, string(out)+"\n")
+	return configops.SaveConfigFile(full, string(out)+"\n")
 }
 
 func setOptionalString(m map[string]any, key, value string) {
@@ -411,49 +388,6 @@ func withinDir(base, target string) bool {
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-// PickPath 调系统原生选择框，返回相对 config 目录的路径。
-// kind 为 "dir" 时选目录（站点根目录），否则选文件（证书 / 私钥）。
-// 用户取消时返回空字符串，前端保持输入框不变。
-func (s *DesktopService) PickPath(kind string) (string, error) {
-	if appRef == nil {
-		return "", fmt.Errorf("应用尚未就绪")
-	}
-	etcDir := filepath.Dir(resolvePaths(s.baseDir).Config)
-	d := appRef.Dialog.OpenFile().SetDirectory(etcDir)
-	if mainWindow != nil {
-		d.AttachToWindow(mainWindow)
-	}
-	if kind == "dir" {
-		d.SetTitle("选择站点根目录").CanChooseDirectories(true).CanChooseFiles(false)
-	} else {
-		d.SetTitle("选择证书文件").CanChooseDirectories(false).CanChooseFiles(true).
-			AddFilter("PEM 证书", "*.pem;*.crt;*.cer").
-			AddFilter("所有文件", "*.*")
-	}
-	p, err := d.PromptForSingleSelection()
-	if err != nil {
-		return "", err
-	}
-	if p == "" {
-		return "", nil
-	}
-	return relativeToEtc(etcDir, p), nil
-}
-
-// relativeToEtc 把绝对路径转成相对 config 目录的写法（./cert/a.pem），
-// 与手写配置保持一致；不在 config 内的路径保留绝对路径。
-func relativeToEtc(etcDir, p string) string {
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return p
-	}
-	rel, err := filepath.Rel(etcDir, abs)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return filepath.ToSlash(abs)
-	}
-	return "./" + filepath.ToSlash(rel)
-}
-
 func sanitizeSiteName(name string) string {
 	var b strings.Builder
 	for _, r := range name {
@@ -472,6 +406,7 @@ func sanitizeSiteName(name string) string {
 }
 
 // writeNewFileAtomic 新建站点文件：同目录临时文件 + rename，避免写一半留下坏 JSON。
+
 func writeNewFileAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -502,6 +437,19 @@ func writeNewFileAtomic(path string, data []byte) error {
 
 // isSiteFileName 判断是不是 conf.d 下的站点文件。停用状态会在 .json 后面
 // 再挂一个 .disabled，所以两种后缀都要认。
+
 func isSiteFileName(rel string) bool {
 	return strings.HasSuffix(rel, ".json") || strings.HasSuffix(rel, ".json.disabled")
+}
+
+func relativeToEtc(etcDir, p string) string {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return p
+	}
+	rel, err := filepath.Rel(etcDir, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return filepath.ToSlash(abs)
+	}
+	return "./" + filepath.ToSlash(rel)
 }

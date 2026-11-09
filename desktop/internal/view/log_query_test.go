@@ -1,4 +1,4 @@
-package main
+package view
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ func sampleAccessLines() []string {
 func TestQueryLogsReverseOrderAndPaging(t *testing.T) {
 	dir := writeQueryLog(t, "access", sampleAccessLines())
 
-	p1, err := queryLogs(dir, LogQuery{Name: "access", Limit: 2})
+	p1, err := QueryLogs(dir, LogQuery{Name: "access", Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestQueryLogsReverseOrderAndPaging(t *testing.T) {
 		t.Fatal("还有更早的记录，HasMore 应为 true")
 	}
 
-	p2, err := queryLogs(dir, LogQuery{Name: "access", Limit: 2, Offset: 2})
+	p2, err := QueryLogs(dir, LogQuery{Name: "access", Limit: 2, Offset: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestQueryLogsReverseOrderAndPaging(t *testing.T) {
 		t.Fatalf("第二页偏移不对：%+v", p2.Lines)
 	}
 
-	p3, err := queryLogs(dir, LogQuery{Name: "access", Limit: 2, Offset: 4})
+	p3, err := QueryLogs(dir, LogQuery{Name: "access", Limit: 2, Offset: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,19 +62,19 @@ func TestQueryLogsReverseOrderAndPaging(t *testing.T) {
 func TestQueryLogsFilterByLevelStatusAndSearch(t *testing.T) {
 	dir := writeQueryLog(t, "access", sampleAccessLines())
 
-	warn, err := queryLogs(dir, LogQuery{Name: "access", Level: "warn", Limit: 10})
+	warn, err := QueryLogs(dir, LogQuery{Name: "access", Level: "warn", Limit: 10})
 	if err != nil || len(warn.Lines) != 2 {
 		t.Fatalf("level=warn 应命中 2 条：%+v err=%v", warn.Lines, err)
 	}
-	four, err := queryLogs(dir, LogQuery{Name: "access", Status: "4", Limit: 10})
+	four, err := QueryLogs(dir, LogQuery{Name: "access", Status: "4", Limit: 10})
 	if err != nil || len(four.Lines) != 2 {
 		t.Fatalf("status=4xx 应命中 2 条：%+v err=%v", four.Lines, err)
 	}
-	search, err := queryLogs(dir, LogQuery{Name: "access", Search: "example.com", Limit: 10})
+	search, err := QueryLogs(dir, LogQuery{Name: "access", Search: "example.com", Limit: 10})
 	if err != nil || len(search.Lines) != 2 {
 		t.Fatalf("关键词应命中 2 条：%+v err=%v", search.Lines, err)
 	}
-	combo, err := queryLogs(dir, LogQuery{Name: "access", Level: "warn", Status: "4", Limit: 10})
+	combo, err := QueryLogs(dir, LogQuery{Name: "access", Level: "warn", Status: "4", Limit: 10})
 	if err != nil || len(combo.Lines) != 2 {
 		t.Fatalf("组合筛选：%+v err=%v", combo.Lines, err)
 	}
@@ -82,7 +82,7 @@ func TestQueryLogsFilterByLevelStatusAndSearch(t *testing.T) {
 
 func TestQueryLogsTimeRange(t *testing.T) {
 	dir := writeQueryLog(t, "access", sampleAccessLines())
-	got, err := queryLogs(dir, LogQuery{
+	got, err := QueryLogs(dir, LogQuery{
 		Name: "access", Since: "2026-11-07T10:00:02", Until: "2026-11-07T10:00:04", Limit: 10,
 	})
 	if err != nil || len(got.Lines) != 3 {
@@ -99,7 +99,7 @@ func TestQueryLogsAcrossChunksAndNonJSON(t *testing.T) {
 	lines = append(lines, "plain text line, not json")
 	dir := writeQueryLog(t, "system", lines)
 
-	got, err := queryLogs(dir, LogQuery{Name: "system", Limit: 3})
+	got, err := QueryLogs(dir, LogQuery{Name: "system", Limit: 3})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,14 +113,14 @@ func TestQueryLogsAcrossChunksAndNonJSON(t *testing.T) {
 		t.Fatalf("倒序第二条应是 line 1499：%q", got.Lines[1].Message)
 	}
 	// 有结构化筛选时，非 JSON 行不应混进来
-	filtered, err := queryLogs(dir, LogQuery{Name: "system", Level: "info", Limit: 3})
+	filtered, err := QueryLogs(dir, LogQuery{Name: "system", Level: "info", Limit: 3})
 	if err != nil || len(filtered.Lines) != 3 || filtered.Lines[0].Message == "plain text line, not json" {
 		t.Fatalf("level 筛选应排除非 JSON 行：%+v err=%v", filtered.Lines, err)
 	}
 }
 
 func TestQueryLogsRejectsUnknownName(t *testing.T) {
-	if _, err := queryLogs(t.TempDir(), LogQuery{Name: "passwd"}); err == nil {
+	if _, err := QueryLogs(t.TempDir(), LogQuery{Name: "passwd"}); err == nil {
 		t.Fatal("未知日志类型必须拒绝")
 	}
 }

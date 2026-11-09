@@ -1,7 +1,9 @@
-package main
+package configops
 
 import (
 	"encoding/json"
+	"fast-https-desktop/internal/model"
+	"fast-https-desktop/internal/view"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,26 +16,8 @@ import (
 // Go 侧维护字段清单，前端按分组通用渲染，保存时只回写被改动的字段，
 // 未纳入表单的字段（http.server[]、acme.cas、未知顶层键）原样保留。
 
-type ConfigField struct {
-	Path    string   `json:"path"`
-	Label   string   `json:"label"`
-	Group   string   `json:"group"`
-	Type    string   `json:"type"` // text | number | bool | select | list
-	Value   string   `json:"value"`
-	Options []string `json:"options,omitempty"`
-	Help    string   `json:"help,omitempty"`
-	Missing bool     `json:"missing"`
-}
-
-type ConfigForm struct {
-	Path      string        `json:"path"`
-	Fields    []ConfigField `json:"fields"`
-	Size      int64         `json:"size"`
-	Modified  string        `json:"modified"`
-	Writable  bool          `json:"writable"`
-	Preserved []string      `json:"preserved"`
-}
-
+type ConfigField = model.ConfigField
+type ConfigForm = model.ConfigForm
 type fieldSpec struct {
 	path, label, group, typ, help string
 	options                       []string
@@ -80,7 +64,7 @@ var configTopLevel = map[string]bool{
 	"waf": true, "acme": true, "security": true, "http": true,
 }
 
-func readConfigForm(p string) (ConfigForm, error) {
+func ReadConfigForm(p string) (ConfigForm, error) {
 	form := ConfigForm{Path: p}
 	info, err := os.Stat(p)
 	if err != nil {
@@ -91,7 +75,7 @@ func readConfigForm(p string) (ConfigForm, error) {
 		return form, fmt.Errorf("读不到主配置 %s：%w", p, err)
 	}
 	var root map[string]any
-	if err := json.Unmarshal(stripJSONC(raw), &root); err != nil {
+	if err := json.Unmarshal(view.StripJSONC(raw), &root); err != nil {
 		return form, fmt.Errorf("主配置不是合法的 JSON 对象：%w", err)
 	}
 	form.Size = info.Size()
@@ -119,16 +103,16 @@ func readConfigForm(p string) (ConfigForm, error) {
 	return form, nil
 }
 
-// saveConfigForm 只把「被改动的字段」写回原 JSON，再交给 saveConfigFile
+// SaveConfigForm 只把「被改动的字段」写回原 JSON，再交给 saveConfigFile
 // 做语法校验、备份与原子替换。表单保存会重新格式化文件，JSONC 注释会丢失，
 // 原文件完整保留在 .bak 里。
-func saveConfigForm(p string, values map[string]string) (string, error) {
+func SaveConfigForm(p string, values map[string]string) (string, error) {
 	raw, err := os.ReadFile(p)
 	if err != nil {
 		return "", fmt.Errorf("读不到主配置 %s：%w", p, err)
 	}
 	var root map[string]any
-	if err := json.Unmarshal(stripJSONC(raw), &root); err != nil {
+	if err := json.Unmarshal(view.StripJSONC(raw), &root); err != nil {
 		return "", fmt.Errorf("主配置不是合法的 JSON 对象：%w", err)
 	}
 	changed := 0
@@ -151,7 +135,7 @@ func saveConfigForm(p string, values map[string]string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return saveConfigFile(p, string(out)+"\n")
+	return SaveConfigFile(p, string(out)+"\n")
 }
 
 func lookupPath(m map[string]any, path string) (any, bool) {
@@ -260,9 +244,9 @@ func parseFieldValue(s fieldSpec, raw string) (any, error) {
 }
 
 // saveConfigFile 校验 JSON 对象后写回：先留 .bak，再写临时文件原子替换。
-func saveConfigFile(p, content string) (string, error) {
+func SaveConfigFile(p, content string) (string, error) {
 	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(stripJSONC([]byte(content)), &obj); err != nil {
+	if err := json.Unmarshal(view.StripJSONC([]byte(content)), &obj); err != nil {
 		return "", fmt.Errorf("配置不是合法的 JSON 对象：%w", err)
 	}
 	if len(obj) == 0 {

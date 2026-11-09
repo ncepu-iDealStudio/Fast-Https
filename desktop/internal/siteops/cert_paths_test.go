@@ -1,4 +1,4 @@
-package main
+package siteops
 
 import (
 	"strings"
@@ -9,7 +9,7 @@ import (
 // 而不是留空让 reload 因「ssl listen requires ssl_certificate」失败。
 func TestAddSiteSSLWithoutCertUsesGeneratedPaths(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	if _, err := addSiteFile(dir, SiteInput{
+	if _, err := AddSiteFile(dir, SiteInput{
 		Name: "secure.local", Listen: "443 ssl", Type: "local", Root: "./httpdoc/root",
 	}); err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func TestAddSiteSSLWithoutCertUsesGeneratedPaths(t *testing.T) {
 // 纯 HTTP 站点不该凭空带出证书字段。
 func TestAddSiteHTTPWithoutCertLeavesFieldsEmpty(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	if _, err := addSiteFile(dir, SiteInput{
+	if _, err := AddSiteFile(dir, SiteInput{
 		Name: "plain.local", Listen: "8080", Type: "local", Root: "./httpdoc/root",
 	}); err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func TestAddSiteHTTPWithoutCertLeavesFieldsEmpty(t *testing.T) {
 // 只填证书不填私钥（或反之）会让 TLS 启动失败，表单阶段就拦下。
 func TestAddSiteRejectsHalfFilledCertPair(t *testing.T) {
 	dir := writeSiteWorkspace(t)
-	_, err := addSiteFile(dir, SiteInput{
+	_, err := AddSiteFile(dir, SiteInput{
 		Name: "half.local", Listen: "443 ssl", Type: "local", Root: "./httpdoc/root",
 		Cert: "./cert/half.pem",
 	})
