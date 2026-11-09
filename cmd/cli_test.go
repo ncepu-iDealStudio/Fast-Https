@@ -136,7 +136,7 @@ func TestEveryErrorCodeHasExitCode(t *testing.T) {
 		CodeOperationFailed, CodeRecoveryRequired, CodeOperationUnknown, CodeTimeout,
 		CodeNotFound, CodeLogUnavailable, CodeConflict, CodeRequestIDClash, CodeUnmetDependency, CodeNotSupported,
 	} {
-		if _, ok := exitCodes[code]; !ok {
+		if _, ok := cli.ExitCodes()[code]; !ok {
 			t.Errorf("错误码 %s 没有退出码", code)
 		}
 	}
