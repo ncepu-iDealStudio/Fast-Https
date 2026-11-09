@@ -17,7 +17,7 @@ fast-https 已经有独立的 Server、只读 `/runtime`、独立 Monitor、以�
 | 规范场景 | 源码事实 | 结论 |
 | --- | --- | --- |
 | 12.1 摘除故障 Upstream | `proxy_pass` 是单个地址。没有节点列表、健康检查、摘除或恢复命令。上游失败只进入进程级累计计数 | 自动摘除不能做。前置是尚未实施的 [upstream-failover-plan.md](develop/plans/upstream-failover-plan.md) |
-| 12.2 502/504 升高 | `/runtime` 只有 `responses_5xx_total`，没有按 502/504 分桶。Monitor 事件是 `5xx_ratio` | 可以做 L1 诊断（5xx 比例 + 日志 + 最近 operation）。不能声称已经区分 502 与 504 |
+| 12.2 502/504 升高 | `/runtime` 有 `responses_5xx_total`，以及单独的 `responses_502_total`、`responses_504_total`。Monitor 事件仍是 `5xx_ratio`，不按 502/504 再告警 | 可以在诊断里引用这两个累计值。还没有对应的 Monitor 事件 |
 | 12.3 证书即将过期或续期失败 | `cert list` / `cert check` 能读 PEM。Monitor 在配置了 `cert_files` 时写 `certificate_expiring`。`cert renew` 不存在。ACME 续期在 Server 进程内 | 事件流里能看到即将过期的证书。不能自动续期 |
 
 仓库里没有 Management HTTP API，没有审批存储，没有 Agent 进程，没有数据库。管理写操作的现成出口是 CLI 加上 `management/txn`。
@@ -49,7 +49,7 @@ fast-https 已经有独立的 Server、只读 `/runtime`、独立 Monitor、以�
 
 - 连接：`active`、`accepted_total`、`closed_total`、`rejected_total`
 - 请求：`active`、`total`、`parse_errors_total`、`aborted_total`
-- 响应：`responses_2xx_total` 到 `responses_5xx_total`，以及 `responses_unknown_total`
+- 响应：`responses_2xx_total` 到 `responses_5xx_total`、`responses_502_total`、`responses_504_total`，以及 `responses_unknown_total`
 - 耗时：`request_duration` 直方图（`runtime/metrics/histogram.go`）
 - 监听：`listeners[].port/ssl/h2`
 

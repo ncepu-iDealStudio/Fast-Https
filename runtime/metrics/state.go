@@ -176,6 +176,8 @@ func ResetForTest() {
 	responses3xx.Store(0)
 	responses4xx.Store(0)
 	responses5xx.Store(0)
+	responses502.Store(0)
+	responses504.Store(0)
 	responsesUnknown.Store(0)
 	resetDuration()
 	resetSectionsForTest()

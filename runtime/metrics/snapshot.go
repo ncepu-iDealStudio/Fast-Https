@@ -86,6 +86,8 @@ type Snapshot struct {
 	Responses3xx     uint64            `json:"responses_3xx_total"`
 	Responses4xx     uint64            `json:"responses_4xx_total"`
 	Responses5xx     uint64            `json:"responses_5xx_total"`
+	Responses502     uint64            `json:"responses_502_total"`
+	Responses504     uint64            `json:"responses_504_total"`
 	ResponsesUnknown uint64            `json:"responses_unknown_total"`
 	RequestDuration  DurationHistogram `json:"request_duration"`
 	extra            map[string]any    `json:"-"`
@@ -154,6 +156,8 @@ func TakeSnapshot() Snapshot {
 		Responses3xx:     Responses3xx(),
 		Responses4xx:     Responses4xx(),
 		Responses5xx:     Responses5xx(),
+		Responses502:     Responses502(),
+		Responses504:     Responses504(),
 		ResponsesUnknown: ResponsesUnknown(),
 		RequestDuration:  DurationSnapshot(),
 	}

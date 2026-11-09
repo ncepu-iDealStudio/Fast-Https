@@ -73,6 +73,8 @@ CPU、内存、磁盘不放进 Server。若要做，只在 Monitor 里读操作�
 
 ### C4 `/runtime` 增加 502 与 504 累计
 
+状态：已实施（`runtime/metrics/requests.go`，`TestGatewayStatusBuckets`）。`schema_version` 仍为 `"1"`。
+
 | 项 | 内容 |
 | --- | --- |
 | 影响 | 有，很小。`RequestEnd` 在已经解析出状态码之后，对 502、504 各多一次原子加 |

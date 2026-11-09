@@ -23,6 +23,7 @@ Invoke-RestMethod http://127.0.0.1:9088/runtime | ConvertTo-Json -Depth 5
 ## 实现方案
 
 - 计数与状态在 `runtime/metrics`：生命周期、连接、请求、状态码、耗时直方图、reload 生成号、监听端口原子副本。快照只做原子 `Load`，不持 `Server.mu`，不读无锁的 `Server.Listens`。
+- 状态码按最终写出的响应行归入 2xx/3xx/4xx/5xx。502 与 504 在进入 `responses_5xx_total` 的同时分别计入 `responses_502_total`、`responses_504_total`。500、503 和其他 5xx 只进合计。`schema_version` 仍是 `"1"`。
 - HTTP 出口在组合根 `cmd/runtime_endpoint.go`。`StartHandler` 在写 PID 之后、`InitSystem` 之前启动监听；`RegisterServices` 把关闭挂到 `core.Services.AfterStop`，并把 `modules/proxy` 的上游计数挂为 `upstream` 分段。
 - 分段注册：`metrics.RegisterSection` 供组合根挂入功能包数据，`runtime` 不 import `modules`。
 - `request_duration` 口径是进入 `EventHandler` 到返回，不含读请求头；HTTP/2 在 `EventHandler` 返回后才写响应的那部分不在内。桶为累积 `le`（1/5/10/25/50/100/250/500/1000/5000 ms 与 `+Inf`）。

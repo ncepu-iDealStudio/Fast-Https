@@ -158,6 +158,8 @@ func runtimeStatsData(snap rtclient.Snapshot) (map[string]any, []string) {
 			"3xx_total":     snap.Responses3xx,
 			"4xx_total":     snap.Responses4xx,
 			"5xx_total":     snap.Responses5xx,
+			"502_total":     snap.Responses502,
+			"504_total":     snap.Responses504,
 			"unknown_total": snap.ResponsesUnknown,
 		},
 	}

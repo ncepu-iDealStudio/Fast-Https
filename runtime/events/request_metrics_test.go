@@ -140,8 +140,42 @@ func TestStatusBuckets(t *testing.T) {
 		t.Fatalf("2xx=%d 4xx=%d 5xx=%d, want 1/1/1",
 			metrics.Responses2xx(), metrics.Responses4xx(), metrics.Responses5xx())
 	}
+	if metrics.Responses502() != 0 || metrics.Responses504() != 0 {
+		t.Fatalf("502=%d 504=%d, want 0/0 for 200 and 500", metrics.Responses502(), metrics.Responses504())
+	}
 	if metrics.RequestsTotal() != 3 {
 		t.Fatalf("requests_total = %d, want 3", metrics.RequestsTotal())
+	}
+}
+
+func TestGatewayStatusBuckets(t *testing.T) {
+	resetMetrics(t)
+	re := regexp.MustCompile("^/")
+	lis := &listener.Listener{Port: "18080", HostMap: map[string][]listener.ListenCfg{
+		"example.com": {{ID: 1, Path: "/", PathRe: re, Type: config.DEVMOD}},
+	}}
+	registerStub(t, func(cfg *listener.ListenCfg, ev *core.Event) {
+		switch ev.RR.Req.Path {
+		case "/ok":
+			ev.RR.Res.SetFirstLine(200, "OK")
+		case "/gw":
+			ev.RR.Res.SetFirstLine(502, "BADGATEWAY")
+		case "/timeout":
+			ev.RR.Res.SetFirstLine(504, "GATEWAYTIMEOUT")
+		default:
+			ev.RR.Res.SetFirstLine(500, "SERVERERROR")
+		}
+		_ = ev.WriteResponse(nil)
+	})
+
+	EventHandler(newHandlerEvent(t, lis, "GET", "/ok", "example.com"), filters.NewFilter())
+	EventHandler(newHandlerEvent(t, lis, "GET", "/gw", "example.com"), filters.NewFilter())
+	EventHandler(newHandlerEvent(t, lis, "GET", "/timeout", "example.com"), filters.NewFilter())
+	EventHandler(newHandlerEvent(t, lis, "GET", "/other", "example.com"), filters.NewFilter())
+
+	if metrics.Responses2xx() != 1 || metrics.Responses502() != 1 || metrics.Responses504() != 1 || metrics.Responses5xx() != 3 {
+		t.Fatalf("2xx=%d 502=%d 504=%d 5xx=%d, want 1/1/1/3",
+			metrics.Responses2xx(), metrics.Responses502(), metrics.Responses504(), metrics.Responses5xx())
 	}
 }
 

@@ -16,6 +16,8 @@ var (
 	responses3xx     atomic.Uint64
 	responses4xx     atomic.Uint64
 	responses5xx     atomic.Uint64
+	responses502     atomic.Uint64
+	responses504     atomic.Uint64
 	responsesUnknown atomic.Uint64
 )
 
@@ -43,6 +45,12 @@ func RequestEnd(firstLine string) {
 		responses4xx.Add(1)
 	case 5:
 		responses5xx.Add(1)
+		switch code {
+		case 502:
+			responses502.Add(1)
+		case 504:
+			responses504.Add(1)
+		}
 	default:
 		responsesUnknown.Add(1)
 	}
@@ -85,4 +93,6 @@ func Responses2xx() uint64     { return responses2xx.Load() }
 func Responses3xx() uint64     { return responses3xx.Load() }
 func Responses4xx() uint64     { return responses4xx.Load() }
 func Responses5xx() uint64     { return responses5xx.Load() }
+func Responses502() uint64     { return responses502.Load() }
+func Responses504() uint64     { return responses504.Load() }
 func ResponsesUnknown() uint64 { return responsesUnknown.Load() }
