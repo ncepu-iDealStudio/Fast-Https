@@ -237,17 +237,22 @@ func validateServerWith(s *jsonServer, certBaseDir, rootBaseDir, where string, r
 	}
 
 	if ssl {
-		if strings.TrimSpace(s.SSLCertificate) == "" || strings.TrimSpace(s.SSLCertificateKey) == "" {
-			return fmt.Errorf("%s: ssl listen requires ssl_certificate and ssl_certificate_key", where)
+		// 两个字段要么都写、要么都不写。留空表示交给首次 start 的 CertInit
+		// 按站点自动生成——新建 TLS 站点时证书文件本来还不存在，如果强制
+		// 要求写路径、又要求文件存在，就永远无法通过校验。
+		certEmpty := strings.TrimSpace(s.SSLCertificate) == ""
+		keyEmpty := strings.TrimSpace(s.SSLCertificateKey) == ""
+		if certEmpty != keyEmpty {
+			return fmt.Errorf("%s: ssl_certificate and ssl_certificate_key must be set together", where)
 		}
-		// 新建站点时证书由首次 start 生成，落盘那一步不要求文件已经存在。
+		// 显式写了路径就要求文件存在（requireCerts 控制，落盘新建时关闭）。
 		// 报错里补一句怎么办：装完包直接 start 是新用户最常见的卡点。
-		if requireCerts && !pathExistsWith(s.SSLCertificate, certBaseDir, rootBaseDir, opts) {
+		if requireCerts && !certEmpty && !pathExistsWith(s.SSLCertificate, certBaseDir, rootBaseDir, opts) {
 			return fmt.Errorf("%s: ssl_certificate not found: %s "+
 				"(首次 start 会用本地 CA 生成自签证书，先跑一次 fast-https start；或用 acme 申请后指向生成的证书)",
 				where, s.SSLCertificate)
 		}
-		if requireCerts && !pathExistsWith(s.SSLCertificateKey, certBaseDir, rootBaseDir, opts) {
+		if requireCerts && !keyEmpty && !pathExistsWith(s.SSLCertificateKey, certBaseDir, rootBaseDir, opts) {
 			return fmt.Errorf("%s: ssl_certificate_key not found: %s "+
 				"(首次 start 会用本地 CA 生成自签证书，先跑一次 fast-https start)", where, s.SSLCertificateKey)
 		}

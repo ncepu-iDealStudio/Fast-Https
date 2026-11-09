@@ -92,9 +92,17 @@ func TestValidateServerMultipleListens(t *testing.T) {
 		Locations:  []jsonPath{{URL: "/", Type: "local", Root: "./httpdoc/root"}},
 	}
 
+	// 两个都不写是合法的：首次 start 的 CertInit 会按站点自动生成证书。
 	noCert := base
-	if err := validateServer(&noCert, ".", ".", "site", false); err == nil {
-		t.Fatal("ssl listen without certificates should be rejected")
+	if err := validateServer(&noCert, ".", ".", "site", false); err != nil {
+		t.Fatalf("证书留空应交给首次 start 生成：%v", err)
+	}
+
+	// 但只写一个不行，否则运行期拼不出完整的证书对。
+	halfCert := base
+	halfCert.SSLCertificate = "multi.pem"
+	if err := validateServer(&halfCert, ".", ".", "site", false); err == nil {
+		t.Fatal("只写 ssl_certificate 应被拒绝")
 	}
 
 	withCert := base
