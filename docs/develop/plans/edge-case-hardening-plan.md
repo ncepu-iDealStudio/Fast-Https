@@ -98,12 +98,21 @@
 
 ## R-07 压缩协商的完整语义
 
-**现状**：`modules/compress` 源码 57 行、测试 39 行，是最薄的一块。
+**现状**：`modules/compress` 只是字节压缩辅助（57 行），真正的协商在
+`modules/static` 的 `encodingWanted`。本轮已补齐并锁定：
+
+- q 值：`gzip;q=0` 不压、`q>0` 即接受（`request.QValue`）
+- `*` 通配符：显式未命中时回落到 `*` 的 q 值；显式 `q=0` 优先于 `*`
+- 两种编码都配置时固定优先 `br`，不做加权择优
+
+剩余未做的：`min_length` 阈值、已压缩类型跳过列表、`HEAD` 与 GET 的
+`Content-Length` 一致性。
 
 **需求**：
 
-- 按 q 值协商：`gzip;q=0` 必须不压，`q` 相同时按服务端偏好定序
-- 响应已带 `Content-Encoding` 时跳过
+- 按 q 值协商：`gzip;q=0` 必须不压，`q` 相同时按服务端偏好定序（已完成）
+- 响应已带 `Content-Encoding` 时跳过（不适用：压缩只发生在读静态文件时，
+  没有响应中间件链路）
 - `HEAD` 不产生 body，且 `Content-Length` 与 GET 一致
 - Range 请求跳过压缩（压缩后 Range 语义失效）
 - 已压缩类型（图片、zip、woff2、mp4）跳过，列表可配置
@@ -125,9 +134,15 @@
 
 ## R-09 reload 的原子性与可见性
 
+**现状**：第一项**已实现并有测试锁定**——`ReloadFile` 先校验、再解析、
+最后 `Store`，任一步失败都不触碰 `Current()`；事务层另有
+`TestApplyValidationFails`、`TestApplyReloadFailsRollsBack`、
+`TestApplyCrashBetweenPhases` 覆盖回滚与崩溃窗口。剩余的是「在途请求怎么
+处理」与「并发 reload 串行化」两项目前没有明确语义。
+
 **需求**：
 
-- reload 失败 → 旧配置继续生效，错误在 CLI 与桌面端可见
+- reload 失败 → 旧配置继续生效，错误在 CLI 与桌面端可见（已完成）
 - reload 期间的在途请求：处理完再切换（优雅），或立即中断并在日志标注
 - 并发 reload 串行化，后到的等待或直接返回「正在重载」
 

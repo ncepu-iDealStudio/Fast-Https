@@ -32,10 +32,11 @@
 | B-10b | 大小写或结尾的点导致选不到证书 | ✅ 无此问题 | `TestCertSetNormalizesCaseAndTrailingDot` | `EXACT.EXAMPLE`、`exact.example.` 均命中同一张 |
 | B-11 | 客户端伪造 `X-Forwarded-For`，上游看到假链路 | ✅ 无此问题 | `TestProxyDoesNotAddXForwardedFor` | 代理不添加该头，伪造无从谈起；**代价是上游拿不到真实来源**，属功能缺失，见 R-05 |
 | B-12 | hop-by-hop 头（`Connection`、`TE`、`Proxy-Authorization`）被原样转发给上游 | ⚠️ 存在待修 | `TestProxyForwardsHopByHopHeadersVerbatim` | 代理按字节转发，未做剥离。用例先锁定现状，等 R-06 实现后改成反向断言 |
-| B-13 | `Accept-Encoding: gzip;q=0` 仍被压缩 | ❓ 未验证 | 无用例 | `modules/compress` 现有测试仅 39 行，见 R-07 |
-| B-14 | 上游已带 `Content-Encoding` 时被二次压缩 | ❓ 未验证 | 无用例 | 同上 |
-| B-15 | keep-alive 复用连接时，请求间状态泄漏 | ❓ 未验证 | 无用例 | 需 `-race` 下验证，见 R-09 |
-| B-16 | reload 失败后旧配置失效，服务处于半死状态 | ❓ 未验证 | 无用例 | 见 R-10 |
+| B-13 | `Accept-Encoding: gzip;q=0` 仍被压缩 | ✅ 无此问题 | `TestEncodingWantedVectors`（21 条向量）、`TestStaticQZeroIsNotCompressed` | `request.QValue` 解析 q 值，q=0 判为拒绝；端到端确认响应不带 `Content-Encoding` |
+| B-14 | 上游已带 `Content-Encoding` 时被二次压缩 | ✅ 不适用 | — | 压缩只发生在「读静态文件」这一步，不存在响应中间件链路，没有二次压缩的入口 |
+| B-15 | keep-alive 复用连接时，请求间状态泄漏 | ✅ 无此问题 | `TestKeepAliveRequestIsFullyReset`、`TestFlushClearsAuxiliaryFields` | `Request.Flush` 清 Header/Query/Body；本轮补齐 `Encoding` / `HeaderLen` / `BodyLen` 三个此前未清的辅助字段 |
+| B-16 | reload 失败后旧配置失效，服务处于半死状态 | ✅ 无此问题 | `TestReloadInvalidKeepsPreviousConfig`、`TestReloadMissingFileKeepsPreviousConfig`；`management/txn` 的 `TestApplyValidationFails`、`TestApplyReloadFailsRollsBack`、`TestApplyCrashBetweenPhases` | `ReloadFile` 先校验再解析最后 `Store`，任一步失败都不触碰 `Current()` |
+| B-17 | `Accept-Encoding: *` 不生效，客户端声明接受任意编码却拿到未压缩响应 | 🔧 已修复 | `TestEncodingWantedVectors`（3 条通配符向量） | 原先只做显式 token 匹配；本轮 `encodingWanted` 增加回落：未显式声明的编码按 `*` 的 q 值决定，显式 `q=0` 仍优先于 `*` |
 
 ## 4.3 本轮新增的用例
 
@@ -95,9 +96,23 @@ PASS: TestCertSetWildcardMatchesOneLabelOnly
 PASS: TestCertSetNormalizesCaseAndTrailingDot
 PASS: TestProxyForwardsHopByHopHeadersVerbatim   (锁定现状：未剥离)
 PASS: TestProxyDoesNotAddXForwardedFor           (锁定现状：未追加)
+PASS: TestEncodingWantedVectors                  (21 条协商向量)
+PASS: TestStaticQZeroIsNotCompressed
+PASS: TestStaticQZeroFallsBackToOtherEncoding
+PASS: TestKeepAliveRequestIsFullyReset
+PASS: TestFlushClearsAuxiliaryFields
+PASS: TestReloadInvalidKeepsPreviousConfig
+PASS: TestReloadMissingFileKeepsPreviousConfig
 ```
 
-核验结果：**16 条反馈里，10 条确认无此问题，2 条存在待修，4 条仍未验证**。
+核验结果：**17 条反馈里，14 条确认无此问题，2 条存在待修，1 条已修复，0 条未验证**。
+
+本轮修掉的两处：
+
+| 问题 | 改动 |
+| --- | --- |
+| `Accept-Encoding: *` 不生效（B-17） | `runtime/request` 拆出 `QValue`（返回 q 值与是否出现），`encodingWanted` 在显式未命中时回落到 `*`；显式 `q=0` 仍优先于 `*` |
+| `Request.Flush` 漏清三个辅助字段（B-15 的一部分） | 补 `Encoding` / `HeaderLen` / `BodyLen`。三者当前没有读取方，但属于「随请求变化」的状态，留着等于给将来埋跨请求残留的坑 |
 
 
 - **URL 解码发生在静态层之前**：`%2e%2e` 到这一层已是普通字符，因此既不会
@@ -118,6 +133,12 @@ go test ./modules/static/ -run 'TestStaticPathTraversalVectors|TestStaticSymlink
 go test ./runtime/listener/ -run TestCertSet -v
 # 代理头
 go test ./modules/proxy/ -run 'TestProxyForwardsHopByHop|TestProxyDoesNotAddXForwardedFor' -v
+# 内容编码协商
+go test ./modules/static/ -run 'TestEncodingWantedVectors|TestStaticQZero' -v
+# keep-alive 状态隔离
+go test ./runtime/request/ -run 'TestKeepAliveRequestIsFullyReset|TestFlushClearsAuxiliaryFields' -v
+# reload 原子性
+go test ./config/ -run 'TestReloadInvalidKeepsPreviousConfig|TestReloadMissingFileKeepsPreviousConfig' -v
 # 全量
 go test ./... -count=1
 ```
@@ -127,13 +148,14 @@ B-05、B-08 需要在 Windows / Linux 各跑一次，结果才有意义（`EvalS
 
 ## 4.6 后续核验
 
-剩余四条待验证：
+当前收集到的反馈已全部核验完毕，没有 ❓ 项。
 
-| 编号 | 需要做什么 |
-| --- | --- |
-| B-13、B-14 | `modules/compress` 补 `accept-encoding.jsonl`，核验 q=0 与二次压缩 |
-| B-15 | `runtime/listener` 的 keep-alive 状态隔离，`-race` 下跑 |
-| B-16 | reload 原子性：构造非法新配置，断言旧配置仍在服务 |
+两个 ⚠️ 待修（B-05 Windows 尾点尾空格、B-08 符号链接逃逸）需要先定产品判断：
+「拒绝」还是「配置期校验」，方案见
+[edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md) 的 R-01 / R-02。
 
-每批的做法一致：先在 `testdata/` 写用例表 → 跑出结论 → 在本表里把 ❓ 改成
-✅ 或 ⚠️ → 需要改代码的单独提交，用例作为回归。
+后续再收到新的问题反馈，按同样节奏处理：
+
+1. 先在对应包的 `testdata/` 写用例表（一行一条「输入 → 期望」）
+2. 跑出结论，在本表里按 ✅ / 🔧 / ⚠️ / ❓ 归档
+3. 需要改代码的单独提交，用例作为回归；只锁定现状的，在用例注释里写明为什么可以接受
