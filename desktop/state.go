@@ -58,6 +58,7 @@ type Site struct {
 	Root     string `json:"root"`
 	CertFile string `json:"certFile"`
 	Source   string `json:"source"`
+	Enabled  bool   `json:"enabled"`
 }
 
 // Cert 是从 PEM 里读出的证书摘要。
@@ -341,7 +342,10 @@ func collectJSONFiles(root string) []string {
 		if err != nil || d.IsDir() {
 			return nil
 		}
-		if strings.EqualFold(filepath.Ext(path), ".json") {
+		name := strings.ToLower(d.Name())
+		// include 只收 *.json，所以 *.json.disabled 天然处于停用状态。
+		// 桌面端要把它们也列出来，否则停用一次就从界面上消失了。
+		if strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".json.disabled") {
 			files = append(files, path)
 		}
 		return nil
@@ -431,6 +435,8 @@ func readSites(dir string) ([]Site, RuntimePaths, error) {
 				Root:     root,
 				CertFile: etcPath(etcDir, s.SSLCertificate),
 				Source:   src.file,
+				// 主配置内联站点恒为启用；独立文件看有没有 .disabled 后缀。
+				Enabled: !strings.HasSuffix(src.file, ".disabled"),
 			})
 		}
 	}

@@ -107,6 +107,11 @@ func (s *DesktopService) DeleteSite(source string) (string, error) {
 	return deleteSiteFile(s.baseDir, source)
 }
 
+// SetSiteEnabled 启用/停用 conf.d 下的站点（改文件名，需手动重载生效）。
+func (s *DesktopService) SetSiteEnabled(source string, enabled bool) (string, error) {
+	return setSiteEnabled(s.baseDir, source, enabled)
+}
+
 // ------------------------------------------------------------ 本机状态与操作
 
 func (s *DesktopService) GetOverview() (Overview, error) {

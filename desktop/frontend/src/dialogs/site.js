@@ -118,6 +118,21 @@ export function initSiteDialog() {
       openSiteDetail(more.getAttribute('data-source'));
       return;
     }
+    const toggle = e.target.closest ? e.target.closest('.site-toggle') : null;
+    if (toggle) {
+      e.preventDefault();
+      const source = toggle.getAttribute('data-source');
+      const enabled = toggle.getAttribute('data-enabled') === '1';
+      const word = enabled ? '启用' : '停用';
+      try {
+        toast(await DesktopService.SetSiteEnabled(source, enabled));
+        await refreshDetails();
+        await refreshOverview();
+      } catch (err) {
+        toast(word + '失败：' + msgOf(err));
+      }
+      return;
+    }
     const del = e.target.closest ? e.target.closest('.site-del') : null;
     if (!del) return;
     e.preventDefault();
