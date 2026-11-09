@@ -2,10 +2,10 @@
 package core
 
 import (
+	"fast-https/infra/logging"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
-	"fast-https/infra/logging"
 	"io"
 	"net"
 	"sync"
@@ -133,7 +133,10 @@ func (ev *Event) ReadRequestInto(buf []byte) []byte {
 	n, err := ev.Conn.Read(buf)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
-			logging.PrintInfo(ev.Conn.RemoteAddr(), " closed")
+			// 连接被对端关闭是高频噪音：桌面端状态轮询、浏览器预连接、
+			// 端口探测都会每秒触发多次，记 info 会把正常日志刷掉。
+			// 降到 debug，info 只留给真正的业务事件。
+			logging.ConsoleLog.Debug().Msgf("%s closed", ev.Conn.RemoteAddr())
 			return nil
 		}
 		if ev.CheckIfTimeOut(err) {
