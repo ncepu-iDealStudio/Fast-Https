@@ -8,7 +8,8 @@
 //	{"schema_version":"1","status":"running","version":"...","pid":1,
 //	 "healthy":true,"last_collect_at":"...","last_event_at":"...","last_error":"..."}
 //
-// 事件文件 events.jsonl，每行一个对象，只取 time、type、severity、message。
+// 事件文件 events.jsonl，每行一个对象。取出 time、type、severity、message，
+// 以及可选的 snapshot 摘要。snapshot 只保留白名单字段，其余键丢弃。
 // Monitor 进程本体按 Monitor 计划第 6、7 步另写；本包只约定它落盘的形状。
 package monview
 
@@ -81,10 +82,24 @@ type StatusInput struct {
 
 // Event 是返回给调用方的一条事件。只含白名单字段。
 type Event struct {
-	Time     string `json:"time"`
-	Type     string `json:"type"`
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
+	Time     string         `json:"time"`
+	Type     string         `json:"type"`
+	Severity string         `json:"severity"`
+	Message  string         `json:"message"`
+	EventID  string         `json:"event_id,omitempty"`
+	Snapshot *EventSnapshot `json:"snapshot,omitempty"`
+}
+
+// EventSnapshot 是 Monitor 写在事件行里的摘要。字段与 monitor.EventSummary 一致。
+// 为零的计数省略，避免把「没有这份数据」写成 0。
+type EventSnapshot struct {
+	State             string `json:"state,omitempty"`
+	PID               int    `json:"pid,omitempty"`
+	StartedAt         string `json:"started_at,omitempty"`
+	RequestsTotal     uint64 `json:"requests_total,omitempty"`
+	Responses5xx      uint64 `json:"responses_5xx_total,omitempty"`
+	RequestsDelta     uint64 `json:"requests_delta,omitempty"`
+	Responses5xxDelta uint64 `json:"responses_5xx_delta,omitempty"`
 }
 
 // EventsResult 是一次事件查询。
@@ -281,10 +296,12 @@ type statusFile struct {
 }
 
 type rawEvent struct {
-	Time     string `json:"time"`
-	Type     string `json:"type"`
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
+	Time     string          `json:"time"`
+	Type     string          `json:"type"`
+	Severity string          `json:"severity"`
+	Message  string          `json:"message"`
+	EventID  string          `json:"event_id"`
+	Snapshot json.RawMessage `json:"snapshot"`
 }
 
 func parseEvent(line string) (Event, bool) {
@@ -301,7 +318,42 @@ func parseEvent(line string) (Event, bool) {
 		Type:     raw.Type,
 		Severity: strings.ToLower(raw.Severity),
 		Message:  clip(msg, maxFieldBytes),
+		EventID:  eventIDOrEmpty(raw.EventID),
+		Snapshot: parseSnapshot(raw.Snapshot),
 	}, true
+}
+
+// eventIDOrEmpty 只接受 Monitor 写下的 16 字节十六进制。其它文本丢掉，事件本身保留。
+func eventIDOrEmpty(id string) string {
+	if len(id) != 32 {
+		return ""
+	}
+	for _, c := range id {
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'f':
+		default:
+			return ""
+		}
+	}
+	return id
+}
+
+// parseSnapshot 只留下白名单字段。摘要缺失、为空或不是对象时返回 nil，
+// 不因此丢掉整条事件。多出来的键（URI、证书路径、上游地址）不会进入结果。
+func parseSnapshot(raw json.RawMessage) *EventSnapshot {
+	if len(bytes.TrimSpace(raw)) == 0 || string(bytes.TrimSpace(raw)) == "null" {
+		return nil
+	}
+	var snap EventSnapshot
+	if err := json.Unmarshal(raw, &snap); err != nil {
+		return nil
+	}
+	snap.State = clip(logquery.Redact(snap.State), maxFieldBytes)
+	snap.StartedAt = clip(logquery.Redact(snap.StartedAt), maxFieldBytes)
+	if snap == (EventSnapshot{}) {
+		return nil
+	}
+	return &snap
 }
 
 func allowedSeverity(s string) bool {

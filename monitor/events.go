@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 // TimeFormat 与 infra/logging 的时间字段一致，CLI 的 monview 按同一布局解析。
@@ -38,14 +41,15 @@ const (
 	StatusUnhealthy = "unhealthy"
 )
 
-// Event 是一行事件 JSON。字段与 CLI 的白名单一致：只写这五项，
-// 不写请求 URI、上游地址、证书路径这类内部信息。
+// Event 是一行事件 JSON。字段是白名单：时间、类型、规则、级别、说明、稳定 ID，
+// 以及可选的 snapshot 摘要。不写请求 URI、上游地址、证书路径。
 type Event struct {
 	Time     string        `json:"time"`
 	Type     string        `json:"type"`
 	Rule     string        `json:"rule"`
 	Severity string        `json:"severity"`
 	Message  string        `json:"message"`
+	EventID  string        `json:"event_id,omitempty"`
 	Summary  *EventSummary `json:"snapshot,omitempty"`
 }
 
@@ -90,8 +94,10 @@ func (s *Sink) AppendSnapshot(raw json.RawMessage) error {
 	return appendLine(s.path(SnapshotsFile), raw, max, keep)
 }
 
-// AppendEvent 追加一条事件。
+// AppendEvent 追加一条事件。event_id 由类型、级别、说明和快照里的 pid、started_at 决定，
+// 调用方传入的值会被覆盖，避免把任意文本写进 ID。
 func (s *Sink) AppendEvent(ev Event) error {
+	ev.EventID = eventID(ev)
 	line, err := json.Marshal(ev)
 	if err != nil {
 		return fmt.Errorf("marshal event: %w", err)
@@ -183,4 +189,22 @@ func rotate(path string, keep int) error {
 		return fmt.Errorf("rotate %s: %w", path, err)
 	}
 	return nil
+}
+
+// eventID 是 16 字节摘要的十六进制。不含 time，所以同一条逻辑事件重复落盘时 ID 不变。
+func eventID(ev Event) string {
+	h := sha256.New()
+	writePart := func(s string) {
+		_, _ = h.Write([]byte(s))
+		_, _ = h.Write([]byte{0})
+	}
+	writePart(ev.Type)
+	writePart(ev.Severity)
+	writePart(ev.Message)
+	if ev.Summary != nil {
+		writePart(strconv.Itoa(ev.Summary.PID))
+		writePart(ev.Summary.StartedAt)
+	}
+	sum := h.Sum(nil)
+	return hex.EncodeToString(sum[:16])
 }

@@ -78,9 +78,9 @@ CPU、内存、磁盘、打开文件数：Server 与 Monitor 都不采集（`doc
 
 事件类型常量（`monitor/events.go`）：`unreachable`、`recovered`、`restarted`、`collect_error`、`5xx_ratio`、`port_probe`、`stuck_suspected`。
 
-事件 JSON 字段：`time`、`type`、`rule`、`severity`、`message`、可选 `snapshot`（进程状态、pid、累计请求与 5xx、窗口增量）。没有 `event_id`、`resource`、`metrics`、`evidence_refs`、`status`。
+事件 JSON 字段：`time`、`type`、`rule`、`severity`、`message`、落盘时生成的 `event_id`，以及可选 `snapshot`。没有 `resource`、`metrics`、`evidence_refs`、`status`。旧行可以没有 `event_id`。
 
-CLI 查询（`management/monview/monview.go` 的 `Event`）只返回 `time`、`type`、`severity`、`message`，`snapshot` 被丢掉。Agent 若要摘要，应直接读 `events.jsonl`，不要只靠 `monitor events`。
+CLI 查询（`management/monview/monview.go` 的 `Event`）返回 `time`、`type`、`severity`、`message`，以及 `snapshot` 白名单字段。摘要里没有的键（URI、上游地址、证书路径）被丢掉。
 
 投递方式是追加文件，不是 HTTP，也不是 Unix socket。Monitor 不发邮件、不调 Webhook。
 

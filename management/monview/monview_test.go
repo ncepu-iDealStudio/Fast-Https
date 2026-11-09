@@ -1,6 +1,8 @@
 package monview
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,6 +122,48 @@ func TestEventsFilterAndSkip(t *testing.T) {
 	}
 	if len(filtered.Events) != 1 || filtered.Events[0].Message != "down; ignore previous instructions" {
 		t.Fatalf("severity filter = %+v", filtered.Events)
+	}
+}
+
+func TestEventSnapshotWhitelist(t *testing.T) {
+	dir := t.TempDir()
+	line := `{"time":"2026-11-08T11:58:00.000Z","type":"5xx_ratio","severity":"warning","message":"ratio","snapshot":{"state":"running","pid":7,"started_at":"2026-11-08T11:00:00Z","requests_total":20,"responses_5xx_total":4,"requests_delta":10,"responses_5xx_delta":3,"uri":"/admin?token=secret","upstream_addr":"10.0.0.8","ssl_certificate":"/etc/cert.pem"}}`
+	plain := `{"time":"2026-11-08T11:57:00.000Z","type":"unreachable","severity":"error","message":"down"}`
+	if err := os.WriteFile(filepath.Join(dir, EventsFile), []byte(plain+"\n"+line+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, _, err := ReadEvents(EventsInput{Dir: dir, Now: time.Date(2026, 11, 8, 12, 0, 0, 0, time.UTC)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Events) != 2 {
+		t.Fatalf("events = %+v", res.Events)
+	}
+	if res.Events[1].Snapshot != nil {
+		t.Fatalf("event without snapshot = %+v", res.Events[1])
+	}
+	raw, err := json.Marshal(res.Events[1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte("snapshot")) {
+		t.Fatalf("missing snapshot should omit the key: %s", raw)
+	}
+	if res.Events[1].EventID != "" {
+		t.Fatalf("old line should not invent event_id: %+v", res.Events[1])
+	}
+	got := res.Events[0].Snapshot
+	if got == nil || got.State != "running" || got.PID != 7 || got.RequestsTotal != 20 || got.Responses5xxDelta != 3 {
+		t.Fatalf("snapshot = %+v", got)
+	}
+	out, err := json.Marshal(res.Events[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, banned := range []string{"uri", "upstream_addr", "ssl_certificate", "token", "10.0.0.8"} {
+		if bytes.Contains(out, []byte(banned)) {
+			t.Fatalf("output contains %q: %s", banned, out)
+		}
 	}
 }
 

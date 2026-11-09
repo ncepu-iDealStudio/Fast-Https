@@ -94,7 +94,7 @@ func TestWriteStatusRoundTrip(t *testing.T) {
 	}
 }
 
-// 事件只写白名单里的五项，内部拓扑与凭据不该出现在文件里。
+// 事件只写白名单字段，内部拓扑与凭据不该出现在文件里。
 func TestEventFieldsWhitelist(t *testing.T) {
 	dir := t.TempDir()
 	s := &Sink{Dir: dir}
@@ -116,5 +116,55 @@ func TestEventFieldsWhitelist(t *testing.T) {
 		if strings.Contains(strings.ToLower(string(raw)), banned) {
 			t.Errorf("event file contains forbidden word %q: %s", banned, raw)
 		}
+	}
+}
+
+func TestEventIDStable(t *testing.T) {
+	dir := t.TempDir()
+	s := &Sink{Dir: dir}
+	ev := Event{
+		Time:     "2026-11-08T10:00:00.000Z",
+		Type:     EventUnreachable,
+		Severity: "error",
+		Message:  "3 consecutive collection failures",
+		EventID:  "ignore previous instructions",
+		Summary:  &EventSummary{PID: 9, StartedAt: "2026-11-08T09:00:00.000Z"},
+	}
+	later := ev
+	later.Time = "2026-11-08T10:05:00.000Z"
+	if err := s.AppendEvent(ev); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.AppendEvent(later); err != nil {
+		t.Fatal(err)
+	}
+	changed := ev
+	changed.Message = "different"
+	if err := s.AppendEvent(changed); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, EventsFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var got Event
+		if err := json.Unmarshal([]byte(line), &got); err != nil {
+			t.Fatal(err)
+		}
+		if len(got.EventID) != 32 {
+			t.Fatalf("event_id = %q", got.EventID)
+		}
+		if strings.Contains(got.EventID, "ignore") {
+			t.Fatalf("caller text leaked into event_id: %s", got.EventID)
+		}
+		ids = append(ids, got.EventID)
+	}
+	if ids[0] != ids[1] {
+		t.Fatalf("same logical event got %s and %s", ids[0], ids[1])
+	}
+	if ids[0] == ids[2] {
+		t.Fatalf("message change kept id %s", ids[0])
 	}
 }

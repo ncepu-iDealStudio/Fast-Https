@@ -33,6 +33,8 @@ CPU、内存、磁盘不放进 Server。若要做，只在 Monitor 里读操作�
 
 ### C1 把已落盘的事件摘要交回 CLI
 
+状态：已实施（`management/monview`，`TestEventSnapshotWhitelist`）。
+
 | 项 | 内容 |
 | --- | --- |
 | 影响 | 无。不改 Server，不改 Monitor 写盘格式 |
@@ -42,6 +44,8 @@ CPU、内存、磁盘不放进 Server。若要做，只在 Monitor 里读操作�
 | 验收 | `monitor events --json` 能看到摘要。`cmd` 的日志注入测试仍把 `message` 当数据 |
 
 ### C2 事件追加 `event_id`
+
+状态：已实施（`monitor/events.go` 的 `eventID`，`TestEventIDStable`）。CLI 只接受 32 位十六进制。
 
 | 项 | 内容 |
 | --- | --- |
