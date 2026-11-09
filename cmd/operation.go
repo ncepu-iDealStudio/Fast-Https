@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"fast-https/management/operation"
-	"fast-https/management/state"
 
 	"github.com/spf13/cobra"
 )
@@ -98,19 +96,6 @@ func validOpStatus(s string) bool {
 		return true
 	}
 	return false
-}
-
-func fromStateError(id string, err error) *CLIError {
-	switch {
-	case errors.Is(err, operation.ErrNotFound):
-		return &CLIError{Code: CodeNotFound, Command: id, Message: err.Error(), Cause: err}
-	case errors.Is(err, operation.ErrRequestIDConflict):
-		return &CLIError{Code: CodeRequestIDClash, Command: id, Message: err.Error(), Cause: err}
-	case errors.Is(err, state.ErrLocked):
-		return &CLIError{Code: CodeConflict, Command: id, Message: err.Error(), Cause: err}
-	default:
-		return &CLIError{Code: CodeInternal, Command: id, Message: err.Error(), Cause: err}
-	}
 }
 
 func writeOperationListText(w io.Writer, list []operation.Record) {

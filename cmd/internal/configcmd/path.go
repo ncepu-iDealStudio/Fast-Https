@@ -1,7 +1,8 @@
-package cmd
+package configcmd
 
 import (
 	"encoding/json"
+	"fast-https/cmd/internal/cli"
 	"fast-https/config"
 	"fmt"
 	"path/filepath"
@@ -25,18 +26,18 @@ type RuntimePaths struct {
 	State   string `json:"state"`
 }
 
-func newConfigCmd() *cobra.Command {
+func NewConfigCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "config",
-		Short:        t("查看路径、显示、校验、版本、差异、应用与回滚", "inspect paths, show, validate, versions, diff, apply and rollback"),
+		Short:        cli.T("查看路径、显示、校验、版本、差异、应用与回滚", "inspect paths, show, validate, versions, diff, apply and rollback"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 
 	pathCmd := &cobra.Command{
 		Use:   "path",
-		Short: t("打印配置、证书、日志、pid、根 CA 与状态目录路径（绝对路径）", "print config, cert, log, pid, root CA and state paths (absolute)"),
-		Long: t(
+		Short: cli.T("打印配置、证书、日志、pid、根 CA 与状态目录路径（绝对路径）", "print config, cert, log, pid, root CA and state paths (absolute)"),
+		Long: cli.T(
 			"打印配置、证书、日志、pid、本地根 CA 证书与管理状态目录的路径（绝对路径）。\n\n"+
 				"log 是当前布局的默认日志目录；配置里写了 log_root 时以配置为准，\n"+
 				"控制面可读取配置文件同名字段覆盖本值。root_crt 由当前布局的\n"+
@@ -52,7 +53,7 @@ func newConfigCmd() *cobra.Command {
 			out := cmd.OutOrStdout()
 			// --json 是根命令的全局选项。这里保持原来的缩进 JSON、不套封套：
 			// 桌面端按键解析，多一个 state 不影响原有五个键。
-			if jsonMode(cmd) {
+			if cli.JSONMode(cmd) {
 				enc := json.NewEncoder(out)
 				enc.SetIndent("", "  ")
 				return enc.Encode(paths)

@@ -195,6 +195,20 @@ func mapTxnCode(code string) string {
 	}
 }
 
+// FromStateError 把操作记录与状态目录的错误转成带错误码的 CLIError。
+func FromStateError(id string, err error) *CLIError {
+	switch {
+	case errors.Is(err, operation.ErrNotFound):
+		return &CLIError{Code: CodeNotFound, Command: id, Message: err.Error(), Cause: err}
+	case errors.Is(err, operation.ErrRequestIDConflict):
+		return &CLIError{Code: CodeRequestIDClash, Command: id, Message: err.Error(), Cause: err}
+	case errors.Is(err, state.ErrLocked):
+		return &CLIError{Code: CodeConflict, Command: id, Message: err.Error(), Cause: err}
+	default:
+		return &CLIError{Code: CodeInternal, Command: id, Message: err.Error(), Cause: err}
+	}
+}
+
 // FromViewError 把视图层返回的错误转成带错误码的 CLIError。
 // 读配置时其它的解析或读取错误一律按配置问题（CONFIG_INVALID）处理。
 func FromViewError(id string, err error) *CLIError {

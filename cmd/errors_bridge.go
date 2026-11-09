@@ -41,3 +41,5 @@ func ExitCode(err error) int { return cli.ExitCode(err) }
 func fromTxnError(id string, err error) *CLIError { return cli.FromTxnError(id, err) }
 
 func fromViewError(id string, err error) *CLIError { return cli.FromViewError(id, err) }
+
+func fromStateError(id string, err error) *CLIError { return cli.FromStateError(id, err) }

@@ -1,8 +1,10 @@
-package cmd
+package configcmd
 
 import (
 	"context"
 	"errors"
+	"fast-https/cmd/internal/cli"
+	"fast-https/cmd/internal/procctl"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,8 +24,8 @@ import (
 func newConfigShowCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "show",
-		Short: t("显示磁盘上的配置（敏感值脱敏）", "show the on-disk configuration (secrets redacted)"),
-		Long: t(
+		Short: cli.T("显示磁盘上的配置（敏感值脱敏）", "show the on-disk configuration (secrets redacted)"),
+		Long: cli.T(
 			"显示磁盘上的主配置与 http.include 站点，口令、令牌等敏感值一律脱敏，没有显示明文的选项。\n\n"+
 				"来源是磁盘，不是运行中进程实际生效的配置；config_dirty_hint 只是按修改时间做的提示。\n"+
 				"--section 可选：http、acme、security、waf、sites。",
@@ -40,7 +42,7 @@ func newConfigShowCmd() *cobra.Command {
 
 			// 残留的 pid 文件说明不了「进程启动之后配置有没有改过」，只在进程确实在跑时才给提示。
 			pidFile := config.PID_FILE
-			if state, _, _ := InspectProcess(pidFile); state != ProcessRunning {
+			if state, _, _ := procctl.InspectProcess(pidFile); state != procctl.ProcessRunning {
 				pidFile = ""
 			}
 
@@ -48,25 +50,25 @@ func newConfigShowCmd() *cobra.Command {
 				MainPath: path, Section: section, PidFile: pidFile,
 			})
 			if err != nil {
-				return fromViewError("config.show", err)
+				return cli.FromViewError("config.show", err)
 			}
-			if jsonMode(cmd) {
-				return emitOK(cmd, "config.show", data, warnings)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "config.show", data, warnings)
 			}
-			printWarnings(cmd.ErrOrStderr(), warnings)
-			return printIndentedJSON(cmd.OutOrStdout(), data)
+			cli.PrintWarnings(cmd.ErrOrStderr(), warnings)
+			return cli.PrintIndentedJSON(cmd.OutOrStdout(), data)
 		},
 	}
-	addConfigFlag(c)
-	c.Flags().String("section", "", t("只显示某一段：http、acme、security、waf、sites", "show one section only: http, acme, security, waf, sites"))
+	cli.AddConfigFlag(c)
+	c.Flags().String("section", "", cli.T("只显示某一段：http、acme、security、waf、sites", "show one section only: http, acme, security, waf, sites"))
 	return c
 }
 
 func newConfigValidateCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "validate",
-		Short: t("校验配置，不应用", "validate a config without applying it"),
-		Long: t(
+		Short: cli.T("校验配置，不应用", "validate a config without applying it"),
+		Long: cli.T(
 			"校验当前配置，或用 --candidate 校验一棵候选目录（fast-https.json + conf.d）。\n"+
 				"只校验，不应用、不重载。校验失败时退出码为 5。候选路径含 .. 或符号链接逃出目录时退出码为 2。",
 			"validate the current config, or a candidate directory (fast-https.json + conf.d) with --candidate.\n"+
@@ -84,28 +86,28 @@ func newConfigValidateCmd() *cobra.Command {
 			data, warnings, err := view.ConfigValidate(path, candidate)
 			if err != nil {
 				if errors.Is(err, config.ErrCandidatePath) {
-					return usageError(err)
+					return cli.UsageError(err)
 				}
-				return fromViewError("config.validate", err)
+				return cli.FromViewError("config.validate", err)
 			}
-			if jsonMode(cmd) {
-				return emitOK(cmd, "config.validate", data, warnings)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "config.validate", data, warnings)
 			}
-			printWarnings(cmd.ErrOrStderr(), warnings)
-			fmt.Fprintf(cmd.OutOrStdout(), t("配置校验通过：%s\n", "config is valid: %s\n"), path)
+			cli.PrintWarnings(cmd.ErrOrStderr(), warnings)
+			fmt.Fprintf(cmd.OutOrStdout(), cli.T("配置校验通过：%s\n", "config is valid: %s\n"), path)
 			return nil
 		},
 	}
-	addConfigFlag(c)
-	c.Flags().String("candidate", "", t("候选配置目录（只校验，不应用）", "candidate config directory (validated only, never applied)"))
+	cli.AddConfigFlag(c)
+	c.Flags().String("candidate", "", cli.T("候选配置目录（只校验，不应用）", "candidate config directory (validated only, never applied)"))
 	return c
 }
 
 func newConfigVersionsCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "versions",
-		Short: t("列出配置版本快照", "list configuration version snapshots"),
-		Long: t(
+		Short: cli.T("列出配置版本快照", "list configuration version snapshots"),
+		Long: cli.T(
 			"列出状态目录里的配置版本。active 不靠标志位，而是当前磁盘配置树的哈希与快照哈希相同的那一个。\n"+
 				"都不相同则 drift 为 true。快照不含证书与私钥。",
 			"List configuration versions in the state directory. active is not stored as a flag:\n"+
@@ -115,12 +117,12 @@ func newConfigVersionsCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path, _ := cmd.Flags().GetString("config")
-			data, err := cfgver.List(stateDir(), path)
+			data, err := cfgver.List(cli.StateDir(), path)
 			if err != nil {
-				return fromStateError("config.versions", err)
+				return cli.FromStateError("config.versions", err)
 			}
-			if jsonMode(cmd) {
-				return emitOK(cmd, "config.versions", data, nil)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "config.versions", data, nil)
 			}
 			if len(data.Versions) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "(no versions)")
@@ -139,15 +141,15 @@ func newConfigVersionsCmd() *cobra.Command {
 			return nil
 		},
 	}
-	addConfigFlag(c)
+	cli.AddConfigFlag(c)
 	return c
 }
 
 func newConfigDiffCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "diff",
-		Short: t("比较当前配置与候选配置", "compare the current config with a candidate"),
-		Long: t(
+		Short: cli.T("比较当前配置与候选配置", "compare the current config with a candidate"),
+		Long: cli.T(
 			"比较当前配置与 --candidate（目录、主配置文件或版本号，例如 v001）。只展示差异，不应用。\n"+
 				"敏感键只显示 changed，不输出新旧值。无法解析时失败，不会用空差异冒充一致。\n"+
 				"候选为目录或版本快照时比较整棵 JSON 树（主文件 + conf.d）。",
@@ -164,7 +166,7 @@ func newConfigDiffCmd() *cobra.Command {
 			}
 			candidate, _ := cmd.Flags().GetString("candidate")
 			if strings.TrimSpace(candidate) == "" {
-				return usageError(fmt.Errorf("--candidate is required"))
+				return cli.UsageError(fmt.Errorf("--candidate is required"))
 			}
 			if err := rejectCandidateEscape(candidate); err != nil {
 				return err
@@ -175,28 +177,28 @@ func newConfigDiffCmd() *cobra.Command {
 			}
 			data, err := diffConfig(current, candPath)
 			if err != nil {
-				return fromViewError("config.diff", err)
+				return cli.FromViewError("config.diff", err)
 			}
-			if jsonMode(cmd) {
-				return emitOK(cmd, "config.diff", data, nil)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "config.diff", data, nil)
 			}
 			if data.Identical {
 				fmt.Fprintln(cmd.OutOrStdout(), "identical: true")
 				return nil
 			}
-			return printIndentedJSON(cmd.OutOrStdout(), data)
+			return cli.PrintIndentedJSON(cmd.OutOrStdout(), data)
 		},
 	}
-	addConfigFlag(c)
-	c.Flags().String("current", "", t("当前配置文件或目录，默认与 --config 相同", "current config file or directory, defaults to --config"))
-	c.Flags().String("candidate", "", t("候选配置目录、文件或版本号（必填）", "candidate config directory, file, or version (required)"))
+	cli.AddConfigFlag(c)
+	c.Flags().String("current", "", cli.T("当前配置文件或目录，默认与 --config 相同", "current config file or directory, defaults to --config"))
+	c.Flags().String("candidate", "", cli.T("候选配置目录、文件或版本号（必填）", "candidate config directory, file, or version (required)"))
 	return c
 }
 
 func rejectCandidateEscape(path string) error {
 	if _, err := config.ResolveCandidateRoot(path); err != nil {
 		if errors.Is(err, config.ErrCandidatePath) {
-			return usageError(err)
+			return cli.UsageError(err)
 		}
 	}
 	return nil
@@ -229,24 +231,24 @@ func resolveDiffCandidate(candidate string) (string, error) {
 		return candidate, nil
 	}
 	if strings.HasPrefix(candidate, "v") {
-		dest := filepath.Join(stateDir().VersionsDir(), candidate)
+		dest := filepath.Join(cli.StateDir().VersionsDir(), candidate)
 		if info, err := os.Stat(dest); err == nil && info.IsDir() {
 			return dest, nil
 		}
-		p, err := cfgver.MainFile(stateDir(), candidate)
+		p, err := cfgver.MainFile(cli.StateDir(), candidate)
 		if err != nil {
-			return "", &CLIError{Code: CodeNotFound, Command: "config.diff", Message: "version not found: " + candidate, Cause: err}
+			return "", &cli.CLIError{Code: cli.CodeNotFound, Command: "config.diff", Message: "version not found: " + candidate, Cause: err}
 		}
 		return p, nil
 	}
-	return "", &CLIError{Code: CodeNotFound, Command: "config.diff", Message: "candidate not found: " + candidate}
+	return "", &cli.CLIError{Code: cli.CodeNotFound, Command: "config.diff", Message: "candidate not found: " + candidate}
 }
 
 func newConfigApplyCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "apply",
-		Short: t("将候选配置目录受控应用到线上", "apply a candidate config directory under management control"),
-		Long: t(
+		Short: cli.T("将候选配置目录受控应用到线上", "apply a candidate config directory under management control"),
+		Long: cli.T(
 			"校验候选目录、生成差异、保存恢复点、切换配置、reload。读得到 /runtime 时做强验证，否则退回弱验证。失败则从恢复点还原。\n"+
 				"必须加 --yes。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建恢复点。",
 			"Validate the candidate directory, diff it, save a restore point, switch files, reload, and verify.\n"+
@@ -257,18 +259,18 @@ func newConfigApplyCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE:         runConfigApply,
 	}
-	addConfigFlag(c)
-	c.Flags().String("candidate", "", t("候选配置目录（必填）", "candidate config directory (required)"))
-	c.Flags().Bool("dry-run", false, t("只校验与展示差异，不应用", "validate and show the diff only, do not apply"))
-	c.Flags().Bool("yes", false, t("确认执行（非 dry-run 必填）", "confirm the apply (required unless --dry-run)"))
+	cli.AddConfigFlag(c)
+	c.Flags().String("candidate", "", cli.T("候选配置目录（必填）", "candidate config directory (required)"))
+	c.Flags().Bool("dry-run", false, cli.T("只校验与展示差异，不应用", "validate and show the diff only, do not apply"))
+	c.Flags().Bool("yes", false, cli.T("确认执行（非 dry-run 必填）", "confirm the apply (required unless --dry-run)"))
 	return c
 }
 
 func newConfigRollbackCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "rollback",
-		Short: t("回滚到一个历史配置版本", "roll back to a historical config version"),
-		Long: t(
+		Short: cli.T("回滚到一个历史配置版本", "roll back to a historical config version"),
+		Long: cli.T(
 			"回滚是一次新的 operation：先校验目标版本（含引用的证书仍存在），再走与 apply 相同的事务。不删除历史版本。\n"+
 				"必须加 --yes。",
 			"Rollback is a new operation: the target version is validated first (including that referenced certificates still exist),\n"+
@@ -277,26 +279,26 @@ func newConfigRollbackCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE:         runConfigRollback,
 	}
-	addConfigFlag(c)
-	c.Flags().String("version", "", t("目标版本号，例如 v001（必填）", "target version, e.g. v001 (required)"))
-	c.Flags().Bool("dry-run", false, t("只校验与展示差异，不回滚", "validate and show the diff only, do not roll back"))
-	c.Flags().Bool("yes", false, t("确认执行（非 dry-run 必填）", "confirm the rollback (required unless --dry-run)"))
+	cli.AddConfigFlag(c)
+	c.Flags().String("version", "", cli.T("目标版本号，例如 v001（必填）", "target version, e.g. v001 (required)"))
+	c.Flags().Bool("dry-run", false, cli.T("只校验与展示差异，不回滚", "validate and show the diff only, do not roll back"))
+	c.Flags().Bool("yes", false, cli.T("确认执行（非 dry-run 必填）", "confirm the rollback (required unless --dry-run)"))
 	return c
 }
 func runConfigApply(cmd *cobra.Command, _ []string) error {
 	cand, _ := cmd.Flags().GetString("candidate")
 	if strings.TrimSpace(cand) == "" {
-		return usageError(fmt.Errorf("--candidate is required"))
+		return cli.UsageError(fmt.Errorf("--candidate is required"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
-	if !dry && !confirmed(cmd) {
-		return usageError(fmt.Errorf("apply requires --yes; use --dry-run to preview"))
+	if !dry && !cli.Confirmed(cmd) {
+		return cli.UsageError(fmt.Errorf("apply requires --yes; use --dry-run to preview"))
 	}
 	live, _ := cmd.Flags().GetString("config")
 	return runTxn(cmd, "config.apply", txn.Input{
 		Candidate: cand,
 		LiveMain:  live,
-		RequestID: ensureRequestID(cmd),
+		RequestID: cli.EnsureRequestID(cmd),
 		Command:   "config.apply",
 		Summary:   "config apply",
 		DryRun:    dry,
@@ -306,21 +308,21 @@ func runConfigApply(cmd *cobra.Command, _ []string) error {
 func runConfigRollback(cmd *cobra.Command, _ []string) error {
 	ver, _ := cmd.Flags().GetString("version")
 	if strings.TrimSpace(ver) == "" {
-		return usageError(fmt.Errorf("--version is required"))
+		return cli.UsageError(fmt.Errorf("--version is required"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
-	if !dry && !confirmed(cmd) {
-		return usageError(fmt.Errorf("rollback requires --yes; use --dry-run to preview"))
+	if !dry && !cli.Confirmed(cmd) {
+		return cli.UsageError(fmt.Errorf("rollback requires --yes; use --dry-run to preview"))
 	}
-	root := cfgver.VersionDir(stateDir(), ver)
+	root := cfgver.VersionDir(cli.StateDir(), ver)
 	if info, err := os.Stat(root); err != nil || !info.IsDir() {
-		return &CLIError{Code: CodeNotFound, Command: "config.rollback", Message: "version not found: " + ver}
+		return &cli.CLIError{Code: cli.CodeNotFound, Command: "config.rollback", Message: "version not found: " + ver}
 	}
 	live, _ := cmd.Flags().GetString("config")
 	return runTxn(cmd, "config.rollback", txn.Input{
 		Candidate: root,
 		LiveMain:  live,
-		RequestID: ensureRequestID(cmd),
+		RequestID: cli.EnsureRequestID(cmd),
 		Command:   "config.rollback",
 		Summary:   "rollback to " + ver,
 		DryRun:    dry,
@@ -332,18 +334,18 @@ func runTxn(cmd *cobra.Command, id string, in txn.Input) error {
 	if err := rejectCandidateEscape(in.Candidate); err != nil {
 		return err
 	}
-	timeout := cmdTimeout(cmd, svcctl.DefaultTimeout)
+	timeout := cli.CmdTimeout(cmd, svcctl.DefaultTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	eng := newTxnEngine(in.LiveMain, timeout)
+	eng := cli.NewTxnEngine(in.LiveMain, timeout)
 	res, err := eng.Apply(ctx, in)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return fromTxnError(id, &txn.Error{Code: txn.CodeUnknown, Message: err.Error(), Err: err, Operation: opPtr(res.Operation)})
+			return cli.FromTxnError(id, &txn.Error{Code: txn.CodeUnknown, Message: err.Error(), Err: err, Operation: opPtr(res.Operation)})
 		}
-		return fromTxnError(id, err)
+		return cli.FromTxnError(id, err)
 	}
-	return emitTxnResult(cmd, id, res)
+	return cli.EmitTxnResult(cmd, id, res)
 }
 
 func opPtr(rec operation.Record) *operation.Record {
