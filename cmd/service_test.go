@@ -2,21 +2,89 @@ package cmd
 
 import (
 	"encoding/json"
+	"fast-https/cmd/internal/procctl"
 	"fast-https/cmd/internal/servicecmd"
-	"io"
-	"net"
-	"net/http"
-	"os"
-	"strings"
-	"testing"
-	"time"
-
 	"fast-https/config"
 	"fast-https/core"
 	"fast-https/modules/proxy"
 	"fast-https/runtime/metrics"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
 )
 
+// ===== merged from foreground_test.go =====
+func TestRunInForegroundFromEnv(t *testing.T) {
+	t.Setenv("FASTHTTPS_FOREGROUND", "1")
+	if !runInForeground() {
+		t.Fatal("FASTHTTPS_FOREGROUND=1 should keep the server in the foreground")
+	}
+}
+
+func TestRunInForegroundUnset(t *testing.T) {
+	t.Setenv("FASTHTTPS_FOREGROUND", "")
+	t.Setenv("INVOCATION_ID", "")
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		t.Skip("container marker exists in this environment")
+	}
+	if _, err := os.Stat("/run/.containerenv"); err == nil {
+		t.Skip("container marker exists in this environment")
+	}
+	if runInForeground() {
+		t.Fatal("empty FASTHTTPS_FOREGROUND should servicecmd.Daemonize outside a container")
+	}
+}
+
+// ===== merged from register_test.go =====
+func TestRegisterHandlersCoversConfiguredTypes(t *testing.T) {
+	types := []struct {
+		code uint16
+		name string
+	}{
+		{config.LOCAL, "local"},
+		{config.PROXY_HTTP, "proxy-http"},
+		{config.PROXY_HTTPS, "proxy-https"},
+		{config.REWRITE, "rewrite"},
+		{config.DEVMOD, "devmod"},
+	}
+	for _, item := range types {
+		core.RegisterHandler(int(item.code), nil, nil, nil)
+	}
+	t.Cleanup(servicecmd.RegisterHandlers)
+
+	paths := make([]config.Path, len(types))
+	for i, item := range types {
+		paths[i].PathType = item.code
+	}
+	servers := []config.Server{{Path: paths}}
+
+	err := core.MissingHandlers(servers)
+	if err == nil {
+		t.Fatal("unregistered location types should be reported before listening")
+	}
+	for _, item := range types {
+		if !strings.Contains(err.Error(), item.name) {
+			t.Errorf("error %q should name %s", err, item.name)
+		}
+	}
+
+	servicecmd.RegisterHandlers()
+	if err := core.MissingHandlers(servers); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range types {
+		if !core.HandlerReady(int(item.code)) {
+			t.Errorf("%s handler is not ready after servicecmd.RegisterHandlers", item.name)
+		}
+	}
+}
+
+// ===== merged from runtime_endpoint_test.go =====
 func startTestRuntime(t *testing.T) string {
 	t.Helper()
 	metrics.ResetForTest()
@@ -226,5 +294,74 @@ func TestRuntimeUpstreamSection(t *testing.T) {
 	_, body = getRuntime(t, addr)
 	if !strings.Contains(string(body), `"dial_fail_total"`) {
 		t.Fatalf("registered upstream missing: %s", body)
+	}
+}
+
+// ===== merged from status_test.go =====
+// writePidTo 写入的是调用方给的 pid（后台化时父进程写子进程的 pid），
+// 不能像旧实现那样永远写自己的 pid。
+func TestWritePidToRecordsGivenPid(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fast-https.pid")
+	if err := procctl.WritePidTo(path, 4321); err != nil {
+		t.Fatal(err)
+	}
+	pid, err := procctl.ReadPid(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pid != 4321 {
+		t.Fatalf("pid = %d, want 4321", pid)
+	}
+}
+
+// waitProcessGone 对活着的进程必须等满超时后返回 false。
+func TestWaitProcessGoneTimesOut(t *testing.T) {
+	start := time.Now()
+	if procctl.WaitGone(os.Getpid(), 200*time.Millisecond) {
+		t.Fatal("current process is alive, waitProcessGone must not report gone")
+	}
+	if elapsed := time.Since(start); elapsed < 200*time.Millisecond {
+		t.Fatalf("returned after %v, before the timeout", elapsed)
+	}
+}
+
+func TestInspectProcessAbsent(t *testing.T) {
+	state, pid, err := procctl.InspectProcess(filepath.Join(t.TempDir(), "missing.pid"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != procctl.ProcessAbsent || pid != 0 {
+		t.Fatalf("state=%v pid=%d", state, pid)
+	}
+}
+
+func TestInspectProcessStale(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fast-https.pid")
+	if err := os.WriteFile(path, []byte(`{"pid":2147483646}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	state, pid, err := procctl.InspectProcess(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if procctl.Running(2147483646) {
+		t.Skip("pid 2147483646 is in use on this machine")
+	}
+	if state != procctl.ProcessStale || pid != 2147483646 {
+		t.Fatalf("state=%v pid=%d", state, pid)
+	}
+}
+
+func TestInspectProcessRunning(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fast-https.pid")
+	if err := procctl.WritePid(path); err != nil {
+		t.Fatal(err)
+	}
+	state, pid, err := procctl.InspectProcess(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != procctl.ProcessRunning || pid != os.Getpid() {
+		t.Fatalf("state=%v pid=%d, want running %d", state, pid, os.Getpid())
 	}
 }

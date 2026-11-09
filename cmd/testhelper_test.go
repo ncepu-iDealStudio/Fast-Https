@@ -1,12 +1,32 @@
 package cmd
 
 import (
-	"encoding/json"
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"text/template"
 )
+
+// renderTestdata 渲染 cmd/testdata 下的模板。固定输入放 testdata（编译器
+// 不会把该目录当成包内容），需要按测试临时目录改路径的用 .tmpl 模板。
+func renderTestdata(t *testing.T, name string, data any) string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatalf("read testdata/%s: %v", name, err)
+	}
+	tpl, err := template.New(name).Parse(string(raw))
+	if err != nil {
+		t.Fatalf("parse testdata/%s: %v", name, err)
+	}
+	var buf bytes.Buffer
+	if err := tpl.Execute(&buf, data); err != nil {
+		t.Fatalf("render testdata/%s: %v", name, err)
+	}
+	return buf.String()
+}
 
 // lineReader 按行返回预置输入，用来驱动向导类的逐行问答。
 // acme_test.go 迁到 internal/acmecmd 后，cmd 包内的 site 测试仍需要它。
@@ -44,25 +64,8 @@ func siteTestEnv(t *testing.T) (mainPath, includeDir string) {
 	}
 
 	mainPath = filepath.Join(base, "fast-https.json")
-	payload := map[string]any{
-		"http": map[string]any{
-			"include": []any{includeDir},
-			"server": []any{
-				map[string]any{
-					"listen":      80,
-					"server_name": "main.example",
-					"location": []any{
-						map[string]any{"url": "/", "type": "local", "root": "./httpdoc/root"},
-					},
-				},
-			},
-		},
-	}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(mainPath, data, 0o644); err != nil {
+	main := renderTestdata(t, "main-standalone.json.tmpl", map[string]any{"IncludeDir": includeDir})
+	if err := os.WriteFile(mainPath, []byte(main), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return mainPath, includeDir
