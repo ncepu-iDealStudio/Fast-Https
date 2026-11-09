@@ -1,0 +1,35 @@
+site list
+site show
+site add
+site update
+site delete
+site enable
+site disable
+config path
+config show
+config validate
+config versions
+config diff
+config apply
+config rollback
+status
+version
+start
+stop
+reload
+service status
+service version
+service reload
+runtime status
+runtime stats
+diagnose
+monitor status
+monitor events
+cert list
+cert check
+acme show
+logs access
+logs error
+logs query
+operation list
+operation get

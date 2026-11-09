@@ -11,6 +11,7 @@ import { refreshOverview, refreshDetails } from './refresh.js';
 import { renderEvents } from './ui/events.js';
 import { initConfigEditor } from './pages/config.js';
 import { initLogPage, loadLogs } from './pages/logs.js';
+import { initCommandPanel } from './pages/commands.js';
 import { template as siteTemplate, initSiteDialog, initSiteLinks } from './dialogs/site.js';
 import { template as closeTemplate, initCloseDialog, openCloseDialog } from './dialogs/close.js';
 import { template as confirmTemplate, initConfirmDialog } from './dialogs/confirm.js';
@@ -68,6 +69,7 @@ function init() {
 
   renderEvents();
   initLogPage();
+  initCommandPanel();
   refreshOverview();
   refreshDetails();
   loadLogs(true);
