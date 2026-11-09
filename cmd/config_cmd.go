@@ -394,7 +394,10 @@ func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 				return err
 			}
 			if st != ProcessRunning {
-				return svcctl.ErrNotRunning
+				// 服务没在跑也允许提交：配置已经写到候选并切换完成，
+				// 下次启动会加载，没有 reload 可做。回滚反而是错的。
+				fmt.Fprintln(os.Stderr, "提示：fast-https 服务未运行，配置已写入，启动后生效")
+				return nil
 			}
 			before = nil
 			if snap, err := rtclient.Default().Get(ctx); err == nil {
@@ -422,7 +425,8 @@ func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 				return err
 			}
 			if st != ProcessRunning {
-				return svcctl.ErrNotRunning
+				// 服务没在跑就没有健康检查可做，不构成失败。
+				return nil
 			}
 			opts := svcctl.Options{
 				ConfigPath: liveMain,
