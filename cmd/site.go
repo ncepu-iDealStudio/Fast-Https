@@ -403,8 +403,83 @@ func buildSiteInput(opts siteOptions, in config.SiteInput) (config.SiteInput, er
 	return in, nil
 }
 
+// promptSitePlain 用纯逐行问答走完整条向导。
+// Windows 的 conhost 对 bubbletea 的终端控制支持不完整（raw 读、全屏渲染
+// 都会返回 syscall.EWINDOWS，也就是 "not supported by windows"），因此
+// Windows 上完全不碰 huh 与 term，只读 stdin。
+func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
+	ask := func(title, initial string) (string, error) {
+		return readPlainPathLine(*opts, title, initial)
+	}
+
+	if strings.TrimSpace(opts.Name) == "" {
+		name, err := ask("站点名（文件名）", "")
+		if err != nil {
+			return err
+		}
+		if err := site.ValidateName(strings.TrimSpace(name)); err != nil {
+			return err
+		}
+		opts.Name = strings.TrimSpace(name)
+	}
+
+	listen, err := ask("监听端口/参数（逗号分隔）", strings.Join(in.Listens, ", "))
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(listen) != "" {
+		in.Listens = splitListens(listen)
+	}
+
+	serverName, err := ask("server_name（留空与站点名相同）", in.ServerName)
+	if err != nil {
+		return err
+	}
+	in.ServerName = strings.TrimSpace(serverName)
+	if in.ServerName == "" {
+		in.ServerName = strings.TrimSpace(opts.Name)
+	}
+
+	kind, err := ask("站点类型（1 静态 / 2 反向代理）", "1")
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(kind) == "2" {
+		opts.LocationType = "proxy"
+	} else {
+		opts.LocationType = "local"
+	}
+
+	tls, err := ask("启用 TLS（y/N）", "n")
+	if err != nil {
+		return err
+	}
+	opts.TLS = strings.HasPrefix(strings.ToLower(strings.TrimSpace(tls)), "y")
+
+	if opts.LocationType == "proxy" {
+		upstream, err := ask("上游地址", "http://127.0.0.1:8080")
+		if err != nil {
+			return err
+		}
+		opts.ProxyPass = strings.TrimSpace(upstream)
+		return nil
+	}
+
+	root, err := ask("站点根目录", "./httpdoc/root")
+	if err != nil {
+		return err
+	}
+	opts.Root = strings.TrimSpace(root)
+	return nil
+}
+
 // promptSite 只问缺什么：名字、类型、上游，以及 TLS 开关。
 func promptSite(opts *siteOptions, in *config.SiteInput) error {
+	// Windows 的 conhost 不支持 bubbletea 的终端控制（syscall.EWINDOWS），
+	// 整条向导改用逐行问答；--plain 在其他平台也走这条。
+	if runtime.GOOS == "windows" || opts.Plain {
+		return promptSitePlain(opts, in)
+	}
 	types := []huh.Option[string]{
 		huh.NewOption("静态站点（本地目录）", "local"),
 		huh.NewOption("反向代理（转发到上游）", "proxy"),
