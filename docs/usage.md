@@ -178,7 +178,7 @@ curl -I --http2 -k https://127.0.0.1/  # 确认协商到 HTTP/2
 
 站点多了不必都堆在主配置里：`config/conf.d/*.json` 每个文件就是一个 server 块（字段与 `http.server[]` 元素完全一致），主配置的 `http.include` 指向该目录即可。
 
-新增、更新、删除、启用、停用请用 `site add/update/delete/enable/disable`：复制当前配置树到候选目录、改站点文件，再走 `config apply` 同一套事务（`--dry-run`、`--request-id` 幂等、失败回滚、自动 reload）。旧的 `site init` / `site remove` 仍然可用，但只写文件并提示 reload，不自动重载。
+新增、更新、删除、启用、停用请用 `site add/update/delete/enable/disable`：复制当前配置树到候选目录、改站点文件，再走 `config apply` 同一套事务（`--dry-run`、`--request-id` 幂等、失败回滚、自动 reload）。`site add` 不带 `--domain` 且标准输入是终端时进向导，交互入口与批量调用共用同一套校验与事务。
 
 ```bash
 fast-https site add --domain demo.example --root ./httpdoc/root --listen 8081 --dry-run --json
@@ -188,29 +188,29 @@ fast-https site disable demo.example --yes
 fast-https site enable demo.example --yes
 fast-https site delete demo.example --yes   # 只删配置文件，不删内容目录与证书
 fast-https site list --json                 # 含 enabled、cert_status
-fast-https site init blog --server-name blog.example --non-interactive
+fast-https site add --domain blog.example --listen 80 --root ./httpdoc/root --yes
 fast-https site show blog
-fast-https site remove blog --yes
+fast-https site delete blog --yes
 ```
 
 - **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。
 - **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
 - **site disable / enable**：把 `<name>.json` 改名为 `<name>.json.disabled` 或改回（`include` 只加载 `*.json`）。`site list --json` 里停用站点为 `enabled: false`。
 - **site delete**：必须 `--yes`。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 `config rollback` 找回。
-- **交互式（旧 init）**：`fast-https site init` 省略名字（或参数不齐）时进向导，一题一屏依次问站点名、监听端口、`server_name`、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。标准输入不是终端时自动要求用参数，不会挂起。站点名带不带 `.json` 都行（`blog` 与 `blog.json` 等价，不会生成 `blog.json.json`）。
+- **交互式**：`fast-https site add` 不带 `--domain` 且标准输入是终端时进向导，一题一屏依次问站点名（也是文件名）、监听端口、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。最后一屏确认即视为 `--yes`。标准输入不是终端时不会挂起，会提示改用 `--domain` 等参数。
 - **反代站点（旧 init）**：`--type proxy --proxy-pass http://127.0.0.1:8080`。
-- **改已有站点（旧 init）**：`site init <name>` 同名即更新，只覆盖显式传进来的 flag。例如 `--tls` 把现有监听升级成 `443 ssl h2` 并补默认证书路径。新命令请用 `site update`（不接受 `--type`）。
+- **改已有站点**：用 `site update <name>`，只改白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`），不接受 `--type`。同名站点不再隐式更新，`site add` 遇到重名直接返回冲突（退出码 10）。
 - **多端口**：`--listen` 可重复，一个文件就能同时监听多个端口，站点文件里写成数组。
 
   ```bash
-  fast-https site init blog --server-name blog.example \
+  fast-https site add --domain blog.example --listen 80 \
       --listen 80 --listen "443 ssl h2" --non-interactive
   ```
 
   加载时这个块会展开成"一块一个端口"的两个 server 块，`server_name`、location 与证书共用；`site list` 的 LISTEN 列显示为 `80, 443 ssl h2`。
 - **TLS 站点**：`--tls` 保证至少有一个 TLS 监听，且不会把 `ssl` 贴到 80 上。不给 `--listen` 时生成 `["80", "443 ssl h2"]`；给了 `--listen` 时写什么用什么，只把非 80 的那条补成 `ssl h2`（`--listen 80 --tls` 仍是 `80` + `443 ssl h2`）。证书默认路径是 `config/cert/<server_name>.pem` 与 `-key.pem`，由首次 `start` 生成；在那之前 `reload` 的预检会报 `ssl_certificate not found`（与主配置一致）。
 - **写入安全（旧 init）**：先生成 `.tmp`，用主配置同一套 schema 校验通过后才 rename；同名文件已存在时要求 `--force`。
-- **生效方式**：`site add/update/delete/enable/disable` 走事务并 reload；`site init` / `site remove` 只写文件并提示 `fast-https reload`（reload 会先校验配置），不自动重载。
+- **生效方式**：`site add/update/delete/enable/disable` 全部走事务并自动 reload，失败回滚；不再有「只写文件、手动 reload」的老路径。
 
 ### 4.5 停止
 
@@ -509,14 +509,12 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0 |
 | `monitor status` | 只读 Monitor 的 `status.json`。文件不存在时 `status` 为 `not_installed`（退出码 0）；采集时间早于 30 秒为 `stale`。不连接 Monitor 进程，也不负责启停 |
 | `monitor events` | 只读 `events.jsonl`。`--since`、`--limit`（默认 100，上限 1000）、`--severity`（`info`、`warning`、`error`、`critical`）。坏行跳过并计数，事件文本只作为数据返回 |
-| `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点）。只写文件，提示 reload |
 | `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`）。走配置事务，非 dry-run 必须 `--yes`。同名或同 `server_name` 退出码 10 |
 | `site update <name>` | 受控更新白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`）。内联主配置站点退出码 11 |
 | `site delete <name>` | 受控删除站点配置（不删内容目录与证书）。必须 `--yes` |
 | `site enable <name>` / `site disable <name>` | 把 `<name>.json` 与 `<name>.json.disabled` 互改并 reload。必须 `--yes` |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套（含 `enabled`、`cert_status`） |
 | `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块；加 `--json` 输出脱敏后的封套（文本模式仍打印原文，包含写在文件里的口令） |
-| `site remove <name>` | 删除站点文件（需要 `--yes`）。只写文件，提示 reload |
 | `acme` | 交互式配置 ACME：问邮箱、CA、挑战方式，写回 `acme` 段 |
 | `acme setup` | 同 `acme`，可用 `--email`、`--ca`、`--challenge` 等 flags 非交互执行 |
 | `acme show` | 打印生效的 ACME 配置（EAB 私钥脱敏）与会申请证书的域名 |
@@ -532,8 +530,8 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 帮助、用法与 flag 说明默认是中文。需要英文时用 `--lang en`，或者设置环境变量 `FAST_HTTPS_LANG=en`：
 
 ```bash
-fast-https site init --help            # 中文
-fast-https --lang en site init --help  # 英文
+fast-https site add --help             # 中文
+fast-https --lang en site add --help   # 英文
 FAST_HTTPS_LANG=en fast-https -h       # 英文
 ```
 

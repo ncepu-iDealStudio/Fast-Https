@@ -170,7 +170,7 @@ The shipped config carries no comments on purpose: every field is documented in 
 | `./fast-https version` | Print the version as a single line, `fast-https <version>` |
 | `./fast-https acme` | Interactive ACME setup, rewrites the `acme` section (restart required) |
 | `./fast-https acme show` | Show the effective ACME settings and the domains that will be requested |
-| `./fast-https site init blog` | Create a site file under `config/conf.d/` (wizard, or flags to skip prompts) |
+| `./fast-https site add` | Add a site: wizard when `--domain` is omitted, flags (`--listen/--root/--proxy-pass`) otherwise |
 | `./fast-https site list/check/show/remove` | List, validate, inspect and delete site files |
 
 ## FAQ

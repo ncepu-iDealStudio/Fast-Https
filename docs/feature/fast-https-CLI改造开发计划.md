@@ -679,7 +679,7 @@ Copy-Item .\config $env:TEMP\cand -Recurse -Force
 
 **目标：** `site add/update/delete/enable/disable`，全部通过 S8 的事务引擎，因此带 dry-run、幂等、可回滚、会 reload。
 
-**影响：** 小。`modules/site` 增加「列出停用站点」；其余是 `cmd` 与 `management` 的组合。旧的 `site init`、`site remove` 保持原样（只写文件、提示 reload），文档里推荐新命令。
+**影响：** 小。`modules/site` 增加「列出停用站点」；其余是 `cmd` 与 `management` 的组合。旧的 `site init`、`site remove` 已在后续版本移除，交互向导并入 `site add`。
 
 **改动范围：**
 
@@ -718,7 +718,7 @@ Copy-Item .\config $env:TEMP\cand -Recurse -Force
 | `TestSiteDisableEnableRoundTrip` | 停用后不被加载，启用后文件字节与原来一致 |
 | `TestSiteWriteIdempotent` | 同 `request_id` 重复执行不产生新版本 |
 | `TestSiteWriteRollback` | 注入 reload 失败 → 站点文件恢复原状 |
-| `TestLegacySiteInitRemoveUnchanged` | 旧 `site init`、`site remove` 的行为与输出不变 |
+| `TestLegacySiteInitRemoveRemoved` | 旧 `site init`、`site remove` 已移除，调用失败 |
 
 **验收（手工）：**
 
