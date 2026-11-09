@@ -408,12 +408,18 @@ func buildSiteInput(opts siteOptions, in config.SiteInput) (config.SiteInput, er
 // 都会返回 syscall.EWINDOWS，也就是 "not supported by windows"），因此
 // Windows 上完全不碰 huh 与 term，只读 stdin。
 func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
-	ask := func(title, initial string) (string, error) {
+	// 逐行模式的标题与说明刻意和 huh 表单保持一字不差：同一套向导，
+	// 只是终端不支持全屏渲染时退化成一行一问。
+	ask := func(title, desc, initial string) (string, error) {
+		if desc != "" {
+			fmt.Fprintln(opts.Out, desc)
+		}
 		return readPlainPathLine(*opts, title, initial)
 	}
 
 	if strings.TrimSpace(opts.Name) == "" {
-		name, err := ask("站点名（文件名）", "")
+		name, err := ask("站点名（文件名）",
+			"生成 conf.d/<名字>.json，只能用字母、数字、点、短横线。", "")
 		if err != nil {
 			return err
 		}
@@ -423,7 +429,8 @@ func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
 		opts.Name = strings.TrimSpace(name)
 	}
 
-	listen, err := ask("监听端口/参数（逗号分隔）", strings.Join(in.Listens, ", "))
+	listen, err := ask("监听端口/参数",
+		`一个或多个，逗号分隔：80, "443 ssl h2"。`, strings.Join(in.Listens, ", "))
 	if err != nil {
 		return err
 	}
@@ -431,7 +438,8 @@ func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
 		in.Listens = splitListens(listen)
 	}
 
-	serverName, err := ask("server_name（留空与站点名相同）", in.ServerName)
+	serverName, err := ask("server_name",
+		"按请求 Host 匹配的域名，留空则与站点名相同。", in.ServerName)
 	if err != nil {
 		return err
 	}
@@ -440,7 +448,8 @@ func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
 		in.ServerName = strings.TrimSpace(opts.Name)
 	}
 
-	kind, err := ask("站点类型（1 静态 / 2 反向代理）", "1")
+	kind, err := ask("站点类型",
+		"1. 静态站点（本地目录）\n2. 反向代理（转发到上游）\nEnter a number between 1 and 2:", "1")
 	if err != nil {
 		return err
 	}
@@ -450,14 +459,16 @@ func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
 		opts.LocationType = "local"
 	}
 
-	tls, err := ask("启用 TLS（y/N）", "n")
+	tls, err := ask("启用 TLS？",
+		"会补 ssl h2 到 listen，并给出默认证书路径。", "n")
 	if err != nil {
 		return err
 	}
 	opts.TLS = strings.HasPrefix(strings.ToLower(strings.TrimSpace(tls)), "y")
 
 	if opts.LocationType == "proxy" {
-		upstream, err := ask("上游地址", "http://127.0.0.1:8080")
+		upstream, err := ask("上游地址",
+			"反代目标，例如 http://127.0.0.1:8080。", "http://127.0.0.1:8080")
 		if err != nil {
 			return err
 		}
@@ -465,7 +476,8 @@ func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
 		return nil
 	}
 
-	root, err := ask("站点根目录", "./httpdoc/root")
+	root, err := ask("站点根目录",
+		"静态文件目录，相对路径按站点根基址解析。", "./httpdoc/root")
 	if err != nil {
 		return err
 	}
@@ -473,11 +485,21 @@ func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
 	return nil
 }
 
+// supportsTUI 判断当前终端能否跑 bubbletea 的全屏表单。
+// Windows 的 conhost 不行：raw 读取与全屏渲染都会返回 syscall.EWINDOWS
+// （也就是 not supported by windows）。Windows Terminal 等现代终端可以。
+func supportsTUI() bool {
+	if runtime.GOOS != "windows" {
+		return true
+	}
+	return os.Getenv("WT_SESSION") != "" || os.Getenv("TERM_PROGRAM") != ""
+}
+
 // promptSite 只问缺什么：名字、类型、上游，以及 TLS 开关。
 func promptSite(opts *siteOptions, in *config.SiteInput) error {
-	// Windows 的 conhost 不支持 bubbletea 的终端控制（syscall.EWINDOWS），
-	// 整条向导改用逐行问答；--plain 在其他平台也走这条。
-	if runtime.GOOS == "windows" || opts.Plain {
+	// 终端支持全屏渲染才用 huh 表单（与 site init 时代一致）；conhost 之类
+	// 不支持的终端退化成逐行问答，标题与说明文字保持一字不差。
+	if opts.Plain || !supportsTUI() {
 		return promptSitePlain(opts, in)
 	}
 	types := []huh.Option[string]{
