@@ -498,3 +498,36 @@ func runInForeground() bool {
 	}
 	return false
 }
+
+// ===== 对外入口与公共 API =====
+//
+// cmd 之外（main、tools/manpage、tests/）无法 import cmd/internal/*，
+// 所以下面这些必须由 cmd 包暴露。实现都在 internal 子包里，这里只做转发。
+
+// Run 执行根命令并返回进程退出码，供 main 使用。
+func Run() int { return cli.Run(RootCmd) }
+
+// Lang 是帮助信息的语言标识。tools/manpage 需要它来生成中英两版 man 页，
+// 而它不能 import cmd/internal/cli，所以在这里保留类型别名。
+type Lang = cli.Lang
+
+const (
+	LangZH  = cli.LangZH
+	LangEN  = cli.LangEN
+	LangEnv = cli.LangEnv
+)
+
+// WritePid 把当前进程的 pid 写入指定文件。集成测试直接调用它造运行状态。
+func WritePid(path string) error { return procctl.WritePid(path) }
+
+// RegisterHandlers 注册服务器事件处理器。
+func RegisterHandlers() { servicecmd.RegisterHandlers() }
+
+// RegisterServices 注册所有自定义服务。
+func RegisterServices() { servicecmd.RegisterServices() }
+
+// StartRuntimeEndpoint 启动运行时查询端点。
+func StartRuntimeEndpoint() error { return servicecmd.StartRuntimeEndpoint() }
+
+// StopRuntimeEndpoint 关闭运行时查询端点。
+func StopRuntimeEndpoint() { servicecmd.StopRuntimeEndpoint() }
