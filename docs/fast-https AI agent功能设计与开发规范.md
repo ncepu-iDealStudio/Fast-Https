@@ -1,6 +1,6 @@
 # fast-https AI Agent 功能设计与开发规范
 
-**文档版本：** V1.0  
+**文档版本：** V1.1  
 **文档性质：** 总体功能设计与技术规范  
 **适用项目：** fast-https Web Server 智能运维系统  
 **主要用途：** 作为后续源码分析、开发任务拆分、技术方案设计及开发执行计划的依据
@@ -56,6 +56,114 @@ AI Agent 应当具备以下核心能力：
 | 故障处理方式 | 事件驱动、诊断、计划、执行、验证 |
 | 消息基础设施 | 第一阶段不引入复杂 MQ |
 | DSH Plugin 定位 | 面向管理员的交互式智能运维入口 |
+| 实现语言 | Go。与 Server、Monitor 同一模块，独立进程 `fast-https-agent` |
+| 生产依赖 | 不部署必须长期维护的 Python Agent 服务 |
+
+## 1.4 实现语言与技术栈
+
+第一阶段用 Go 实现 Agent。这是工程选择：Agent 的主体是长期运行的运维编排，模型调用只占诊断和方案生成。Python 在 Agent 框架、RAG 和实验工具上更成熟，但不因此把生产进程做成 Python 服务。
+
+| 工作 | Go | Python |
+|---|---|---|
+| 常驻进程、并发事件、超时与取消 | 与现有 Server 相同的运行方式 | 能做，要另管解释器和依赖 |
+| 状态机、策略、调用 CLI、结果验证 | 与 `management/`、`monitor/` 同一语言 | 需要跨语言约定 |
+| 调用 OpenAI 兼容 HTTP API | 标准库即可 | SDK 和示例更多 |
+| 现成 Agent 框架 | 有，数量少，部分仍是预览版 | LangGraph 等更完整 |
+| 分发 | 一个二进制，与 `fast-https`、`fast-https-monitor` 并列 | 需要运行环境 |
+
+因此不在第一阶段引入 LangGraph，也不引入仍处于公开预览的通用 Agent 框架。处理流程已经固定为：收事件、采集上下文、诊断、生成计划、策略检查、执行、验证、完成或升级。这条链路用 Go 状态机实现，权限边界留在策略引擎，不交给框架运行时。
+
+模型侧只保留一个接口。本地推理服务和外部供应商都走 OpenAI 兼容的 HTTP API。模型返回结构化诊断和计划；策略引擎决定能不能执行；执行器只调用白名单里的 fast-https CLI。模型不得到 Shell，也不直接改配置文件。
+
+| 技术模块 | 第一阶段方案 |
+|---|---|
+| 语言 | Go，模块 `fast-https`，入口 `agent/` |
+| HTTP | 标准库 `net/http`。读 `/runtime`，调模型 API |
+| 并发 | goroutine、`context` 超时与取消 |
+| 持久化 | 单个 SQLite 文件，`database/sql`，纯 Go 驱动，不启用 CGO |
+| 状态机 | 自行实现，状态值见第 5 节 |
+| 模型 | `ModelProvider` 接口。第一阶段规则诊断不调用它；接口先留好 |
+| 配置 | Agent 自己的 JSON 文件，格式对齐 `monitor.json`。不读站点 `fast-https.json`，仓库里也没有 YAML 依赖 |
+| 日志 | stderr 上的 JSON 行。不 import `infra/logging`，避免 Agent 依赖 Server 内部包 |
+| 健康信息 | 写入状态库，由 `fast-https agent status` 读取。Prometheus 文本导出不在第一阶段 |
+| 配置与操作 | 继续用现有 CLI 和 `management/txn`。不新写一套 Management HTTP API |
+
+Python 只用于仓库外的实验：提示词试跑、模型效果对比、日志分析脚本。这些脚本不随安装包发布，也不被 systemd 拉起。若以后某段分析确实不适合放在 Go 里，再单独起一个可选的 HTTP 服务，由 Go Agent 调用。那不是当前的生产结构。
+
+本仓库 `go.mod` 为 `go 1.27.0`，`toolchain go1.27.1`。官方 `github.com/openai/openai-go/v3` 的当前发布要求 Go 1.26 或更高，并建议使用 Go 1.27.2 或该系列更新的补丁，以带上对应的 HTTP/2 修复。第一阶段模型客户端用标准库访问兼容 API，不把该 SDK 加进 `go.mod`。以后若要引入 SDK，先把工具链升到 SDK 文档写明的补丁版本，再单独评审，不在 Agent 功能提交里顺手升级整个 Server 的工具链。
+
+本地模型进程用什么语言部署，与 Agent 语言无关。
+
+## 1.5 目录、模块接口与核心数据
+
+Agent 与 `monitor/` 一样是独立进程：`agent/` 可以引用自己的子包和标准库、选定的 SQLite 驱动，不引用 `runtime/`、`core`、`cmd`、`management/`。分层测试按这个边界加一条。
+
+```text
+agent/
+  main.go                 进程入口、标志、周期循环
+  config.go               Agent 自己的 JSON 配置
+  tail.go                 尾读 Monitor events.jsonl
+  collect.go              GET /runtime 与白名单 CLI
+  diagnose.go             规则诊断
+  plan.go                 结构化计划
+  policy.go               ALLOW / REQUIRE_APPROVAL / DENY
+  execute.go              执行器。第一阶段不发出写命令
+  verify.go               验证器。第一阶段只处理 recovered 关闭任务
+  audit.go                追加审计
+  escalate.go             待审批与升级
+  store.go                SQLite 读写
+  model/provider.go       ModelProvider
+  model/router.go         本地优先、失败降级、超时
+  model/local/openai_compatible.go
+  model/external/openai.go
+```
+
+`fast-https` CLI 只读查询放在 `management/agentview` 和 `cmd/agent.go`，与 `monview` 相同：只读 SQLite，不 import `agent/`。
+
+模型接口：
+
+```go
+type ModelProvider interface {
+    Generate(ctx context.Context, req ModelRequest) (*ModelResponse, error)
+}
+
+type ModelRequest struct {
+    Purpose      string          // diagnose 或 plan
+    System       string
+    User         string
+    JSONSchema   json.RawMessage // 调用方期望的结构，可空
+}
+
+type ModelResponse struct {
+    Provider string
+    Model    string
+    Content  json.RawMessage // 必须能被对应 Go 类型反序列化，否则视为调用失败
+}
+```
+
+`router.go` 的顺序是本地 Provider，超时或连接失败再试外部 Provider。两者都失败时，规则诊断的结果仍然有效，任务按「模型不可用」升级，不把失败当成允许执行。`Generate` 的实现不注册工具，不返回可执行命令。
+
+SQLite 文件默认：
+
+- 归档布局：`./state/agent/agent.db`
+- 包布局：`/var/lib/fast-https/agent/agent.db`
+- 测试：`FASTHTTPS_AGENT_DIR`
+
+逻辑表与第 14 节实体对应。审计表只插入。任务状态变更写 `updated_at`。`plan_hash` 是计划参数的哈希，审批若将来绑定，必须对上这个哈希。
+
+```text
+agent_event(event_id PRIMARY KEY, monitor_type, severity, summary, received_at, source)
+agent_task(task_id PRIMARY KEY, event_id, status, attempts, created_at, updated_at)
+agent_diagnosis(task_id PRIMARY KEY, classification, subject, cause, impact, evidence_json, needs_human)
+agent_plan(plan_id PRIMARY KEY, task_id, event_id, risk, plan_hash, steps_json, needs_approval)
+agent_approval(plan_id PRIMARY KEY, status, reason, created_at)
+agent_audit(id INTEGER PRIMARY KEY, at, task_id, kind, payload_json)
+agent_offset(id INTEGER PRIMARY KEY CHECK (id = 1), monitor_offset)
+```
+
+`agent_operation` 仍不建表。真正执行现有 CLI 写命令时，沿用 `management/operation` 的 `operation_id`，Agent 只在审计里记下这个 ID。
+
+第一阶段任务状态使用第 5.1 节的子集：`PENDING`、`COLLECTING`、`DIAGNOSING`、`PLANNING`、`POLICY_CHECK`、`WAITING_APPROVAL`、`COMPLETED`、`FAILED`、`ESCALATED`、`IGNORED`。没有写操作时不进入 `EXECUTING` 和 `VERIFYING`。
 
 ---
 
@@ -257,7 +365,7 @@ AI Agent 第一阶段建议采用单个独立进程、模块化内部结构，�
 5. 支持事件超时和过期处理。
 6. 重要状态变更必须持久化。
 
-第一阶段可以使用 SQLite 或现有数据库，不需要独立消息队列。
+第一阶段使用一个 SQLite 文件保存队列和任务状态，不引入独立消息服务，也不使用 Server 的配置状态目录。表结构见第 1.5 节。
 
 ## 3.4 Context Collector：上下文采集器
 
@@ -667,7 +775,7 @@ AI Agent 应当采用明确的状态机管理每一次故障处理任务。
 
 AI Agent 不应直接依赖某一个模型服务或厂商。
 
-建议通过 Model Router 统一管理模型调用。
+建议通过 Model Router 统一管理模型调用。接口、目录和降级顺序见第 1.5 节。第一阶段的规则诊断不调用模型。
 
 ## 7.2 模型调用架构
 
@@ -845,16 +953,18 @@ DSH Plugin 暂时离线时，待审批事项仍应保存在服务器端。
 ```text
 fast-https-server/
     |
-    +-- fast-https Server
+    +-- fast-https
     |
-    +-- Monitor
+    +-- fast-https-monitor
     |
-    +-- AI Agent
+    +-- fast-https-agent
     |
-    +-- Local Model Runtime（可选）
+    +-- Local Model Runtime（可选，独立进程）
     |
-    +-- Agent State / Event Store
+    +-- state/agent/agent.db
 ```
+
+三个 Go 程序分开部署、分开启停。Agent 使用与 Server、Monitor 相同的模块和构建方式。本地模型运行时仍然单独安装，这一项与 Agent 是否用 Go 无关。
 
 AI Agent、Monitor 和 Web Server 应保持独立进程。
 
@@ -1061,9 +1171,9 @@ AI Agent 需要保存事件、任务、诊断、计划、操作、审批和审�
 | agent_approval | 人工审批记录 |
 | agent_audit_log | 完整审计记录 |
 
-以上是逻辑实体，不意味着第一阶段必须建立七张独立数据库表。
+以上是逻辑实体。第一阶段落在同一个 SQLite 文件里，表名与实体对应，见第 1.5 节。不为此新建数据库服务。
 
-具体表结构应根据现有数据库、部署方式、数据量和状态管理需求确定。
+Server 侧已有的 operation 记录继续放在 `management/state`，不并入 Agent 的库。
 
 需要保证：
 
@@ -1139,6 +1249,8 @@ AI Agent 需要保存事件、任务、诊断、计划、操作、审批和审�
 7. 覆盖所有 Web Server 故障类型的通用修复平台。
 8. DSH Host 常驻托管 AI Agent。
 9. 依赖外部大模型才能运行的监控系统。
+10. 以 Python 或通用 Agent 框架作为生产进程。
+11. 在第一阶段引入官方模型 SDK。模型访问使用标准库 HTTP，直到仓库工具链满足该 SDK 文档写明的 Go 补丁版本。
 
 后续是否增加这些能力，应根据第一阶段实际运行效果决定。
 

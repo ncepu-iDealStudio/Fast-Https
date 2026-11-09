@@ -28,6 +28,8 @@
 | [upstream-failover-plan.md](plans/upstream-failover-plan.md) | 代理上游故障转移：多地址、健康检查、负载均衡（R8，未排期） |
 | [config-autoreload-plan.md](plans/config-autoreload-plan.md) | 配置文件自动重载：watch + 防抖 + 复用 reload 链路（R7，暂缓） |
 | [cli-monitor-followup.md](plans/cli-monitor-followup.md) | CLI 与 Monitor 改造计划落地后的遗留：未跑的验收、文档过时、可选的 `cert renew` |
+| [ai-agent-execution-plan.md](plans/ai-agent-execution-plan.md) | AI Agent 第一阶段执行计划（Go、SQLite）。依据 [源码扫描报告](../fast-https-AI-Agent源码扫描报告.md)，不假设上游摘除或 Management API 已存在 |
+| [ai-agent-server-gap-plan.md](plans/ai-agent-server-gap-plan.md) | 为 Agent 补齐 Server / Monitor / 管理核心：先只读字段，再热路径计数，最后才是摘除与证书写通道 |
 | [desktop-console-wails3-plan.md](plans/desktop-console-wails3-plan.md) | 桌面管理端：Wails v3 单窗口应用，无托盘，含 NSIS 与 Linux desktop deb 打包（实施中） |
 
 ### 已实施的方案（archive/）
@@ -48,6 +50,7 @@
 - [about.md](../about.md) — 启动与运行逻辑（含流程图）
 - [nginx-core-gap.md](../nginx-core-gap.md) — 与 Nginx 核心功能对比
 - [product-design-latest.md](../product-design-latest.md) — 当前产品设计（只记录已经实现的行为）
+- [fast-https AI agent功能设计与开发规范.md](../fast-https%20AI%20agent功能设计与开发规范.md) — AI Agent 总体设计；落地前先看扫描报告与执行计划
 
 ## 约定速览
 
