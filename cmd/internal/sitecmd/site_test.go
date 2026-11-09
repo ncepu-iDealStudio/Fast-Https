@@ -2,7 +2,6 @@ package sitecmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"fast-https/config"
 	"fast-https/modules/site"
 	"os"
@@ -21,25 +20,8 @@ func newSiteEnv(t *testing.T) (mainPath, includeDir string) {
 	}
 
 	mainPath = filepath.Join(base, "fast-https.json")
-	payload := map[string]any{
-		"http": map[string]any{
-			"server": []any{
-				map[string]any{
-					"listen":      80,
-					"server_name": "main.example",
-					"location": []any{
-						map[string]any{"url": "/", "type": "local", "root": "./httpdoc/root"},
-					},
-				},
-			},
-			"include": []string{includeDir},
-		},
-	}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(mainPath, append(data, '\n'), 0o644); err != nil {
+	main := renderTestdata(t, "main-config.json.tmpl", map[string]any{"IncludeDir": includeDir})
+	if err := os.WriteFile(mainPath, []byte(main), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return mainPath, includeDir

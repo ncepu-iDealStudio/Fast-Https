@@ -1,0 +1,13 @@
+{
+  "http": {
+    "server": [
+      {
+        "listen": 8080,
+        "server_name": "localhost",
+        "location": [
+          {"url": "/", "type": "local", "root": "./httpdoc/root"}
+        ]
+      }
+    ]
+  }
+}

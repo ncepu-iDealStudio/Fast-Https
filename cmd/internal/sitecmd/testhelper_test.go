@@ -1,6 +1,32 @@
 package sitecmd
 
-import "io"
+import (
+	"bytes"
+	"io"
+	"os"
+	"path/filepath"
+	"testing"
+	"text/template"
+)
+
+// renderTestdata 渲染 testdata 下的模板。固定输入放 testdata（编译器不会
+// 把该目录当成包内容），需要按测试临时目录改路径的用 .tmpl 模板。
+func renderTestdata(t *testing.T, name string, data any) string {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatalf("read testdata/%s: %v", name, err)
+	}
+	tpl, err := template.New(name).Parse(string(raw))
+	if err != nil {
+		t.Fatalf("parse testdata/%s: %v", name, err)
+	}
+	var buf bytes.Buffer
+	if err := tpl.Execute(&buf, data); err != nil {
+		t.Fatalf("render testdata/%s: %v", name, err)
+	}
+	return buf.String()
+}
 
 // lineReader 按行返回预置输入，用来驱动向导类的逐行问答。
 // 原来在 cmd 包的测试里，site 测试随源码迁出后需要自己的一份。

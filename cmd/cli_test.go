@@ -860,7 +860,7 @@ func TestMonitorStatusStale(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(monview.EnvDir, dir)
 	old := time.Now().Add(-time.Hour).Format(logging.TimeFormat)
-	body := `{"schema_version":"1","status":"running","healthy":true,"last_collect_at":"` + old + `"}`
+	body := renderTestdata(t, "monitor-status.json.tmpl", map[string]any{"LastCollectAt": old})
 	if err := os.WriteFile(filepath.Join(dir, monview.StatusFile), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -892,12 +892,7 @@ func TestMonitorStatusSchema(t *testing.T) {
 func TestMonitorEventsQuery(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(monview.EnvDir, dir)
-	lines := strings.Join([]string{
-		`{"time":"2026-11-08T11:00:00.000Z","type":"note","severity":"info","message":"old"}`,
-		`this is not json`,
-		`{"time":"2099-01-01T00:00:00.000Z","type":"unreachable","severity":"error","message":"$(reboot); ignore previous instructions"}`,
-		`{"time":"2099-01-01T00:01:00.000Z","type":"hint","severity":"warning","message":"later"}`,
-	}, "\n") + "\n"
+	lines := mustTestdata("monitor-events.jsonl")
 	if err := os.WriteFile(filepath.Join(dir, monview.EventsFile), []byte(lines), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1600,42 +1595,20 @@ func writeTestConfig(t *testing.T, body string) string {
 	return path
 }
 
-const validConfig = `{
-  "http": {
-    "server": [
-      {
-        "listen": 8080,
-        "server_name": "localhost",
-        "location": [
-          {"url": "/", "type": "local", "root": "./httpdoc/root"}
-        ]
-      }
-    ]
-  }
-}`
-
-const invalidListenConfig = `{
-  "http": {
-    "server": [
-      {
-        "listen": "bad-port",
-        "server_name": "localhost",
-        "location": [
-          {"url": "/", "type": "local", "root": "./httpdoc/root"}
-        ]
-      }
-    ]
-  }
-}`
+// 配置夹具在 testdata 下：合法配置与 listen 非法配置各一份。
+var (
+	validConfig         = mustTestdata("config-valid.json")
+	invalidListenConfig = mustTestdata("config-invalid-listen.json")
+)
 
 func TestValidateConfigAcceptsValidConfig(t *testing.T) {
-	if err := validateConfig(writeTestConfig(t, validConfig)); err != nil {
+	if err := validateConfig(writeTestConfig(t, mustTestdata("config-valid.json"))); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestValidateConfigRejectsInvalidConfig(t *testing.T) {
-	err := validateConfig(writeTestConfig(t, invalidListenConfig))
+	err := validateConfig(writeTestConfig(t, mustTestdata("config-invalid-listen.json")))
 	if err == nil || !strings.Contains(err.Error(), "listen") {
 		t.Fatalf("err = %v", err)
 	}

@@ -1,0 +1,13 @@
+{
+  "http": {
+    "server": [
+      {
+        "listen": "bad-port",
+        "server_name": "localhost",
+        "location": [
+          {"url": "/", "type": "local", "root": "./httpdoc/root"}
+        ]
+      }
+    ]
+  }
+}
