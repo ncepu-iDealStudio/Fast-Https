@@ -6,7 +6,8 @@
 | 1 | [1-boundary-cases.md](1-boundary-cases.md) | 边界测试用例集：协议边界、注入面、数值边界、并发边界 |
 | 2 | [2-stress-test-plan.md](2-stress-test-plan.md) | 压力测试计划：4C4G3M 环境下的反代与静态资源负载方案 |
 | 3 | [3-distro-verification.md](3-distro-verification.md) | 发行版安装包实机验证记录（2026-11-05 实测）：deb/rpm/apk/升级迁移的结论与已知环境差异 |
-| 4 | [4-edge-case-coverage.md](4-edge-case-coverage.md) | **缺陷反馈核验**：逐条确认收到的问题反馈在本项目是否存在（✅ 无此问题 / 🔧 已修复 / ⚠️ 存在待修 / ❓ 未验证），附证据与复跑命令 |
+| 4 | [4-edge-case-coverage.md](4-edge-case-coverage.md) | **缺陷反馈核验（第一轮）**：按风险面自查，逐条确认问题在本项目是否存在，附证据与复跑命令 |
+| 5 | [5-upstream-feedback-coverage.md](5-upstream-feedback-coverage.md) | **缺陷反馈核验（第二轮）**：读主流 HTTP 服务器公开的 issue 与已合并 PR，过滤掉 C 层/QUIC 专用条目后对照本项目。含「超大请求体绕过限额」的定位与修复 |
 
 日常测试命令与体系说明见 [develop/1-testing.md](../develop/1-testing.md)（本目录聚焦评估报告与专项计划）。
 
