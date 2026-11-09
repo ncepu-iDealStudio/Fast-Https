@@ -2,45 +2,22 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"time"
 
 	"fast-https/config"
 	"fast-https/management/cfgdiff"
 	"fast-https/management/cfgver"
 	"fast-https/management/operation"
-	"fast-https/management/rtclient"
 	"fast-https/management/svcctl"
 	"fast-https/management/txn"
 	"fast-https/management/view"
 
 	"github.com/spf13/cobra"
 )
-
-func addConfigFlag(c *cobra.Command) {
-	c.Flags().String("config", config.CONFIG_FILE_PATH, t("主配置文件", "main config file"))
-}
-
-// printWarnings 在文本模式下把告警写到 stderr，不污染 stdout。
-func printWarnings(w io.Writer, warnings []string) {
-	for _, msg := range warnings {
-		fmt.Fprintf(w, "warning: %s\n", msg)
-	}
-}
-
-func printIndentedJSON(w io.Writer, v any) error {
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	return enc.Encode(v)
-}
 
 func newConfigShowCmd() *cobra.Command {
 	c := &cobra.Command{
@@ -306,12 +283,6 @@ func newConfigRollbackCmd() *cobra.Command {
 	c.Flags().Bool("yes", false, t("确认执行（非 dry-run 必填）", "confirm the rollback (required unless --dry-run)"))
 	return c
 }
-
-func confirmed(cmd *cobra.Command) bool {
-	yes, _ := cmd.Flags().GetBool("yes")
-	return yes
-}
-
 func runConfigApply(cmd *cobra.Command, _ []string) error {
 	cand, _ := cmd.Flags().GetString("candidate")
 	if strings.TrimSpace(cand) == "" {
@@ -381,99 +352,4 @@ func opPtr(rec operation.Record) *operation.Record {
 	}
 	cp := rec
 	return &cp
-}
-
-func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
-	pidPath := config.PID_FILE
-	var before *rtclient.Snapshot
-	return &txn.Engine{
-		State: stateDir(),
-		Reloader: txn.FuncReloader(func(ctx context.Context) error {
-			st, pid, err := InspectProcess(pidPath)
-			if err != nil {
-				return err
-			}
-			if st != ProcessRunning {
-				// 服务没在跑也允许提交：配置已经写到候选并切换完成，
-				// 下次启动会加载，没有 reload 可做。回滚反而是错的。
-				fmt.Fprintln(os.Stderr, "提示：fast-https 服务未运行，配置已写入，启动后生效")
-				return nil
-			}
-			before = nil
-			if snap, err := rtclient.Default().Get(ctx); err == nil {
-				cp := snap
-				before = &cp
-			}
-			// Windows 上服务与 CLI 常常不在同一个控制台，Ctrl+Break /
-			// SIGINT 投递不过去（syscall.EWINDOWS = "not supported by
-			// windows"）。此时配置已经写好，不该因为发不出信号而回滚，
-			// 提示用户手动重载即可。
-			if err := svcctl.SignalReload(pid); err != nil {
-				if runtime.GOOS == "windows" {
-					fmt.Fprintln(os.Stderr,
-						"提示：Windows 上无法向其他控制台的进程发送 reload 信号，配置已写入；"+
-							"请在服务所在终端重启服务，或执行 fast-https reload")
-					return nil
-				}
-				return err
-			}
-			return nil
-		}),
-		Health: txn.FuncHealth(func(ctx context.Context) error {
-			st, pid, err := InspectProcess(pidPath)
-			if err != nil {
-				return err
-			}
-			if st != ProcessRunning {
-				// 服务没在跑就没有健康检查可做，不构成失败。
-				return nil
-			}
-			opts := svcctl.Options{
-				ConfigPath: liveMain,
-				Timeout:    timeout,
-				PID:        pid,
-				Snapshot: func(ctx context.Context) (rtclient.Snapshot, error) {
-					return rtclient.Default().Get(ctx)
-				},
-			}
-			if before != nil {
-				_, err = svcctl.WaitRuntime(ctx, opts, *before)
-				return err
-			}
-			_, err = svcctl.WaitBasic(ctx, opts, pid)
-			return err
-		}),
-	}
-}
-
-func emitTxnResult(cmd *cobra.Command, id string, res txn.Result) error {
-	data := map[string]any{
-		"dry_run":       res.DryRun,
-		"idempotent":    res.Idempotent,
-		"identical":     res.Diff.Identical,
-		"changes":       res.Diff.Changes,
-		"restore_point": res.RestorePoint,
-		"version":       res.Version,
-		"rolled_back":   res.RolledBack,
-		"config_state":  res.ConfigState,
-	}
-	if res.Operation.ID != "" {
-		data["operation_id"] = res.Operation.ID
-		data["status"] = res.Operation.Status
-		data["result"] = res.Operation.Result
-	}
-	if jsonMode(cmd) {
-		return emitOK(cmd, id, data, res.Warnings)
-	}
-	printWarnings(cmd.ErrOrStderr(), res.Warnings)
-	if res.DryRun {
-		if res.Diff.Identical {
-			fmt.Fprintln(cmd.OutOrStdout(), "dry-run: identical")
-			return nil
-		}
-		return printIndentedJSON(cmd.OutOrStdout(), res.Diff)
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %s restore=%s version=%s\n",
-		res.Operation.ID, res.Operation.Status, res.RestorePoint, res.Version)
-	return nil
 }

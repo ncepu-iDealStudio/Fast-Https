@@ -121,34 +121,6 @@ func runServiceReload(cmd *cobra.Command, _ []string) error {
 	}
 	return emitReloadResult(cmd, rec, res, false)
 }
-
-func emitReloadResult(cmd *cobra.Command, rec operation.Record, res svcctl.Result, idem bool) error {
-	data := map[string]any{
-		"dry_run":      res.DryRun,
-		"idempotent":   idem,
-		"verification": res.Verification,
-	}
-	if rec.ID != "" {
-		data["operation_id"] = rec.ID
-		data["status"] = rec.Status
-		data["result"] = rec.Result
-	}
-	if res.PID != 0 {
-		data["pid"] = res.PID
-	}
-	if jsonMode(cmd) {
-		return emitOK(cmd, "service.reload", data, nil)
-	}
-	if rec.ID != "" {
-		fmt.Fprintf(cmd.OutOrStdout(), "operation %s %s\n", rec.ID, rec.Status)
-	} else if res.DryRun {
-		fmt.Fprintln(cmd.OutOrStdout(), "reload dry-run: ok")
-	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), "reload: ok")
-	}
-	return nil
-}
-
 func newServiceVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:          "version",

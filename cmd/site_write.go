@@ -1,17 +1,12 @@
 package cmd
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"fast-https/config"
 	"fast-https/management/pathguard"
 	"fast-https/management/siteops"
-	"fast-https/management/svcctl"
-	"fast-https/management/view"
 
 	"github.com/spf13/cobra"
 )
@@ -93,16 +88,6 @@ func siteWriteYes(cmd *cobra.Command) error {
 	}
 	return usageError(fmt.Errorf("%s requires --yes; use --dry-run to preview", cmd.Name()))
 }
-
-func bannedRoots(liveMain string) []string {
-	return []string{
-		filepath.Dir(liveMain),
-		config.CERT_DIR,
-		resolveStateDir(),
-		config.DEFAULT_LOG_ROOT,
-	}
-}
-
 func runSiteAdd(cmd *cobra.Command, _ []string) error {
 	live, _ := cmd.Flags().GetString("config")
 	dry, _ := cmd.Flags().GetBool("dry-run")
@@ -258,43 +243,4 @@ func runSiteEnablement(cmd *cobra.Command, args []string, enabled bool) error {
 		_, err := siteops.SetEnabled(dirs, live, name, enabled)
 		return err
 	})
-}
-
-func runSiteTxn(cmd *cobra.Command, id, summary string, args map[string]string, dry bool, mut func(string, []string) error) error {
-	live, _ := cmd.Flags().GetString("config")
-	timeout := cmdTimeout(cmd, svcctl.DefaultTimeout)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	eng := newTxnEngine(live, timeout)
-	res, err := siteops.Run(ctx, eng, siteops.RunInput{
-		LiveMain:  live,
-		RequestID: ensureRequestID(cmd),
-		Command:   id,
-		Summary:   summary,
-		DryRun:    dry,
-		Args:      args,
-		Mutate:    mut,
-	})
-	if err != nil {
-		return fromSiteopsError(id, err)
-	}
-	return emitTxnResult(cmd, id, res)
-}
-
-func fromSiteopsError(id string, err error) *CLIError {
-	var inv *view.InvalidError
-	switch {
-	case errors.Is(err, siteops.ErrUsage), errors.Is(err, pathguard.ErrPath):
-		return &CLIError{Code: CodeUsage, Command: id, Message: err.Error(), Cause: err}
-	case errors.Is(err, siteops.ErrConflict):
-		return &CLIError{Code: CodeConflict, Command: id, Message: err.Error(), Cause: err}
-	case errors.Is(err, siteops.ErrNotFound):
-		return &CLIError{Code: CodeNotFound, Command: id, Message: err.Error(), Cause: err}
-	case errors.Is(err, siteops.ErrNotSupported):
-		return &CLIError{Code: CodeNotSupported, Command: id, Message: err.Error(), Cause: err}
-	case errors.As(err, &inv):
-		return &CLIError{Code: CodeConfigInvalid, Command: id, Message: err.Error(), Cause: err}
-	default:
-		return fromTxnError(id, err)
-	}
 }
