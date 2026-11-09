@@ -45,26 +45,35 @@
 
 ## R-03 未知域名的 TLS 兜底策略
 
-**现状**：`modules/certmanager` 没有「SNI 不在任何站点证书覆盖范围」的用例。
+**现状**：**不会崩溃**已确认——未知 SNI 与空 SNI 都回落到证书列表的第一张，
+证书列表为空时返回错误而非 panic（`TestCertSetUnknownSNIFallsBack`、
+`TestCertSetEmptyReturnsError`）。缺的是「显式指定兜底证书」这个配置能力，
+以及回落时的日志。
 
 **需求**：
 
-- 提供 `tls.default_certificate` 配置项：未知 SNI 时用它完成握手
-- 未配置时：明确拒绝握手并在日志里记原因，**不允许 panic**
-- 握手失败不能影响进程存活，也不能影响其他连接
+- 提供 `tls.default_certificate` 配置项：未知 SNI 时用它完成握手。
+  未配置时保持现状（回落第一张证书），但**记一条可检索的日志**
+- 日志字段见 R-10（`reject_reason` 取 `unknown_sni`）
 
-**验收**：`sni-cases.jsonl` 覆盖「已知 / 未知 / 空 SNI」三态；未知 SNI 场景
-在 `-race` 下并发握手，进程不崩。
+**验收**：配置了默认证书时，未知 SNI 返回该证书；未配置时回落第一张且日志
+可查。
 
 ## R-04 通配符证书的匹配规则
 
-**需求**：按「通配符只跨一层」实现并写进文档——
+**现状**：前两条**实现已正确**（走标准库 `VerifyHostname`，已由
+`TestCertSetWildcardMatchesOneLabelOnly` 与
+`TestCertSetNormalizesCaseAndTrailingDot` 锁定）；缺的是文档说明，以及
+「同名多证书按客户端能力选择」这条。
 
-- `*.example.com` 匹配 `a.example.com`，**不**匹配 `a.b.example.com`
-- 尾点 `example.com.` 与大小写差异归一到同一张证书
-- 同名多证书（RSA + ECDSA）按客户端 `signature_algorithms` 选择
+**需求**：
 
-**验收**：`sni-cases.jsonl` 覆盖上述四类，含反例。
+- `*.example.com` 匹配 `a.example.com`，**不**匹配 `a.b.example.com`（已实现）
+- 尾点 `example.com.` 与大小写差异归一到同一张证书（已实现）
+- 同名多证书（RSA + ECDSA）按客户端 `signature_algorithms` 选择（未实现）
+- 把上述规则写进 `docs/usage.md` 的 TLS 章节
+
+**验收**：多证书场景补一条用例；文档段落与实现一致。
 
 ## R-05 代理的 `X-Forwarded-For` 策略
 

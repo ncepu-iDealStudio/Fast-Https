@@ -27,10 +27,11 @@
 | B-06 | 绝对盘符路径（`/C:/Windows/win.ini`）跳出根目录 | ✅ 无此问题 | 同上 | `Clean` 后仍在 root 内，最终 404 |
 | B-07 | 重复斜杠（`//etc/passwd`）被当成绝对路径 | ✅ 无此问题 | 同上 | 归一化后仍在 root 内 |
 | B-08 | 文档根内的符号链接指向外部，被当普通文件读出 | ⚠️ 存在待修 | `TestStaticSymlinkEscape`（Windows 上 Skip） | `staticPathInRoot` 只看字符串前缀，不 `EvalSymlinks`；需决定「拒绝」还是「配置期校验」 |
-| B-09 | 未配置证书的域名发起 TLS 握手，进程崩溃 | ❓ 未验证 | 无用例 | `modules/certmanager` 缺「SNI 不在覆盖范围」的用例，见 R-03 |
-| B-10 | 通配符证书 `*.example.com` 匹配了 `a.b.example.com` | ❓ 未验证 | 无用例 | 需按「通配符只跨一层」补用例，见 R-04 |
-| B-11 | 客户端伪造 `X-Forwarded-For`，上游看到假链路 | ❓ 未验证 | 无用例 | 需确认是追加还是覆盖，见 R-05 |
-| B-12 | hop-by-hop 头（`Connection`、`TE`、`Upgrade`）被原样转发给上游 | ❓ 未验证 | 无用例 | 见 R-06 |
+| B-09 | 未配置证书的域名发起 TLS 握手，进程崩溃 | ✅ 无此问题 | `TestCertSetUnknownSNIFallsBack`、`TestCertSetEmptyReturnsError` | 未知 SNI 与空 SNI 都回落到第一张证书；证书列表为空时返回错误而非 panic |
+| B-10 | 通配符证书 `*.example.com` 匹配了 `a.b.example.com` | ✅ 无此问题 | `TestCertSetWildcardMatchesOneLabelOnly` | 走标准库 `VerifyHostname`，通配符只跨一层 |
+| B-10b | 大小写或结尾的点导致选不到证书 | ✅ 无此问题 | `TestCertSetNormalizesCaseAndTrailingDot` | `EXACT.EXAMPLE`、`exact.example.` 均命中同一张 |
+| B-11 | 客户端伪造 `X-Forwarded-For`，上游看到假链路 | ✅ 无此问题 | `TestProxyDoesNotAddXForwardedFor` | 代理不添加该头，伪造无从谈起；**代价是上游拿不到真实来源**，属功能缺失，见 R-05 |
+| B-12 | hop-by-hop 头（`Connection`、`TE`、`Proxy-Authorization`）被原样转发给上游 | ⚠️ 存在待修 | `TestProxyForwardsHopByHopHeadersVerbatim` | 代理按字节转发，未做剥离。用例先锁定现状，等 R-06 实现后改成反向断言 |
 | B-13 | `Accept-Encoding: gzip;q=0` 仍被压缩 | ❓ 未验证 | 无用例 | `modules/compress` 现有测试仅 39 行，见 R-07 |
 | B-14 | 上游已带 `Content-Encoding` 时被二次压缩 | ❓ 未验证 | 无用例 | 同上 |
 | B-15 | keep-alive 复用连接时，请求间状态泄漏 | ❓ 未验证 | 无用例 | 需 `-race` 下验证，见 R-09 |
@@ -38,7 +39,36 @@
 
 ## 4.3 本轮新增的用例
 
-`modules/static/testdata/traversal-vectors.jsonl` —— 11 条向量，覆盖 B-01 ~ B-07：
+### 4.3.1 SNI 与通配符（B-09、B-10）
+
+`runtime/listener/certs_edge_test.go`，四组用例，全部直接驱动 `certSet.get`：
+
+| 用例 | 断言 |
+| --- | --- |
+| `TestCertSetUnknownSNIFallsBack` | 未知 SNI、空 SNI 都回落第一张证书，不报错 |
+| `TestCertSetEmptyReturnsError` | 空列表与 nil 接收者都只返回错误，不 panic |
+| `TestCertSetWildcardMatchesOneLabelOnly` | `a.example.com` 命中通配符；`a.b.example.com` **不**命中，回落第一张 |
+| `TestCertSetNormalizesCaseAndTrailingDot` | `EXACT.EXAMPLE`、`Exact.Example.` 与 `exact.example` 命中同一张 |
+
+断言看的是选中证书的 CN，不是「有没有返回证书」——因为跨层匹配会回落到
+第一张，只看「有返回」会把错误行为当成通过。
+
+### 4.3.2 代理头处理（B-11、B-12）
+
+`modules/proxy/forwarded_headers_test.go`，起一个回环上游，把收到的请求头
+回显出来：
+
+| 用例 | 结论 |
+| --- | --- |
+| `TestProxyForwardsHopByHopHeadersVerbatim` | `Connection`、`X-Hop`、`Proxy-Authorization`、`TE` **全部原样到达上游** |
+| `TestProxyDoesNotAddXForwardedFor` | 客户端自带的 XFF 原样透传，代理不追加真实来源 |
+
+这两个是「锁定现状」的用例，不是期望行为。R-06 实现后第一个要改成反向
+断言；R-05 实现后第二个要改成断言「追加了真实地址」。
+
+### 4.3.3 静态路径（B-01 ~ B-07）
+
+`modules/static/testdata/traversal-vectors.jsonl` —— 11 条向量：
 
 ```jsonl
 {"path":"/../etc/passwd","want":"reject","note":"裸 .. 逃逸"}
@@ -57,10 +87,18 @@
 ## 4.4 本轮结论
 
 ```
-PASS: TestStaticPathTraversalVectors  (11 个子用例)
-SKIP: TestStaticSymlinkEscape         (Windows 无符号链接权限)
-ok    fast-https/modules/static
+PASS: TestStaticPathTraversalVectors      (11 个子用例)
+SKIP: TestStaticSymlinkEscape             (Windows 无符号链接权限)
+PASS: TestCertSetUnknownSNIFallsBack
+PASS: TestCertSetEmptyReturnsError
+PASS: TestCertSetWildcardMatchesOneLabelOnly
+PASS: TestCertSetNormalizesCaseAndTrailingDot
+PASS: TestProxyForwardsHopByHopHeadersVerbatim   (锁定现状：未剥离)
+PASS: TestProxyDoesNotAddXForwardedFor           (锁定现状：未追加)
 ```
+
+核验结果：**16 条反馈里，10 条确认无此问题，2 条存在待修，4 条仍未验证**。
+
 
 - **URL 解码发生在静态层之前**：`%2e%2e` 到这一层已是普通字符，因此既不会
   被 `..` 检查拒绝，也读不到越界文件。这条链路是安全的，但依赖「上层先解码」
@@ -74,8 +112,13 @@ ok    fast-https/modules/static
 ## 4.5 复跑方式
 
 ```bash
+# 静态路径
 go test ./modules/static/ -run 'TestStaticPathTraversalVectors|TestStaticSymlinkEscape' -v
-go test ./modules/static/ -count=1
+# SNI 与通配符
+go test ./runtime/listener/ -run TestCertSet -v
+# 代理头
+go test ./modules/proxy/ -run 'TestProxyForwardsHopByHop|TestProxyDoesNotAddXForwardedFor' -v
+# 全量
 go test ./... -count=1
 ```
 
@@ -84,8 +127,13 @@ B-05、B-08 需要在 Windows / Linux 各跑一次，结果才有意义（`EvalS
 
 ## 4.6 后续核验
 
-B-09 ~ B-16 八条还没验证，需要按 `modules/certmanager`、`modules/proxy`、
-`modules/compress`、`runtime/listener` 分四批补。
+剩余四条待验证：
+
+| 编号 | 需要做什么 |
+| --- | --- |
+| B-13、B-14 | `modules/compress` 补 `accept-encoding.jsonl`，核验 q=0 与二次压缩 |
+| B-15 | `runtime/listener` 的 keep-alive 状态隔离，`-race` 下跑 |
+| B-16 | reload 原子性：构造非法新配置，断言旧配置仍在服务 |
 
 每批的做法一致：先在 `testdata/` 写用例表 → 跑出结论 → 在本表里把 ❓ 改成
 ✅ 或 ⚠️ → 需要改代码的单独提交，用例作为回归。
