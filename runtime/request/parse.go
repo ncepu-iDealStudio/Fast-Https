@@ -190,9 +190,16 @@ func (r *Request) FixRequestFraming() {
 }
 
 // flush request struct
+//
+// keep-alive 连接上同一个 Request 会被反复复用，这里必须把「随请求变化」
+// 的状态清干净，否则上一个请求的 header / query / body 会串到下一个请求。
+// 标量字段（Method、Path、Protocol）由 ParseHeader 重新赋值，不必在这里清。
 func (r *Request) Flush() {
 	r.Body.Reset()
+	r.BodyLen = 0
 	r.multipartScanned = 0
+	r.HeaderLen = 0
+	r.Encoding = nil
 	for k := range r.Headers {
 		delete(r.Headers, k)
 	}

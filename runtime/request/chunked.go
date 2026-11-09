@@ -20,15 +20,19 @@ func (r *Request) HeaderFold(name string) string {
 	return ""
 }
 
-// HasToken reports whether a list header contains token. q=0 does not count.
-func HasToken(header, token string) bool {
+// QValue 返回列表头里 token 的 q 值与是否出现过。
+//
+// 未出现时返回 (0, false)，调用方据此区分「显式拒绝（q=0）」和「没提到」——
+// 这个区别在协商 Accept-Encoding 的 `*` 通配符时必须知道（RFC 7231 §5.3.4：
+// 显式写 q=0 的效果优先于 `*`）。同一 token 重复出现时取第一个。
+func QValue(header, token string) (float64, bool) {
 	for _, part := range strings.Split(header, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
 		}
 		name := part
-		q := 1.0
+		val := 1.0
 		if i := strings.Index(part, ";"); i >= 0 {
 			name = strings.TrimSpace(part[:i])
 			for _, param := range strings.Split(part[i+1:], ";") {
@@ -36,16 +40,22 @@ func HasToken(header, token string) bool {
 				if strings.HasPrefix(param, "q=") {
 					parsed, err := strconv.ParseFloat(param[2:], 64)
 					if err == nil {
-						q = parsed
+						val = parsed
 					}
 				}
 			}
 		}
-		if strings.EqualFold(name, token) && q > 0 {
-			return true
+		if strings.EqualFold(name, token) {
+			return val, true
 		}
 	}
-	return false
+	return 0, false
+}
+
+// HasToken reports whether a list header contains token. q=0 does not count.
+func HasToken(header, token string) bool {
+	q, ok := QValue(header, token)
+	return ok && q > 0
 }
 
 // ReadChunked decodes a chunked body.
