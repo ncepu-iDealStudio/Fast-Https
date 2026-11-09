@@ -22,7 +22,7 @@ func addSiteWriteCommands(root *cobra.Command) {
 		Short: t("受控新增站点（走配置事务）", "add a site through the config transaction"),
 		Long: t(
 			"复制当前配置树到候选目录、写入站点文件，再走 config apply 同一套事务（校验、恢复点、reload、可回滚）。\n"+
-				"带 --domain 时全部字段来自 flag；不带 --domain 且标准输入是终端时进向导（--plain 改为逐行问答）。\n"+
+				"带 --domain 时全部字段来自 flag；不带 --domain 且标准输入是终端时进向导。\n"+
 				"站点名由域名规范化得到。同名或同 server_name 已存在时退出码 10。纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
 			"Copy the live config tree, write the site file on the candidate, then apply it with the same transaction\n"+
 				"as config apply. With --domain everything comes from flags; without it, an interactive terminal enters the wizard.\n"+
@@ -32,7 +32,6 @@ func addSiteWriteCommands(root *cobra.Command) {
 		RunE:         runSiteAdd,
 	}
 	add.Flags().String("domain", "", t("站点域名（同时用作 server_name 与文件名；省略且能交互时进向导）", "site domain (used as server_name and file name; omit to enter the wizard when interactive)"))
-	add.Flags().Bool("plain", false, t("向导用逐行问答代替全屏表单", "use line-based prompts instead of the full-screen form"))
 	add.Flags().String("root", "", t("本地站点文档根目录", "document root for a local site"))
 	add.Flags().StringArray("listen", nil, t("监听值，可重复", "listen value, repeatable"))
 	add.Flags().String("proxy-pass", "", t("反代上游，设置后站点类型为 proxy", "proxy upstream; when set, the site type is proxy"))
