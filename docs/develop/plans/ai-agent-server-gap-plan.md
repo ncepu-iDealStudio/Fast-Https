@@ -1,6 +1,6 @@
 # fast-https 核心补齐计划（为 AI Agent）
 
-修订日期：2026-11-09。状态：**未实施**。
+修订日期：2026-11-09。状态：**C1–C5 已实施，C6、C7 未做。**
 
 依据：[fast-https-AI-Agent源码扫描报告.md](../../fast-https-AI-Agent源码扫描报告.md)。  
 Agent 进程用 Go 实现，见规范第 1.4 节。本文不改语言选择，只列 Server、Monitor 与管理核心上还缺的观测和受控操作。Agent 任务在 [ai-agent-execution-plan.md](ai-agent-execution-plan.md)。

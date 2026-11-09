@@ -16,7 +16,7 @@ fast-https 已经有独立的 Server、只读 `/runtime`、独立 Monitor、以�
 
 | 规范场景 | 源码事实 | 结论 |
 | --- | --- | --- |
-| 12.1 摘除故障 Upstream | `proxy_pass` 是单个地址。没有节点列表、健康检查、摘除或恢复命令。上游失败只进入进程级累计计数 | 自动摘除不能做。前置是尚未实施的 [upstream-failover-plan.md](develop/plans/upstream-failover-plan.md) |
+| 12.1 摘除故障 Upstream | `proxy_pass` 仍是单个地址。失败次数已按 `host:port` 拆开，但没有节点列表、健康标记、摘除或恢复命令 | 可以做诊断。自动摘除不能做，前置仍是 [upstream-failover-plan.md](develop/plans/upstream-failover-plan.md) |
 | 12.2 502/504 升高 | `/runtime` 有 `responses_5xx_total`，以及单独的 `responses_502_total`、`responses_504_total`。Monitor 事件仍是 `5xx_ratio`，不按 502/504 再告警 | 可以在诊断里引用这两个累计值。还没有对应的 Monitor 事件 |
 | 12.3 证书即将过期或续期失败 | `cert list` / `cert check` 能读 PEM。Monitor 在配置了 `cert_files` 时写 `certificate_expiring`。`cert renew` 不存在。ACME 续期在 Server 进程内 | 事件流里能看到即将过期的证书。不能自动续期 |
 
