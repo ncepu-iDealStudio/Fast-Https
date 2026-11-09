@@ -3,6 +3,7 @@
 import { DesktopService, msgOf } from './api.js';
 import { toast } from './ui/dom.js';
 import { refreshOverview, refreshDetails } from './refresh.js';
+import { refreshOperations } from './ui/events.js';
 
 async function openByPath(kind) {
   try {
@@ -32,7 +33,14 @@ export async function doAction(name) {
     toast(text || label + '完成');
     await refreshOverview();
     await refreshDetails();
+    refreshOperations();
   } catch (e) {
-    toast(label + '失败：' + msgOf(e));
+    const msg = msgOf(e);
+    // 服务没跑时 reload 的失败提示翻译成运维口径
+    if (name === 'reload' && /not running/i.test(msg)) {
+      toast('服务未运行，无需重载');
+      return;
+    }
+    toast(label + '失败：' + msg);
   }
 }

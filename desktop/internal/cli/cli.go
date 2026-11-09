@@ -90,6 +90,90 @@ func Run(dir string, args ...string) (string, error) {
 	return text, nil
 }
 
+// RunBareJSON 执行一条「--json 输出裸 JSON、不套封套」的命令。
+// 目前只有 config path（保留桌面端旧契约，直接输出 RuntimePaths）。
+func RunBareJSON[T any](dir string, args ...string) (T, error) {
+	var zero T
+	full := append(append([]string{}, args...), "--json")
+	cmd, err := command(dir, full)
+	if err != nil {
+		return zero, err
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			msg = err.Error()
+		}
+		return zero, fmt.Errorf("%s 失败：%s", strings.Join(args, " "), msg)
+	}
+	var v T
+	if err := json.Unmarshal(out, &v); err != nil {
+		return zero, fmt.Errorf("解析 %s 输出失败：%w", strings.Join(args, " "), err)
+	}
+	return v, nil
+}
+
+// ---- CLI data 的取值助手 ----
+//
+// 命令的 data 形状由主程序定义（docs/cli/cli-json-shapes.md），桌面端用
+// map + 断言消费，不复制一份结构体。这里提供安全的取值函数，缺失或类型
+// 不符都返回零值，不让界面因为一个字段崩掉。
+
+// AsMap 把 data 断言成对象。
+func AsMap(v any) map[string]any {
+	m, _ := v.(map[string]any)
+	return m
+}
+
+// AsSlice 把 data 断言成数组。
+func AsSlice(v any) []any {
+	s, _ := v.([]any)
+	return s
+}
+
+// Str 取字符串字段。
+func Str(m map[string]any, key string) string {
+	s, _ := m[key].(string)
+	return s
+}
+
+// Bool 取布尔字段（缺失为 false）。
+func Bool(m map[string]any, key string) bool {
+	b, _ := m[key].(bool)
+	return b
+}
+
+// Int 取整数字段；JSON 数字可能是 float64，一并兼容。
+func Int(m map[string]any, key string) int { return int(Int64(m, key)) }
+
+// Int64 取整数字段；JSON 数字可能是 float64，一并兼容。
+func Int64(m map[string]any, key string) int64 {
+	switch n := m[key].(type) {
+	case int64:
+		return n
+	case float64:
+		return int64(n)
+	case int:
+		return int64(n)
+	case json.Number:
+		v, _ := n.Int64()
+		return v
+	}
+	return 0
+}
+
+// Strs 取字符串数组字段。
+func Strs(m map[string]any, key string) []string {
+	var out []string
+	for _, x := range AsSlice(m[key]) {
+		if s, ok := x.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 // RunJSON 执行一条命令并解出 --json 的 data。
 // args 里不用带 --json，这里统一补上。
 func RunJSON[T any](dir string, args ...string) (T, []string, error) {

@@ -5,25 +5,30 @@ import { DesktopService, msgOf } from '../api.js';
 import { $, esc, toast } from '../ui/dom.js';
 
 const BOOL_FLAGS = new Set(['--tls', '--yes', '--dry-run', '--merged']);
+// 可重复 flag：逗号分隔的多个值各占一个 --flag 位置（--listen 80 --listen "443 ssl h2"）
+const REPEATABLE_FLAGS = new Set(['--listen']);
 const VALUE_HINTS = {
   '--domain': 'blog.example',
-  '--server-name': 'blog.example www.example',
   '--listen': '80, 443 ssl h2',
   '--root': './httpdoc/root',
   '--proxy-pass': 'http://127.0.0.1:8080',
+  '--server-name': 'a.example b.example',
   '--config': '留空用默认路径',
   '--candidate': '候选配置目录',
+  '--current': '当前配置目录或文件',
   '--version': 'v001',
-  '--id': 'op_20261109_001',
+  '--section': 'http|acme|security|waf|sites',
+  '--id': '操作 ID',
   '--limit': '20',
-  '--offset': '0',
-  '--level': 'info / error',
-  '--status': '200',
-  '--keyword': '关键词',
-  '--since': '2026-11-09T00:00:00Z',
-  '--until': '2026-11-10T00:00:00Z',
-  '--severity': 'info / warning / error',
-  '--kind': 'access / error',
+  '--level': 'info',
+  '--status': '4xx 或 500',
+  '--kind': 'access|error|system|safe',
+  '--until': '10m',
+  '--since': '1h',
+  '--severity': 'info|warning|error|critical',
+  '--method': 'GET',
+  '--path-prefix': '/api',
+  '--reason': 'blacklist',
 };
 
 let specs = [];
@@ -74,6 +79,12 @@ function renderForm(i) {
     b.classList.toggle('on', Number(b.getAttribute('data-index')) === i));
 }
 
+// 去掉用户粘贴时带的一层引号，保留值内部的空格
+function stripQuotes(v) {
+  const m = v.match(/^(['"])([\s\S]*)\1$/);
+  return (m ? m[2] : v).trim();
+}
+
 function collectArgs(s) {
   const parts = s.name.split(' ').filter(Boolean);
   document.querySelectorAll('#cmdForm [data-positional]').forEach((el) => {
@@ -84,9 +95,16 @@ function collectArgs(s) {
     const flag = el.getAttribute('data-flag');
     if (el.dataset.bool) {
       if (el.checked) parts.push(flag);
+      return;
+    }
+    const v = stripQuotes(el.value);
+    if (!v) return;
+    if (REPEATABLE_FLAGS.has(flag)) {
+      v.split(',').map((x) => x.trim()).filter(Boolean)
+        .forEach((item) => parts.push(flag, item));
     } else {
-      const v = el.value.trim();
-      if (v) parts.push(flag, ...v.split(/\s+/));
+      // 单值 flag 整体作为一个 argv：值内允许空格（--server-name "a.example b.example"）
+      parts.push(flag, v);
     }
   });
   const confirm = $('#cmdConfirm');
@@ -107,6 +125,8 @@ async function run() {
   $('#cmdResult').textContent = '执行中：' + args.join(' ');
   try {
     const res = await DesktopService.RunCommand(args);
+    // TextOnly 命令（version/start/stop/reload/status/acme show/config path）
+    // 没有 JSON 封套，结果在 res.text；其余展示 data 原样 JSON
     const body = res.text !== undefined && res.text !== ''
       ? res.text
       : JSON.stringify(res.data ?? {}, null, 2);

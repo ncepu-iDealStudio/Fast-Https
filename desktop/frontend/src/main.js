@@ -8,19 +8,23 @@ import { initTheme } from './theme.js';
 import { activate } from './router.js';
 import { doAction } from './actions.js';
 import { refreshOverview, refreshDetails } from './refresh.js';
-import { renderEvents } from './ui/events.js';
+import { renderEvents, initEventsCard, refreshOperations } from './ui/events.js';
 import { initConfigEditor } from './pages/config.js';
 import { initLogPage, loadLogs } from './pages/logs.js';
 import { initCommandPanel } from './pages/commands.js';
+import { initPanels } from './pages/panels.js';
 import { template as siteTemplate, initSiteDialog, initSiteLinks } from './dialogs/site.js';
 import { template as closeTemplate, initCloseDialog, openCloseDialog } from './dialogs/close.js';
 import { template as confirmTemplate, initConfirmDialog } from './dialogs/confirm.js';
 import { template as trustTemplate, initTrustDialog } from './dialogs/trust.js';
+import { template as diagnoseTemplate, initDiagnoseDialog } from './dialogs/diagnose.js';
+import { template as certCheckTemplate, initCertCheckDialog } from './dialogs/certcheck.js';
 import { template as accountMenuTemplate, initAccountMenu } from './account-menu.js';
 
 // 弹窗与账户菜单位于 body 末尾：先注入模板，再绑定事件
 document.body.insertAdjacentHTML('beforeend',
-  [siteTemplate, closeTemplate, confirmTemplate, trustTemplate, accountMenuTemplate].join(''));
+  [siteTemplate, closeTemplate, confirmTemplate, trustTemplate,
+   diagnoseTemplate, certCheckTemplate, accountMenuTemplate].join(''));
 
 // F5 / Ctrl+R 刷新窗口：Frameless 窗口里 WebView 默认快捷键不可靠，
 // wails dev 下改了前端代码可用它强制重载最新模块。
@@ -49,6 +53,10 @@ function init() {
   initSiteLinks();
   initConfirmDialog();
   initTrustDialog();
+  initDiagnoseDialog();
+  initCertCheckDialog();
+  initPanels();
+  initEventsCard();
 
   $$('[data-nav]').forEach((n) => n.addEventListener('click', () => activate(n.getAttribute('data-nav'))));
   $$('[data-goto]').forEach((b) => b.addEventListener('click', () => activate(b.getAttribute('data-goto'))));
@@ -72,6 +80,7 @@ function init() {
   initCommandPanel();
   refreshOverview();
   refreshDetails();
+  refreshOperations();
   loadLogs(true);
   setInterval(refreshOverview, 2000);
   setInterval(refreshDetails, 15000);

@@ -2,206 +2,172 @@ package configops
 
 import (
 	"encoding/json"
-	"fast-https-desktop/internal/view"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"fast-https-desktop/internal/model"
+	"fast-https-desktop/internal/view"
 )
 
-// 带 JSONC 注释、尾逗号、未知顶层字段、复杂数组字段（server / cas）的样例。
-const sampleFormConfig = `{
-  // 主配置注释
-  "pid": "",
-  "custom_keep": {"x": 1},
-  "security": {
-    "host_check": "off",
-    "headers": {"nosniff": true, "hsts": ""}
-  },
-  "waf": {"mode": "disabled"},
-  "engine": {"is_master": false, "id": 1, "register_port": 9099},
-  "acme": {"enabled": false, "email": "<EMAIL>", "cas": [{"name":"letsencrypt"}]},
+// 表单字段的解析/格式化与候选配置树的搭建是本包的核心逻辑。
+
+func TestParseFieldValue(t *testing.T) {
+	b := fieldSpec{typ: "bool"}
+	if v, err := parseFieldValue(b, "true"); err != nil || v != true {
+		t.Fatalf("bool 解析错误：%v %v", v, err)
+	}
+	if _, err := parseFieldValue(b, "yes"); err == nil {
+		t.Fatal("非法布尔值应报错")
+	}
+	n := fieldSpec{typ: "number"}
+	if v, err := parseFieldValue(n, "30"); err != nil {
+		t.Fatal(err)
+	} else if json.Number("30") != v {
+		t.Fatalf("number 应为 json.Number，得到 %#v", v)
+	}
+	l := fieldSpec{typ: "list"}
+	if v, err := parseFieldValue(l, "a\nb, c"); err != nil {
+		t.Fatal(err)
+	} else if items := v.([]string); len(items) != 3 || items[2] != "c" {
+		t.Fatalf("list 解析错误：%#v", v)
+	}
+	s := fieldSpec{typ: "select", options: []string{"", "DENY"}}
+	if _, err := parseFieldValue(s, "X"); err == nil {
+		t.Fatal("select 非法值应报错")
+	}
+}
+
+func TestFormatFieldValueNumbers(t *testing.T) {
+	// JSON 默认解码成 float64，大数不能打成科学计数法
+	if got := formatFieldValue(float64(1048576), "number"); got != "1048576" {
+		t.Fatalf("大数格式化错误：%q", got)
+	}
+	if got := formatFieldValue(json.Number("30"), "number"); got != "30" {
+		t.Fatalf("json.Number 格式化错误：%q", got)
+	}
+	if got := formatFieldValue(true, "bool"); got != "true" {
+		t.Fatalf("bool 格式化错误：%q", got)
+	}
+	if got := formatFieldValue([]any{"a", "b"}, "list"); got != "a\nb" {
+		t.Fatalf("list 格式化错误：%q", got)
+	}
+}
+
+func TestLookupAndSetPath(t *testing.T) {
+	root := map[string]any{"http": map[string]any{"default_type": "text/html"}}
+	if v, ok := lookupPath(root, "http.default_type"); !ok || v != "text/html" {
+		t.Fatalf("lookupPath 错误：%v %v", v, ok)
+	}
+	setPath(root, "http.servers_limit.limit", float64(0))
+	if v, ok := lookupPath(root, "http.servers_limit.limit"); !ok || v != float64(0) {
+		t.Fatalf("setPath 应能建中间层：%v %v", v, ok)
+	}
+}
+
+// writeTreeWorkspace 建一棵最小的线上配置树：主配置 + conf.d 站点 + 停用文件。
+func writeTreeWorkspace(t *testing.T) (string, model.RuntimePaths) {
+	t.Helper()
+	dir := t.TempDir()
+	etc := filepath.Join(dir, "config")
+	confd := filepath.Join(etc, "conf.d")
+	if err := os.MkdirAll(confd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	main := filepath.Join(etc, "fast-https.json")
+	body := `{
+  // JSONC 注释也要能解析
   "http": {
     "include": ["./conf.d"],
-    "default_type": "application/octet-stream",
-    "servers_limit": {"max_header_size": 4096, "max_body_size": 524288, "limit": 0, "burst": 0},
-    "blaklist": [],
-    "log_format": ["ip_port", "time"],
-    "server": [{"listen": 8080, "server_name": "example.com"}],
+    "server": []
   },
-}
-`
-
-func writeFormConfig(t *testing.T, body string) string {
-	t.Helper()
-	p := filepath.Join(t.TempDir(), "fast-https.json")
-	if err := os.WriteFile(p, []byte(body), 0644); err != nil {
+  "engine": {"is_master": true}
+}`
+	if err := os.WriteFile(main, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return p
-}
-
-func fieldByPath(form ConfigForm, path string) (ConfigField, bool) {
-	for _, f := range form.Fields {
-		if f.Path == path {
-			return f, true
-		}
+	if err := os.WriteFile(filepath.Join(confd, "blog.json"), []byte(`{"server_name":"blog.example.com"}`), 0o644); err != nil {
+		t.Fatal(err)
 	}
-	return ConfigField{}, false
+	if err := os.WriteFile(filepath.Join(confd, "off.json.disabled"), []byte(`{"server_name":"off.example.com"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// 非配置文件不应被收进候选树
+	if err := os.WriteFile(filepath.Join(confd, "readme.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir, model.RuntimePaths{Config: main}
 }
 
-func TestReadConfigFormValues(t *testing.T) {
-	p := writeFormConfig(t, sampleFormConfig)
-	form, err := ReadConfigForm(p)
+func TestBuildCandidateClonesTree(t *testing.T) {
+	_, paths := writeTreeWorkspace(t)
+	raw, err := os.ReadFile(paths.Config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !form.Writable || form.Size == 0 || form.Modified == "" {
-		t.Fatalf("元数据不全：%+v", form)
+	var root map[string]any
+	dec := json.NewDecoder(strings.NewReader(string(view.StripJSONC(raw))))
+	dec.UseNumber()
+	if err := dec.Decode(&root); err != nil {
+		t.Fatal(err)
 	}
-	cases := map[string]string{
-		"security.host_check":                "off",
-		"security.headers.nosniff":           "true",
-		"waf.mode":                           "disabled",
-		"acme.enabled":                       "false",
-		"acme.email":                         "<EMAIL>",
-		"http.include":                       "./conf.d",
-		"http.servers_limit.max_header_size": "4096",
-		"http.log_format":                    "ip_port\ntime",
-	}
-	for path, want := range cases {
-		f, ok := fieldByPath(form, path)
-		if !ok {
-			t.Fatalf("缺少字段 %s", path)
-		}
-		if f.Value != want {
-			t.Fatalf("%s 期望 %q，实际 %q", path, want, f.Value)
-		}
-		if f.Missing {
-			t.Fatalf("%s 不应标记为缺失", path)
-		}
-	}
-	if _, ok := fieldByPath(form, "engine.id"); ok {
-		t.Fatal("engine 集群占位不应出现在表单里")
-	}
-	// 固定候选的字段用多选，前端按选项渲染勾选组
-	if f, ok := fieldByPath(form, "http.log_format"); !ok || f.Type != "multiselect" {
-		t.Fatalf("log_format 应为 multiselect：%+v", f)
-	}
-	if f, ok := fieldByPath(form, "security.headers.referrer_policy"); !ok || f.Type != "select" {
-		t.Fatalf("referrer_policy 应为 select：%+v", f)
-	}
-	if f, ok := fieldByPath(form, "security.headers.content_security_policy"); !ok || f.Type != "textarea" {
-		t.Fatalf("CSP 应为 textarea：%+v", f)
-	}
-	if f, ok := fieldByPath(form, "acme.renew_before_days"); !ok || !f.Missing || f.Value != "0" {
-		t.Fatal("未配置的字段应标记 missing 并给默认值")
-	}
-	if len(form.Preserved) != 2 || form.Preserved[0] != "custom_keep" || form.Preserved[1] != "engine" {
-		t.Fatalf("未知或未纳入表单的顶层字段应列出：%v", form.Preserved)
-	}
-}
-
-func readFormJSON(t *testing.T, p string) map[string]any {
-	t.Helper()
-	raw, err := os.ReadFile(p)
+	setPath(root, "log_root", "logs")
+	cand, err := buildCandidate(paths, root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
-		t.Fatal(err)
-	}
-	return m
-}
+	defer os.RemoveAll(cand)
 
-func TestSaveConfigFormKeepsUnknownFields(t *testing.T) {
-	p := writeFormConfig(t, sampleFormConfig)
-	_, err := SaveConfigForm(p, map[string]string{
-		"waf.mode":                         "monitor",
-		"http.servers_limit.max_body_size": "1024",
-		"acme.enabled":                     "true",
-		"http.log_format":                  "ip_port, time, status",
-	})
+	// 候选主配置：字段已改、JSONC 注释已丢、未知顶层键保留
+	b, err := os.ReadFile(filepath.Join(cand, "fast-https.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := readFormJSON(t, p)
-	if got := m["waf"].(map[string]any)["mode"]; got != "monitor" {
-		t.Fatalf("waf.mode = %v", got)
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
 	}
-	limit := m["http"].(map[string]any)["servers_limit"].(map[string]any)
-	if got := limit["max_body_size"]; got != float64(1024) {
-		t.Fatalf("max_body_size 应为数字 1024，实际 %#v", got)
+	if got["log_root"] != "logs" {
+		t.Fatalf("改动字段未写进候选：%#v", got)
 	}
-	if got := m["acme"].(map[string]any)["enabled"]; got != true {
-		t.Fatalf("acme.enabled = %v", got)
+	if _, ok := got["engine"]; !ok {
+		t.Fatalf("未知顶层键应保留：%#v", got)
 	}
-	logs := m["http"].(map[string]any)["log_format"].([]any)
-	if len(logs) != 3 || logs[2] != "status" {
-		t.Fatalf("log_format 未按列表写回：%v", logs)
+	// 站点文件（含停用）都进 conf.d，非配置文件不进
+	for _, name := range []string{"blog.json", "off.json.disabled"} {
+		if _, err := os.Stat(filepath.Join(cand, "conf.d", name)); err != nil {
+			t.Errorf("候选缺少 %s：%v", name, err)
+		}
 	}
-	// 未纳入表单的复杂字段与未改动字段必须原样保留
-	servers := m["http"].(map[string]any)["server"].([]any)
-	if len(servers) != 1 {
-		t.Fatal("http.server[] 被丢弃")
-	}
-	if _, ok := m["acme"].(map[string]any)["cas"]; !ok {
-		t.Fatal("acme.cas 被丢弃")
-	}
-	if _, ok := m["custom_keep"]; !ok {
-		t.Fatal("未知顶层字段被丢弃")
-	}
-	if got := m["engine"].(map[string]any)["register_port"]; got != float64(9099) {
-		t.Fatalf("存量 engine 段应原样保留，实际 %v", m["engine"])
-	}
-	if got := m["security"].(map[string]any)["headers"].(map[string]any)["nosniff"]; got != true {
-		t.Fatal("未改动字段被意外改写")
-	}
-	bak, err := os.ReadFile(p + ".bak")
-	if err != nil || !strings.Contains(string(bak), "// 主配置注释") {
-		t.Fatal("备份应保留带注释的原文")
+	if _, err := os.Stat(filepath.Join(cand, "conf.d", "readme.txt")); err == nil {
+		t.Error("非配置文件不应进候选树")
 	}
 }
 
-func TestSaveConfigFormRejectsBadValues(t *testing.T) {
-	p := writeFormConfig(t, sampleFormConfig)
-	original, _ := os.ReadFile(p)
-	bad := []map[string]string{
-		{"http.servers_limit.limit": "abc"},
-		{"waf.mode": "bogus"},
-		{"acme.enabled": "yes"},
-		{"security.host_check": "strict"},
+func TestBuildCandidateRewritesAbsoluteInclude(t *testing.T) {
+	_, paths := writeTreeWorkspace(t)
+	root := map[string]any{
+		"http": map[string]any{"include": []any{paths.Config[:len(paths.Config)-len("fast-https.json")] + "conf.d"}},
 	}
-	for _, values := range bad {
-		if _, err := SaveConfigForm(p, values); err == nil {
-			t.Fatalf("应拒绝 %v", values)
-		}
-		got, _ := os.ReadFile(p)
-		if string(got) != string(original) {
-			t.Fatal("校验失败时原文件不能变")
-		}
-	}
-	if _, err := SaveConfigForm(p, map[string]string{}); err == nil {
-		t.Fatal("空改动应拒绝")
-	}
-}
-
-func TestResolvePathsFallsBackToRepoLayoutInDev(t *testing.T) {
-	repo := t.TempDir()
-	bin := filepath.Join(repo, "desktop", "bin")
-	if err := os.MkdirAll(bin, 0755); err != nil {
+	cand, err := buildCandidate(paths, root)
+	if err != nil {
 		t.Fatal(err)
 	}
-	cfgDir := filepath.Join(repo, "config")
-	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+	defer os.RemoveAll(cand)
+	b, err := os.ReadFile(filepath.Join(cand, "fast-https.json"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(cfgDir, "fast-https.json")
-	if err := os.WriteFile(want, []byte(`{"http":{}}`), 0644); err != nil {
+	var got struct {
+		HTTP struct {
+			Include []string `json:"include"`
+		} `json:"http"`
+	}
+	if err := json.Unmarshal(b, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got := view.ResolvePaths(bin).Config; got != want {
-		t.Fatalf("开发布局应回退到 %s，实际 %s", want, got)
+	if len(got.HTTP.Include) != 1 || got.HTTP.Include[0] != "conf.d" {
+		t.Fatalf("绝对 include 应改写成 conf.d：%#v", got.HTTP.Include)
 	}
 }

@@ -1,59 +1,48 @@
 package view
 
-// 桌面端是独立进程，不 import 主项目的 config 包：
-// 主配置的 schema 结构体未导出，且路径解析依赖编译期 build tag 与进程 CWD，
-// 直接复用会把服务器的工作目录语义带进桌面端。这里改为「读文件 + 调 CLI」：
-// 路径基址由 `fast-https config path --json` 给出，配置与证书自己解析。
+// 桌面端是 CLI 的图形前端：状态与数据全部来自 `fast-https <cmd> --json`
+// 的 data 投影（形状见 docs/cli/cli-json-shapes.md），不再自己解析配置、
+// 证书与日志文件。这里只做两件纯 UI 的事：把命令数据映射成界面视图模型，
+// 以及窗口/托盘相关的本地行为（打开路径、启动/停止转交）。
+//
+// 唯一保留的文件读取是「候选配置树」的搭建（configops）与纯 UI 元数据
+// （stat 大小、修改时间），不读配置内容。
 
 import (
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
+	"fast-https-desktop/internal/cli"
 	"fast-https-desktop/internal/model"
 	"fmt"
-	"io"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const desktopVersion = "1.7.0"
 
-// RuntimePaths 与 cmd/config_path.go 的 RuntimePaths 一致。
+// RuntimePaths 与 cmd/internal/configcmd/path.go 的 RuntimePaths 一致。
 type RuntimePaths = model.RuntimePaths
 
 // Overview 是概览页一次拉取的全部内容。
 type Overview = model.Overview
 
-// Site 是一个 server 块，可能来自主配置 http.server[] 或 conf.d/*.json。
+// Site 是站点页的一行（site list 的一个站点按监听拆行）。
 type Site = model.Site
 
-// Cert 是从 PEM 里读出的证书摘要。
+// Cert 是 cert list 的一行。
 type Cert = model.Cert
-type mainConfig struct {
-	LogRoot string `json:"log_root"`
-	HTTP    struct {
-		Include []string   `json:"include"`
-		Servers []siteFile `json:"server"`
-	} `json:"http"`
-}
 
-// siteFile 与 config/schema.go 的 jsonServer 形状对齐，但只取界面要展示的字段。
-type siteFile struct {
-	Listen         json.RawMessage `json:"listen"`
-	ServerName     string          `json:"server_name"`
-	SSLCertificate string          `json:"ssl_certificate"`
-	Locations      []struct {
-		Root string `json:"root"`
-	} `json:"location"`
-}
+type LogEntry = model.LogEntry
+type LogQuery = model.LogQuery
+type LogPage = model.LogPage
 
 func ExeDir() string {
 	e, err := os.Executable()
@@ -71,19 +60,51 @@ func ServerBinary(dir string) string {
 	return filepath.Join(dir, name)
 }
 
+// ------------------------------------------------------------ 命令结果缓存
+// 概览每 2 秒轮询一次，每次都把 site list / cert list / config show 各起一个
+// 进程太浪费。短 TTL 缓存把同一次刷新周期里的重复调用合并掉；缓存 key 带
+// 目录与参数，测试用不同 TempDir 互不影响。
+
+type cacheEntry struct {
+	at   time.Time
+	data any
+	err  error
+}
+
+var (
+	cacheMu  sync.Mutex
+	cmdCache = map[string]cacheEntry{}
+)
+
+func cached(key string, ttl time.Duration, fn func() (any, error)) (any, error) {
+	cacheMu.Lock()
+	if e, ok := cmdCache[key]; ok && time.Since(e.at) < ttl {
+		cacheMu.Unlock()
+		return e.data, e.err
+	}
+	cacheMu.Unlock()
+	data, err := fn()
+	cacheMu.Lock()
+	cmdCache[key] = cacheEntry{at: time.Now(), data: data, err: err}
+	cacheMu.Unlock()
+	return data, err
+}
+
+// ------------------------------------------------------------ 运行期路径
+
 // ResolvePaths 优先让主程序自己报路径（归档 / deb / rpm / apk 布局不同），
-// 报不出来再按归档布局兜底。
+// 报不出来再按归档布局兜底。结果短 TTL 缓存，避免每次刷新都起进程。
 func ResolvePaths(dir string) RuntimePaths {
-	exe := ServerBinary(dir)
-	if _, err := os.Stat(exe); err == nil {
-		cmd := exec.Command(exe, "config", "path", "--json")
-		cmd.Dir = dir
-		if out, err := cmd.Output(); err == nil {
-			var p RuntimePaths
-			if json.Unmarshal(out, &p) == nil && p.Config != "" {
-				return p
-			}
-		}
+	v, _ := cached("paths:"+dir, 3*time.Second, func() (any, error) {
+		return resolvePaths(dir), nil
+	})
+	p, _ := v.(RuntimePaths)
+	return p
+}
+
+func resolvePaths(dir string) RuntimePaths {
+	if p, err := cli.RunBareJSON[RuntimePaths](dir, "config", "path"); err == nil && p.Config != "" {
+		return p
 	}
 	// 安装布局下 config/ 与 exe 同级；开发时 exe 在 desktop/bin/，
 	// 配置在仓库根 config/。主程序不在同目录时回退到仓库布局，
@@ -101,23 +122,24 @@ func ResolvePaths(dir string) RuntimePaths {
 		Log:     filepath.Join(base, "logs"),
 		Pid:     filepath.Join(base, "fast-https.pid"),
 		RootCRT: filepath.Join(base, "httpdoc", "root", "root.crt"),
+		State:   filepath.Join(base, "state"),
 	}
 }
 
-// RunServerCommand 把操作交给主程序，桌面端不自己实现进程管理。
+// ConfigArg 是带 --config 的公共参数：路径由主程序报出，命令都按它找配置树。
+func ConfigArg(paths RuntimePaths) []string {
+	if paths.Config == "" {
+		return nil
+	}
+	return []string{"--config", paths.Config}
+}
+
+// ------------------------------------------------------------ 服务操作
+
+// RunServerCommand 把纯文本命令（status / version / start / stop / reload）
+// 交给主程序，桌面端不自己实现进程管理。
 func RunServerCommand(dir string, args ...string) (string, error) {
-	exe := ServerBinary(dir)
-	if _, err := os.Stat(exe); err != nil {
-		return "", fmt.Errorf("未找到主程序 %s：桌面端需要与主程序放在同一目录", exe)
-	}
-	cmd := exec.Command(exe, args...)
-	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	text := strings.TrimSpace(string(out))
-	if err != nil && text == "" {
-		return "", fmt.Errorf("执行 %s %s 失败：%w", filepath.Base(exe), strings.Join(args, " "), err)
-	}
-	return text, nil
+	return cli.Run(dir, args...)
 }
 
 // StartServer 用 Start 而非 Run：start 子命令会派生后台进程，
@@ -125,7 +147,9 @@ func RunServerCommand(dir string, args ...string) (string, error) {
 func StartServer(dir string) (string, error) {
 	exe := ServerBinary(dir)
 	if _, err := os.Stat(exe); err != nil {
-		return "", fmt.Errorf("未找到主程序 %s", exe)
+		if _, pathErr := exec.LookPath(exe); pathErr != nil {
+			return "", fmt.Errorf("未找到主程序 %s：桌面端需要与主程序放在同一目录", exe)
+		}
 	}
 	cmd := exec.Command(exe, "start")
 	cmd.Dir = dir
@@ -136,25 +160,392 @@ func StartServer(dir string) (string, error) {
 	return "启动指令已发送，状态会在 2 秒后刷新", nil
 }
 
-// StopServer 跑完 stop 再用端口探测复核。pid 文件缺失时 stop 会当作
+// StopServer 跑完 stop 再用 service status 复核。pid 文件缺失时 stop 会当作
 // 「没在跑」直接成功，而服务可能仍在监听（安装目录不可写 pid 时就是
 // 这种表现）；此时把真实原因交回界面，而不是报一句「已停止」。
 func StopServer(dir string) (string, error) {
-	text, err := RunServerCommand(dir, "stop")
+	text, err := cli.Run(dir, "stop")
 	if err != nil {
 		return text, err
 	}
 	time.Sleep(1200 * time.Millisecond)
-	ov := CollectOverview(dir)
-	if ov.Running {
-		return text, fmt.Errorf("服务仍在监听 %s：pid 文件 %s 未生成或不可写，stop 无法定位进程",
-			strings.Join(ov.Ports, " "), ov.Paths.Pid)
+	paths := ResolvePaths(dir)
+	if data, _, err := cli.RunJSON[any](dir, append([]string{"service", "status"}, ConfigArg(paths)...)...); err == nil {
+		m := cli.AsMap(data)
+		if st := cli.Str(m, "status"); st == "running" || st == "degraded" {
+			var ports []string
+			for _, p := range cli.AsSlice(m["ports"]) {
+				pm := cli.AsMap(p)
+				ports = append(ports, ":"+strconv.Itoa(cli.Int(pm, "port")))
+			}
+			return text, fmt.Errorf("服务仍在监听 %s：pid 文件 %s 未生成或不可写，stop 无法定位进程",
+				strings.Join(ports, " "), paths.Pid)
+		}
 	}
 	return text, nil
 }
 
+// ------------------------------------------------------------ 站点（site list）
+
+// ListSites 转交 site list，并把合并展示的 listen 拆成逐端口行。
+func ListSites(dir string) ([]Site, error) {
+	data, err := runSiteList(dir)
+	if err != nil {
+		return nil, err
+	}
+	return siteRows(cli.AsMap(data)), nil
+}
+
+func runSiteList(dir string) (any, error) {
+	paths := ResolvePaths(dir)
+	return cached("site.list:"+paths.Config, 5*time.Second, func() (any, error) {
+		data, _, err := cli.RunJSON[any](dir, append([]string{"site", "list"}, ConfigArg(paths)...)...)
+		return data, err
+	})
+}
+
+// splitListen 把 site list 的合并监听串（"80, 443 ssl h2"）拆成单条监听。
+func splitListen(merged string) []string {
+	var out []string
+	for _, part := range strings.Split(merged, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// portOf 取监听项的端口部分（":443"），不是数字端口返回空串。
+func portOf(listen string) string {
+	f := strings.Fields(listen)
+	if len(f) == 0 {
+		return ""
+	}
+	p := strings.TrimPrefix(f[0], ":")
+	if _, err := strconv.Atoi(p); err != nil {
+		return ""
+	}
+	return ":" + p
+}
+
+// firstToken 取 server_name 的第一个域名（多域名时作展示与访问 URL 用）。
+func firstToken(s string) string {
+	f := strings.Fields(s)
+	if len(f) == 0 {
+		return ""
+	}
+	return f[0]
+}
+
+// siteRows 把 site list 的 data 映射成界面行：一个站点的每个监听一行，
+// 共享同一个 Id（= CLI 的站点名，文件名主干）。
+func siteRows(data map[string]any) []Site {
+	var out []Site
+	for _, it := range cli.AsSlice(data["sites"]) {
+		r := cli.AsMap(it)
+		id := cli.Str(r, "name")
+		name := firstToken(cli.Str(r, "server_name"))
+		if name == "" {
+			name = id
+		}
+		listens := splitListen(cli.Str(r, "listen"))
+		if len(listens) == 0 {
+			listens = []string{""}
+		}
+		for _, l := range listens {
+			out = append(out, Site{
+				Id:         id,
+				Name:       name,
+				Port:       portOf(l),
+				Listen:     l,
+				TLS:        strings.Contains(l, "ssl"),
+				Source:     cli.Str(r, "file"),
+				Enabled:    cli.Bool(r, "enabled"),
+				CertStatus: cli.Str(r, "cert_status"),
+				Error:      cli.Str(r, "error"),
+			})
+		}
+	}
+	return out
+}
+
+// ------------------------------------------------------------ 证书（cert list）
+
+// ListCerts 转交 cert list。
+func ListCerts(dir string) ([]Cert, error) {
+	data, err := runCertList(dir)
+	if err != nil {
+		return nil, err
+	}
+	return certRows(cli.AsMap(data)), nil
+}
+
+func runCertList(dir string) (any, error) {
+	paths := ResolvePaths(dir)
+	return cached("cert.list:"+paths.Config, 15*time.Second, func() (any, error) {
+		data, _, err := cli.RunJSON[any](dir, append([]string{"cert", "list"}, ConfigArg(paths)...)...)
+		return data, err
+	})
+}
+
+// certRows 把 cert list 的证书条目映射成界面行。
+func certRows(data map[string]any) []Cert {
+	var out []Cert
+	for _, it := range cli.AsSlice(data["certificates"]) {
+		e := cli.AsMap(it)
+		c := Cert{
+			Domain:      strings.Join(cli.Strs(e, "domains"), " "),
+			Subject:     cli.Str(e, "subject"),
+			Names:       strings.Join(cli.Strs(e, "names"), ", "),
+			Issuer:      cli.Str(e, "issuer"),
+			NotAfter:    shortDate(cli.Str(e, "not_after")),
+			DaysLeft:    cli.Int(e, "days_left"),
+			SelfSigned:  cli.Bool(e, "self_signed"),
+			Local:       cli.Bool(e, "local_ca") || cli.Bool(e, "self_signed"),
+			Status:      cli.Str(e, "status"),
+			AcmeManaged: cli.Bool(e, "acme_managed"),
+			File:        cli.Str(e, "file"),
+		}
+		if c.Domain == "" {
+			c.Domain = c.Subject
+		}
+		c.Note = c.File
+		if msg := cli.Str(e, "error"); msg != "" {
+			c.Note = msg
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// shortDate 把 RFC3339 收成日期（YYYY-MM-DD）；解析不了原样返回。
+func shortDate(s string) string {
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.Format("2006-01-02")
+		}
+	}
+	return s
+}
+
+// ------------------------------------------------------------ 概览
+
+// CollectOverview 汇总概览页数据：service status（运行态）+ site list（站点）
+// + cert list（最近到期）+ config show（改过未重载提示）。
+func CollectOverview(dir string) Overview {
+	ov := Overview{
+		Version:   desktopVersion,
+		CheckedAt: time.Now().Format("15:04:05"),
+	}
+	paths := ResolvePaths(dir)
+	ov.Paths = paths
+
+	// service status：只读查询，服务没在跑也成功。
+	if data, _, err := cli.RunJSON[any](dir, append([]string{"service", "status"}, ConfigArg(paths)...)...); err == nil {
+		m := cli.AsMap(data)
+		ov.Status = cli.Str(m, "status")
+		ov.Running = ov.Status == "running" || ov.Status == "degraded"
+		ov.PID = cli.Int(m, "pid")
+		ov.UptimeSeconds = cli.Int64(m, "uptime_seconds")
+		ov.ConfigVersion = cli.Str(m, "config_version")
+		if v := cli.Str(m, "version"); v != "" {
+			ov.Version = v
+		}
+		for _, p := range cli.AsSlice(m["ports"]) {
+			pm := cli.AsMap(p)
+			ov.Ports = append(ov.Ports, ":"+strconv.Itoa(cli.Int(pm, "port")))
+		}
+		sort.Strings(ov.Ports)
+	} else {
+		ov.Error = err.Error()
+	}
+
+	// site list：站点数与 TLS 站点数（按唯一站点计，不按拆行后的行数）。
+	if data, err := runSiteList(dir); err == nil {
+		seen := map[string]bool{}
+		for _, s := range siteRows(cli.AsMap(data)) {
+			if seen[s.Id] {
+				continue
+			}
+			seen[s.Id] = true
+			ov.SiteCount++
+			if s.TLS {
+				ov.TLSCount++
+			}
+		}
+	} else if ov.Error == "" {
+		ov.Error = err.Error()
+	}
+
+	// cert list：最近一张到期天数。
+	if data, err := runCertList(dir); err == nil {
+		for _, c := range certRows(cli.AsMap(data)) {
+			if c.DaysLeft > 0 && (ov.NearestCertDays == 0 || c.DaysLeft < ov.NearestCertDays) {
+				ov.NearestCertDays = c.DaysLeft
+			}
+		}
+	}
+
+	// config show：config_dirty_hint（仅服务在跑时由主程序给出）。
+	if data, err := runConfigShow(dir); err == nil {
+		ov.ConfigDirty = cli.Bool(cli.AsMap(data), "config_dirty_hint")
+	}
+	return ov
+}
+
+func runConfigShow(dir string) (any, error) {
+	paths := ResolvePaths(dir)
+	return cached("config.show:"+paths.Config, 10*time.Second, func() (any, error) {
+		data, _, err := cli.RunJSON[any](dir, append([]string{"config", "show"}, ConfigArg(paths)...)...)
+		return data, err
+	})
+}
+
+// ------------------------------------------------------------ 日志（logs query / logs access）
+
+var dateOnlyRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// normalizeBound 把纯日期补成 RFC3339（CLI 只认时长或 RFC3339）。
+// 起始日取当天 00:00，截止日取 23:59:59，时区用本机当前偏移。
+func normalizeBound(s string, until bool) string {
+	s = strings.TrimSpace(s)
+	if !dateOnlyRe.MatchString(s) {
+		return s
+	}
+	clock := "T00:00:00"
+	if until {
+		clock = "T23:59:59"
+	}
+	return s + clock + time.Now().Format("-07:00")
+}
+
+// logsQueryArgs 把查询条件翻译成 logs query 的参数。游标来自已展示的
+// 记录，天然比筛选的 until 更早，有游标时直接以其收窄。
+func logsQueryArgs(q LogQuery, paths RuntimePaths) []string {
+	kind := q.Kind
+	if kind == "" {
+		kind = "access"
+	}
+	limit := q.Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 30
+	}
+	args := []string{"logs", "query", "--kind", kind, "--limit", strconv.Itoa(limit)}
+	addFlag := func(name, v string) {
+		if strings.TrimSpace(v) != "" {
+			args = append(args, name, v)
+		}
+	}
+	addFlag("--level", q.Level)
+	addFlag("--status", q.Status)
+	addFlag("--domain", q.Host)
+	addFlag("--method", q.Method)
+	addFlag("--path-prefix", q.PathPrefix)
+	addFlag("--reason", q.Reason)
+	addFlag("--since", normalizeBound(q.Since, false))
+	until := normalizeBound(q.Until, true)
+	if q.Cursor != "" {
+		until = q.Cursor
+	}
+	addFlag("--until", until)
+	return append(args, ConfigArg(paths)...)
+}
+
+// QueryLogs 转交 logs query。logs query 没有 offset 分页：「加载更早」把
+// 上一页最早一条的时间当下一页的游标（LogPage.NextUntil）。
+func QueryLogs(dir string, q LogQuery) (LogPage, error) {
+	paths := ResolvePaths(dir)
+	data, _, err := cli.RunJSON[any](dir, logsQueryArgs(q, paths)...)
+	if err != nil {
+		return LogPage{}, err
+	}
+	m := cli.AsMap(data)
+	raw := cli.AsSlice(m["records"])
+	var page LogPage
+	for _, it := range raw {
+		rec := cli.AsMap(it)
+		if q.Cursor != "" && cli.Str(rec, "time") == q.Cursor {
+			continue // 游标同刻的记录上一页已展示
+		}
+		page.Lines = append(page.Lines, logEntry(rec))
+	}
+	page.NextUntil = lastTime(raw)
+	page.HasMore = len(raw) > 0 && !cli.Bool(m, "range_complete") &&
+		page.NextUntil != "" && page.NextUntil != q.Cursor
+	return page, nil
+}
+
+// logEntry 把 logs query 的一条记录映射成界面行；Raw 放记录的紧凑 JSON，
+// 仅作悬浮提示（CLI 不返回日志原始行）。
+func logEntry(rec map[string]any) LogEntry {
+	e := LogEntry{
+		Time:       cli.Str(rec, "time"),
+		Level:      cli.Str(rec, "level"),
+		Kind:       cli.Str(rec, "kind"),
+		Message:    cli.Str(rec, "message"),
+		Method:     cli.Str(rec, "method"),
+		Path:       cli.Str(rec, "path"),
+		Host:       cli.Str(rec, "host"),
+		RemoteAddr: cli.Str(rec, "remote_addr"),
+	}
+	if v, ok := rec["status"]; ok && v != nil {
+		e.Status = fmt.Sprint(v)
+	}
+	if v, ok := rec["size"]; ok && v != nil {
+		e.Size = fmt.Sprint(v)
+	}
+	if b, err := json.Marshal(rec); err == nil {
+		e.Raw = string(b)
+	}
+	return e
+}
+
+// lastTime 取这批记录（由新到旧）里最早一条的时间，作下一页的游标。
+func lastTime(records []any) string {
+	for i := len(records) - 1; i >= 0; i-- {
+		if t := cli.Str(cli.AsMap(records[i]), "time"); t != "" {
+			return t
+		}
+	}
+	return ""
+}
+
+// TailLog 取日志尾部若干条（状态矩阵的访问日志栏）。
+// access / error 走 logs access / logs error，其余走 logs query。
+func TailLog(dir, name string, n int) ([]LogEntry, error) {
+	if name == "" {
+		name = "access"
+	}
+	switch name {
+	case "access", "error", "system", "safe":
+	default:
+		return nil, errors.New("不支持的日志类型")
+	}
+	if n <= 0 || n > 200 {
+		n = 20
+	}
+	paths := ResolvePaths(dir)
+	args := []string{"logs", name, "--limit", strconv.Itoa(n)}
+	if name == "system" || name == "safe" {
+		args = []string{"logs", "query", "--kind", name, "--limit", strconv.Itoa(n)}
+	}
+	args = append(args, ConfigArg(paths)...)
+	data, _, err := cli.RunJSON[any](dir, args...)
+	if err != nil {
+		return nil, err
+	}
+	var out []LogEntry
+	for _, it := range cli.AsSlice(cli.AsMap(data)["records"]) {
+		out = append(out, logEntry(cli.AsMap(it)))
+	}
+	return out, nil
+}
+
+// ------------------------------------------------------------ 杂项
+
 // StripJSONC 去掉 // 与 /* */ 注释以及尾逗号。
 // 主配置与站点文件都允许 JSONC，标准库的 json 不接受这些写法。
+// 搭建候选配置树时要用它解析主配置。
 func StripJSONC(b []byte) []byte {
 	var out []byte
 	inStr, esc, line, block := false, false, false, false
@@ -241,49 +632,9 @@ func removeTrailingCommas(b []byte) []byte {
 	return out
 }
 
-// parseListen 兼容主配置的三种写法：80 / "443 ssl h2" / [80, "443 ssl h2"]。
-func parseListen(raw json.RawMessage) []string {
-	if len(raw) == 0 || string(raw) == "null" {
-		return nil
-	}
-	var one interface{}
-	if err := json.Unmarshal(raw, &one); err != nil {
-		return nil
-	}
-	switch v := one.(type) {
-	case float64:
-		return []string{strconv.Itoa(int(v))}
-	case string:
-		return []string{v}
-	case []interface{}:
-		out := make([]string, 0, len(v))
-		for _, e := range v {
-			switch x := e.(type) {
-			case float64:
-				out = append(out, strconv.Itoa(int(x)))
-			case string:
-				out = append(out, x)
-			}
-		}
-		return out
-	}
-	return nil
-}
-
-func portOf(listen string) string {
-	f := strings.Fields(listen)
-	if len(f) == 0 {
-		return ""
-	}
-	p := strings.TrimPrefix(f[0], ":")
-	if _, err := strconv.Atoi(p); err != nil {
-		return ""
-	}
-	return ":" + p
-}
-
 // EtcPath 复刻主程序 absETCPath 的常见情形：相对路径以主配置所在目录为基址。
 // 旧配置里还会出现 "./config/xxx" 这种带前缀的写法，一并兼容。
+// 搭建候选配置树解析 http.include 时使用。
 func EtcPath(etcDir, p string) string {
 	if p == "" {
 		return ""
@@ -295,323 +646,6 @@ func EtcPath(etcDir, p string) string {
 	clean = strings.TrimPrefix(clean, "config"+string(filepath.Separator))
 	clean = strings.TrimPrefix(clean, "."+string(filepath.Separator))
 	return filepath.Join(etcDir, clean)
-}
-
-func collectJSONFiles(root string) []string {
-	var files []string
-	_ = filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		name := strings.ToLower(d.Name())
-		// include 只收 *.json，所以 *.json.disabled 天然处于停用状态。
-		// 桌面端要把它们也列出来，否则停用一次就从界面上消失了。
-		if strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".json.disabled") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	sort.Strings(files)
-	return files
-}
-
-func ReadSites(dir string) ([]Site, RuntimePaths, error) {
-	paths := ResolvePaths(dir)
-	raw, err := os.ReadFile(paths.Config)
-	if err != nil {
-		return nil, paths, fmt.Errorf("读不到主配置 %s：%w", paths.Config, err)
-	}
-	var cfg mainConfig
-	if err := json.Unmarshal(StripJSONC(raw), &cfg); err != nil {
-		return nil, paths, fmt.Errorf("主配置不是合法 JSON：%w", err)
-	}
-	etcDir := filepath.Dir(paths.Config)
-
-	var sources []struct {
-		file string
-		body siteFile
-	}
-	for _, s := range cfg.HTTP.Servers {
-		sources = append(sources, struct {
-			file string
-			body siteFile
-		}{file: filepath.Base(paths.Config), body: s})
-	}
-	for _, inc := range cfg.HTTP.Include {
-		target := EtcPath(etcDir, inc)
-		info, err := os.Stat(target)
-		if err != nil {
-			continue
-		}
-		var list []string
-		if info.IsDir() {
-			list = collectJSONFiles(target)
-		} else if strings.EqualFold(filepath.Ext(target), ".json") {
-			list = []string{target}
-		}
-		for _, f := range list {
-			b, err := os.ReadFile(f)
-			if err != nil {
-				continue
-			}
-			var s siteFile
-			if json.Unmarshal(StripJSONC(b), &s) != nil {
-				continue
-			}
-			rel, _ := filepath.Rel(etcDir, f)
-			// 统一用正斜杠：Source 会直接进 JSON 给前端判断
-			// （如「是否 conf.d/ 下的独立站点文件可删」），
-			// Windows 的 filepath.Rel 返回反斜杠会让前端口径对不上。
-			sources = append(sources, struct {
-				file string
-				body siteFile
-			}{file: filepath.ToSlash(rel), body: s})
-		}
-	}
-
-	var sites []Site
-	for _, src := range sources {
-		s := src.body
-		listens := parseListen(s.Listen)
-		if len(listens) == 0 {
-			listens = []string{""}
-		}
-		root := ""
-		for _, l := range s.Locations {
-			if l.Root != "" {
-				root = EtcPath(etcDir, l.Root)
-				break
-			}
-		}
-		for _, listen := range listens {
-			name := s.ServerName
-			if name == "" {
-				name = "(未命名站点)"
-			}
-			sites = append(sites, Site{
-				Name:     name,
-				Port:     portOf(listen),
-				Listen:   listen,
-				TLS:      strings.Contains(listen, "ssl"),
-				Root:     root,
-				CertFile: EtcPath(etcDir, s.SSLCertificate),
-				Source:   src.file,
-				// 主配置内联站点恒为启用；独立文件看有没有 .disabled 后缀。
-				Enabled: !strings.HasSuffix(src.file, ".disabled"),
-			})
-		}
-	}
-	return sites, paths, nil
-}
-
-func ReadCerts(dir string) ([]Cert, error) {
-	sites, _, err := ReadSites(dir)
-	if err != nil {
-		return nil, err
-	}
-	var certs []Cert
-	seen := map[string]bool{}
-	for _, s := range sites {
-		if !s.TLS || s.CertFile == "" || seen[s.CertFile] {
-			continue
-		}
-		seen[s.CertFile] = true
-		certs = append(certs, inspectPEM(s.Name, s.CertFile))
-	}
-	return certs, nil
-}
-
-func inspectPEM(domain, path string) Cert {
-	c := Cert{Domain: domain, Note: path}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		c.Note = "证书文件不存在：" + path
-		return c
-	}
-	for len(b) > 0 {
-		var block *pem.Block
-		block, b = pem.Decode(b)
-		if block == nil {
-			break
-		}
-		if block.Type != "CERTIFICATE" {
-			continue
-		}
-		cert, err := x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			c.Note = "证书解析失败：" + err.Error()
-			return c
-		}
-		c.Issuer = cert.Issuer.CommonName
-		if c.Issuer == "" {
-			c.Issuer = cert.Issuer.String()
-		}
-		// 「颁发给」优先取 CN；旧版本生成的叶子证书只有 SAN，这里回落展示。
-		c.Subject = cert.Subject.CommonName
-		if c.Subject == "" && len(cert.DNSNames) > 0 {
-			c.Subject = cert.DNSNames[0]
-		}
-		var names []string
-		names = append(names, cert.DNSNames...)
-		for _, ip := range cert.IPAddresses {
-			names = append(names, ip.String())
-		}
-		for _, u := range cert.URIs {
-			names = append(names, u.String())
-		}
-		c.Names = strings.Join(names, ", ")
-		c.NotAfter = cert.NotAfter.Format("2006-01-02")
-		c.DaysLeft = int(time.Until(cert.NotAfter).Hours() / 24)
-		c.SelfSigned = cert.Issuer.String() == cert.Subject.String()
-		// 本地 CA 签发时 Issuer 是 CA 的 Subject，与叶子 Subject 不同，
-		// 仅靠 selfSigned 会把自动生成的证书误标成外部已签发。
-		c.Local = c.SelfSigned
-		for _, org := range cert.Issuer.Organization {
-			if strings.EqualFold(org, "fast-https") {
-				c.Local = true
-			}
-		}
-		c.Note = path
-		return c
-	}
-	c.Note = "文件里没有 CERTIFICATE 块：" + path
-	return c
-}
-
-// probePorts 判断服务在不在跑：对配置里声明的端口做一次回环 TCP 连接。
-// 比读 pid 文件可靠，也避开 Windows / Unix 进程判活的平台差异。
-func probePorts(ports []string) bool {
-	for _, p := range ports {
-		if p == "" {
-			continue
-		}
-		conn, err := net.DialTimeout("tcp", "127.0.0.1"+p, 300*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
-			return true
-		}
-	}
-	return false
-}
-
-func readPID(pidFile string) int {
-	b, err := os.ReadFile(pidFile)
-	if err != nil {
-		return 0
-	}
-	var m map[string]int
-	if json.Unmarshal(b, &m) != nil {
-		return 0
-	}
-	return m["pid"]
-}
-
-// configDirty 是启发式判断：配置或站点文件比 pid 文件更新，
-// 就认为「已改未重载」。pid 是启动/重载时写的，改动配置不会动它。
-func configDirty(paths RuntimePaths, sites []Site) bool {
-	pidInfo, err := os.Stat(paths.Pid)
-	if err != nil {
-		return false
-	}
-	files := []string{paths.Config}
-	if entries := collectJSONFiles(filepath.Dir(paths.Config)); len(entries) > 0 {
-		files = append(files, entries...)
-	}
-	for _, s := range sites {
-		if s.Source != "" && !filepath.IsAbs(s.Source) {
-			files = append(files, EtcPath(filepath.Dir(paths.Config), s.Source))
-		}
-	}
-	for _, f := range files {
-		if st, err := os.Stat(f); err == nil && st.ModTime().After(pidInfo.ModTime()) {
-			return true
-		}
-	}
-	return false
-}
-
-func CollectOverview(dir string) Overview {
-	ov := Overview{
-		Version:   desktopVersion,
-		CheckedAt: time.Now().Format("15:04:05"),
-	}
-	sites, paths, err := ReadSites(dir)
-	ov.Paths = paths
-	if err != nil {
-		ov.Error = err.Error()
-		return ov
-	}
-	ov.SiteCount = len(sites)
-	seenPort := map[string]bool{}
-	for _, s := range sites {
-		if s.TLS {
-			ov.TLSCount++
-		}
-		if s.Port != "" && !seenPort[s.Port] {
-			seenPort[s.Port] = true
-			ov.Ports = append(ov.Ports, s.Port)
-		}
-	}
-	sort.Strings(ov.Ports)
-	ov.Running = probePorts(ov.Ports)
-	ov.PID = readPID(paths.Pid)
-	if out, err := RunServerCommand(dir, "version"); err == nil && out != "" {
-		ov.Version = strings.TrimSpace(strings.Split(out, "\n")[0])
-	}
-	if certs, err := ReadCerts(dir); err == nil {
-		for _, c := range certs {
-			if c.DaysLeft > 0 && (ov.NearestCertDays == 0 || c.DaysLeft < ov.NearestCertDays) {
-				ov.NearestCertDays = c.DaysLeft
-			}
-		}
-	}
-	ov.ConfigDirty = configDirty(paths, sites)
-	return ov
-}
-
-// TailLog 只读文件尾部，避免 access.log 很大时整文件进内存。
-func TailLog(logDir, name string, n int) ([]string, error) {
-	if name == "" {
-		name = "access"
-	}
-	switch name {
-	case "access", "error", "system", "safe":
-	default:
-		return nil, errors.New("不支持的日志类型")
-	}
-	if n <= 0 || n > 200 {
-		n = 20
-	}
-	f, err := os.Open(filepath.Join(logDir, name+".log"))
-	if err != nil {
-		return nil, fmt.Errorf("读不到 %s.log：%w", name, err)
-	}
-	defer f.Close()
-	st, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-	const maxRead = 256 * 1024
-	start := int64(0)
-	if st.Size() > maxRead {
-		start = st.Size() - maxRead
-	}
-	if _, err := f.Seek(start, io.SeekStart); err != nil {
-		return nil, err
-	}
-	b, err := io.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-	lines := strings.Split(strings.TrimRight(string(b), "\r\n"), "\n")
-	if len(lines) > n {
-		lines = lines[len(lines)-n:]
-	}
-	out := make([]string, 0, len(lines))
-	for _, l := range lines {
-		out = append(out, strings.TrimRight(l, "\r"))
-	}
-	return out, nil
 }
 
 // OpenPath 用系统默认方式打开文件或目录。

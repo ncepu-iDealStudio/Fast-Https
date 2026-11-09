@@ -1,9 +1,12 @@
 // 设置页：主配置按类型渲染成表单，保存时只回写改动过的字段。
+// 保存走 SaveConfigForm（后端是候选配置 + config apply 事务，自动 reload）；
+// 「校验配置」「配置版本」「对比」「回滚」走 RunCommand 转交 CLI。
 import { DesktopService, msgOf } from '../api.js';
 import { $, $$, esc, toast } from '../ui/dom.js';
 import { state } from '../state.js';
 import { askConfirm } from '../dialogs/confirm.js';
 import { refreshOverview } from '../refresh.js';
+import { refreshOperations } from '../ui/events.js';
 
 function setConfigStatus(text, kind) {
   const el = $('#configStatus');
@@ -115,12 +118,136 @@ export async function loadConfig(force) {
   }
 }
 
+// ---- 配置版本：config versions / diff / rollback ----
+
+const OP_LABEL = { added: '新增', removed: '删除', modified: '修改' };
+
+function renderVersionRows(data) {
+  const versions = data.versions || [];
+  $('#configDriftNote').hidden = !data.drift;
+  $('#configVersions').innerHTML = versions.length
+    ? versions.map((v) => {
+        const active = v.active ? '<span class="st-badge st-ok">当前</span>' : '';
+        const meta = [v.created_at, v.created_by, v.summary, v.parent ? '来自 ' + v.parent : '']
+          .filter(Boolean).join('　·　');
+        return `<div class="kv-row" data-version="${esc(v.version)}">`
+          + `<span class="k">${esc(v.version)}${active}</span>`
+          + `<span class="v">${esc(meta)}</span>`
+          + `<span class="n with-action">`
+          + `<button class="btn small ver-diff" data-version="${esc(v.version)}">对比</button>`
+          + (v.active ? '' : `<button class="btn small ver-rollback" data-version="${esc(v.version)}">回滚</button>`)
+          + `</span></div>`;
+      }).join('')
+    : '<div class="kv-row"><span class="k">—</span><span class="v">还没有配置版本快照（保存一次配置后生成）</span></div>';
+}
+
+export async function loadConfigVersions() {
+  const box = $('#configVersions');
+  if (!box) return;
+  try {
+    // §2.4：data.versions[{version,created_at,created_by,summary,parent,active}] + data.drift
+    const res = await DesktopService.RunCommand(['config', 'versions']);
+    renderVersionRows(res?.data || {});
+    $('#configDiffBox').hidden = true;
+  } catch (e) {
+    box.innerHTML = `<div class="kv-row"><span class="k">—</span><span class="v">读取失败：${esc(msgOf(e))}</span></div>`;
+  }
+}
+
+function renderDiff(version, data) {
+  const box = $('#configDiffBox');
+  box.hidden = false;
+  if (data.identical || !(data.changes || []).length) {
+    box.innerHTML = `<div class="diff-head"><b>${esc(version)}</b><span>无差异</span>`
+      + `<button class="btn small" id="diffClose">收起</button></div>`;
+    return;
+  }
+  const rows = data.changes.map((c) => {
+    // changed:true 是敏感键：只有变更标记，不显示新旧值
+    const values = c.changed
+      ? '<i>敏感键已变更（不显示值）</i>'
+      : [c.op !== 'added' && c.old !== undefined ? '旧 ' + JSON.stringify(c.old) : '',
+         c.op !== 'removed' && c.new !== undefined ? '新 ' + JSON.stringify(c.new) : '',
+         c.op === 'added' && c.value !== undefined ? '值 ' + JSON.stringify(c.value) : '']
+        .filter(Boolean).join('　→　');
+    return `<div class="diff-row"><span class="diff-path mono">${esc(c.path)}</span>`
+      + `<span class="diff-op st-badge ${c.op === 'added' ? 'st-ok' : (c.op === 'removed' ? 'st-err' : 'st-warn')}">${esc(OP_LABEL[c.op] || c.op)}</span>`
+      + `<span class="diff-val">${values}</span></div>`;
+  }).join('');
+  box.innerHTML = `<div class="diff-head"><b>${esc(version)}</b><span class="muted">与当前磁盘配置的差异</span>`
+    + `<button class="btn small" id="diffClose">收起</button></div>${rows}`;
+}
+
+async function showVersionDiff(version) {
+  const box = $('#configDiffBox');
+  box.hidden = false;
+  box.innerHTML = `<div class="diff-head"><b>${esc(version)}</b><span class="muted">正在对比…</span></div>`;
+  try {
+    // §2.5：--candidate 可以是版本号；data.changes[{path,op,old,new,value,changed}]
+    const res = await DesktopService.RunCommand(['config', 'diff', '--candidate', version]);
+    renderDiff(version, res?.data || {});
+  } catch (e) {
+    box.innerHTML = `<div class="diff-head"><b>${esc(version)}</b><span class="dialog-error">对比失败：${esc(msgOf(e))}</span>`
+      + `<button class="btn small" id="diffClose">收起</button></div>`;
+  }
+}
+
+async function rollbackVersion(version) {
+  const ok = await askConfirm('回滚配置版本？',
+    `将回滚到 ${version}。回滚是一次新的事务操作（校验、恢复点、切换、自动 reload），可再回滚。`,
+    '回滚');
+  if (!ok) return;
+  try {
+    // §2.7：config rollback --version vNNN --yes，data 为事务结果（§0.5）
+    const res = await DesktopService.RunCommand(['config', 'rollback', '--version', version, '--yes']);
+    const d = res?.data || {};
+    toast(`回滚完成${d.operation_id ? ' · ' + d.operation_id : ''}${d.version ? ' · 当前版本 ' + d.version : ''}`);
+    await loadConfigVersions();
+    await loadConfig();
+    await refreshOverview();
+    refreshOperations();
+  } catch (e) {
+    toast('回滚失败：' + msgOf(e));
+  }
+}
+
+// ---- 校验配置 ----
+
+async function validateConfig() {
+  try {
+    // §2.3：data.valid 成功即通过；失败是错误封套（CONFIG_INVALID）
+    const res = await DesktopService.RunCommand(['config', 'validate']);
+    if (res?.data?.valid) {
+      toast('配置校验通过');
+      setConfigStatus('配置校验通过', 'ok');
+    } else {
+      toast('配置校验未通过');
+      setConfigStatus('配置校验未通过', 'warn');
+    }
+  } catch (e) {
+    toast('配置校验失败：' + msgOf(e));
+    setConfigStatus('配置校验失败：' + msgOf(e), 'err');
+  }
+}
+
 export function initConfigEditor() {
   const box = $('#configForm');
   if (!box) return;
   box.addEventListener('input', markConfigDirty);
   box.addEventListener('change', markConfigDirty);
   $('#configReloadFile').addEventListener('click', () => loadConfig(true));
+  $('#configValidate').addEventListener('click', validateConfig);
+  $('#configVersionsRefresh').addEventListener('click', loadConfigVersions);
+  // 版本行按钮动态重建，用事件委托
+  $('#configVersions').addEventListener('click', (e) => {
+    const diff = e.target.closest ? e.target.closest('.ver-diff') : null;
+    if (diff) { showVersionDiff(diff.getAttribute('data-version')); return; }
+    const rb = e.target.closest ? e.target.closest('.ver-rollback') : null;
+    if (rb) rollbackVersion(rb.getAttribute('data-version'));
+  });
+  $('#configDiffBox').addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('#diffClose')) $('#configDiffBox').hidden = true;
+  });
   $('#configSave').addEventListener('click', async () => {
     const values = collectChangedValues();
     const n = Object.keys(values).length;
@@ -129,6 +256,7 @@ export function initConfigEditor() {
     btn.disabled = true;
     setConfigStatus('正在保存…');
     try {
+      // 后端返回的文案已含操作 id 与版本号，事务自动 reload
       const text = await DesktopService.SaveConfigForm(values);
       state.configDirty = false;
       $$('#configForm [data-row]').forEach((row) => {
@@ -138,9 +266,11 @@ export function initConfigEditor() {
         row.setAttribute('data-initial', v);
         state.configInitial[row.getAttribute('data-row')] = v;
       });
-      setConfigStatus(`已保存 ${n} 个字段，请点「重载配置」使改动生效`, 'ok');
+      setConfigStatus(`已保存 ${n} 个字段`, 'ok');
       toast(text);
       await refreshOverview();
+      await loadConfigVersions();
+      refreshOperations();
     } catch (e) {
       btn.disabled = false;
       setConfigStatus('保存失败：' + msgOf(e), 'err');

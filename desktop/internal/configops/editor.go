@@ -1,7 +1,17 @@
 package configops
 
+// 设置页是「按字段填表」，不是编辑整份 JSON：
+// Go 侧维护字段清单（纯 UI 元数据），前端按分组通用渲染。
+//
+// 读取转交 config show（敏感值由主程序脱敏，保存只回写被改动的字段，
+// 脱敏值不触碰就不会被写回）；保存搭建候选配置树后转交 config apply 的
+// 配置事务——校验、差异、恢复点、切换、reload、失败自动回滚，与命令行
+// 语义一致。桌面端只准备候选，不直接改线上配置文件。
+
 import (
+	"bytes"
 	"encoding/json"
+	"fast-https-desktop/internal/cli"
 	"fast-https-desktop/internal/model"
 	"fast-https-desktop/internal/view"
 	"fmt"
@@ -12,12 +22,9 @@ import (
 	"strings"
 )
 
-// 设置页是「按字段填表」，不是编辑整份 JSON：
-// Go 侧维护字段清单，前端按分组通用渲染，保存时只回写被改动的字段，
-// 未纳入表单的字段（http.server[]、acme.cas、未知顶层键）原样保留。
-
 type ConfigField = model.ConfigField
 type ConfigForm = model.ConfigForm
+
 type fieldSpec struct {
 	path, label, group, typ, help string
 	options                       []string
@@ -64,26 +71,27 @@ var configTopLevel = map[string]bool{
 	"waf": true, "acme": true, "security": true, "http": true,
 }
 
-func ReadConfigForm(p string) (ConfigForm, error) {
-	form := ConfigForm{Path: p}
-	info, err := os.Stat(p)
+// ReadConfigForm 转交 config show 取表单字段值（敏感值已脱敏）；
+// 文件大小、修改时间与可写标记是纯 UI 元数据，本地 stat。
+func ReadConfigForm(dir string) (ConfigForm, error) {
+	paths := view.ResolvePaths(dir)
+	form := ConfigForm{Path: paths.Config}
+	info, err := os.Stat(paths.Config)
 	if err != nil {
-		return form, fmt.Errorf("读不到主配置 %s：%w", p, err)
-	}
-	raw, err := os.ReadFile(p)
-	if err != nil {
-		return form, fmt.Errorf("读不到主配置 %s：%w", p, err)
-	}
-	var root map[string]any
-	if err := json.Unmarshal(view.StripJSONC(raw), &root); err != nil {
-		return form, fmt.Errorf("主配置不是合法的 JSON 对象：%w", err)
+		return form, fmt.Errorf("读不到主配置 %s：%w", paths.Config, err)
 	}
 	form.Size = info.Size()
 	form.Modified = info.ModTime().Format("2006-01-02 15:04:05")
-	if f, err := os.OpenFile(p, os.O_WRONLY, 0); err == nil {
+	if f, err := os.OpenFile(paths.Config, os.O_WRONLY, 0); err == nil {
 		_ = f.Close()
 		form.Writable = true
 	}
+
+	data, _, err := cli.RunJSON[any](dir, append([]string{"config", "show"}, view.ConfigArg(paths)...)...)
+	if err != nil {
+		return form, err
+	}
+	root := cli.AsMap(cli.AsMap(data)["config"])
 	for k := range root {
 		if !configTopLevel[k] {
 			form.Preserved = append(form.Preserved, k)
@@ -103,16 +111,18 @@ func ReadConfigForm(p string) (ConfigForm, error) {
 	return form, nil
 }
 
-// SaveConfigForm 只把「被改动的字段」写回原 JSON，再交给 saveConfigFile
-// 做语法校验、备份与原子替换。表单保存会重新格式化文件，JSONC 注释会丢失，
-// 原文件完整保留在 .bak 里。
-func SaveConfigForm(p string, values map[string]string) (string, error) {
-	raw, err := os.ReadFile(p)
+// SaveConfigForm 只把「被改动的字段」写进候选配置树，再转交 config apply
+// 的配置事务。事务负责校验、恢复点、切换与 reload，失败自动回滚。
+func SaveConfigForm(dir string, values map[string]string) (string, error) {
+	paths := view.ResolvePaths(dir)
+	raw, err := os.ReadFile(paths.Config)
 	if err != nil {
-		return "", fmt.Errorf("读不到主配置 %s：%w", p, err)
+		return "", fmt.Errorf("读不到主配置 %s：%w", paths.Config, err)
 	}
 	var root map[string]any
-	if err := json.Unmarshal(view.StripJSONC(raw), &root); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(view.StripJSONC(raw)))
+	dec.UseNumber()
+	if err := dec.Decode(&root); err != nil {
 		return "", fmt.Errorf("主配置不是合法的 JSON 对象：%w", err)
 	}
 	changed := 0
@@ -131,11 +141,124 @@ func SaveConfigForm(p string, values map[string]string) (string, error) {
 	if changed == 0 {
 		return "", fmt.Errorf("没有需要保存的改动")
 	}
+
+	cand, err := buildCandidate(paths, root)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = os.RemoveAll(cand) }()
+
+	data, _, err := cli.RunJSON[any](dir, append([]string{"config", "apply", "--candidate", cand, "--yes"}, view.ConfigArg(paths)...)...)
+	if err != nil {
+		return "", err
+	}
+	m := cli.AsMap(data)
+	msg := fmt.Sprintf("已保存 %d 个字段并应用（配置事务完成）", changed)
+	var extra []string
+	if id := cli.Str(m, "operation_id"); id != "" {
+		extra = append(extra, "操作 "+id)
+	}
+	if v := cli.Str(m, "version"); v != "" {
+		extra = append(extra, "配置版本 "+v)
+	}
+	if r := cli.Str(m, "restore_point"); r != "" {
+		extra = append(extra, "恢复点 "+r)
+	}
+	if len(extra) > 0 {
+		msg += "（" + strings.Join(extra, "，") + "）"
+	}
+	return msg + "。已自动重载，无需手动刷新。", nil
+}
+
+// buildCandidate 复刻主程序 siteops.CloneLiveTree 搭一棵候选配置树：
+// 改过字段的 fast-https.json + conf.d 下的站点文件副本（含停用文件）。
+// 事务引擎按相对路径把候选树整体切换到线上，因此站点文件必须放在
+// conf.d 下；http.include 带绝对路径时改写成 ["conf.d"]，与 site add
+// 的事务行为一致。
+func buildCandidate(paths model.RuntimePaths, root map[string]any) (string, error) {
+	cand, err := os.MkdirTemp("", "fast-https-cand-")
+	if err != nil {
+		return "", err
+	}
+	ok := false
+	defer func() {
+		if !ok {
+			_ = os.RemoveAll(cand)
+		}
+	}()
+	if err := os.MkdirAll(filepath.Join(cand, "conf.d"), 0o755); err != nil {
+		return "", err
+	}
+	etcDir := filepath.Dir(paths.Config)
+
+	var includes []string
+	needRewrite := false
+	if http, ok := root["http"].(map[string]any); ok {
+		for _, x := range cli.AsSlice(http["include"]) {
+			s, _ := x.(string)
+			if strings.TrimSpace(s) == "" {
+				continue
+			}
+			if filepath.IsAbs(strings.TrimSpace(s)) {
+				needRewrite = true
+			}
+			includes = append(includes, s)
+		}
+	}
+	for _, inc := range includes {
+		target := view.EtcPath(etcDir, inc)
+		for _, f := range collectTreeFiles(target) {
+			data, err := os.ReadFile(f)
+			if err != nil {
+				return "", err
+			}
+			dst := filepath.Join(cand, "conf.d", filepath.Base(f))
+			if err := os.WriteFile(dst, data, 0o644); err != nil {
+				return "", err
+			}
+		}
+	}
+	if needRewrite {
+		setPath(root, "http.include", []string{"conf.d"})
+	}
 	out, err := json.MarshalIndent(root, "", "  ")
 	if err != nil {
 		return "", err
 	}
-	return SaveConfigFile(p, string(out)+"\n")
+	if err := os.WriteFile(filepath.Join(cand, "fast-https.json"), append(out, '\n'), 0o644); err != nil {
+		return "", err
+	}
+	ok = true
+	return cand, nil
+}
+
+// collectTreeFiles 收集 include 目标下的站点文件（*.json 与停用的
+// *.json.disabled），目标是单个文件时直接返回它。
+func collectTreeFiles(target string) []string {
+	info, err := os.Stat(target)
+	if err != nil {
+		return nil
+	}
+	if !info.IsDir() {
+		name := strings.ToLower(filepath.Base(target))
+		if strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".json.disabled") {
+			return []string{target}
+		}
+		return nil
+	}
+	var files []string
+	_ = filepath.WalkDir(target, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		name := strings.ToLower(d.Name())
+		if strings.HasSuffix(name, ".json") || strings.HasSuffix(name, ".json.disabled") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	sort.Strings(files)
+	return files
 }
 
 func lookupPath(m map[string]any, path string) (any, bool) {
@@ -185,8 +308,17 @@ func formatFieldValue(v any, typ string) string {
 			return strconv.FormatBool(b)
 		}
 	}
-	if s, ok := v.(string); ok {
-		return s
+	switch n := v.(type) {
+	case string:
+		return n
+	case float64:
+		// JSON 数字默认解码成 float64，大数会被 %v 打成科学计数法。
+		if n == float64(int64(n)) {
+			return strconv.FormatInt(int64(n), 10)
+		}
+		return strconv.FormatFloat(n, 'f', -1, 64)
+	case json.Number:
+		return n.String()
 	}
 	return fmt.Sprint(v)
 }
@@ -217,10 +349,11 @@ func parseFieldValue(s fieldSpec, raw string) (any, error) {
 		if t == "" {
 			t = "0"
 		}
-		if _, err := strconv.ParseFloat(t, 64); err != nil {
+		n, err := strconv.ParseFloat(t, 64)
+		if err != nil {
 			return nil, fmt.Errorf("不是合法数字：%q", raw)
 		}
-		return json.Number(t), nil
+		return json.Number(strconv.FormatFloat(n, 'f', -1, 64)), nil
 	case "list", "multiselect":
 		parts := strings.FieldsFunc(raw, func(r rune) bool { return r == '\n' || r == '\r' || r == ',' })
 		items := make([]string, 0, len(parts))
@@ -241,47 +374,4 @@ func parseFieldValue(s fieldSpec, raw string) (any, error) {
 	default:
 		return raw, nil
 	}
-}
-
-// saveConfigFile 校验 JSON 对象后写回：先留 .bak，再写临时文件原子替换。
-func SaveConfigFile(p, content string) (string, error) {
-	var obj map[string]json.RawMessage
-	if err := json.Unmarshal(view.StripJSONC([]byte(content)), &obj); err != nil {
-		return "", fmt.Errorf("配置不是合法的 JSON 对象：%w", err)
-	}
-	if len(obj) == 0 {
-		return "", fmt.Errorf("配置是空对象，拒绝写入")
-	}
-	dir := filepath.Dir(p)
-	perm := os.FileMode(0644)
-	if info, err := os.Stat(p); err == nil {
-		perm = info.Mode().Perm()
-		if orig, err := os.ReadFile(p); err == nil {
-			_ = os.WriteFile(p+".bak", orig, perm)
-		}
-	}
-	tmp, err := os.CreateTemp(dir, ".fast-https-*.tmp")
-	if err != nil {
-		return "", fmt.Errorf("创建临时文件失败：%w", err)
-	}
-	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }()
-	if _, err := tmp.WriteString(content); err != nil {
-		_ = tmp.Close()
-		return "", err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return "", err
-	}
-	if err := tmp.Close(); err != nil {
-		return "", err
-	}
-	if err := os.Chmod(tmpName, perm); err != nil {
-		return "", err
-	}
-	if err := os.Rename(tmpName, p); err != nil {
-		return "", fmt.Errorf("替换主配置失败：%w", err)
-	}
-	return fmt.Sprintf("已保存到 %s（原文件备份为 %s.bak）。请点「重载配置」使改动生效。", p, filepath.Base(p)), nil
 }

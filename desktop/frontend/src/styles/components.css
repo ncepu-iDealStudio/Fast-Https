@@ -151,3 +151,35 @@ h4:first-of-type { margin-top: 0; }
 /* 站点启停：开启态保持中性，停用态用灰化 + 斜杠图标提示 */
 .icon-btn.site-toggle.is-off { color: var(--muted); border-color: var(--line); }
 .icon-btn.site-toggle:hover { color: var(--accent); border-color: var(--line-strong); }
+
+/* 状态徽标：证书状态 / 操作状态 / 检查结果通用（valid 绿、expiring 橙、expired 红） */
+.st-badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--line-strong); border-radius: 4px; font-size: 11px; font-weight: 500; color: var(--muted); background: var(--bg); white-space: nowrap; }
+.st-badge.st-ok { border-color: rgba(22,121,74,.35); color: var(--ok); background: rgba(22,121,74,.06); }
+.st-badge.st-warn { border-color: rgba(167,91,10,.35); color: var(--warn); background: rgba(167,91,10,.06); }
+.st-badge.st-err { border-color: rgba(192,57,43,.35); color: var(--danger); background: rgba(192,57,43,.06); }
+.st-badge.st-off { border-color: var(--line); color: var(--faint); }
+
+/* 操作记录时间线：整行可点开详情 */
+.op-item { cursor: pointer; align-items: center; }
+.op-item:hover { background: var(--accent-soft); }
+.op-badge { flex: 0 0 auto; margin-left: auto; align-self: center; }
+.kv-row .n .st-badge + small { display: block; margin-top: 2px; }
+.kv-row .row-err { display: block; color: var(--danger); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
+
+/* 站点详情只读信息与原始 server 块折叠 */
+.detail-info { margin: 12px 0 0; }
+.detail-info .section-label { margin-top: 0; padding-top: 12px; }
+.detail-info .kv-row { min-height: 36px; grid-template-columns: 110px minmax(0,1fr); }
+.raw-details { margin-top: 12px; }
+.raw-details summary { cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; }
+.raw-details summary:hover { color: var(--text); }
+.raw-details .cmd-result { margin-top: 8px; max-height: 220px; }
+
+/* 健康检查 / 证书检查弹窗：总体结论大字 */
+.diag-overall { display: flex; align-items: baseline; gap: 12px; margin: 4px 0 16px; }
+.diag-label { font-size: 12px; color: var(--muted); }
+.diag-overall-text { font-size: 21px; font-weight: 650; line-height: 1.3; }
+.diag-overall-text.st-ok { color: var(--ok); }
+.diag-overall-text.st-warn { color: var(--warn); }
+.diag-overall-text.st-err { color: var(--danger); }
+.diag-overall-text.st-off { color: var(--faint); }

@@ -7,6 +7,7 @@
 .m-label { font-size: 12px; color: var(--muted); }
 .m-value { font-size: 25px; font-weight: 650; line-height: 1.25; }
 .m-value.state-ok { color: var(--ok); }
+.m-value.state-warn { color: var(--warn); }
 .m-value.state-off { color: var(--danger); }
 .m-sub { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 15px; }
@@ -35,8 +36,18 @@
 .ev-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--warn); margin-top: 6px; }
 .timeline li.ok .ev-dot { background: var(--ok); }
 .timeline li.info .ev-dot { background: var(--accent); }
+.timeline li.err .ev-dot { background: var(--danger); }
 .timeline b { display: block; font-size: 13px; font-weight: 600; }
 .timeline small { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
+
+/* 设置页：配置版本卡片的差异展开区 */
+.diff-box { margin-top: 12px; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
+.diff-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
+.diff-head .btn { margin-left: auto; }
+.diff-row { display: grid; grid-template-columns: minmax(0,1.2fr) 56px minmax(0,1fr); gap: 10px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.diff-path { overflow-wrap: anywhere; color: var(--muted); }
+.diff-val { overflow-wrap: anywhere; color: var(--text); }
+.diff-val i { color: var(--warn); font-style: normal; }
 
 /* 设置页：主配置编辑器 */
 .config-card .card-head { margin-bottom: 12px; }

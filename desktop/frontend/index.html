@@ -53,7 +53,7 @@
             </div>
             <div class="card-foot">
               <div class="config-line"><span class="k">配置状态</span><span id="configState">—</span><span class="muted" data-bind="checkedAt">—</span></div>
-              <div class="foot-actions"><button class="text-btn" data-action="open-config">打开配置</button><button class="text-btn" data-action="open-config-dir">配置目录</button></div>
+              <div class="foot-actions"><button class="text-btn" id="diagnoseBtn">健康检查</button><button class="text-btn" data-action="open-config">打开配置</button><button class="text-btn" data-action="open-config-dir">配置目录</button></div>
             </div>
           </section>
 
@@ -72,8 +72,15 @@
               </div>
             </section>
             <section class="card events-card">
-              <div class="card-head"><h3>最近事件</h3><span class="card-note">最近 24 小时</span></div>
-              <ul class="timeline" id="eventList"><li class="empty">正在读取本机状态…</li></ul>
+              <div class="card-head"><h3>最近事件</h3>
+                <div class="log-tabs">
+                  <button class="btn small on" data-event-tab="ops">操作记录</button>
+                  <button class="btn small" data-event-tab="local">本机动态</button>
+                </div>
+              </div>
+              <ul class="timeline" id="opList"><li class="empty">正在读取操作记录…</li></ul>
+              <pre class="cmd-result" id="opDetail" hidden></pre>
+              <ul class="timeline" id="eventList" hidden><li class="empty">暂无事件</li></ul>
             </section>
           </div>
         </div>
@@ -113,13 +120,24 @@
               <div class="access-head"><span>时间</span><span>方法</span><span>路径</span><span>状态</span><span>大小</span></div>
               <div id="matrixLogs" class="access-list"><div class="log-empty">正在读取…</div></div>
             </section>
+
+            <section class="card">
+              <div class="card-head"><h3>运行快照</h3><div class="card-head-actions"><span class="card-note">RUNTIME / STATUS · STATS</span><button class="btn small" id="runtimeRefresh">刷新</button></div></div>
+              <div class="kv-table" id="runtimeBody"><div class="kv-row"><span class="k">—</span><span class="v">尚未读取</span></div></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h3>Monitor</h3><div class="card-head-actions"><span class="card-note">MONITOR / EVENTS</span><button class="btn small" id="monitorRefresh">刷新</button></div></div>
+              <div class="kv-table" id="monitorBody"><div class="kv-row"><span class="k">—</span><span class="v">尚未读取</span></div></div>
+              <ul class="timeline" id="monitorEvents"><li class="empty">暂无事件</li></ul>
+            </section>
           </div>
         </div>
 
         <div class="pane" data-pane="sites" hidden>
           <section class="card">
             <div class="pane-notes">
-              <p class="lede">主配置与 <span class="mono">conf.d</span> 下的站点文件（http.server[] 与 http.include），按监听端口逐个展开。新站点写成 <span class="mono">conf.d/&lt;名称&gt;.json</span>，创建后需点「重载配置」。</p>
+              <p class="lede">主配置与 <span class="mono">conf.d</span> 下的站点文件（http.server[] 与 http.include），按监听端口逐个展开。新站点写成 <span class="mono">conf.d/&lt;名称&gt;.json</span>；增删改与启停都走配置事务（校验、恢复点、reload、可回滚），提交后立即生效。</p>
             </div>
             <div class="section-label"><span>已配置的站点</span><span class="label-right"><span class="section-count" id="siteCountLabel">0</span><button class="btn small" id="addSiteBtn">+ 添加站点</button></span></div>
             <div class="kv-table" id="sitesTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取站点…</span></div></div>
@@ -135,44 +153,47 @@
             <div class="section-label"><span>已配置的证书</span><span class="label-right"><span class="section-count" id="certCount">0</span><button class="btn small" id="trustCABtn">信任本地 CA…</button></span></div>
             <div class="kv-table" id="certsTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取证书…</span></div></div>
           </section>
+
+          <section class="card">
+            <div class="card-head"><h3>ACME 设置</h3><div class="card-head-actions"><span class="card-note">acme show · 纯文本输出</span><button class="btn small" id="acmeRefresh">刷新</button></div></div>
+            <pre class="cmd-result is-empty" id="acmeShow">尚未读取；点「刷新」读取当前 ACME 配置。</pre>
+          </section>
         </div>
 
         <div class="pane" data-pane="logs" hidden>
           <section class="card">
             <div class="pane-notes">
-              <p class="lede">JSON 结构化 · 只读；可切换日志类型，按级别、状态码、关键词与时间筛选，滚动加载更早记录。</p>
+              <p class="lede">JSON 结构化 · 只读；切换 access / error / system / safe，按级别、状态、Host、方法、路径前缀与时间筛选，滚动加载更早记录。</p>
             </div>
             <div class="log-switch">
               <div class="log-tabs">
                 <button class="btn small on" data-log="access">access</button>
                 <button class="btn small" data-log="error">error</button>
                 <button class="btn small" data-log="system">system</button>
+                <button class="btn small" data-log="safe">safe</button>
               </div>
               <button class="btn small" id="logRefresh">刷新</button>
             </div>
             <div class="log-filters">
-              <select id="logLevel" aria-label="级别">
-                <option value="">全部级别</option>
-                <option value="debug">debug</option>
-                <option value="info">info</option>
-                <option value="warn">warn</option>
-                <option value="error">error</option>
-              </select>
+              <input id="logLevel" type="text" placeholder="级别：info / error"/>
               <select id="logStatus" aria-label="状态码">
                 <option value="">全部状态</option>
-                <option value="2">2xx</option>
-                <option value="3">3xx</option>
-                <option value="4">4xx</option>
-                <option value="5">5xx</option>
+                <option value="2xx">2xx</option>
+                <option value="3xx">3xx</option>
+                <option value="4xx">4xx</option>
+                <option value="5xx">5xx</option>
               </select>
-              <input id="logSearch" type="text" placeholder="关键词：路径 / 消息 / Host…"/>
-              <input id="logSince" type="text" placeholder="起：2026-11-07"/>
-              <input id="logUntil" type="text" placeholder="止：2026-11-08"/>
+              <input id="logHost" type="text" placeholder="Host：blog.example.com"/>
+              <input id="logMethod" type="text" placeholder="方法：GET"/>
+              <input id="logPathPrefix" type="text" placeholder="路径前缀：/api"/>
+              <input id="logReason" type="text" placeholder="原因（safe）：blacklist"/>
+              <input id="logSince" type="text" placeholder="起：1h / 30m 或 RFC3339"/>
+              <input id="logUntil" type="text" placeholder="止：10m / 1h 或 RFC3339"/>
               <button class="btn small" id="logApply">应用筛选</button>
               <button class="btn small" id="logReset">重置</button>
             </div>
             <div class="log-list" id="logList"><div class="log-empty">正在读取日志…</div></div>
-            <div class="log-footer"><span id="logStatusText">—</span><button class="btn small" id="logMore" hidden>加载更多</button></div>
+            <div class="log-footer"><span id="logStatusText">—</span><button class="btn small" id="logMore" hidden>加载更早</button></div>
           </section>
         </div>
 
@@ -202,11 +223,19 @@
             <div id="configForm" class="config-form"><p class="config-empty">正在读取主配置…</p></div>
             <div class="config-toolbar">
               <button class="btn" id="configReloadFile">重新读取</button>
+              <button class="btn" id="configValidate">校验配置</button>
               <button class="btn primary" id="configSave" disabled>保存更改</button>
               <button class="btn" data-action="reload">重载配置</button>
               <span class="config-status" id="configStatus">—</span>
             </div>
-            <p class="setting-note">只提交被改动的字段；未列出的字段（<span class="mono">http.server[]</span>、<span class="mono">acme.cas</span> 等）与未知键原样保留。保存会重新格式化文件、JSONC 注释会丢失，原文件完整备份为 <span class="mono">fast-https.json.bak</span>；配置语义仍由主程序 <span class="mono">reload</span> 校验，保存后请点「重载配置」。</p>
+            <p class="setting-note">只提交被改动的字段；未列出的字段（<span class="mono">http.server[]</span>、<span class="mono">acme.cas</span> 等）与未知键原样保留。保存会把改动写成候选配置并走 <span class="mono">config apply</span> 事务：校验、建恢复点、切换文件、自动 reload，失败自动回滚到恢复点，提交后立即生效，无需手动重载。</p>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><h3>配置版本</h3><div class="card-head-actions"><span class="card-note">config versions · 快照与回滚</span><button class="btn small" id="configVersionsRefresh">刷新</button></div></div>
+            <p class="setting-note warn-text" id="configDriftNote" hidden>磁盘配置与所有版本快照不一致（手工改过文件）</p>
+            <div class="kv-table" id="configVersions"><div class="kv-row"><span class="k">—</span><span class="v">尚未读取</span></div></div>
+            <div class="diff-box" id="configDiffBox" hidden></div>
           </section>
 
           <section class="card">

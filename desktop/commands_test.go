@@ -65,15 +65,45 @@ func TestCommandSpecsMatchCLITree(t *testing.T) {
 }
 
 // TestTextOnlyCommands 纯文本命令不能补 --json，否则 CLI 会当成未知 flag。
+// status / acme show / config path 也是纯文本（前者旧命令无 JSON 分支，
+// 后两者即使带 --json 也不套封套），命令面板必须走文本通道。
 func TestTextOnlyCommands(t *testing.T) {
-	for _, name := range []string{"version", "start", "stop", "reload"} {
+	for _, name := range []string{"version", "start", "stop", "reload", "status", "acme show", "config path"} {
 		if !isTextOnly(strings.Split(name, " ")) {
 			t.Fatalf("%q 应走纯文本输出", name)
 		}
 	}
-	for _, name := range []string{"site list", "config show", "monitor status", "service status"} {
+	for _, name := range []string{"site list", "config show", "monitor status", "service status", "config apply", "logs query"} {
 		if isTextOnly(strings.Split(name, " ")) {
 			t.Fatalf("%q 应走 --json 封套", name)
+		}
+	}
+}
+
+// TestCommandSpecsFlagsAreReal 锁定几个已废弃的假 flag：CLI 命令树里没有
+// 的 flag 一旦混进清单，用户在面板里填了就会得到 unknown flag。
+func TestCommandSpecsFlagsAreReal(t *testing.T) {
+	bogus := map[string]bool{"--keyword": true, "--offset": true, "--id": true}
+	for _, s := range commandSpecs {
+		for _, f := range s.Flags {
+			if bogus[f] {
+				t.Errorf("%q 列了 CLI 里不存在的 flag %q", s.Name, f)
+			}
+		}
+	}
+	// 写操作必须标 NeedsYes，面板才会默认走 --dry-run 预演
+	for _, name := range []string{"site add", "site update", "site delete", "config apply", "config rollback"} {
+		found := false
+		for _, s := range commandSpecs {
+			if s.Name == name {
+				found = true
+				if !s.NeedsYes {
+					t.Errorf("%q 应标 NeedsYes", name)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("清单缺少 %q", name)
 		}
 	}
 }

@@ -89,48 +89,35 @@ func (s *DesktopService) OpenHelp() (string, error) {
 // ------------------------------------------------------------ 设置页：主配置表单
 
 func (s *DesktopService) ReadConfigForm() (model.ConfigForm, error) {
-	return configops.ReadConfigForm(view.ResolvePaths(s.baseDir).Config)
+	return configops.ReadConfigForm(s.baseDir)
 }
 
 func (s *DesktopService) SaveConfigForm(values map[string]string) (string, error) {
-	return configops.SaveConfigForm(view.ResolvePaths(s.baseDir).Config, values)
+	return configops.SaveConfigForm(s.baseDir, values)
 }
 
-// ------------------------------------------------------------ 站点页：添加站点
+// ------------------------------------------------------------ 站点页
 
 func (s *DesktopService) AddSite(in model.SiteInput) (string, error) {
-	return siteops.AddSiteFile(s.baseDir, in)
+	return siteops.AddSite(s.baseDir, in)
 }
 
-func (s *DesktopService) ReadSiteDetail(source string) (model.SiteDetail, error) {
-	return siteops.ReadSiteDetail(s.baseDir, source)
+func (s *DesktopService) ReadSiteDetail(id string) (model.SiteDetail, error) {
+	return siteops.ReadSiteDetail(s.baseDir, id)
 }
 
 func (s *DesktopService) SaveSiteDetail(in model.SiteInput) (string, error) {
 	return siteops.SaveSiteDetail(s.baseDir, in)
 }
 
-func (s *DesktopService) DeleteSite(source string) (string, error) {
-	return siteops.DeleteSiteFile(s.baseDir, source)
+func (s *DesktopService) DeleteSite(id string) (string, error) {
+	return siteops.DeleteSite(s.baseDir, id)
 }
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
 // 桌面端不改文件名：事务会处理校验、恢复点与 reload，和命令行语义一致。
-func (s *DesktopService) SetSiteEnabled(source string, enabled bool) (string, error) {
-	name := filepath.Base(strings.TrimSpace(source))
-	name = strings.TrimSuffix(name, ".disabled")
-	name = strings.TrimSuffix(name, ".json")
-	if name == "" {
-		return "", fmt.Errorf("缺少站点来源")
-	}
-	action, word := "disable", "停用"
-	if enabled {
-		action, word = "enable", "启用"
-	}
-	if _, _, err := cli.RunJSON[any](s.baseDir, "site", action, name); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("已%s站点 %s（配置事务完成）", word, name), nil
+func (s *DesktopService) SetSiteEnabled(id string, enabled bool) (string, error) {
+	return siteops.SetSiteEnabled(s.baseDir, id, enabled)
 }
 
 // ------------------------------------------------------------ 本机状态与操作
@@ -140,16 +127,15 @@ func (s *DesktopService) GetOverview() (model.Overview, error) {
 }
 
 func (s *DesktopService) ListSites() ([]model.Site, error) {
-	sites, _, err := view.ReadSites(s.baseDir)
-	return sites, err
+	return view.ListSites(s.baseDir)
 }
 
 func (s *DesktopService) ListCerts() ([]model.Cert, error) {
-	return view.ReadCerts(s.baseDir)
+	return view.ListCerts(s.baseDir)
 }
 
-func (s *DesktopService) TailLog(name string, lines int) ([]string, error) {
-	return view.TailLog(view.ResolvePaths(s.baseDir).Log, name, lines)
+func (s *DesktopService) TailLog(name string, lines int) ([]model.LogEntry, error) {
+	return view.TailLog(s.baseDir, name, lines)
 }
 
 func (s *DesktopService) Paths() (model.RuntimePaths, error) {
@@ -164,8 +150,25 @@ func (s *DesktopService) StopServer() (string, error) {
 	return view.StopServer(s.baseDir)
 }
 
+// ReloadServer 转交 service reload（受控重载：校验、operation 记录、
+// reload 后验证）。服务没在跑时给出可读提示而不是报错吓人。
 func (s *DesktopService) ReloadServer() (string, error) {
-	return view.RunServerCommand(s.baseDir, "reload")
+	data, _, err := cli.RunJSON[any](s.baseDir, "service", "reload")
+	if err != nil {
+		if strings.Contains(err.Error(), "not running") {
+			return "服务未运行，无需重载；配置会在下次启动时生效", nil
+		}
+		return "", err
+	}
+	m := cli.AsMap(data)
+	msg := "重载完成"
+	if v := cli.AsMap(m["verification"]); cli.Bool(v, "reload_confirmed") {
+		msg = "重载完成并已验证"
+	}
+	if id := cli.Str(m, "operation_id"); id != "" {
+		msg += "（操作 " + id + "）"
+	}
+	return msg, nil
 }
 
 func (s *DesktopService) ServerStatus() (string, error) {
@@ -183,7 +186,7 @@ func (s *DesktopService) ImportLocalCA() (string, error) {
 }
 
 func (s *DesktopService) QueryLogs(q view.LogQuery) (view.LogPage, error) {
-	return view.QueryLogs(view.ResolvePaths(s.baseDir).Log, q)
+	return view.QueryLogs(s.baseDir, q)
 }
 
 func (s *DesktopService) CertTrustGuide() (model.CertTrustGuide, error) {
