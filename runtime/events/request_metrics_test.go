@@ -281,6 +281,12 @@ func TestBodyTimeoutAndTooLarge(t *testing.T) {
 		t.Cleanup(func() { _ = client.Close(); _ = server.Close() })
 		ev := core.NewEvent(&listener.Listener{}, server)
 		ev.EventWrite = EventWrite
+		// 超限会先回 413 再关连接；net.Pipe 是同步的，没人读就会把
+		// handler 卡在写上，所以这里必须有消费者
+		go func() {
+			_ = client.SetReadDeadline(time.Now().Add(2 * time.Second))
+			_, _ = io.Copy(io.Discard, client)
+		}()
 		done := make(chan int, 1)
 		go func() { done <- parseRequest(ev, filters.NewFilter()) }()
 		time.Sleep(20 * time.Millisecond)

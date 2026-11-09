@@ -239,6 +239,26 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		return 1
 	}
 
+	// 请求体可能随首个数据包完整到达（ParseBody 一次就读完了），此时下面的
+	// 增量读取循环不会执行——所以超限检查不能只放在循环里，否则「一次性发完
+	// 的超大 body」会完全绕过 max_body_size。
+	tooLarge := func() bool {
+		limit := maxBodySize()
+		return limit > 0 && rr.Req.Body.Len() > limit
+	}
+	// 超过 max_body_size 必须回 413 再关闭，不能静默断连：客户端只看到连接
+	// 被重置时，分不清「服务端拒绝」和「网络故障」。
+	rejectTooLarge := func() {
+		logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
+		ev.RR.Res = response.DefaultPayloadTooLarge()
+		ev.WriteResponseClose(nil)
+		metrics.NoteAborted()
+	}
+	if tooLarge() {
+		rejectTooLarge()
+		return 0
+	}
+
 	// headerOtherData := make([]byte, core.READ_BODY_BUF_LEN)
 	for {
 		if rr.Req.RequestBodyValid() {
@@ -253,10 +273,8 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			}
 			byte_row = append(byte_row, rr.ReqBuf[:datasize]...)
 			rr.Req.TryFixBody(rr.ReqBuf[:datasize])
-			if rr.Req.Body.Len() > config.Current().Limit.MaxBodySize {
-				// body bytes beyond config
-				logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
-				metrics.NoteAborted()
+			if tooLarge() {
+				rejectTooLarge()
 				return 0
 			}
 		}
