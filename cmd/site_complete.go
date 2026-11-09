@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -75,6 +76,12 @@ func commonPrefix(items []string) string {
 
 // canReadRaw 判断能不能进入原始模式：必须是终端，且输入确实是那个终端。
 func canReadRaw(opts siteOptions) (*os.File, bool) {
+	// Windows 的控制台不支持 raw 模式下的逐字节读取（Tab 补全依赖它），
+	// term.MakeRaw 之后的读循环会抛 "not supported by windows"。
+	// 统一退回普通逐行输入，与重定向输入走同一条路径。
+	if runtime.GOOS == "windows" {
+		return nil, false
+	}
 	file, ok := opts.In.(*os.File)
 	if !ok || !term.IsTerminal(file.Fd()) {
 		return nil, false
