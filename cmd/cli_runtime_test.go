@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"encoding/json"
+	"fast-https/cmd/internal/cli"
+	"fast-https/cmd/internal/servicecmd"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -122,7 +124,7 @@ func TestRuntimeStatusUnreachable(t *testing.T) {
 	}
 	doc := decodeOneDocument(t, out)
 	body := doc["error"].(map[string]any)
-	if body["code"] != CodeServiceDown {
+	if body["code"] != cli.CodeServiceDown {
 		t.Fatalf("error = %v", body)
 	}
 }
@@ -134,7 +136,7 @@ func TestRuntimeSchemaMismatch(t *testing.T) {
 		t.Fatalf("exit = %d, want 11\n%s", code, out)
 	}
 	body := decodeOneDocument(t, out)["error"].(map[string]any)
-	if body["code"] != CodeUnmetDependency {
+	if body["code"] != cli.CodeUnmetDependency {
 		t.Fatalf("error = %v", body)
 	}
 }
@@ -172,7 +174,7 @@ func TestRuntimeStatsUnsupportedFlags(t *testing.T) {
 	if code != 11 {
 		t.Fatalf("--since exit = %d, want 11\n%s", code, out)
 	}
-	if decodeOneDocument(t, out)["error"].(map[string]any)["code"] != CodeNotSupported {
+	if decodeOneDocument(t, out)["error"].(map[string]any)["code"] != cli.CodeNotSupported {
 		t.Fatalf("error = %v", decodeOneDocument(t, out)["error"])
 	}
 	out, _, code = runCLI(t, "runtime", "stats", "--domain", "demo.example", "--json")
@@ -209,7 +211,7 @@ func TestServiceStatusFull(t *testing.T) {
 		pid := 42
 		st := view.ServiceStatus{Status: "running", PID: &pid, Source: "pid_file+port_probe"}
 		snap := sampleRuntime(t)
-		got, warnings := enrichServiceStatus(st, nil, snap, nil, "v003")
+		got, warnings := servicecmd.EnrichServiceStatus(st, nil, snap, nil, "v003")
 		if got.Version != "1.5.0-test" || got.ConfigVersion != "v003" || got.StartedAt == "" {
 			t.Fatalf("got = %+v", got)
 		}

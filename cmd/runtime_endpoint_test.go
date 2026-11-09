@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fast-https/cmd/internal/servicecmd"
 	"io"
 	"net"
 	"net/http"
@@ -19,12 +20,12 @@ import (
 func startTestRuntime(t *testing.T) string {
 	t.Helper()
 	metrics.ResetForTest()
-	StopRuntimeEndpoint()
-	if err := startRuntimeEndpoint("127.0.0.1:0"); err != nil {
+	servicecmd.StopRuntimeEndpoint()
+	if err := servicecmd.StartRuntimeEndpointWith("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(StopRuntimeEndpoint)
-	addr := runtimeEndpointAddr()
+	t.Cleanup(servicecmd.StopRuntimeEndpoint)
+	addr := servicecmd.RuntimeEndpointAddr()
 	if addr == "" {
 		t.Fatal("runtime endpoint did not bind")
 	}
@@ -106,9 +107,9 @@ func TestRuntimeEndpointBindFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = ln.Close() })
-	err = startRuntimeEndpoint(ln.Addr().String())
+	err = servicecmd.StartRuntimeEndpointWith(ln.Addr().String())
 	if err == nil {
-		StopRuntimeEndpoint()
+		servicecmd.StopRuntimeEndpoint()
 		t.Fatal("occupied address should fail to bind")
 	}
 	// 调用方可以继续：函数返回错误，没有把业务端口绑上。
@@ -129,11 +130,11 @@ func TestRuntimeEndpoint404(t *testing.T) {
 func TestRuntimeStartingState(t *testing.T) {
 	metrics.ResetForTest()
 	block := make(chan struct{})
-	if err := startRuntimeEndpoint("127.0.0.1:0"); err != nil {
+	if err := servicecmd.StartRuntimeEndpointWith("127.0.0.1:0"); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(StopRuntimeEndpoint)
-	addr := runtimeEndpointAddr()
+	t.Cleanup(servicecmd.StopRuntimeEndpoint)
+	addr := servicecmd.RuntimeEndpointAddr()
 	go func() {
 		<-block // 假的 InitSystem：阻塞在 starting
 		metrics.RecordProcessStart()
@@ -169,7 +170,7 @@ func TestRuntimeStartingState(t *testing.T) {
 func TestRuntimeClosedAfterStop(t *testing.T) {
 	addr := startTestRuntime(t)
 	core.SetServices(core.Services{
-		AfterStop: StopRuntimeEndpoint,
+		AfterStop: servicecmd.StopRuntimeEndpoint,
 	})
 	t.Cleanup(func() { core.SetServices(core.Services{}) })
 	core.RunAfterStop()
@@ -199,8 +200,8 @@ func TestRuntimeNoSensitiveWords(t *testing.T) {
 }
 
 func TestRuntimeLoopbackOnly(t *testing.T) {
-	if runtimeListenAddr != "127.0.0.1:9088" {
-		t.Fatalf("listen addr = %q, want 127.0.0.1:9088", runtimeListenAddr)
+	if servicecmd.RuntimeListenAddr != "127.0.0.1:9088" {
+		t.Fatalf("listen addr = %q, want 127.0.0.1:9088", servicecmd.RuntimeListenAddr)
 	}
 	addr := startTestRuntime(t)
 	host, _, err := net.SplitHostPort(addr)
@@ -216,7 +217,7 @@ func TestRuntimeUpstreamSection(t *testing.T) {
 	addr := startTestRuntime(t)
 	_, body := getRuntime(t, addr)
 	if strings.Contains(string(body), `"upstream"`) {
-		t.Fatalf("upstream must be omitted until RegisterServices: %s", body)
+		t.Fatalf("upstream must be omitted until servicecmd.RegisterServices: %s", body)
 	}
 
 	metrics.RegisterSection("upstream", func() (any, bool) {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"crypto/sha256"
+	"fast-https/cmd/internal/cli"
 	"fmt"
 	"io/fs"
 	"net"
@@ -241,7 +242,7 @@ func TestConfigValidateInvalid(t *testing.T) {
 	}
 	doc := decodeOneDocument(t, out)
 	body := doc["error"].(map[string]any)
-	if doc["ok"] != false || body["code"] != CodeConfigInvalid {
+	if doc["ok"] != false || body["code"] != cli.CodeConfigInvalid {
 		t.Fatalf("错误封套不对：%v", doc)
 	}
 	if details := body["details"].([]any); len(details) == 0 {

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fast-https/cmd/internal/cli"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +15,7 @@ func TestCandidatePathTraversal(t *testing.T) {
 	}
 	doc := decodeOneDocument(t, out)
 	body := doc["error"].(map[string]any)
-	if body["code"] != CodeUsage {
+	if body["code"] != cli.CodeUsage {
 		t.Fatalf("error = %v", body)
 	}
 
@@ -46,7 +47,7 @@ func TestConfigValidateCandidateTreeInvalid(t *testing.T) {
 	}
 	doc := decodeOneDocument(t, out)
 	body := doc["error"].(map[string]any)
-	if body["code"] != CodeConfigInvalid {
+	if body["code"] != cli.CodeConfigInvalid {
 		t.Fatalf("error = %v", body)
 	}
 	if !strings.Contains(body["message"].(string), f.site) {

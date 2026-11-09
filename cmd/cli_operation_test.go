@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fast-https/cmd/internal/cli"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,7 +67,7 @@ func TestOperationReconcileCLI(t *testing.T) {
 }
 
 func TestRequestIDConflictExitCode(t *testing.T) {
-	if got := ExitCode(fromStateError("operation.get", operation.ErrRequestIDConflict)); got != 10 {
+	if got := cli.ExitCode(cli.FromStateError("operation.get", operation.ErrRequestIDConflict)); got != 10 {
 		t.Fatalf("exit = %d, want 10", got)
 	}
 }

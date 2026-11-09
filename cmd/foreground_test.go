@@ -22,6 +22,6 @@ func TestRunInForegroundUnset(t *testing.T) {
 		t.Skip("container marker exists in this environment")
 	}
 	if runInForeground() {
-		t.Fatal("empty FASTHTTPS_FOREGROUND should daemonize outside a container")
+		t.Fatal("empty FASTHTTPS_FOREGROUND should servicecmd.Daemonize outside a container")
 	}
 }

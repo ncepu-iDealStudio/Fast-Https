@@ -1,7 +1,7 @@
 package cmd_test
 
 import (
-	"fast-https/cmd"
+	"fast-https/cmd/internal/configcmd"
 	"fast-https/config"
 	"path/filepath"
 	"testing"
@@ -10,7 +10,7 @@ import (
 // TestResolvePathsAreAbsolute 锁住外部控制面依赖的契约：四个字段一律是绝对路径，
 // 且末段与配置层常量一致。归档布局下常量是相对的，这里必须已经被补成绝对。
 func TestResolvePathsAreAbsolute(t *testing.T) {
-	paths := cmd.ResolvePaths()
+	paths := configcmd.ResolvePaths()
 
 	cases := []struct {
 		name string

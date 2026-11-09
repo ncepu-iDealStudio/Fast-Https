@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fast-https/cmd/internal/cli"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,7 +56,7 @@ func TestMonitorStatusSchema(t *testing.T) {
 	if code != 11 {
 		t.Fatalf("exit = %d, want 11\n%s", code, out)
 	}
-	if decodeOneDocument(t, out)["error"].(map[string]any)["code"] != CodeUnmetDependency {
+	if decodeOneDocument(t, out)["error"].(map[string]any)["code"] != cli.CodeUnmetDependency {
 		t.Fatalf("error = %v", decodeOneDocument(t, out)["error"])
 	}
 }

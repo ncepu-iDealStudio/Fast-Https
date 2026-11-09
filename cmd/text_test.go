@@ -66,7 +66,7 @@ func TestHelpEnglishVersion(t *testing.T) {
 }
 
 // TestEveryCommandTranslated 兜住以后新增命令忘记写中文的情况：
-// 只写了一个参数的 t(zh) 在英文模式下会露出中文，反过来也是。
+// 只写了一个参数的 cli.T(zh) 在英文模式下会露出中文，反过来也是。
 func TestEveryCommandTranslated(t *testing.T) {
 	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 
@@ -145,8 +145,8 @@ func TestResolveLang(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			t.Setenv(LangEnv, c.env)
-			if got := resolveLang(c.args); got != c.want {
-				t.Fatalf("resolveLang(%v) = %q, want %q", c.args, got, c.want)
+			if got := cli.ResolveLang(c.args); got != c.want {
+				t.Fatalf("cli.ResolveLang(%v) = %q, want %q", c.args, got, c.want)
 			}
 		})
 	}

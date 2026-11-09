@@ -3,7 +3,13 @@ package cmd
 
 import (
 	"errors"
+	"fast-https/cmd/internal/acmecmd"
 	"fast-https/cmd/internal/cli"
+	"fast-https/cmd/internal/configcmd"
+	"fast-https/cmd/internal/inspectcmd"
+	"fast-https/cmd/internal/procctl"
+	"fast-https/cmd/internal/servicecmd"
+	"fast-https/cmd/internal/sitecmd"
 	"fast-https/config"
 	"fast-https/infra/banner"
 	"fast-https/infra/logging"
@@ -33,78 +39,78 @@ func commandList() []command {
 	return []command{
 		{
 			name:        "start",
-			description: t("启动 Web 服务器", "to start web server"),
+			description: cli.T("启动 Web 服务器", "to start web server"),
 			handler:     StartHandler,
 		},
 		{
 			name:        "stop",
-			description: t("停止 Web 服务器", "to stop web server"),
+			description: cli.T("停止 Web 服务器", "to stop web server"),
 			handler:     StopHandler,
 		},
 		{
 			name:        "reload",
-			description: t("重新加载配置", "to reload config"),
+			description: cli.T("重新加载配置", "to reload config"),
 			handler:     ReloadHandler,
 		},
 		{
 			name:        "status",
-			description: t("查看 Web 服务器运行状态", "to check web server status"),
+			description: cli.T("查看 Web 服务器运行状态", "to check web server status"),
 			handler:     statusHandler,
 		},
 		{
 			name:        "version",
-			description: t("打印版本号", "print the version"),
+			description: cli.T("打印版本号", "print the version"),
 			register:    newVersionCmd,
 		},
 		{
 			name:        "service",
-			description: t("查询服务状态、版本与受控 reload", "query service status and version, and reload"),
-			register:    newServiceCmd,
+			description: cli.T("查询服务状态、版本与受控 reload", "query service status and version, and reload"),
+			register:    servicecmd.NewServiceCmd,
 		},
 		{
 			name:        "runtime",
-			description: t("查询本机运行快照", "query the local runtime snapshot"),
-			register:    newRuntimeCmd,
+			description: cli.T("查询本机运行快照", "query the local runtime snapshot"),
+			register:    inspectcmd.NewRuntimeCmd,
 		},
 		{
 			name:        "cert",
-			description: t("查看证书状态与检查证书", "list and check certificates"),
-			register:    newCertCmd,
+			description: cli.T("查看证书状态与检查证书", "list and check certificates"),
+			register:    inspectcmd.NewCertCmd,
 		},
 		{
 			name:        "logs",
-			description: t("按白名单条件查询日志", "query logs with an allow-listed filter"),
-			register:    newLogsCmd,
+			description: cli.T("按白名单条件查询日志", "query logs with an allow-listed filter"),
+			register:    inspectcmd.NewLogsCmd,
 		},
 		{
 			name:        "diagnose",
-			description: t("只读汇总健康检查", "run a read-only health summary"),
-			register:    newDiagnoseCmd,
+			description: cli.T("只读汇总健康检查", "run a read-only health summary"),
+			register:    inspectcmd.NewDiagnoseCmd,
 		},
 		{
 			name:        "monitor",
-			description: t("查询独立 Monitor 的状态与事件", "query the standalone monitor status and events"),
-			register:    newMonitorCmd,
+			description: cli.T("查询独立 Monitor 的状态与事件", "query the standalone monitor status and events"),
+			register:    inspectcmd.NewMonitorCmd,
 		},
 		{
 			name:        "operation",
-			description: t("查询管理操作记录", "query management operations"),
-			register:    newOperationCmd,
+			description: cli.T("查询管理操作记录", "query management operations"),
+			register:    inspectcmd.NewOperationCmd,
 		},
 		{
 			name:        "acme",
-			description: t("配置 ACME 证书签发", "configure ACME certificate issuance"),
-			register:    newAcmeCmd,
+			description: cli.T("配置 ACME 证书签发", "configure ACME certificate issuance"),
+			register:    acmecmd.NewAcmeCmd,
 		},
 		{
 			name:        "config",
-			description: t("查看解析后的运行时路径", "inspect resolved runtime paths"),
-			register:    newConfigCmd,
+			description: cli.T("查看解析后的运行时路径", "inspect resolved runtime paths"),
+			register:    configcmd.NewConfigCmd,
 		},
 		{
 			name:        "site",
-			description: t("管理 http.include 目录下的站点文件", "manage site files under http.include"),
-			register:    newSiteCmd,
+			description: cli.T("管理 http.include 目录下的站点文件", "manage site files under http.include"),
+			register:    sitecmd.NewSiteCmd,
 		},
 	}
 }
@@ -114,7 +120,7 @@ func commandList() []command {
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:          "version",
-		Short:        t("打印版本号", "print the version"),
+		Short:        cli.T("打印版本号", "print the version"),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -127,7 +133,7 @@ func newVersionCmd() *cobra.Command {
 // RootCmd 返回根命令对象。语言先按命令行与环境变量定下来，再建整棵树：
 // cobra 的 Short/Long 是字符串字段，建树时给哪份就是哪份。
 func RootCmd() *cobra.Command {
-	return RootCmdForLang(resolveLang(os.Args[1:]))
+	return RootCmdForLang(cli.ResolveLang(os.Args[1:]))
 }
 
 // RootCmdForLang 按指定语言建树，供 --lang 之外的入口（测试、man 生成）使用。
@@ -139,8 +145,8 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "fast-https",
-		Short: t("高性能 Web 服务器与反向代理服务器", "Fast-https is a high performance web server and proxy server"),
-		Long: t(
+		Short: cli.T("高性能 Web 服务器与反向代理服务器", "Fast-https is a high performance web server and proxy server"),
+		Long: cli.T(
 			"Fast-https 是高性能 Web 服务器与反向代理服务器。\n\n不带子命令直接运行即启动服务。",
 			"Fast-https is a high performance web server and proxy server.\n\n"+
 				"Run it without any command to start the server."),
@@ -153,7 +159,7 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 	// 真正的取值发生在 RootCmd() 里扫 os.Args。默认值留空，避免 pflag 在
 	// 中文帮助里补一句英文的 (default "zh")。
 	cmd.PersistentFlags().String("lang", "",
-		t("帮助信息的语言：zh | en（默认取 FAST_HTTPS_LANG，未设置时为 zh）",
+		cli.T("帮助信息的语言：zh | en（默认取 FAST_HTTPS_LANG，未设置时为 zh）",
 			"language of the help output: zh | en (defaults to "+LangEnv+", zh when unset)"))
 
 	// 把命令注册为 cobra 子命令，使 -h/--help 能列出全部命令及说明
@@ -174,7 +180,7 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 		})
 	}
 
-	registerGlobalFlags(cmd)
+	cli.RegisterGlobalFlags(cmd)
 
 	// 不要 cobra 自带的 `completion` 子命令：它生成的是 shell 补全脚本，
 	// 与本项目无关（站点路径的 Tab 补全在 site 向导的输入行里，是另一套实现）。
@@ -185,13 +191,13 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 	// 两种语言的命令树才是同一棵（man 页不会缺项）；英文版沿用 cobra 的默认文案。
 	cmd.InitDefaultHelpCmd()
 
-	wrapArgsErrors(cmd)
-	localizeCobra(cmd)
+	cli.WrapArgsErrors(cmd)
+	cli.LocalizeCobra(cmd)
 	return cmd
 }
 
 func usage() {
-	usageStr := t("未知命令，请检查命令拼写。", "Unknown command, please check the command.")
+	usageStr := cli.T("未知命令，请检查命令拼写。", "Unknown command, please check the command.")
 	logging.ConsoleLog.Info().Msgf("%s\n", usageStr)
 }
 
@@ -237,14 +243,14 @@ func StartHandler() error {
 	// 死 pid，stop / reload / status 都找不到真正在服务的进程。
 	// 容器与 systemd 托管时保持前台（见 runInForeground）。
 	if runtime.GOOS != "windows" && !runInForeground() {
-		pid, isParent, err := daemonize()
+		pid, isParent, err := servicecmd.Daemonize()
 		if err != nil {
 			logging.ConsoleLog.Warn().Msgf("run in background failed: %v, staying in foreground", err)
 		} else if isParent {
 			// 等子进程报告「端口已监听」再返回。只等 pid 文件是不够的：
 			// 子进程写完 pid 后绑端口失败会立刻退出，父进程却报启动成功，
 			// 调用方只看到一句 stale pid，真正的原因无处可查。
-			if err := waitDaemonStarted(pid, daemonStartTimeout); err != nil {
+			if err := servicecmd.WaitDaemonStarted(pid, daemonStartTimeout); err != nil {
 				return err
 			}
 			logging.ConsoleLog.Info().Msgf("fast-https started in background, pid %d, logs in %s",
@@ -257,7 +263,7 @@ func StartHandler() error {
 	// 写失败不能静默：pid 是 stop / reload / status 的唯一入口，写不出来
 	// 会表现为「服务在跑但停不掉」，必须留下能查的日志（例如安装目录
 	// 不可写的情况）。
-	if err := WritePid(config.PID_FILE); err != nil {
+	if err := procctl.WritePid(config.PID_FILE); err != nil {
 		logging.ConsoleLog.Error().Msgf(
 			"write pid file %s failed: %v; stop / reload / status will not find this process",
 			config.PID_FILE, err)
@@ -265,7 +271,7 @@ func StartHandler() error {
 
 	// 本机只读快照：写完 PID 就监听，InitSystem（含首次生成 CA）期间
 	// 返回 state:starting。绑定失败不影响业务端口。
-	_ = StartRuntimeEndpoint()
+	_ = servicecmd.StartRuntimeEndpoint()
 
 	// output logo, make initialization and start server
 	banner.PrintLogo(config.CURRENT_VERSION)
@@ -274,12 +280,12 @@ func StartHandler() error {
 	initialization.InitSystem()
 	banner.PrintInitialEnd()
 
-	RegisterHandlers()
-	RegisterServices()
+	servicecmd.RegisterHandlers()
+	servicecmd.RegisterServices()
 	server := server.ServerInit()
 	// 监听已经建立（端口全部绑定成功）：通知父进程启动成功。
 	// 前台运行或 Windows 上没有父进程等待，这里是空操作。
-	notifyDaemonReady()
+	servicecmd.NotifyDaemonReady()
 	banner.PrintPortsListenerStart()
 	server.Run()
 
@@ -301,7 +307,7 @@ const daemonStartTimeout = 10 * time.Second
 // - error：返回可能发生的错误
 func StopHandler() error {
 
-	pid, err := readPid(config.PID_FILE)
+	pid, err := procctl.ReadPid(config.PID_FILE)
 	if err != nil {
 		// 没有 pid 文件（已经停过）或文件损坏：按「没在跑」处理，stop 幂等
 		if errors.Is(err, os.ErrNotExist) {
@@ -314,7 +320,7 @@ func StopHandler() error {
 
 	// pid 文件可能是上一次异常退出留下的：进程已经不在时按「本来就没在跑」
 	// 处理，顺手清掉残留文件，别让 stop 报一个看不懂的错。
-	if !processRunning(pid) {
+	if !procctl.Running(pid) {
 		_ = os.Remove(config.PID_FILE)
 		logging.ConsoleLog.Info().Msgf("fast-https is not running, removed stale pid file (pid %d)", pid)
 		return nil
@@ -327,7 +333,7 @@ func StopHandler() error {
 
 	// Unix 下发 SIGTERM 走优雅停机（关闭监听、等在途请求）；
 	// Windows 没有信号语义，落回 TerminateProcess。
-	if err := signalStopProcess(process); err != nil {
+	if err := servicecmd.SignalStopProcess(process); err != nil {
 		if errors.Is(err, os.ErrProcessDone) {
 			_ = os.Remove(config.PID_FILE)
 			logging.ConsoleLog.Info().Msgf("fast-https is not running (pid %d)", pid)
@@ -336,7 +342,7 @@ func StopHandler() error {
 		logging.ConsoleLog.Fatal().Msgf("fast-https stop failed: %v", err)
 	}
 
-	if !waitProcessGone(pid, server.GracefulStopTimeout+2*time.Second) {
+	if !procctl.WaitGone(pid, server.GracefulStopTimeout+2*time.Second) {
 		logging.ConsoleLog.Fatal().Msgf("fast-https (pid %d) did not exit in time", pid)
 	}
 
@@ -364,7 +370,7 @@ func reload(configPath, pidPath string) error {
 		return fmt.Errorf("配置未通过校验，已保留运行中的配置：%w", err)
 	}
 
-	pid, err := readPid(pidPath)
+	pid, err := procctl.ReadPid(pidPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			logging.ConsoleLog.Info().Msg("fast-https is not running, nothing to reload (config ok)")
@@ -375,7 +381,7 @@ func reload(configPath, pidPath string) error {
 	}
 
 	// 残留 pid 文件（进程已退出）时提示「没在跑」并清理，不要对着死 pid 发信号。
-	if !processRunning(pid) {
+	if !procctl.Running(pid) {
 		_ = os.Remove(pidPath)
 		logging.ConsoleLog.Info().Msgf("fast-https is not running, nothing to reload (stale pid %d, config ok)", pid)
 		return nil
@@ -390,7 +396,7 @@ func reload(configPath, pidPath string) error {
 		logging.ConsoleLog.Fatal().Msgf("fast-https find process failed: %v", err)
 	}
 
-	err = signalReloadProcess(process, pid)
+	err = servicecmd.SignalReloadProcess(process, pid)
 
 	if err != nil {
 		logging.ConsoleLog.Fatal().Msgf("fast-https reload failed: %v", err)
@@ -405,15 +411,15 @@ func validateConfig(path string) error {
 }
 
 func statusHandler() error {
-	state, pid, err := InspectProcess(config.PID_FILE)
+	state, pid, err := procctl.InspectProcess(config.PID_FILE)
 	if err != nil {
 		return err
 	}
 	switch state {
-	case ProcessRunning:
+	case procctl.ProcessRunning:
 		fmt.Printf("fast-https is running, pid %d\n", pid)
 		return nil
-	case ProcessStale:
+	case procctl.ProcessStale:
 		return fmt.Errorf("fast-https is not running, stale pid %d", pid)
 	default:
 		return fmt.Errorf("fast-https is not running, no pid file")
@@ -453,7 +459,7 @@ func PreCheckHandler() {
 // checkRunningInstance 读 pid 文件，发现同名实例仍在运行就退出。
 // 残留 pid（进程已退出）只记一条 debug，不阻断启动。
 func checkRunningInstance() {
-	pid, err := readPid(config.PID_FILE)
+	pid, err := procctl.ReadPid(config.PID_FILE)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			logging.ConsoleLog.Debug().Msg("No existing process found")
@@ -466,7 +472,7 @@ func checkRunningInstance() {
 	// 只有在成功读取到 PID 时才检查进程。
 	// 存活判定必须走平台实现：Windows 上 os.Process.Signal(syscall.Signal(0))
 	// 恒返回 EWINDOWS，会把正在跑的实例判成「没在跑」，重复启动就漏过去了。
-	if processRunning(pid) {
+	if procctl.Running(pid) {
 		logging.ConsoleLog.Fatal().Msg("fast-https is already running")
 	}
 	// 进程不存在，可以继续

@@ -34,7 +34,7 @@ func runCLIWith(t *testing.T, mutate func(root *cobra.Command), args ...string) 
 	})
 
 	var out, errOut bytes.Buffer
-	code := runWith(root, args, &out, &errOut)
+	code := cli.RunWith(root, args, &out, &errOut)
 	return out.String(), errOut.String(), code
 }
 
@@ -84,7 +84,7 @@ func TestEnvelopeError(t *testing.T) {
 		t.Fatalf("封套字段不对：%v", doc)
 	}
 	body, ok := doc["error"].(map[string]any)
-	if !ok || body["code"] != CodeUsage || body["message"] == "" {
+	if !ok || body["code"] != cli.CodeUsage || body["message"] == "" {
 		t.Fatalf("error 不对：%v", doc["error"])
 	}
 	if d, ok := body["details"].([]any); !ok || d == nil {
@@ -97,34 +97,34 @@ func TestEnvelopeError(t *testing.T) {
 
 func TestExitCodeTable(t *testing.T) {
 	cases := map[string]int{
-		CodeInternal:         1,
-		CodeUsage:            2,
-		CodePermissionDenied: 3,
-		CodeServiceDown:      4,
-		CodeConfigInvalid:    5,
-		CodeOperationFailed:  6,
-		CodeRecoveryRequired: 6,
-		CodeOperationUnknown: 7,
-		CodeTimeout:          8,
-		CodeNotFound:         9,
-		CodeLogUnavailable:   9,
-		CodeConflict:         10,
-		CodeRequestIDClash:   10,
-		CodeUnmetDependency:  11,
-		CodeNotSupported:     11,
+		cli.CodeInternal:         1,
+		cli.CodeUsage:            2,
+		cli.CodePermissionDenied: 3,
+		cli.CodeServiceDown:      4,
+		cli.CodeConfigInvalid:    5,
+		cli.CodeOperationFailed:  6,
+		cli.CodeRecoveryRequired: 6,
+		cli.CodeOperationUnknown: 7,
+		cli.CodeTimeout:          8,
+		cli.CodeNotFound:         9,
+		cli.CodeLogUnavailable:   9,
+		cli.CodeConflict:         10,
+		cli.CodeRequestIDClash:   10,
+		cli.CodeUnmetDependency:  11,
+		cli.CodeNotSupported:     11,
 	}
 	for code, want := range cases {
-		if got := ExitCode(newCLIError(code, "x")); got != want {
+		if got := cli.ExitCode(cli.New(code, "x")); got != want {
 			t.Errorf("%s 的退出码 = %d, want %d", code, got, want)
 		}
 	}
-	if got := ExitCode(nil); got != 0 {
+	if got := cli.ExitCode(nil); got != 0 {
 		t.Errorf("nil 的退出码 = %d, want 0", got)
 	}
-	if got := ExitCode(io.ErrUnexpectedEOF); got != 1 {
+	if got := cli.ExitCode(io.ErrUnexpectedEOF); got != 1 {
 		t.Errorf("普通错误的退出码 = %d, want 1", got)
 	}
-	if got := ExitCode(newCLIError("NO_SUCH_CODE", "x")); got != 1 {
+	if got := cli.ExitCode(cli.New("NO_SUCH_CODE", "x")); got != 1 {
 		t.Errorf("未知错误码的退出码 = %d, want 1", got)
 	}
 }
@@ -132,9 +132,9 @@ func TestExitCodeTable(t *testing.T) {
 // 表里每个错误码都必须有退出码，防止新增常量忘了登记。
 func TestEveryErrorCodeHasExitCode(t *testing.T) {
 	for _, code := range []string{
-		CodeInternal, CodeUsage, CodePermissionDenied, CodeServiceDown, CodeConfigInvalid,
-		CodeOperationFailed, CodeRecoveryRequired, CodeOperationUnknown, CodeTimeout,
-		CodeNotFound, CodeLogUnavailable, CodeConflict, CodeRequestIDClash, CodeUnmetDependency, CodeNotSupported,
+		cli.CodeInternal, cli.CodeUsage, cli.CodePermissionDenied, cli.CodeServiceDown, cli.CodeConfigInvalid,
+		cli.CodeOperationFailed, cli.CodeRecoveryRequired, cli.CodeOperationUnknown, cli.CodeTimeout,
+		cli.CodeNotFound, cli.CodeLogUnavailable, cli.CodeConflict, cli.CodeRequestIDClash, cli.CodeUnmetDependency, cli.CodeNotSupported,
 	} {
 		if _, ok := cli.ExitCodes()[code]; !ok {
 			t.Errorf("错误码 %s 没有退出码", code)
@@ -149,7 +149,7 @@ func TestJSONModeStdoutIsOneDocument(t *testing.T) {
 			Use: "zz-noisy",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				logging.ConsoleLog.Info().Msg("noise-from-config-load")
-				return emitOK(cmd, "zz.noisy", map[string]any{}, nil)
+				return cli.EmitOK(cmd, "zz.noisy", map[string]any{}, nil)
 			},
 		})
 	}
@@ -192,7 +192,7 @@ func TestNegativeTimeoutIsUsageError(t *testing.T) {
 		t.Fatalf("exit = %d, want 2", code)
 	}
 	doc := decodeOneDocument(t, out)
-	if doc["error"].(map[string]any)["code"] != CodeUsage {
+	if doc["error"].(map[string]any)["code"] != cli.CodeUsage {
 		t.Fatalf("应为 USAGE_ERROR：%v", doc)
 	}
 }
@@ -202,9 +202,9 @@ func TestCLIErrorKeepsItsCode(t *testing.T) {
 		root.AddCommand(&cobra.Command{
 			Use: "zz-fail",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				e := newCLIError(CodeConfigInvalid, "config is broken")
+				e := cli.New(cli.CodeConfigInvalid, "config is broken")
 				e.Command = "zz.fail"
-				e.Details = []ErrorDetail{{Path: "http.server[0]", Message: "bad listen"}}
+				e.Details = []cli.ErrorDetail{{Path: "http.server[0]", Message: "bad listen"}}
 				return e
 			},
 		})
@@ -216,7 +216,7 @@ func TestCLIErrorKeepsItsCode(t *testing.T) {
 	}
 	doc := decodeOneDocument(t, out)
 	body := doc["error"].(map[string]any)
-	if doc["command"] != "zz.fail" || body["code"] != CodeConfigInvalid {
+	if doc["command"] != "zz.fail" || body["code"] != cli.CodeConfigInvalid {
 		t.Fatalf("错误封套不对：%v", doc)
 	}
 	if d := body["details"].([]any); len(d) != 1 {

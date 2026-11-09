@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"fast-https/cmd/internal/servicecmd"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +29,7 @@ func TestWaitDaemonStartedReady(t *testing.T) {
 		t.Fatalf("close write end: %v", err)
 	}
 
-	if err := waitDaemonStarted(12345, time.Second); err != nil {
+	if err := servicecmd.WaitDaemonStarted(12345, time.Second); err != nil {
 		t.Fatalf("ready signal should be reported as started, got %v", err)
 	}
 }
@@ -55,7 +56,7 @@ func TestWaitDaemonStartedChildExited(t *testing.T) {
 	t.Cleanup(func() { daemonReadyPipe = nil })
 	_ = w.Close() // 子进程没写 ready 就退出了
 
-	err = waitDaemonStarted(4321, time.Second)
+	err = servicecmd.WaitDaemonStarted(4321, time.Second)
 	if err == nil {
 		t.Fatal("child exiting before ready must fail the start")
 	}
@@ -80,7 +81,7 @@ func TestWaitDaemonStartedTimeout(t *testing.T) {
 		_ = w.Close()
 	})
 
-	if err := waitDaemonStarted(5678, 20*time.Millisecond); err != nil {
+	if err := servicecmd.WaitDaemonStarted(5678, 20*time.Millisecond); err != nil {
 		t.Fatalf("slow start should only warn, got %v", err)
 	}
 }

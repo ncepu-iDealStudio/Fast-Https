@@ -1,7 +1,7 @@
 package cmd_test
 
 import (
-	"fast-https/cmd"
+	"fast-https/cmd/internal/servicecmd"
 	"fast-https/config"
 	"fast-https/core"
 	"strings"
@@ -22,7 +22,7 @@ func TestRegisterHandlersCoversConfiguredTypes(t *testing.T) {
 	for _, item := range types {
 		core.RegisterHandler(int(item.code), nil, nil, nil)
 	}
-	t.Cleanup(cmd.RegisterHandlers)
+	t.Cleanup(servicecmd.RegisterHandlers)
 
 	paths := make([]config.Path, len(types))
 	for i, item := range types {
@@ -40,13 +40,13 @@ func TestRegisterHandlersCoversConfiguredTypes(t *testing.T) {
 		}
 	}
 
-	cmd.RegisterHandlers()
+	servicecmd.RegisterHandlers()
 	if err := core.MissingHandlers(servers); err != nil {
 		t.Fatal(err)
 	}
 	for _, item := range types {
 		if !core.HandlerReady(int(item.code)) {
-			t.Errorf("%s handler is not ready after RegisterHandlers", item.name)
+			t.Errorf("%s handler is not ready after servicecmd.RegisterHandlers", item.name)
 		}
 	}
 }
