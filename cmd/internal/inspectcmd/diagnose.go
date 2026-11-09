@@ -1,6 +1,9 @@
-package cmd
+package inspectcmd
 
 import (
+	"fast-https/cmd/internal/cli"
+	"fast-https/cmd/internal/procctl"
+	"fast-https/cmd/internal/servicecmd"
 	"fmt"
 	"io"
 	"text/tabwriter"
@@ -12,11 +15,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newDiagnoseCmd() *cobra.Command {
+func NewDiagnoseCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "diagnose",
-		Short: t("只读汇总健康检查", "run a read-only health summary"),
-		Long: t(
+		Short: cli.T("只读汇总健康检查", "run a read-only health summary"),
+		Long: cli.T(
 			"汇总服务、配置、证书、端口和近期错误日志等只读检查。\n"+
 				"检查失败与检查不可用分开：runtime 读 /runtime（连不上是 warning）；monitor 读状态文件，未安装为 ok，过期为 warning。\n"+
 				"诊断本身是一次成功的查询，配置有问题也退出码 0；不自动修复，不写报告文件，不输出敏感值。",
@@ -32,20 +35,20 @@ func newDiagnoseCmd() *cobra.Command {
 			report := diagnose.Run(diagnose.Input{
 				ConfigPath: path,
 				PidFile:    config.PID_FILE,
-				StateDir:   resolveStateDir(),
+				StateDir:   cli.ResolveStateDir(),
 				Inspect: func() (view.ProcState, int, error) {
-					state, pid, err := InspectProcess(config.PID_FILE)
-					return procStateOf(state), pid, err
+					state, pid, err := procctl.InspectProcess(config.PID_FILE)
+					return servicecmd.ProcStateOf(state), pid, err
 				},
 			})
-			if jsonMode(cmd) {
-				return emitOK(cmd, "diagnose", report, nil)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "diagnose", report, nil)
 			}
 			writeDiagnoseText(cmd.OutOrStdout(), report)
 			return nil
 		},
 	}
-	addConfigFlag(c)
+	cli.AddConfigFlag(c)
 	return c
 }
 

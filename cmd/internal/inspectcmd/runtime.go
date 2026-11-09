@@ -1,7 +1,8 @@
-package cmd
+package inspectcmd
 
 import (
 	"errors"
+	"fast-https/cmd/internal/cli"
 	"fmt"
 	"io"
 	"time"
@@ -11,10 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newRuntimeCmd() *cobra.Command {
+func NewRuntimeCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "runtime",
-		Short:        t("查询本机运行快照", "query the local runtime snapshot"),
+		Short:        cli.T("查询本机运行快照", "query the local runtime snapshot"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
@@ -25,8 +26,8 @@ func newRuntimeCmd() *cobra.Command {
 func newRuntimeStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: t("查询当前服务运行态", "query the current runtime state"),
-		Long: t(
+		Short: cli.T("查询当前服务运行态", "query the current runtime state"),
+		Long: cli.T(
 			"读取 127.0.0.1:9088/runtime，返回连接与请求等瞬时状态。\n"+
 				"连不上快照时退出码 4，不要回退成读日志猜测。reading/writing/waiting 与 CPU/内存目前没有可靠数据源，会省略并给出告警。",
 			"Read 127.0.0.1:9088/runtime and return instantaneous connection and request state.\n"+
@@ -41,8 +42,8 @@ func newRuntimeStatusCmd() *cobra.Command {
 func newRuntimeStatsCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "stats",
-		Short: t("查询进程启动以来的累计统计", "query cumulative stats since process start"),
-		Long: t(
+		Short: cli.T("查询进程启动以来的累计统计", "query cumulative stats since process start"),
+		Long: cli.T(
 			"读取 127.0.0.1:9088/runtime 的累计计数。窗口固定为 since_process_start。\n"+
 				"--since 与 --domain 在没有窗口化数据前返回 NOT_SUPPORTED（退出码 11）。",
 			"Read cumulative counters from 127.0.0.1:9088/runtime. The window is always since_process_start.\n"+
@@ -51,53 +52,53 @@ func newRuntimeStatsCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE:         runRuntimeStats,
 	}
-	c.Flags().String("since", "", t("统计时间窗口（尚未支持）", "stats time window (not supported yet)"))
-	c.Flags().String("domain", "", t("按域名过滤（尚未支持）", "filter by domain (not supported yet)"))
+	c.Flags().String("since", "", cli.T("统计时间窗口（尚未支持）", "stats time window (not supported yet)"))
+	c.Flags().String("domain", "", cli.T("按域名过滤（尚未支持）", "filter by domain (not supported yet)"))
 	return c
 }
 
 func runRuntimeStatus(cmd *cobra.Command, _ []string) error {
-	snap, err := fetchRuntime(cmd.Context())
+	snap, err := cli.FetchRuntime(cmd.Context())
 	if err != nil {
 		return runtimeCLIError("runtime.status", err)
 	}
 	data, warnings := runtimeStatusData(snap)
-	if jsonMode(cmd) {
-		return emitOK(cmd, "runtime.status", data, warnings)
+	if cli.JSONMode(cmd) {
+		return cli.EmitOK(cmd, "runtime.status", data, warnings)
 	}
-	printWarnings(cmd.ErrOrStderr(), warnings)
+	cli.PrintWarnings(cmd.ErrOrStderr(), warnings)
 	writeRuntimeStatusText(cmd.OutOrStdout(), data)
 	return nil
 }
 
 func runRuntimeStats(cmd *cobra.Command, _ []string) error {
 	if cmd.Flags().Changed("since") || cmd.Flags().Changed("domain") {
-		return &CLIError{
-			Code:    CodeNotSupported,
+		return &cli.CLIError{
+			Code:    cli.CodeNotSupported,
 			Command: "runtime.stats",
 			Message: "--since and --domain are not supported until windowed stats exist",
 		}
 	}
-	snap, err := fetchRuntime(cmd.Context())
+	snap, err := cli.FetchRuntime(cmd.Context())
 	if err != nil {
 		return runtimeCLIError("runtime.stats", err)
 	}
 	data, warnings := runtimeStatsData(snap)
-	if jsonMode(cmd) {
-		return emitOK(cmd, "runtime.stats", data, warnings)
+	if cli.JSONMode(cmd) {
+		return cli.EmitOK(cmd, "runtime.stats", data, warnings)
 	}
-	printWarnings(cmd.ErrOrStderr(), warnings)
+	cli.PrintWarnings(cmd.ErrOrStderr(), warnings)
 	writeRuntimeStatsText(cmd.OutOrStdout(), data)
 	return nil
 }
 
-func runtimeCLIError(id string, err error) *CLIError {
-	ce := &CLIError{Command: id, Message: err.Error(), Cause: err}
+func runtimeCLIError(id string, err error) *cli.CLIError {
+	ce := &cli.CLIError{Command: id, Message: err.Error(), Cause: err}
 	if errors.Is(err, rtclient.ErrSchema) {
-		ce.Code = CodeUnmetDependency
+		ce.Code = cli.CodeUnmetDependency
 		return ce
 	}
-	ce.Code = CodeServiceDown
+	ce.Code = cli.CodeServiceDown
 	ce.Message = err.Error() + "; the runtime endpoint binds 127.0.0.1:9088 and is skipped when that address is occupied"
 	return ce
 }

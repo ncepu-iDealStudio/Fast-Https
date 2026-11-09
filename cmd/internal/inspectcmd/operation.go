@@ -1,6 +1,7 @@
-package cmd
+package inspectcmd
 
 import (
+	"fast-https/cmd/internal/cli"
 	"fmt"
 	"io"
 	"strings"
@@ -12,11 +13,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newOperationCmd() *cobra.Command {
+func NewOperationCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "operation",
-		Short: t("查询管理操作记录", "query management operations"),
-		Long: t(
+		Short: cli.T("查询管理操作记录", "query management operations"),
+		Long: cli.T(
 			"查询落在状态目录里的管理操作。状态由服务端持久化，SSH 断线后仍可按 operation_id 查询。\n"+
 				"running 且持有者进程已不在时，会把记录对账为 unknown，并保留最后完成的 phase。",
 			"Query management operations stored in the state directory. Status is persisted on disk,\n"+
@@ -32,7 +33,7 @@ func newOperationCmd() *cobra.Command {
 func newOperationListCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "list",
-		Short: t("列出近期管理操作", "list recent management operations"),
+		Short: cli.T("列出近期管理操作", "list recent management operations"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			limit, _ := cmd.Flags().GetInt("limit")
@@ -42,44 +43,44 @@ func newOperationListCmd() *cobra.Command {
 			if strings.TrimSpace(since) != "" {
 				d, err := time.ParseDuration(since)
 				if err != nil {
-					return usageError(fmt.Errorf("invalid --since %q (want 1h, 30m)", since))
+					return cli.UsageError(fmt.Errorf("invalid --since %q (want 1h, 30m)", since))
 				}
 				sinceAt = time.Now().Add(-d)
 			}
 			if status != "" && !validOpStatus(status) {
-				return usageError(fmt.Errorf("invalid --status %q", status))
+				return cli.UsageError(fmt.Errorf("invalid --status %q", status))
 			}
-			store := operation.Store{Dir: stateDir()}
+			store := operation.Store{Dir: cli.StateDir()}
 			list, err := store.List(operation.ListFilter{Status: status, Since: sinceAt, Limit: limit})
 			if err != nil {
-				return fromStateError("operation.list", err)
+				return cli.FromStateError("operation.list", err)
 			}
-			if jsonMode(cmd) {
-				return emitOK(cmd, "operation.list", map[string]any{"operations": list}, nil)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "operation.list", map[string]any{"operations": list}, nil)
 			}
 			writeOperationListText(cmd.OutOrStdout(), list)
 			return nil
 		},
 	}
-	c.Flags().Int("limit", 0, t("返回条数，默认 50，上限 1000", "records to return; default 50, cap 1000"))
-	c.Flags().String("status", "", t("按状态过滤", "filter by status"))
-	c.Flags().String("since", "", t("只看这个时长之内的记录，例如 1h", "only records newer than this duration, e.g. 1h"))
+	c.Flags().Int("limit", 0, cli.T("返回条数，默认 50，上限 1000", "records to return; default 50, cap 1000"))
+	c.Flags().String("status", "", cli.T("按状态过滤", "filter by status"))
+	c.Flags().String("since", "", cli.T("只看这个时长之内的记录，例如 1h", "only records newer than this duration, e.g. 1h"))
 	return c
 }
 
 func newOperationGetCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "get <operation-id>",
-		Short: t("查询一条管理操作", "get one management operation"),
+		Short: cli.T("查询一条管理操作", "get one management operation"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			store := operation.Store{Dir: stateDir()}
+			store := operation.Store{Dir: cli.StateDir()}
 			rec, err := store.Get(args[0])
 			if err != nil {
-				return fromStateError("operation.get", err)
+				return cli.FromStateError("operation.get", err)
 			}
-			if jsonMode(cmd) {
-				return emitOK(cmd, "operation.get", rec, nil)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "operation.get", rec, nil)
 			}
 			writeOperationListText(cmd.OutOrStdout(), []operation.Record{rec})
 			return nil

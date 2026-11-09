@@ -1,6 +1,7 @@
-package cmd
+package inspectcmd
 
 import (
+	"fast-https/cmd/internal/cli"
 	"fmt"
 	"io"
 	"strconv"
@@ -14,10 +15,10 @@ import (
 )
 
 // cert 命令组：只读地查看配置里声明的证书。私钥内容与私钥路径不会出现在任何输出里。
-func newCertCmd() *cobra.Command {
+func NewCertCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "cert",
-		Short:        t("查看证书状态与检查证书", "list and check certificates"),
+		Short:        cli.T("查看证书状态与检查证书", "list and check certificates"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
@@ -28,8 +29,8 @@ func newCertCmd() *cobra.Command {
 func newCertListCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "list",
-		Short: t("列出配置里声明的证书及其状态", "list the certificates declared in the config and their status"),
-		Long: t(
+		Short: cli.T("列出配置里声明的证书及其状态", "list the certificates declared in the config and their status"),
+		Long: cli.T(
 			"按证书文件列出配置里各 ssl 站点声明的证书：域名、状态、到期时间、颁发者、是否由 ACME 管理、被哪些站点使用。\n"+
 				"状态：valid、expiring（剩余天数不超过 acme.renew_before_days，默认 30）、expired、not_yet_valid、\n"+
 				"missing（文件不存在）、unreadable（读不了或没有证书）、unknown（没有声明证书路径）。\n"+
@@ -45,25 +46,25 @@ func newCertListCmd() *cobra.Command {
 			path, _ := cmd.Flags().GetString("config")
 			data, warnings, err := view.CertList(path, time.Now())
 			if err != nil {
-				return fromViewError("cert.list", err)
+				return cli.FromViewError("cert.list", err)
 			}
-			if jsonMode(cmd) {
-				return emitOK(cmd, "cert.list", data, warnings)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "cert.list", data, warnings)
 			}
-			printWarnings(cmd.ErrOrStderr(), warnings)
+			cli.PrintWarnings(cmd.ErrOrStderr(), warnings)
 			writeCertListText(cmd.OutOrStdout(), data)
 			return nil
 		},
 	}
-	addConfigFlag(c)
+	cli.AddConfigFlag(c)
 	return c
 }
 
 func newCertCheckCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "check",
-		Short: t("检查某个域名使用的证书", "check the certificate used by a domain"),
-		Long: t(
+		Short: cli.T("检查某个域名使用的证书", "check the certificate used by a domain"),
+		Long: cli.T(
 			"检查 --domain 指定的域名使用的证书：文件是否存在、有效期、证书是否覆盖该域名、证书与私钥是否配对。\n"+
 				"检查结果是数据：证书有问题也是一次成功的查询，退出码为 0；域名不在任何 ssl 站点里时退出码为 9。\n"+
 				"没能执行的检查（例如当前用户读不了私钥）标为 checked=false，和「执行了但没通过」区分。\n"+
@@ -80,22 +81,22 @@ func newCertCheckCmd() *cobra.Command {
 			path, _ := cmd.Flags().GetString("config")
 			domain, _ := cmd.Flags().GetString("domain")
 			if strings.TrimSpace(domain) == "" {
-				return usageError(fmt.Errorf("--domain is required"))
+				return cli.UsageError(fmt.Errorf("--domain is required"))
 			}
 			data, warnings, err := view.CertCheck(path, domain, time.Now())
 			if err != nil {
-				return fromViewError("cert.check", err)
+				return cli.FromViewError("cert.check", err)
 			}
-			if jsonMode(cmd) {
-				return emitOK(cmd, "cert.check", data, warnings)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "cert.check", data, warnings)
 			}
-			printWarnings(cmd.ErrOrStderr(), warnings)
+			cli.PrintWarnings(cmd.ErrOrStderr(), warnings)
 			writeCertCheckText(cmd.OutOrStdout(), data)
 			return nil
 		},
 	}
-	addConfigFlag(c)
-	c.Flags().String("domain", "", t("要检查的域名（必填）", "domain to check (required)"))
+	cli.AddConfigFlag(c)
+	c.Flags().String("domain", "", cli.T("要检查的域名（必填）", "domain to check (required)"))
 	return c
 }
 
