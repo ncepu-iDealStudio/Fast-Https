@@ -3,13 +3,13 @@ package static
 
 import (
 	"fast-https/config"
-	"fast-https/modules/compress"
 	"fast-https/core"
+	"fast-https/infra/logging"
+	"fast-https/modules/compress"
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
-	"fast-https/infra/logging"
 	"io"
 	"io/fs"
 	"net/http"
@@ -490,22 +490,37 @@ func defaultContentType() string {
 func encodingWanted(zip uint16, accept string) string {
 	switch zip {
 	case config.ZIP_GZIP:
-		if request.HasToken(accept, "gzip") {
+		if acceptsEncoding(accept, "gzip") {
 			return "gzip"
 		}
 	case config.ZIP_BR:
-		if request.HasToken(accept, "br") {
+		if acceptsEncoding(accept, "br") {
 			return "br"
 		}
 	case config.ZIP_GZIP_BR:
-		if request.HasToken(accept, "br") {
+		if acceptsEncoding(accept, "br") {
 			return "br"
 		}
-		if request.HasToken(accept, "gzip") {
+		if acceptsEncoding(accept, "gzip") {
 			return "gzip"
 		}
 	}
 	return ""
+}
+
+// acceptsEncoding 判断客户端是否接受某个内容编码。
+//
+// 客户端显式列了这个编码，就按它的 q 值决定（q=0 为拒绝，此时不走通配符）；
+// 完全没提到它，才回落到 `*` 的 q 值。只看 q>0 而不做加权择优：这里的目标
+// 是「能压就压」，不是挑压缩率最优的那个。
+func acceptsEncoding(accept, token string) bool {
+	if q, mentioned := request.QValue(accept, token); mentioned {
+		return q > 0
+	}
+	if q, mentioned := request.QValue(accept, "*"); mentioned {
+		return q > 0
+	}
+	return false
 }
 
 func acceptEncoding(ev *core.Event) string {
