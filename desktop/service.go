@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"fast-https-desktop/internal/cli"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -107,9 +110,23 @@ func (s *DesktopService) DeleteSite(source string) (string, error) {
 	return deleteSiteFile(s.baseDir, source)
 }
 
-// SetSiteEnabled 启用/停用 conf.d 下的站点（改文件名，需手动重载生效）。
+// SetSiteEnabled 转交 site enable/disable 的配置事务。
+// 桌面端不改文件名：事务会处理校验、恢复点与 reload，和命令行语义一致。
 func (s *DesktopService) SetSiteEnabled(source string, enabled bool) (string, error) {
-	return setSiteEnabled(s.baseDir, source, enabled)
+	name := filepath.Base(strings.TrimSpace(source))
+	name = strings.TrimSuffix(name, ".disabled")
+	name = strings.TrimSuffix(name, ".json")
+	if name == "" {
+		return "", fmt.Errorf("缺少站点来源")
+	}
+	action, word := "disable", "停用"
+	if enabled {
+		action, word = "enable", "启用"
+	}
+	if _, _, err := cli.RunJSON[any](s.baseDir, "site", action, name); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("已%s站点 %s（配置事务完成）", word, name), nil
 }
 
 // ------------------------------------------------------------ 本机状态与操作
