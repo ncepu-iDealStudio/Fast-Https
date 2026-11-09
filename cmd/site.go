@@ -55,14 +55,6 @@ func newSiteCmd() *cobra.Command {
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 
-	initCmd := &cobra.Command{
-		Use:          "init [name]",
-		Short:        t("创建 conf.d/<name>.json（不加 --non-interactive 时进入交互）", "create conf.d/<name>.json (interactive unless --non-interactive)"),
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSiteInit(siteOptionsFrom(cmd, args))
-		},
-	}
 	listCmd := &cobra.Command{
 		Use:          "list",
 		Short:        t("列出站点文件的 listen、server_name 与 location 类型", "list site files with listen, server_name and location types"),
@@ -86,33 +78,12 @@ func newSiteCmd() *cobra.Command {
 			return runSiteShow(siteOptionsFrom(cmd, args))
 		},
 	}
-	removeCmd := &cobra.Command{
-		Use:          "remove <name>",
-		Short:        t("删除站点文件（需要 --yes）", "delete a site file (requires --yes)"),
-		Args:         cobra.ExactArgs(1),
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSiteRemove(siteOptionsFrom(cmd, args))
-		},
-	}
-
-	for _, sub := range []*cobra.Command{initCmd, listCmd, showCmd, removeCmd} {
+	for _, sub := range []*cobra.Command{listCmd, showCmd} {
 		sub.Flags().String("config", config.CONFIG_FILE_PATH, t("主配置文件", "main config file"))
 	}
-	initCmd.Flags().StringArray("listen", nil,
-		t(`监听值，可重复：--listen 80 --listen "443 ssl h2"`,
-			`listen value, repeatable: --listen 80 --listen "443 ssl h2"`))
-	initCmd.Flags().String("server-name", "", t("站点的 server_name（默认取站点名）", "server_name of the site (defaults to the site name)"))
-	initCmd.Flags().String("root", "./httpdoc/root", t("本地站点的文档根目录", "document root for a local site"))
-	initCmd.Flags().String("proxy-pass", "", t("代理站点的上游，例如 http://127.0.0.1:8080", "upstream for a proxy site, e.g. http://127.0.0.1:8080"))
-	initCmd.Flags().String("type", "local", t("location 类型：local 或 proxy", "location type: local or proxy"))
-	initCmd.Flags().Bool("tls", false, t("为站点启用 TLS（补上 ssl h2 与证书路径）", "enable TLS on this site (adds ssl h2 and cert paths)"))
-	initCmd.Flags().Bool("force", false, t("按参数重建文件，丢弃现有内容", "rebuild the file from flags, discarding the current content"))
-	initCmd.Flags().Bool("non-interactive", false, t("全部取值来自参数，不做任何提问", "take every value from flags, never prompt"))
 	showCmd.Flags().Bool("merged", false, t("打印合并后每个字段都生效的 server 块", "print the merged server block with every effective field"))
-	removeCmd.Flags().Bool("yes", false, t("确认删除", "confirm deletion"))
 
-	root.AddCommand(initCmd, listCmd, showCmd, removeCmd)
+	root.AddCommand(listCmd, showCmd)
 	addSiteWriteCommands(root)
 	return root
 }
