@@ -1,0 +1,8 @@
+POST /a?x=1&y=2 HTTP/1.1
+Host: first.example
+Cookie: sid=abc
+Authorization: Bearer secret
+Content-Type: text/plain
+Content-Length: 11
+
+hello world
