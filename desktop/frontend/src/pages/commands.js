@@ -1,7 +1,9 @@
 // 命令面板：把 CLI 的命令树直接铺到界面上。
 // 清单由 Go 侧 ListCommands() 提供，与 CLI 一一对应；加命令只改 Go 的表，
 // 这里不用跟着改。所有执行都走 RunCommand → cli.RunJSON，桌面端不碰文件。
+// 命令名/参数名/示例值是语言无关的 CLI 文本，不翻译；界面提示语走 t()。
 import { DesktopService, msgOf } from '../api.js';
+import { t } from '../i18n.js';
 import { $, esc, toast } from '../ui/dom.js';
 
 const BOOL_FLAGS = new Set(['--tls', '--yes', '--dry-run', '--merged']);
@@ -13,15 +15,10 @@ const VALUE_HINTS = {
   '--root': './httpdoc/root',
   '--proxy-pass': 'http://127.0.0.1:8080',
   '--server-name': 'a.example b.example',
-  '--config': '留空用默认路径',
-  '--candidate': '候选配置目录',
-  '--current': '当前配置目录或文件',
   '--version': 'v001',
   '--section': 'http|acme|security|waf|sites',
-  '--id': '操作 ID',
   '--limit': '20',
   '--level': 'info',
-  '--status': '4xx 或 500',
   '--kind': 'access|error|system|safe',
   '--until': '10m',
   '--since': '1h',
@@ -30,6 +27,18 @@ const VALUE_HINTS = {
   '--path-prefix': '/api',
   '--reason': 'blacklist',
 };
+// 提示语是界面文案，按当前语言取
+const HINT_KEYS = {
+  '--config': 'cmd.hintConfig',
+  '--candidate': 'cmd.hintCandidate',
+  '--current': 'cmd.hintCurrent',
+  '--id': 'cmd.hintId',
+  '--status': 'cmd.hintStatus',
+};
+
+function hintFor(flag) {
+  return HINT_KEYS[flag] ? t(HINT_KEYS[flag]) : (VALUE_HINTS[flag] || '');
+}
 
 let specs = [];
 let current = -1;
@@ -51,7 +60,7 @@ function fieldFor(flag) {
   const input = bool
     ? '<input type="checkbox" id="' + id + '" data-flag="' + flag + '" data-bool="1"/>'
     : '<input type="text" id="' + id + '" data-flag="' + flag + '" placeholder="' +
-      esc(VALUE_HINTS[flag] || '') + '"/>';
+      esc(hintFor(flag)) + '"/>';
   return '<div class="form-row ' + (bool ? 'cmd-check' : '') + '">' +
     '<label class="form-label" for="' + id + '">' + esc(flag) + '</label>' +
     '<div class="form-control">' + input + '</div></div>';
@@ -64,16 +73,16 @@ function renderForm(i) {
   $('#cmdFormTitle').textContent = s.label + ' · ' + s.name;
   $('#cmdForm').innerHTML =
     (s.args && s.args.length ? s.args.map((a) =>
-      '<div class="form-row"><label class="form-label">位置参数</label>' +
+      '<div class="form-row"><label class="form-label">' + esc(t('cmd.positional')) + '</label>' +
       '<div class="form-control"><input type="text" data-positional placeholder="' +
       esc(a) + '"/></div></div>').join('') :
-      '<div class="form-row"><label class="form-label">位置参数（站点名 / 操作 ID 等）</label>' +
-      '<div class="form-control"><input type="text" id="cmdPositional" data-positional placeholder="按需填写"/></div></div>') +
+      '<div class="form-row"><label class="form-label">' + esc(t('cmd.positionalHint')) + '</label>' +
+      '<div class="form-control"><input type="text" id="cmdPositional" data-positional placeholder="' + esc(t('cmd.positionalPh')) + '"/></div></div>') +
     (s.flags || []).map(fieldFor).join('') +
-    '<div class="form-row cmd-check"><label class="form-label" for="cmdConfirm">确认执行</label>' +
+    '<div class="form-row cmd-check"><label class="form-label" for="cmdConfirm">' + esc(t('cmd.confirm')) + '</label>' +
     '<div class="form-control"><input type="checkbox" id="cmdConfirm"' +
-    (s.needsYes ? '' : ' checked') + '/><small>写操作需要勾选，等价于 CLI 的 --yes</small></div></div>';
-  $('#cmdResult').textContent = '选择一条命令并点击「执行」。';
+    (s.needsYes ? '' : ' checked') + '/><small>' + esc(t('cmd.confirmHint')) + '</small></div></div>';
+  $('#cmdResult').textContent = t('cmd.resultEmpty');
   $('#cmdResult').className = 'cmd-result is-empty';
   document.querySelectorAll('.cmd-item').forEach((b) =>
     b.classList.toggle('on', Number(b.getAttribute('data-index')) === i));
@@ -117,12 +126,12 @@ function collectArgs(s) {
 
 async function run() {
   const s = specs[current];
-  if (!s) { toast('请先选一条命令'); return; }
+  if (!s) { toast(t('cmd.selectFirst')); return; }
   const args = collectArgs(s);
   const btn = $('#cmdRun');
   btn.disabled = true;
   $('#cmdResult').className = 'cmd-result';
-  $('#cmdResult').textContent = '执行中：' + args.join(' ');
+  $('#cmdResult').textContent = t('cmd.running', { args: args.join(' ') });
   try {
     const res = await DesktopService.RunCommand(args);
     // TextOnly 命令（version/start/stop/reload/status/acme show/config path）
@@ -131,11 +140,11 @@ async function run() {
       ? res.text
       : JSON.stringify(res.data ?? {}, null, 2);
     const warns = (res.warnings || []).length
-      ? '\n\n提示：\n' + res.warnings.join('\n') : '';
+      ? '\n\n' + t('cmd.warnings') + '\n' + res.warnings.join('\n') : '';
     $('#cmdResult').textContent = body + warns;
   } catch (err) {
     $('#cmdResult').className = 'cmd-result is-error';
-    $('#cmdResult').textContent = '失败：' + msgOf(err);
+    $('#cmdResult').textContent = t('cmd.failed', { msg: msgOf(err) });
   } finally {
     btn.disabled = false;
   }
@@ -153,6 +162,6 @@ export async function initCommandPanel() {
     $('#cmdRun').addEventListener('click', run);
     if (specs.length) renderForm(0);
   } catch (err) {
-    $('#commandList').textContent = '读取命令清单失败：' + msgOf(err);
+    $('#commandList').textContent = t('cmd.listFailed', { msg: msgOf(err) });
   }
 }

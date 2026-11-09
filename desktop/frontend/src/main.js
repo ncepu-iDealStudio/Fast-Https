@@ -2,6 +2,7 @@
 // 数据交互统一走 api.js，跨模块状态在 state.js。
 import './styles/index.css';
 import { DesktopService, msgOf } from './api.js';
+import { initI18n, t } from './i18n.js';
 import { state } from './state.js';
 import { $, $$, toast } from './ui/dom.js';
 import { initTheme } from './theme.js';
@@ -19,12 +20,13 @@ import { template as confirmTemplate, initConfirmDialog } from './dialogs/confir
 import { template as trustTemplate, initTrustDialog } from './dialogs/trust.js';
 import { template as diagnoseTemplate, initDiagnoseDialog } from './dialogs/diagnose.js';
 import { template as certCheckTemplate, initCertCheckDialog } from './dialogs/certcheck.js';
+import { template as helpTemplate, initHelpDialog } from './dialogs/help.js';
 import { template as accountMenuTemplate, initAccountMenu } from './account-menu.js';
 
 // 弹窗与账户菜单位于 body 末尾：先注入模板，再绑定事件
 document.body.insertAdjacentHTML('beforeend',
   [siteTemplate, closeTemplate, confirmTemplate, trustTemplate,
-   diagnoseTemplate, certCheckTemplate, accountMenuTemplate].join(''));
+   diagnoseTemplate, certCheckTemplate, helpTemplate, accountMenuTemplate].join(''));
 
 // F5 / Ctrl+R 刷新窗口：Frameless 窗口里 WebView 默认快捷键不可靠，
 // wails dev 下改了前端代码可用它强制重载最新模块。
@@ -45,6 +47,11 @@ document.addEventListener('contextmenu', (e) => {
 });
 
 function init() {
+  // 文案翻译放在最前面：上面注入的弹窗/菜单模板也在静态翻译范围内。
+  initI18n();
+  // CSS 伪元素（.form-row.missing 的「未配置」角标）没法调 t()，
+  // 用 CSS 变量把当前语言的文案喂进去（content 需要带引号）。
+  document.documentElement.style.setProperty('--i18n-missing', JSON.stringify(t('settings.formMissing')));
   initTheme();
   initAccountMenu();
   initConfigEditor();
@@ -55,6 +62,7 @@ function init() {
   initTrustDialog();
   initDiagnoseDialog();
   initCertCheckDialog();
+  initHelpDialog();
   initPanels();
   initEventsCard();
 
@@ -72,7 +80,7 @@ function init() {
       if (action === 'minimise') await DesktopService.MinimiseWindow();
       else if (action === 'maximise') await DesktopService.ToggleMaximiseWindow();
       else if (action === 'hide') openCloseDialog();
-    } catch (e) { toast('窗口操作失败：' + msgOf(e)); }
+    } catch (e) { toast(t('toast.windowOpFailed', { msg: msgOf(e) })); }
   }));
 
   renderEvents();

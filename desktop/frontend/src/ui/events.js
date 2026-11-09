@@ -1,6 +1,7 @@
 // 概览页「最近事件」卡片：双 tab ——「操作记录」（operation list/get，
 // 走 RunCommand 转交 CLI）与「本机动态」（pushEvent 由状态轮询合成的本地时间线）。
 import { DesktopService, msgOf } from '../api.js';
+import { t } from '../i18n.js';
 import { $, esc } from './dom.js';
 import { state } from '../state.js';
 
@@ -17,21 +18,21 @@ export function renderEvents() {
   const el = $('#eventList');
   if (!el) return;
   el.innerHTML = state.events.length
-    ? state.events.map((e) => `<li class="${e.kind}"><span class="ev-dot"></span><div><b>${esc(e.text)}</b><small>${esc(e.time)} · 系统消息</small></div></li>`).join('')
-    : '<li class="empty">暂无事件</li>';
+    ? state.events.map((e) => `<li class="${e.kind}"><span class="ev-dot"></span><div><b>${esc(e.text)}</b><small>${esc(e.time)} · ${esc(t('events.systemMsg'))}</small></div></li>`).join('')
+    : `<li class="empty">${esc(t('events.empty'))}</li>`;
 }
 
 export function pushOverviewEvents(ov) {
   if (state.firstOverview) {
-    pushEvent('管理端已启动，开始读取本机状态', 'info');
+    pushEvent(t('events.started'), 'info');
     state.firstOverview = false;
   }
-  if (ov.error && !state.errorPushed) { pushEvent('读取配置文件失败', 'warn'); state.errorPushed = true; }
-  if (!ov.error && state.errorPushed) { pushEvent('读取配置文件恢复', 'ok'); state.errorPushed = false; }
+  if (ov.error && !state.errorPushed) { pushEvent(t('events.configError'), 'warn'); state.errorPushed = true; }
+  if (!ov.error && state.errorPushed) { pushEvent(t('events.configRecovered'), 'ok'); state.errorPushed = false; }
   if (state.lastRunning === null) {
-    if (!ov.error) pushEvent('实时状态检测完成', 'info');
+    if (!ov.error) pushEvent(t('events.statusDone'), 'info');
   } else if (state.lastRunning !== ov.running) {
-    pushEvent(ov.running ? '服务已启动，端口开始响应' : '服务已停止', ov.running ? 'ok' : 'warn');
+    pushEvent(ov.running ? t('events.serverUp') : t('events.serverDown'), ov.running ? 'ok' : 'warn');
   }
   state.lastRunning = ov.running;
 }
@@ -39,13 +40,13 @@ export function pushOverviewEvents(ov) {
 // ---- 操作记录：operation list / operation get ----
 
 const OP_STATUS = {
-  succeeded: ['ok', '成功'],
-  failed: ['err', '失败'],
-  recovery_required: ['err', '待恢复'],
-  running: ['info', '执行中'],
-  queued: ['off', '排队中'],
-  cancelled: ['off', '已取消'],
-  unknown: ['off', '状态未知']
+  succeeded: ['ok', 'ops.succeeded'],
+  failed: ['err', 'ops.failed'],
+  recovery_required: ['err', 'ops.recoveryRequired'],
+  running: ['info', 'ops.running'],
+  queued: ['off', 'ops.queued'],
+  cancelled: ['off', 'ops.cancelled'],
+  unknown: ['off', 'status.unknown']
 };
 
 let opsBusy = false;
@@ -54,11 +55,12 @@ export function renderOperations(ops) {
   const el = $('#opList');
   if (!el) return;
   if (!ops.length) {
-    el.innerHTML = '<li class="empty">暂无操作记录</li>';
+    el.innerHTML = `<li class="empty">${esc(t('ops.empty'))}</li>`;
     return;
   }
   el.innerHTML = ops.map((op) => {
-    const [cls, label] = OP_STATUS[op.status] || ['off', op.status || '—'];
+    const [cls, key] = OP_STATUS[op.status] || ['off', ''];
+    const label = key ? t(key) : (op.status || '—');
     return `<li class="op-item st-${cls}" data-op-id="${esc(op.operation_id || '')}"><span class="ev-dot"></span><div><b>${esc(op.command || '—')}</b><small>${esc(op.created_at || '')}${op.operation_id ? ' · ' + esc(op.operation_id) : ''}</small></div><span class="op-badge st-${cls}">${esc(label)}</span></li>`;
   }).join('');
 }
@@ -72,7 +74,7 @@ export async function refreshOperations() {
     const res = await DesktopService.RunCommand(['operation', 'list', '--limit', '8']);
     renderOperations(res?.data?.operations || []);
   } catch (e) {
-    el.innerHTML = `<li class="empty">读取操作记录失败：${esc(msgOf(e))}</li>`;
+    el.innerHTML = `<li class="empty">${esc(t('ops.loadFailed', { msg: msgOf(e) }))}</li>`;
   } finally {
     opsBusy = false;
   }
@@ -83,14 +85,14 @@ async function openOperationDetail(id) {
   if (!box || !id) return;
   box.hidden = false;
   box.className = 'cmd-result';
-  box.textContent = '正在读取 ' + id + ' …';
+  box.textContent = t('ops.reading', { id });
   try {
     // §8.2：data 直接是 operation.Record 对象
     const res = await DesktopService.RunCommand(['operation', 'get', id]);
     box.textContent = JSON.stringify(res?.data ?? {}, null, 2);
   } catch (e) {
     box.className = 'cmd-result is-error';
-    box.textContent = '读取失败：' + msgOf(e);
+    box.textContent = t('ops.readFailed', { msg: msgOf(e) });
   }
 }
 

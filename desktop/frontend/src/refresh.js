@@ -1,6 +1,7 @@
 // 数据拉取编排：概览每 2 秒一次，明细（站点/证书/路径/矩阵日志）15 秒一次。
 // 新增卡片（运行快照/Monitor/ACME/配置版本）的刷新各自管理，不进这里的轮询。
 import { DesktopService, msgOf } from './api.js';
+import { t } from './i18n.js';
 import { $, bind } from './ui/dom.js';
 import { state } from './state.js';
 import { renderOverview } from './pages/overview.js';
@@ -12,12 +13,12 @@ export async function refreshOverview() {
   try {
     renderOverview(await DesktopService.GetOverview());
   } catch (e) {
-    bind('running', '未连接后端');
+    bind('running', t('status.notConnected'));
     const alert = $('#overviewError');
     alert.hidden = false;
     alert.className = 'alert-strip';
-    $('#alertTitle').textContent = '无法连接 Go 后端';
-    $('#alertBody').textContent = msgOf(e) + '。请用 wails3 dev 或构建后的程序打开。';
+    $('#alertTitle').textContent = t('overview.alertBackendTitle');
+    $('#alertBody').textContent = t('overview.alertBackendBody', { msg: msgOf(e) });
   } finally {
     state.overviewBusy = false;
   }

@@ -14,12 +14,37 @@
 .dialog-wide .form-row { grid-template-columns: 150px minmax(0,1fr); gap: 14px; padding: 5px 0; }
 .dialog-wide .form-label { font-size: 12px; }
 .dialog-wide .form-label small { font-size: 11px; }
+
+/* 帮助弹窗：左侧目录 + 右侧正文，整体在应用内展示 */
+.dialog-doc { width: min(880px, calc(100vw - 48px)); max-height: 86vh; display: flex; flex-direction: column; }
+.help-layout { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 20px; min-height: 0; margin: 12px 0 4px; }
+.help-toc { display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); padding-right: 12px; overflow-y: auto; }
+.help-toc-item { padding: 7px 10px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 12.5px; line-height: 1.45; }
+.help-toc-item:hover { background: var(--accent-soft); color: var(--text); }
+.help-body { overflow-y: auto; min-height: 0; padding-right: 6px; }
+.help-section { margin-bottom: 26px; scroll-margin-top: 8px; }
+.help-section h4 { margin: 0 0 10px; font-size: 15px; }
+.help-section p, .help-section li { font-size: 13px; line-height: 1.8; color: var(--text); }
+.help-section p { margin: 8px 0; }
+.help-section ul, .help-section ol { margin: 8px 0; padding-left: 22px; }
+.help-section .mono, .help-section .cmd-result { font-family: Consolas, "Courier New", monospace; }
+.help-section .mono { font-size: 12px; background: var(--accent-soft); border-radius: 4px; padding: 1px 5px; }
+.help-section .cmd-result { margin: 10px 0; padding: 12px 14px; font-size: 11.5px; line-height: 1.7; overflow-x: auto; max-height: 320px; }
+.help-table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+.help-table th, .help-table td { text-align: left; font-size: 12.5px; line-height: 1.7; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.help-table th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.help-table td.mono { background: transparent; padding: 8px 10px; }
 .dialog-error { color: var(--danger); font-size: 12px; margin: 10px 0 0; line-height: 1.6; }
 .dialog-hint { color: var(--faint); font-size: 12px; margin: 12px 0 0; line-height: 1.7; }
 .card-head-actions { display: flex; align-items: center; gap: 12px; }
 .form-control.with-browse { display: flex; align-items: center; gap: 8px; }
 .form-control.with-browse input { flex: 1; min-width: 0; }
 .form-control.with-browse .btn { flex: 0 0 auto; white-space: nowrap; }
+.inline-fields { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.form-control .inline-fields select { max-width: 170px; }
+.mini-field { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.mini-field input[type="number"] { width: 84px; max-width: 84px; }
+.field-note { display: block; margin-top: 4px; font-size: 11px; line-height: 1.5; color: var(--faint); }
 
 /* 站点访问地址：点击用系统浏览器打开 */
 .site-link { color: var(--accent); text-decoration: none; border-bottom: 1px dotted currentColor; cursor: pointer; overflow-wrap: anywhere; }
@@ -69,10 +94,12 @@
 .lede { font-size: 13px; line-height: 1.7; margin: 0 0 16px; color: var(--muted); }
 .mono { font-family: Consolas, "Courier New", monospace; }
 .kv-table { border-top: 1px solid var(--line-strong); }
-.kv-row { display: grid; grid-template-columns: 150px minmax(0,1fr) 200px; gap: 16px; align-items: center; min-height: 44px; border-bottom: 1px solid var(--line); font-size: 13px; }
+/* 第三列 auto：没有 .n 内容的两列行（运行快照、Monitor 等窄卡片）不占位，
+   否则固定 200px 会把中间的值列挤成一字一行。 */
+.kv-row { display: grid; grid-template-columns: 150px minmax(0,1fr) auto; gap: 16px; align-items: center; min-height: 44px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .kv-row .k { color: var(--muted); }
 .kv-row .v { overflow-wrap: anywhere; }
-.kv-row .n { color: var(--muted); font-size: 12px; text-align: right; }
+.kv-row .n { color: var(--muted); font-size: 12px; text-align: right; max-width: 240px; overflow-wrap: anywhere; }
 h4 { font-size: 13px; font-weight: 650; margin: 22px 0 8px; }
 h4:first-of-type { margin-top: 0; }
 .setting-note { font-size: 13px; line-height: 1.8; color: var(--muted); margin: 0; max-width: 760px; }
@@ -80,7 +107,8 @@ h4:first-of-type { margin-top: 0; }
 .form-row { display: grid; grid-template-columns: 210px minmax(0,1fr); gap: 16px; align-items: start; padding: 6px 0; }
 .form-label { font-size: 13px; line-height: 1.5; }
 .form-label small { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; line-height: 1.5; }
-.form-row.missing .form-label::after { content: "未配置"; margin-left: 6px; font-size: 10px; color: var(--warn); }
+/* 「未配置」角标走 CSS 变量：文案由 main.js 用 i18n 字典注入，新增语言不用改这里 */
+.form-row.missing .form-label::after { content: var(--i18n-missing, "未配置"); margin-left: 6px; font-size: 10px; color: var(--warn); }
 .form-control input[type="text"], .form-control input[type="number"], .form-control input[type="email"], .form-control select, .form-control textarea { width: 100%; max-width: 560px; height: 34px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
 .form-control textarea { height: auto; min-height: 62px; padding: 8px 10px; resize: vertical; font: 12px/1.6 Consolas, "Courier New", monospace; }
 .form-control input:focus, .form-control select:focus, .form-control textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -149,8 +177,10 @@ h4:first-of-type { margin-top: 0; }
 .toast { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 40; padding: 11px 18px; max-width: 70%; border-radius: 6px; font-size: 13px; background: var(--text); color: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.2); overflow-wrap: anywhere; }
 
 /* 站点启停：开启态保持中性，停用态用灰化 + 斜杠图标提示 */
-.icon-btn.site-toggle.is-off { color: var(--muted); border-color: var(--line); }
-.icon-btn.site-toggle:hover { color: var(--accent); border-color: var(--line-strong); }
+.icon-btn.site-toggle.is-on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.icon-btn.site-toggle.is-on:hover { color: var(--ok); border-color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.icon-btn.site-toggle.is-off { color: var(--faint); border-color: var(--line); background: transparent; }
+.icon-btn.site-toggle.is-off:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 8%, transparent); }
 
 /* 状态徽标：证书状态 / 操作状态 / 检查结果通用（valid 绿、expiring 橙、expired 红） */
 .st-badge { display: inline-block; padding: 1px 8px; border: 1px solid var(--line-strong); border-radius: 4px; font-size: 11px; font-weight: 500; color: var(--muted); background: var(--bg); white-space: nowrap; }
@@ -162,7 +192,11 @@ h4:first-of-type { margin-top: 0; }
 /* 操作记录时间线：整行可点开详情 */
 .op-item { cursor: pointer; align-items: center; }
 .op-item:hover { background: var(--accent-soft); }
-.op-badge { flex: 0 0 auto; margin-left: auto; align-self: center; }
+.op-badge { flex: 0 0 auto; margin-left: auto; align-self: center; font-size: 11px; }
+.op-badge.st-ok { color: var(--ok); }
+.op-badge.st-err { color: var(--danger); }
+.op-badge.st-info { color: var(--muted); }
+.op-badge.st-off { color: var(--faint); }
 .kv-row .n .st-badge + small { display: block; margin-top: 2px; }
 .kv-row .row-err { display: block; color: var(--danger); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px; }
 

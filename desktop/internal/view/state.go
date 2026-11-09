@@ -648,6 +648,16 @@ func EtcPath(etcDir, p string) string {
 	return filepath.Join(etcDir, clean)
 }
 
+// WriteNote 是写操作结果文案里关于「生效」的平台提示。
+// Windows 上热重载信号（CTRL_BREAK）到不了别的控制台，配置事务里的
+// reload 可能没打进去；如实提示，别把「已写入」说成「已生效」。
+func WriteNote() string {
+	if runtime.GOOS == "windows" {
+		return "。配置已通过事务提交；Windows 上热重载有限制，若改动未生效，点「重载配置」会自动重启服务"
+	}
+	return "。配置事务已校验并自动重载，无需手动刷新。"
+}
+
 // OpenPath 用系统默认方式打开文件或目录。
 func OpenPath(path string) (string, error) {
 	var cmd *exec.Cmd

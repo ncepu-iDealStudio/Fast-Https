@@ -4,6 +4,7 @@
 // 「加载更早」把上一页的 page.nextUntil 传到 cursor（后端会剔掉与游标
 // 同时间的重复行）。
 import { DesktopService, msgOf } from '../api.js';
+import { t } from '../i18n.js';
 import { $, esc } from '../ui/dom.js';
 import { state } from '../state.js';
 
@@ -17,7 +18,7 @@ function renderLogRows() {
   const el = $('#logList');
   const keep = el.scrollTop;
   if (!logRows.length) {
-    el.innerHTML = '<div class="log-empty">没有匹配的日志</div>';
+    el.innerHTML = `<div class="log-empty">${esc(t('logs.empty'))}</div>`;
     return;
   }
   el.innerHTML = logRows.map((e) => {
@@ -25,7 +26,7 @@ function renderLogRows() {
     const time = m ? m[1] : (e.time || '—');
     const lvl = e.level || '—';
     const size = String(e.size ?? '');
-    const extra = [e.host, e.status ? '状态 ' + e.status : '', size ? (/^\d+$/.test(size) ? size + ' B' : size) : '']
+    const extra = [e.host, e.status ? t('logs.statusLabel', { code: e.status }) : '', size ? (/^\d+$/.test(size) ? size + ' B' : size) : '']
       .filter(Boolean).join(' · ');
     return `<div class="log-row" title="${esc(e.raw || '')}"><span class="log-time">${esc(time)}</span><span class="log-level lv-${esc(lvl)}">${esc(lvl)}</span><span class="log-msg">${esc(e.message || '—')}${extra ? `<small>${esc(extra)}</small>` : ''}</span></div>`;
   }).join('');
@@ -34,8 +35,8 @@ function renderLogRows() {
 
 function setStatusText() {
   $('#logStatusText').textContent = logHasMore
-    ? `已加载 ${logRows.length} 条 · 还有更早的记录`
-    : (logRows.length ? '已到最早' : '没有匹配的日志');
+    ? t('logs.statusLoaded', { n: logRows.length })
+    : (logRows.length ? t('logs.statusOldest') : t('logs.empty'));
 }
 
 export async function loadLogs(reset) {
@@ -49,7 +50,7 @@ export async function loadLogs(reset) {
   logLoading = true;
   const more = $('#logMore');
   more.disabled = true;
-  $('#logStatusText').textContent = '正在查询…';
+  $('#logStatusText').textContent = t('logs.querying');
   try {
     const page = await DesktopService.QueryLogs({
       kind: state.currentLog,
@@ -73,7 +74,7 @@ export async function loadLogs(reset) {
     setStatusText();
     more.hidden = !logHasMore;
   } catch (e) {
-    $('#logStatusText').textContent = '查询失败：' + msgOf(e);
+    $('#logStatusText').textContent = t('logs.queryFailed', { msg: msgOf(e) });
   } finally {
     logLoading = false;
     more.disabled = false;

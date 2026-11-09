@@ -23,6 +23,18 @@
 
 如果窗口里看不到最新改动，先确认只有一份 Vite 在 9245，关掉旧窗口再重跑 `wails3 dev`。加 `-port 9246` 可以换端口另起一个实例。
 
+## 前端点击测试台（devtest/）
+
+改完前端想快速过一遍交互而不想起 Wails 窗口时，用 `frontend/devtest/` 的点击测试台：它把 `DesktopService` 换成 mock（`mock-service.js`，字段与 `internal/model` 的契约一致），用 Playwright（无头 Edge）把所有页面、弹窗与关键交互点一遍，逐屏截图到 `devtest/shots/`，并收集控制台错误与关键断言（如协议/端口联动生成 listen）。
+
+```powershell
+cd desktop\frontend\devtest
+npm install          # 只装 playwright，浏览器用本机 Edge，不下载
+node run.mjs         # 遍历 + 截图 + 断言，末尾打印通过汇总
+```
+
+`vite.config.mjs` 会劫持 `bindings/fast-https-desktop` 的导入指向 mock，所以跑的是真实前端代码。改了 DTO 契约（`internal/model`）要同步 `mock-service.js` 的样例数据。
+
 ## 构建
 
 ```powershell
@@ -118,9 +130,11 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 「校验配置」按钮转交 `config validate`；「配置版本」卡片转交 `config versions`，每行可「对比」（`config diff --candidate <版本>`）或「回滚」（`config rollback --version <版本> --yes`，是一次新的事务操作，可再次回滚）。「运行时路径」只读展示 `config path` 的输出。主程序不在同目录时会显示读取失败并禁用表单。
 
-## 证书页：信任本地 CA 引导
+## 证书页：证书清单、检查与信任本地 CA
 
-证书页右上角「信任本地 CA…」弹出引导：显示 `root.crt` 的实际路径与是否已生成、风险提示、按平台给出的分步说明和可直接复制的导入命令（Windows `certutil`、Linux `update-ca-certificates`、macOS `security add-trusted-cert`）。另有「打开证书目录」与「尝试自动导入」两个按钮。
+证书页的数据来自 `cert list`（按证书文件归并，给出发签者、到期时间、剩余天数与 `valid/expiring/expired/missing` 状态徽标）；行内「检查」按钮转交 `cert check`，弹窗展示存在性、有效期、域名覆盖、密钥配对四项结果；「ACME 设置」卡片展示 `acme show` 的文本输出。
+
+右上角「信任本地 CA…」弹出引导：显示 `root.crt` 的实际路径与是否已生成、风险提示、按平台给出的分步说明和可直接复制的导入命令（Windows `certutil`、Linux `update-ca-certificates`、macOS `security add-trusted-cert`）。另有「打开证书目录」与「尝试自动导入」两个按钮。
 
 弹窗会标明当前平台（Windows / Linux / macOS），证书与私钥路径都由主程序 `config path --json` 动态给出，命令与确认方式按平台生成，通用说明用平台中性措辞。桌面端不会擅自改系统信任库：自动导入前会再弹一次确认，明确说明「本机所有 HTTPS 站点都会信任由这个 CA 签发的证书」，确认后才发起提权（Windows 走 UAC 的 `Start-Process -Verb RunAs`，Linux 走 `pkexec`，macOS 只给手动命令）。提权失败或工具缺失时，弹窗会把系统输出带回来并提示改用复制的命令手动执行。相关 Go 代码在 `cert_trust.go`，路径推导与各平台命令由 `cert_trust_test.go` 覆盖。
 
@@ -130,31 +144,42 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 ```
 src/
-  main.js           入口：注入弹窗模板 → 各模块 init → 导航/动作/日志/窗口绑定 → 定时刷新
+  main.js           入口：initI18n → 注入弹窗模板 → 各模块 init → 导航/动作/日志/窗口绑定 → 定时刷新
   api.js            DesktopService 统一出口 + msgOf 错误提取
+  i18n.js           多语言机制：t() / applyStatic() / LANGS 注册表 / setLang()
+  locales/          zh-CN.js、en.js 两份字典（437 key，一一对应）；加语言 = 加一份字典 + 注册表一行
+  help-content.js   帮助文档内容（中英双语分节，命令输出实测）
   state.js          跨模块共享状态（当前日志、日志游标、配置脏标记等）
   theme.js          亮暗主题与五档中性色
   router.js         工作区切换与按需加载（设置页拉配置版本、矩阵页刷新面板、证书页拉 ACME）
   refresh.js        概览 2s / 明细 15s 拉取编排
   actions.js        data-action 按钮统一入口
-  account-menu.js   左下角账户菜单
+  account-menu.js   左下角账户菜单（外观、语言、设置、托盘、帮助）
   ui/dom.js         $ / $$ / bind / esc / toast / localStorage
   ui/events.js      概览「最近事件」：操作记录（operation list/get）+ 本机动态时间线
   pages/            overview / details / config / logs / commands / panels 六个页面模块
                     （panels.js = 运行快照、Monitor、ACME 三块卡片，手动刷新）
-  dialogs/          close / confirm / site / trust / diagnose / certcheck 六个弹窗（各导出 template + init）
+  dialogs/          close / confirm / site / trust / diagnose / certcheck / help 七个弹窗
   styles/           base / layout / components / pages（变量、骨架、组件、页面）
+scripts/
+  i18n-check.mjs    字典一致性 / key 覆盖 / 裸中文 / 语言切换冒烟自查（npm run i18n:check）
 ```
 
 弹窗与账户菜单的 HTML 不再写在根 `index.html` 里，而是由各自模块导出 `template`，入口在挂载时注入 `body` 末尾；事件绑定与业务逻辑仍留在对应模块。这样单文件不会随功能增加而膨胀，改某个页面或弹窗只需看一个文件。
 
 普通页面的数据走 `DesktopService` 的专用方法（映射成对应 CLI 命令）；补充面板（运行快照、Monitor、操作记录、健康检查、证书检查、ACME、配置版本/差异/回滚）直接走 `RunCommand(args)` 通用转交，按命令渲染 CLI 的 data 原样 JSON，桌面端不再为每个命令定义一份结构体。
 
+## 多语言
+
+界面文案全部走 `t('key')`（静态 HTML 挂 `data-i18n` 系列属性，动态渲染在函数里调 `t()`），字典在 `src/locales/`，中英各一份、key 一一对应，`npm run i18n:check` 自查一致性与覆盖率（已串进 `npm run build`）。切换语言在左下角「本机管理」→「语言」，写入 `localStorage` 后整窗重载。
+
+**加一种语言只加一个文件**：复制 `locales/zh-CN.js` 翻译成 `locales/ja.js`，在 `i18n.js` 的 `LANGS` 注册表加一行即可，业务代码零改动；缺 key 时回落中文再回落 key 原文。帮助文档内容（`help-content.js`）按语言分节数组，同样加一份即可。语言无关的内容（CLI 命令、JSON 字段、路径、mono 块）不进字典；Go 后端返回的数据文本由后端文案负责，前端不二次翻译。
+
 ## 主题
 
-左下角「本机管理」点击弹出账户菜单，里面包含：亮色／暗色、五档中性色（石墨、暖灰、松绿、赭石、靛灰，默认亮色 + 石墨）、设置页、隐藏到后台托盘、帮助文档。主题选择保存在本机 `localStorage`。
+左下角「本机管理」点击弹出账户菜单，里面包含：亮色／暗色、五档中性色（石墨、暖灰、松绿、赭石、靛灰，默认亮色 + 石墨）、语言（简体中文 / English，可扩展）、设置页、隐藏到后台托盘、帮助文档。主题与语言偏好都保存在本机 `localStorage`。
 
-「帮助文档」打开发行包里的 `docs/usage.html`（开发时 exe 在 `desktop/bin/`，会回退到仓库根）。顶部工具按钮与左侧「设置」导航项已移除，统一从这个菜单进入。
+「帮助文档」在**应用内弹窗**展示（左目录 + 右正文，中英双语，内容在 `src/help-content.js`，命令输出都是实测过的），不再跳浏览器；弹窗底部的「完整命令参考…」才用系统浏览器打开发行包里的 `docs/usage.html`。顶部工具按钮与左侧「设置」导航项已移除，统一从本机管理菜单进入。
 
 「启动／停止服务」与「重载配置」（`service reload` 受控重载）在概览页「运行概况」卡片右上；底部状态栏固定在窗口下沿，只放运行状态、pid、监听探测结果、刷新时间与两个图标按钮。版本号只在侧边栏显示一次，不在状态栏或账户菜单里重复。站点／证书／日志页不再重复页面标题，说明文字直接铺在卡片里；窗口不显示页面大标题，内容直接从顶部铺满。站点页的启停、删除与编辑都走 `site` 命令的配置事务（可回滚、自动 reload），主配置内联站点不在列表里。
 

@@ -167,7 +167,7 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 	if len(extra) > 0 {
 		msg += "（" + strings.Join(extra, "，") + "）"
 	}
-	return msg + "。已自动重载，无需手动刷新。", nil
+	return msg + view.WriteNote(), nil
 }
 
 // buildCandidate 复刻主程序 siteops.CloneLiveTree 搭一棵候选配置树：

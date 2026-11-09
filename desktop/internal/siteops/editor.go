@@ -99,7 +99,7 @@ func txnMessage(data any, verb, name string) string {
 	if len(extra) > 0 {
 		msg += "（" + strings.Join(extra, "，") + "）"
 	}
-	return msg + "。配置事务已校验并自动重载，无需手动刷新。"
+	return msg + view.WriteNote()
 }
 
 // planAdd 把弹窗输入翻译成 CLI 参数：site add 建站（域名即文件名），

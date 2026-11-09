@@ -2,12 +2,13 @@
 // 站点行来自 ListSites()（model.Site：id/name/port/listen/tls/source/enabled/
 // certStatus/error），行内按钮用 data-id（站点名，site 命令的位置参数）。
 import { $, esc } from '../ui/dom.js';
+import { t } from '../i18n.js';
 import { state } from '../state.js';
 
 export function renderRows(target, rows) {
   $(target).innerHTML = rows.length
     ? rows.map((r) => `<div class="kv-row"><span class="k">${esc(r.k)}</span><span class="v">${esc(r.v)}</span><span class="n">${esc(r.n || '')}</span></div>`).join('')
-    : '<div class="kv-row"><span class="k">—</span><span class="v">没有可显示的数据</span></div>';
+    : `<div class="kv-row"><span class="k">—</span><span class="v">${esc(t('common.none'))}</span></div>`;
 }
 
 function formatAccessSize(n) {
@@ -24,27 +25,27 @@ function sizeText(size) {
   return /^\d+$/.test(s) ? formatAccessSize(Number(s)) : s;
 }
 
-function timeHHMMSS(t) {
-  const m = String(t || '').match(/T(\d{2}:\d{2}:\d{2})/);
-  return m ? m[1] : (String(t || '').slice(0, 8) || '—');
+function timeHHMMSS(time) {
+  const m = String(time || '').match(/T(\d{2}:\d{2}:\d{2})/);
+  return m ? m[1] : (String(time || '').slice(0, 8) || '—');
 }
 
 // 证书状态徽标：valid 绿 / expiring 橙 / expired、missing 红 / 其余中性
 const CERT_STATUS = {
-  valid: ['ok', '有效'],
-  expiring: ['warn', '即将到期'],
-  expired: ['err', '已过期'],
-  not_yet_valid: ['off', '未生效'],
-  missing: ['err', '缺失'],
-  unreadable: ['err', '不可读'],
-  unknown: ['off', '未知']
+  valid: ['ok', 'certs.stValid'],
+  expiring: ['warn', 'certs.stExpiring'],
+  expired: ['err', 'certs.stExpired'],
+  not_yet_valid: ['off', 'certs.stNotYetValid'],
+  missing: ['err', 'certs.stMissing'],
+  unreadable: ['err', 'certs.stUnreadable'],
+  unknown: ['off', 'certs.stUnknown']
 };
 
 export function certBadge(status) {
   const st = String(status || '');
   if (!st) return '';
-  const [cls, label] = CERT_STATUS[st] || ['off', st];
-  return `<span class="st-badge st-${cls}" title="${esc(st)}">${esc(label)}</span>`;
+  const [cls, key] = CERT_STATUS[st] || ['off', ''];
+  return `<span class="st-badge st-${cls}" title="${esc(st)}">${esc(key ? t(key) : st)}</span>`;
 }
 
 // 状态矩阵「访问日志」栏：TailLog('access', n) 现在返回 model.LogEntry[]，
@@ -53,7 +54,7 @@ export function renderLogEntries(entries, target) {
   const el = $(target);
   if (!el) return;
   if (!entries || entries.length === 0) {
-    el.innerHTML = '<div class="log-empty">日志为空或文件不存在</div>';
+    el.innerHTML = `<div class="log-empty">${esc(t('matrix.accessEmpty'))}</div>`;
     return;
   }
   el.innerHTML = entries.slice(0, 8).map((e) => {
@@ -86,18 +87,18 @@ export function renderSites(sites, certs) {
         const off = state.lastOverview?.running ? '' : ' is-off';
         // site list 的每行都是 conf.d 下的独立站点文件，全部可启停/删除
         const isOn = s.enabled !== false;
-        const toggleBtn = '<button class="icon-btn site-toggle' + (isOn ? '' : ' is-off') + '"'
+        const toggleBtn = '<button class="icon-btn site-toggle' + (isOn ? ' is-on' : ' is-off') + '"'
           + ' data-id="' + esc(s.id) + '"'
           + ' data-enabled="' + (isOn ? '0' : '1') + '"'
-          + ' title="' + (isOn ? '停用站点' : '启用站点') + '">'
+          + ' title="' + esc(isOn ? t('sites.toggleOn') : t('sites.toggleOff')) + '">'
           + '<svg viewBox="0 0 16 16" aria-hidden="true">'
           + '<path d="M8 2.2v5.1M4.6 4.1a5 5 0 1 0 6.8 0"/>'
           + (isOn ? '' : '<path d="M2.4 2.4l11.2 11.2"/>')
           + '</svg></button>';
-        const delBtn = '<button class="icon-btn site-del" data-id="' + esc(s.id) + '" data-name="' + esc(s.name) + '" title="删除站点">'
+        const delBtn = '<button class="icon-btn site-del" data-id="' + esc(s.id) + '" data-name="' + esc(s.name) + '" title="' + esc(t('sites.del')) + '">'
           + '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.6 4.4h10.8M6.3 4.4V2.8h3.4v1.6M3.9 4.4l.5 8.1c.04.6.55 1.1 1.16 1.1h4.88c.61 0 1.12-.5 1.16-1.1l.5-8.1M6.6 7.2v3.8M9.4 7.2v3.8"/></svg>'
           + '</button>';
-        const detailBtn = '<button class="icon-btn site-more" data-id="' + esc(s.id) + '" title="查看详情">⋯</button>';
+        const detailBtn = '<button class="icon-btn site-more" data-id="' + esc(s.id) + '" title="' + esc(t('sites.detail')) + '">⋯</button>';
         const badge = certBadge(s.certStatus);
         const err = s.error ? '<span class="row-err" title="' + esc(s.error) + '">' + esc(s.error) + '</span>' : '';
         return `<div class="kv-row">`
@@ -106,16 +107,16 @@ export function renderSites(sites, certs) {
           + `<span class="n with-action"><span title="${esc(s.source || '')}">${esc(s.name || s.source || '')}</span>${err}${toggleBtn}${delBtn}${detailBtn}</span>`
           + `</div>`;
       }).join('')
-    : '<div class="kv-row"><span class="k">—</span><span class="v">没有站点</span></div>';
+    : `<div class="kv-row"><span class="k">—</span><span class="v">${esc(t('sites.empty'))}</span></div>`;
   $('#matrixBody').innerHTML = sites.length
     ? sites.map((s) => {
         const c = certs.find((x) => x.domain === s.name);
-        let dot = 'off', text = '未运行';
+        let dot = 'off', text = t('matrix.legendOff');
         if (state.lastOverview?.running) {
-          if (c?.local || c?.selfSigned) { dot = 'warn'; text = '本地证书'; }
-          else { dot = 'ok'; text = '正常'; }
+          if (c?.local || c?.selfSigned) { dot = 'warn'; text = t('matrix.localCert'); }
+          else { dot = 'ok'; text = t('matrix.legendOk'); }
         }
-        const issuer = c ? (c.local ? '本地 CA 自动签发' : (c.issuer || '—')) : (s.certStatus || '—');
+        const issuer = c ? (c.local ? t('certs.local') : (c.issuer || '—')) : (s.certStatus || '—');
         return `<tr>
           <td title="${esc(s.name)}">${esc(s.name)}</td>
           <td class="mono">${esc(s.port || '—')}</td>
@@ -124,7 +125,7 @@ export function renderSites(sites, certs) {
           <td class="state-cell"><span class="matrix-state"><i class="dot ${dot}"></i>${text}</span></td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="5">没有站点</td></tr>';
+    : `<tr><td colspan="5">${esc(t('sites.empty'))}</td></tr>`;
 }
 
 export function renderCerts(certs) {
@@ -132,31 +133,31 @@ export function renderCerts(certs) {
     ? certs.map((c) => {
         const detail = [
           c.subject || c.domain,
-          c.local ? '本地 CA 自动签发' : (c.issuer || '—'),
+          c.local ? t('certs.local') : (c.issuer || '—'),
           c.notAfter || '—',
-          c.daysLeft > 0 ? '剩 ' + c.daysLeft + ' 天' : (c.status === 'expired' ? '已过期' : ''),
+          c.daysLeft > 0 ? t('certs.daysLeft', { days: c.daysLeft }) : (c.status === 'expired' ? t('certs.stExpired') : ''),
           c.names || '',
           c.note || ''
         ].filter(Boolean).join('　·　');
         return `<div class="kv-row">`
           + `<span class="k">${esc(c.domain)}</span>`
           + `<span class="v">${esc(detail)}</span>`
-          + `<span class="n with-action">${certBadge(c.status) || esc(c.local ? '本地生成' : (c.selfSigned ? '自签' : '已签发'))}`
-          + `<button class="icon-btn cert-check" data-domain="${esc(c.domain)}" title="检查该域名的证书">`
+          + `<span class="n with-action">${certBadge(c.status) || esc(c.local ? t('certs.localGenerated') : (c.selfSigned ? t('certs.selfSigned') : t('certs.issued')))}`
+          + `<button class="icon-btn cert-check" data-domain="${esc(c.domain)}" title="${esc(t('certs.check'))}">`
           + `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4L14 14"/></svg>`
           + `</button></span></div>`;
       }).join('')
-    : '<div class="kv-row"><span class="k">—</span><span class="v">没有证书</span></div>';
+    : `<div class="kv-row"><span class="k">—</span><span class="v">${esc(t('certs.empty'))}</span></div>`;
   $('#metricCerts').textContent = certs.length;
   $('#certCount').textContent = certs.length;
 }
 
 export function renderPaths(p) {
   renderRows('#pathsTable', [
-    { k: '主配置', v: p.config, n: 'config' },
-    { k: '证书目录', v: p.cert, n: 'cert' },
-    { k: '日志目录', v: p.log, n: 'log' },
-    { k: 'pid 文件', v: p.pid, n: 'pid' },
-    { k: '管理状态目录', v: p.state, n: 'state' }
+    { k: t('paths.config'), v: p.config, n: 'config' },
+    { k: t('paths.cert'), v: p.cert, n: 'cert' },
+    { k: t('paths.log'), v: p.log, n: 'log' },
+    { k: t('paths.pid'), v: p.pid, n: 'pid' },
+    { k: t('paths.state'), v: p.state, n: 'state' }
   ]);
 }

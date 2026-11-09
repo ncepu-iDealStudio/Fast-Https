@@ -34,9 +34,10 @@
 .timeline li:last-child { border-bottom: 0; }
 .timeline li.empty { color: var(--faint); font-size: 13px; }
 .ev-dot { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: var(--warn); margin-top: 6px; }
-.timeline li.ok .ev-dot { background: var(--ok); }
-.timeline li.info .ev-dot { background: var(--accent); }
-.timeline li.err .ev-dot { background: var(--danger); }
+.timeline li.ok .ev-dot, .timeline li.st-ok .ev-dot { background: var(--ok); }
+.timeline li.info .ev-dot, .timeline li.st-info .ev-dot { background: var(--accent); }
+.timeline li.err .ev-dot, .timeline li.st-err .ev-dot { background: var(--danger); }
+.timeline li.st-off .ev-dot { background: var(--faint); }
 .timeline b { display: block; font-size: 13px; font-weight: 600; }
 .timeline small { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
 

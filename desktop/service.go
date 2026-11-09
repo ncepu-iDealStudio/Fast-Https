@@ -152,11 +152,22 @@ func (s *DesktopService) StopServer() (string, error) {
 
 // ReloadServer 转交 service reload（受控重载：校验、operation 记录、
 // reload 后验证）。服务没在跑时给出可读提示而不是报错吓人。
+// Windows 上热重载信号（CTRL_BREAK）到不了别的控制台，service reload 基本
+// 都会失败；此时自动改走「停止 + 启动」的重启，让新配置真正生效。
 func (s *DesktopService) ReloadServer() (string, error) {
 	data, _, err := cli.RunJSON[any](s.baseDir, "service", "reload")
 	if err != nil {
-		if strings.Contains(err.Error(), "not running") {
+		msg := err.Error()
+		if strings.Contains(msg, "not running") {
 			return "服务未运行，无需重载；配置会在下次启动时生效", nil
+		}
+		if strings.Contains(msg, "not supported by windows") {
+			if _, stopErr := view.StopServer(s.baseDir); stopErr == nil {
+				if _, startErr := view.StartServer(s.baseDir); startErr == nil {
+					return "Windows 上没有跨窗口的热重载信号，已自动重启服务，新配置已生效", nil
+				}
+			}
+			return "", fmt.Errorf("重载失败，重启服务也未成功：%s", msg)
 		}
 		return "", err
 	}
