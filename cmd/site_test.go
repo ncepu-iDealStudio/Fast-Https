@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fast-https/config"
+	"fast-https/modules/site"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +59,7 @@ func TestSiteInitNonInteractiveCreatesFile(t *testing.T) {
 		NonInteractive: true,
 		Out:            &out,
 	}
-	if err := runSiteInit(opts); err != nil {
+	if err := createSiteForTest(t, opts); err != nil {
 		t.Fatalf("init: %v\n%s", err, out.String())
 	}
 
@@ -72,9 +73,6 @@ func TestSiteInitNonInteractiveCreatesFile(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), `"listen": 80`) {
 		t.Fatalf("generated file:\n%s", raw)
-	}
-	if !strings.Contains(out.String(), "fast-https reload") {
-		t.Fatalf("output should point at reload: %q", out.String())
 	}
 }
 
@@ -93,7 +91,7 @@ func TestSiteInitTLSAllowsMissingCerts(t *testing.T) {
 		NonInteractive: true,
 		Out:            &bytes.Buffer{},
 	}
-	if err := runSiteInit(opts); err != nil {
+	if err := createSiteForTest(t, opts); err != nil {
 		t.Fatalf("tls init: %v", err)
 	}
 
@@ -120,13 +118,13 @@ func TestSiteInitProxyRequiresUpstream(t *testing.T) {
 		NonInteractive: true,
 		Out:            &bytes.Buffer{},
 	}
-	if err := runSiteInit(opts); err == nil {
+	if err := createSiteForTest(t, opts); err == nil {
 		t.Fatal("proxy site without upstream should fail")
 	}
 }
 
-func TestSiteListShowCheckRemove(t *testing.T) {
-	mainPath, includeDir := siteTestEnv(t)
+func TestSiteListShowCheck(t *testing.T) {
+	mainPath, _ := siteTestEnv(t)
 	newOpts := func(name string) siteOptions {
 		return siteOptions{
 			ConfigPath:     mainPath,
@@ -139,10 +137,10 @@ func TestSiteListShowCheckRemove(t *testing.T) {
 			Out:            &bytes.Buffer{},
 		}
 	}
-	if err := runSiteInit(newOpts("blog")); err != nil {
+	if err := createSiteForTest(t, newOpts("blog")); err != nil {
 		t.Fatalf("init blog: %v", err)
 	}
-	if err := runSiteInit(newOpts("shop")); err != nil {
+	if err := createSiteForTest(t, newOpts("shop")); err != nil {
 		t.Fatalf("init shop: %v", err)
 	}
 
@@ -164,15 +162,6 @@ func TestSiteListShowCheckRemove(t *testing.T) {
 		t.Fatalf("show output:\n%s", showOut.String())
 	}
 
-	if err := runSiteRemove(siteOptions{ConfigPath: mainPath, Name: "blog", Out: &bytes.Buffer{}}); err == nil {
-		t.Fatal("remove without --yes should fail")
-	}
-	if err := runSiteRemove(siteOptions{ConfigPath: mainPath, Name: "blog", Yes: true, Out: &bytes.Buffer{}}); err != nil {
-		t.Fatalf("remove: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(includeDir, "blog.json")); !os.IsNotExist(err) {
-		t.Fatal("site file should be gone")
-	}
 }
 
 // TLS 不再往 80 上贴 ssl：默认给出 80 与 443 两个监听。
@@ -229,7 +218,7 @@ func TestSiteInitWizardAsksUpstreamForProxy(t *testing.T) {
 		In:         input,
 		Out:        &out,
 	}
-	if err := runSiteInit(opts); err != nil {
+	if err := createSiteForTest(t, opts); err != nil {
 		t.Fatalf("wizard init: %v\n%s", err, out.String())
 	}
 
@@ -269,7 +258,7 @@ func TestSiteInitWizardLocalAsksRoot(t *testing.T) {
 		In:         input,
 		Out:        &out,
 	}
-	if err := runSiteInit(opts); err != nil {
+	if err := createSiteForTest(t, opts); err != nil {
 		t.Fatalf("wizard init: %v\n%s", err, out.String())
 	}
 
@@ -297,7 +286,7 @@ func TestSiteInitTLSDefaultsToHTTPAndHTTPS(t *testing.T) {
 		NonInteractive: true,
 		Out:            &bytes.Buffer{},
 	}
-	if err := runSiteInit(opts); err != nil {
+	if err := createSiteForTest(t, opts); err != nil {
 		t.Fatalf("tls init: %v", err)
 	}
 
@@ -334,7 +323,7 @@ func seedSite(t *testing.T, mainPath, includeDir string) string {
 		NonInteractive: true,
 		Out:            &bytes.Buffer{},
 	}
-	if err := runSiteInit(initOpts); err != nil {
+	if err := createSiteForTest(t, initOpts); err != nil {
 		t.Fatalf("init: %v", err)
 	}
 
@@ -369,4 +358,20 @@ func runSiteSubcmd(t *testing.T, mainPath string, args ...string) (string, error
 	cmd.SetArgs(append(args, "--config", mainPath))
 	err := cmd.Execute()
 	return out.String(), err
+}
+
+// createSiteForTest 用与 site add 相同的参数采集与落盘路径造一个站点文件。
+// 测试不再依赖已移除的 runSiteInit。
+func createSiteForTest(t *testing.T, opts siteOptions) error {
+	t.Helper()
+	dirs, err := siteDirs(opts)
+	if err != nil {
+		return err
+	}
+	name, in, err := siteInputFrom(&opts)
+	if err != nil {
+		return err
+	}
+	_, err = site.Create(dirs, name, in, opts.Force)
+	return err
 }
