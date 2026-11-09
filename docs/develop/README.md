@@ -29,6 +29,7 @@
 | [config-autoreload-plan.md](plans/config-autoreload-plan.md) | 配置文件自动重载：watch + 防抖 + 复用 reload 链路（R7，暂缓） |
 | [cli-monitor-followup.md](plans/cli-monitor-followup.md) | CLI 与 Monitor 改造计划落地后的遗留：未跑的验收、文档过时、可选的 `cert renew` |
 | [desktop-console-wails3-plan.md](plans/desktop-console-wails3-plan.md) | 桌面管理端：Wails v3 单窗口应用，无托盘，含 NSIS 与 Linux desktop deb 打包（实施中） |
+| [edge-case-hardening-plan.md](plans/edge-case-hardening-plan.md) | 边界加固的**功能需求**：符号链接策略、未知 SNI 兜底、XFF 与 hop-by-hop、压缩协商、Windows 保留名、reload 原子性、拒绝日志字段（全部待实现） |
 
 ### 已实施的方案（archive/）
 

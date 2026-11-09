@@ -1,61 +1,60 @@
-# 边界用例测试报告
+# 4. 缺陷反馈核验
 
-## 背景
+这份文档记录的是**问题反馈的核对结果**：收到「某某场景会出问题」的反馈后，
+逐条确认本项目是否存在同样缺陷、证据是什么、有没有修。
 
-对标 [caddyserver/caddy](https://github.com/caddyserver/caddy) 社区反馈的高频问题，
-对本项目（fast-https）逐模块补充边界用例。目的不是提高行覆盖率，而是覆盖
-**同类服务器实际踩过的坑**，尤其是那些本地开发跑不出来、上线后才暴露的情况。
+它不是功能计划（那在 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)），
+也不是覆盖率报告（那在 [0-coverage-assessment.md](0-coverage-assessment.md)）。
 
-Caddy 侧可参考的反馈类型：
+## 4.1 状态取值
 
-| 类型 | 典型 issue | 本项目对应模块 |
-| --- | --- | --- |
-| 未知域名 SNI 导致崩溃 | #5680（86 条评论） | `modules/certmanager` |
-| 证书加载 / 匹配失败 | #1157（95 条评论） | `modules/certmanager` |
-| 端口映射被忽略 | #2407 | `modules/listener` |
-| 代理的 header / URI 策略 | #1463 | `modules/proxy` |
+| 标记 | 含义 |
+| --- | --- |
+| ✅ 无此问题 | 已用自动化用例验证，当前实现不受影响 |
+| 🔧 已修复 | 曾经存在，已改代码，用例锁定为回归 |
+| ⚠️ 存在待修 | 复现了，尚未改代码，用例先标注跳过并记原因 |
+| ❓ 未验证 | 需要特定环境（Windows / 多域名证书 / 高并发），待补 |
 
-> Caddy 的 issue 列表以功能请求为主（GUI、WSGI、PHP 之类），能转化成测试的
-> 主要是上面几类崩溃与语义问题，以及社区反复讨论的通用坑（见下）。
+## 4.2 核验表
 
-## 测试组织
+| 编号 | 问题现象 | 本项目状态 | 证据 | 处理 |
+| --- | --- | --- | --- | --- |
+| B-01 | 请求路径用 `../` 跳出文档根，读到任意文件 | ✅ 无此问题 | `TestStaticPathInRoot`、`TestGetResBytesRejectsTraversal` | 已有防护，无需改 |
+| B-02 | 用 `%2e%2e`、`..%2f` 等编码绕过上一条的检查 | ✅ 无此问题 | `TestStaticPathTraversalVectors`（本轮新增） | 解码发生在静态层之前，编码形式到该层已是普通字符 |
+| B-03 | 用 `%5c`（编码反斜杠）在 Windows 上再绕过一次 | ✅ 无此问题 | 同上 | 编码形式落到普通文件名分支；裸 `\..\..\` 被 `Clean` 当分隔符拒绝 |
+| B-04 | 四点是合法文件名，被误判成 `..` | ✅ 无此问题 | 同上（`/....//etc/passwd`） | 按普通名处理，不误拒 |
+| B-05 | 尾点 / 尾空格被 Windows 静默截断，读到别的文件 | ⚠️ 存在待修 | 同上（`/file.`、`/file `） | 当前当普通名，结果取决于目标文件是否存在；需在 Windows 上单独验证并决定是否显式拒绝 |
+| B-06 | 绝对盘符路径（`/C:/Windows/win.ini`）跳出根目录 | ✅ 无此问题 | 同上 | `Clean` 后仍在 root 内，最终 404 |
+| B-07 | 重复斜杠（`//etc/passwd`）被当成绝对路径 | ✅ 无此问题 | 同上 | 归一化后仍在 root 内 |
+| B-08 | 文档根内的符号链接指向外部，被当普通文件读出 | ⚠️ 存在待修 | `TestStaticSymlinkEscape`（Windows 上 Skip） | `staticPathInRoot` 只看字符串前缀，不 `EvalSymlinks`；需决定「拒绝」还是「配置期校验」 |
+| B-09 | 未配置证书的域名发起 TLS 握手，进程崩溃 | ❓ 未验证 | 无用例 | `modules/certmanager` 缺「SNI 不在覆盖范围」的用例，见 R-03 |
+| B-10 | 通配符证书 `*.example.com` 匹配了 `a.b.example.com` | ❓ 未验证 | 无用例 | 需按「通配符只跨一层」补用例，见 R-04 |
+| B-11 | 客户端伪造 `X-Forwarded-For`，上游看到假链路 | ❓ 未验证 | 无用例 | 需确认是追加还是覆盖，见 R-05 |
+| B-12 | hop-by-hop 头（`Connection`、`TE`、`Upgrade`）被原样转发给上游 | ❓ 未验证 | 无用例 | 见 R-06 |
+| B-13 | `Accept-Encoding: gzip;q=0` 仍被压缩 | ❓ 未验证 | 无用例 | `modules/compress` 现有测试仅 39 行，见 R-07 |
+| B-14 | 上游已带 `Content-Encoding` 时被二次压缩 | ❓ 未验证 | 无用例 | 同上 |
+| B-15 | keep-alive 复用连接时，请求间状态泄漏 | ❓ 未验证 | 无用例 | 需 `-race` 下验证，见 R-09 |
+| B-16 | reload 失败后旧配置失效，服务处于半死状态 | ❓ 未验证 | 无用例 | 见 R-10 |
 
-- 用例表放各模块的 `testdata/`，格式为 `.jsonl`（一行一条「输入 → 期望」），
-  加用例只改数据文件，不动测试代码
-- 需要按临时目录/端口改值的用 `.tmpl` 模板，由 `renderTestdata` 渲染
-- 驱动测试按主题命名（`edge_cases_test.go`），不按开发阶段编号
+## 4.3 本轮新增的用例
 
-运行方式：
+`modules/static/testdata/traversal-vectors.jsonl` —— 11 条向量，覆盖 B-01 ~ B-07：
 
-```bash
-go test ./modules/static/ -run TestStaticPathTraversalVectors -v
-go test ./... -count=1
+```jsonl
+{"path":"/../etc/passwd","want":"reject","note":"裸 .. 逃逸"}
+{"path":"/a/..%2f..%2fetc%2fpasswd","want":"name","note":"百分号编码的斜杠"}
+{"path":"/a\\..\\..\\etc\\passwd","want":"reject","note":"裸反斜杠"}
+{"path":"/file.","want":"name","note":"Windows 会截断尾点"}
+...
 ```
 
-## 阶段 1：静态文件与路径安全
+`reject` 与 `name` 两种期望分开断言：安全性等价（都读不到 root 外），但对应
+代码路径不同，回归时能立刻分辨是「校验生效」还是「解码行为变了」。
 
-### 覆盖内容
+`modules/static/edge_cases_test.go` —— 遍历上面这张表；另有
+`TestStaticSymlinkEscape` 覆盖 B-08（Windows 无符号链接权限时 Skip）。
 
-`modules/static/testdata/traversal-vectors.jsonl`，11 条向量：
-
-| 向量 | 期望 | 说明 |
-| --- | --- | --- |
-| `/../etc/passwd` | reject | 裸 `..` 逃逸 |
-| `/a/../../etc/passwd` | reject | 多层 `..` 逃逸 |
-| `/a/..%2f..%2fetc%2fpasswd` | name | 编码斜杠，未解码时是普通文件名 |
-| `/..%2fetc%2fpasswd` | name | 同上，单层 |
-| `/a%5c..%5c..%5cetc%5cpasswd` | name | 编码反斜杠 |
-| `/a\..\..\etc\passwd` | reject | 裸反斜杠（Windows 上是分隔符） |
-| `/....//etc/passwd` | name | 四点是合法文件名 |
-| `/file.` | name | Windows 会截断尾点 |
-| `/file ` | name | Windows 会截断尾空格 |
-| `//etc/passwd` | name | 重复斜杠 |
-| `/C:/Windows/win.ini` | name | 绝对盘符路径 |
-
-`reject` 与 `name` 在安全性上等价（都读不到 root 外的文件），分开断言是为了
-让回归时能立刻分辨「校验生效」和「解码行为变了」。
-
-### 结果
+## 4.4 本轮结论
 
 ```
 PASS: TestStaticPathTraversalVectors  (11 个子用例)
@@ -63,36 +62,30 @@ SKIP: TestStaticSymlinkEscape         (Windows 无符号链接权限)
 ok    fast-https/modules/static
 ```
 
-### 结论
-
 - **URL 解码发生在静态层之前**：`%2e%2e` 到这一层已是普通字符，因此既不会
   被 `..` 检查拒绝，也读不到越界文件。这条链路是安全的，但依赖「上层先解码」
   这个前提——若将来在解析层改成延迟解码，需要重跑这组向量。
-- **反斜杠**在 Windows 上被 `filepath.Clean` 当作分隔符，因此裸 `\..\..\` 会被
+- **反斜杠**在 Windows 上被 `filepath.Clean` 当作分隔符，裸 `\..\..\` 会被
   正确拒绝；编码形式 `%5c` 不会，落到普通文件名分支。
-- **`staticPathInRoot` 只看 Clean 后的字符串前缀，不 EvalSymlinks**。root 内
-  一个指向外部的符号链接因此能通过校验。这不是 URL 穿越（链接由配置者自己
-  放入），但行为随平台变化，`TestStaticSymlinkEscape` 用来锁定现状。
+- **两个待修项**（B-05 尾点尾空格、B-08 符号链接）都涉及「配置者自己放进
+  root 的东西」或「Windows 文件系统行为」，没有明确的产品判断，先记录，
+  处理方式见 [计划里的 R-01 / R-02](../develop/plans/edge-case-hardening-plan.md)。
 
-### 待定问题
+## 4.5 复跑方式
 
-1. 符号链接：当前实现放行。是否要改成 `EvalSymlinks` 后再判前缀？
-   代价是每次请求多一次系统调用，收益是「root 内链接不能逃逸」。
-2. 尾点/尾空格（`/file.`、`/file `）：Windows 文件系统会静默截断，理论上
-   `/secret.txt.` 能读到 `secret.txt`。当前行为是当普通名，取决于目标文件
-   是否存在——本地测试环境无法稳定复现，需要在 Windows 上单独验证。
+```bash
+go test ./modules/static/ -run 'TestStaticPathTraversalVectors|TestStaticSymlinkEscape' -v
+go test ./modules/static/ -count=1
+go test ./... -count=1
+```
 
-## 后续阶段（未执行）
+B-05、B-08 需要在 Windows / Linux 各跑一次，结果才有意义（`EvalSymlinks`
+与文件名截断都是平台相关行为）。
 
-| 阶段 | 目标模块 | 计划用例 |
-| --- | --- | --- |
-| 2 | `modules/proxy` | `X-Forwarded-For` 追加 vs 覆盖、跳数上限、hop-by-hop 头过滤、Host 透传、chunked + trailer、上游中途断连、超时语义 |
-| 3 | `modules/compress`（现有测试最薄：57 行源码 / 39 行测试） | `Accept-Encoding` q 值协商、已压缩内容不重复压、`HEAD` 无 body、Range 与压缩互斥 |
-| 4 | `modules/certmanager` | 未知 SNI 不 panic、通配符不跨层匹配、尾点与大小写、空 SNI、过期窗口、RSA + ECDSA 同名多证书 |
-| 5 | `runtime/listener`、`core` | `Expect: 100-continue`、keep-alive 状态泄漏、431/413 边界、reload 时在途请求、并发 reload |
+## 4.6 后续核验
 
-## 参考
+B-09 ~ B-16 八条还没验证，需要按 `modules/certmanager`、`modules/proxy`、
+`modules/compress`、`runtime/listener` 分四批补。
 
-- Caddy issue [#5680](https://github.com/caddyserver/caddy/issues/5680)：未知域名 SNI panic
-- Caddy issue [#1157](https://github.com/caddyserver/caddy/issues/1157)：证书加载失败
-- 需求清单见 [20-edge-case-hardening.md](../feature/20-edge-case-hardening.md)
+每批的做法一致：先在 `testdata/` 写用例表 → 跑出结论 → 在本表里把 ❓ 改成
+✅ 或 ⚠️ → 需要改代码的单独提交，用例作为回归。
