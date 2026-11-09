@@ -80,7 +80,8 @@ func addSiteWriteCommands(root *cobra.Command) {
 	for _, c := range []*cobra.Command{add, upd, del, dis, en} {
 		addConfigFlag(c)
 		c.Flags().Bool("dry-run", false, t("只生成差异，不应用", "show the diff only, do not apply"))
-		c.Flags().Bool("yes", false, t("确认执行（非 dry-run 必填）", "confirm (required unless --dry-run)"))
+		c.Flags().Bool("yes", false, t("确认执行（add/update/delete 非 dry-run 必填；disable/enable 不需要）",
+			"confirm (required for add/update/delete unless --dry-run; not needed for disable/enable)"))
 		root.AddCommand(c)
 	}
 }
@@ -244,9 +245,8 @@ func runSiteEnable(cmd *cobra.Command, args []string) error {
 }
 
 func runSiteEnablement(cmd *cobra.Command, args []string, enabled bool) error {
-	if err := siteWriteYes(cmd); err != nil {
-		return err
-	}
+	// 启用/停用只是把名字在 .json 与 .json.disabled 之间改，随时能改回来，
+	// 不像 delete 那样不可逆，所以不再要求 --yes。
 	name := strings.TrimSuffix(args[0], ".json")
 	live, _ := cmd.Flags().GetString("config")
 	dry, _ := cmd.Flags().GetBool("dry-run")
