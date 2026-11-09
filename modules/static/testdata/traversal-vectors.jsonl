@@ -1,0 +1,11 @@
+{"path":"/../etc/passwd","want":"reject","note":"裸 .. 逃逸"}
+{"path":"/a/../../etc/passwd","want":"reject","note":"多层 .. 逃逸"}
+{"path":"/a/..%2f..%2fetc%2fpasswd","want":"name","note":"百分号编码的斜杠，未解码时应当作普通文件名"}
+{"path":"/..%2fetc%2fpasswd","want":"name","note":"同上，单层"}
+{"path":"/a%5c..%5c..%5cetc%5cpasswd","want":"name","note":"编码反斜杠，Windows 分隔符"}
+{"path":"/a\\..\\..\\etc\\passwd","want":"reject","note":"裸反斜杠：Windows 上 Clean 会当分隔符"}
+{"path":"/....//etc/passwd","want":"name","note":"四点是合法文件名，不是 .."}
+{"path":"/file.","want":"name","note":"Windows 会截断尾点，但不能读到别的文件"}
+{"path":"/file ","want":"name","note":"Windows 会截断尾空格"}
+{"path":"//etc/passwd","want":"name","note":"重复斜杠"}
+{"path":"/C:/Windows/win.ini","want":"name","note":"绝对盘符路径不能跳出 root"}

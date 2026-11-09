@@ -6,6 +6,7 @@
 | 1 | [1-boundary-cases.md](1-boundary-cases.md) | 边界测试用例集：协议边界、注入面、数值边界、并发边界 |
 | 2 | [2-stress-test-plan.md](2-stress-test-plan.md) | 压力测试计划：4C4G3M 环境下的反代与静态资源负载方案 |
 | 3 | [3-distro-verification.md](3-distro-verification.md) | 发行版安装包实机验证记录（2026-11-05 实测）：deb/rpm/apk/升级迁移的结论与已知环境差异 |
+| 4 | [4-edge-case-coverage.md](4-edge-case-coverage.md) | 对标 Caddy 社区反馈的跨模块专项：路径编码变体、SNI、代理头语义、压缩协商。含已完成部分与后续阶段计划 |
 
 日常测试命令与体系说明见 [develop/1-testing.md](../develop/1-testing.md)（本目录聚焦评估报告与专项计划）。
 

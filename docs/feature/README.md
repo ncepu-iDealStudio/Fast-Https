@@ -28,6 +28,7 @@
 | 17 | [17-config.md](17-config.md) | 配置系统 | JSON schema 解析、conf.d include、校验 |
 | 18 | [18-cli-service.md](18-cli-service.md) | 服务管理与 CLI | start/stop/reload/status、runtime 与 monitor 只读查询、受控 apply |
 | 19 | [19-desktop-console.md](19-desktop-console.md) | 桌面管理端 | Wails v3 单窗口 + 托盘：状态、站点与配置表单、证书日志，转交 CLI 启停 |
+| 20 | [20-edge-case-hardening.md](20-edge-case-hardening.md) | 边界加固需求 | 对标 Caddy 反馈：符号链接逃逸、未知 SNI、代理头语义、压缩协商、Windows 路径截断、连接超时 |
 | 20 | [20-runtime.md](20-runtime.md) | 本机运行快照 | `GET 127.0.0.1:9088/runtime`：生命周期、连接、请求、耗时与上游计数 |
 | 21 | [21-monitor.md](21-monitor.md) | 独立 Monitor 进程 | 周期采集 `/runtime`、写快照与事件文件；规则：不可达/恢复/重启/5xx 比例/端口探测/疑似卡死 |
 
