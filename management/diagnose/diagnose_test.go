@@ -112,7 +112,10 @@ func TestDiagnoseRuntimeStates(t *testing.T) {
 
 func TestDiagnoseCheckTimeout(t *testing.T) {
 	in := healthyInput(t)
-	in.Timeout = 40 * time.Millisecond
+	// 200ms 而不是 40ms：`go test ./...` 并行跑满核时，读配置这类检查在
+	// 40ms 内完成并不总是成立，会让这条用例偶发失败。200ms 仍远小于断言
+	// 里的 2s 上限，"被卡住的检查不拖住整体"的语义没变。
+	in.Timeout = 200 * time.Millisecond
 	in.Extra = []NamedCheck{{
 		Name: "stuck",
 		Fn: func(ctx context.Context) Check {
