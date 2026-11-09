@@ -26,13 +26,13 @@
 
 从 Windows 开始菜单或 Linux 应用菜单启动 `fast-https-desktop`。它必须与 `fast-https` 主程序在同一目录（或由发行版包安装到 `/usr/bin`），否则调不到 CLI，所有页面都会显示读取失败。
 
-- **启停与重载**：点顶部按钮，桌面端转交 `start` / `stop` / `status`；「重载配置」走 `service reload`（受控重载：校验、operation 记录、reload 后验证）。
-- **添加站点**：站点页「+ 添加站点」填写 `server_name`（空格分隔多域名，nginx 风格）、`listen`、类型（`local` 静态 / `proxy` 反代）、`root` 或 `proxy_pass`。表单与 `site add` 的 flag 一一对应：证书路径、首页与文件名由配置事务自动处理（TLS 站点证书默认 `./cert/<主域名>.pem`，文件名即主域名）。多域名创建 = `site add` + `site update --server-name` 两条命令。`listen` 里带 `ssl` 即启用 TLS。
+- **启停与重载**：点顶部按钮，桌面端转交 `start` / `stop` / `status`；「重载配置」走 `service reload`（受控重载：校验、operation 记录、reload 后验证）。Windows 的热重载信号（CTRL_BREAK）到不了别的控制台，`service reload` 会失败；此时按钮自动降级为「停止 + 启动」重启服务，并如实提示。
+- **添加站点**：站点页「+ 添加站点」按最省事的方式填——协议（仅 HTTP / 仅 HTTPS / HTTP+HTTPS）与端口用下拉和数字框选，`listen` 自动生成（如 `80, 443 ssl h2`）且可再手动微调；反代地址的协议（`http://` / `https://`）单独下拉选择，也支持粘贴完整地址自动识别。表单与 `site add` 的 flag 一一对应：证书路径、首页与文件名由配置事务自动处理（HTTPS 站点证书默认 `./cert/<主域名>.pem`，文件名即主域名）。多域名创建 = `site add` + `site update --server-name` 两条命令。
 - **路径选择**：站点根目录右侧的「浏览…」调系统原生选择框；选中路径在 `config` 目录内会转成 `./xxx` 相对写法，否则保留绝对路径。
 - **详情编辑**：行尾 `⋯` 打开详情（`site show`），可编辑字段即 `site update` 的白名单（server_name / listen / root / proxy_pass）；证书、首页与原始 JSON 只读展示。
-- **写操作即生效**：添加/修改/删除/启停站点、保存主配置都走配置事务（校验、恢复点、切换、reload、失败自动回滚），提交后**无需手动点「重载配置」**，结果里带操作 ID 与配置版本号（`operation list` 可查）。
+- **写操作即生效**：添加/修改/删除/启停站点、保存主配置都走配置事务（校验、恢复点、切换、reload、失败自动回滚），提交后**无需手动点「重载配置」**，结果里带操作 ID 与配置版本号（`operation list` 可查）。Windows 上热重载可能没打进运行中的服务，文案如实提示「若未生效点『重载配置』（会自动重启服务）」。
 - **关闭**：弹窗里的「隐藏到后台」把窗口收进托盘，托盘图标可恢复；「直接退出」或托盘右键「退出」才结束桌面端进程。`fast-https` 服务由主程序独立管理，不受桌面端退出影响。
-- **外观**：亮色／暗色、五档中性色，选择存在本机 `localStorage`；「帮助文档」打开发行包里的 `docs/usage.html`。
+- **外观与语言**：亮色／暗色、五档中性色、界面语言（简体中文 / English，可扩展），偏好存在本机 `localStorage`；「帮助文档」在应用内弹窗展示（中英双语、命令输出实测），弹窗底部才用浏览器打开完整命令手册 `docs/usage.html`。
 
 ## 实现方案（desktop/）
 
@@ -58,6 +58,9 @@
   | 命令面板 | 全部 35 条命令 |
 
 - **候选配置树**（`internal/configops`）：保存表单时把主配置（改过字段）与 `conf.d` 站点文件副本搭成候选树（复刻主程序 `siteops.CloneLiveTree`），再 `config apply --candidate --yes`；桌面端只准备候选，不直接改线上配置。
+- **多语言**（`src/i18n.js` + `src/locales/`）：界面文案全部走 `t('key')`（静态 HTML 挂 `data-i18n`，动态渲染调 `t()`），中英字典各 437 key 一一对应，`npm run i18n:check` 自查一致性与覆盖率；加一种语言只加一个字典文件 + 注册表一行，缺 key 回落中文。语言切换整窗重载。
+- **内嵌帮助**（`src/help-content.js` + `src/dialogs/help.js`）：初学者向帮助（上手、常见操作、平台差异、命令行备忘、FAQ）在应用内弹窗展示，中英双语；文中命令都在实机跑过，Windows 的 `start` 前台运行、`reload` 跨窗口失败等差异如实写明。
+- **前端点击测试台**（`frontend/devtest/`）：bindings 换成 mock 后用 Playwright（无头 Edge）遍历所有页面、弹窗与关键交互，逐屏截图并收集控制台错误，中英界面各跑一遍（`node run.mjs [en]`）。
 - **窗口与托盘**（`main.go`、`tray.go`、`service.go`）：`Frameless: true`，`WindowClosing` hook 默认取消关闭并隐藏；`appQuitting` 标记由弹窗「直接退出」或托盘「退出」置位后才放行真正的退出。
 - **交付形态**：Windows NSIS 安装包带对应架构的 `fast-https-desktop.exe`，桌面与开始菜单快捷方式指向它（`fast-https.exe` 是无控制台窗口的命令行服务端，双击不会出现界面）；Linux 的 `deb` / `rpm` / `apk` 是「主程序包 + 桌面端」的完整包，离线只装一个包即可启动服务，与独立主程序包声明 `Conflicts` / `Replaces` 避免同一路径被两个包各装一份。
 
@@ -65,7 +68,7 @@
 
 - `desktop/`：命令面板清单与 CLI 命令树双向比对、CLI 封套解析（`internal/cli`）、弹窗字段与 `site add/update` 参数翻译（`internal/siteops`）、表单字段解析与候选树搭建（`internal/configops`）、`site list` / `cert list` / `logs query` 数据映射（`internal/view`）（`go test ./...`、`go vet ./...`）。
 - `tests/packaging/distro/desktop-deb.sh`：Ubuntu 24.04 容器里离线单包装 → 文件与二进制一致性 → 运行期资源 → `start` 监听 80/443 → 卸载清理，以及「已装独立主程序包再装桌面端包」的替换场景，实机 `ALL-PASS`。
-- 窗口交互、表单渲染与主题用静态页面验证；Wails GUI 本身需要在桌面实机点一次。
+- 窗口交互、表单渲染与主题用 `frontend/devtest/` 的点击测试台遍历截图（中英双语界面）；Wails GUI 本身需要在桌面实机点一次。
 
 ## 已知限制
 
