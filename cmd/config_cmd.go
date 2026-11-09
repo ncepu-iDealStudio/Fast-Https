@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -400,7 +401,20 @@ func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 				cp := snap
 				before = &cp
 			}
-			return svcctl.SignalReload(pid)
+			// Windows 上服务与 CLI 常常不在同一个控制台，Ctrl+Break /
+			// SIGINT 投递不过去（syscall.EWINDOWS = "not supported by
+			// windows"）。此时配置已经写好，不该因为发不出信号而回滚，
+			// 提示用户手动重载即可。
+			if err := svcctl.SignalReload(pid); err != nil {
+				if runtime.GOOS == "windows" {
+					fmt.Fprintln(os.Stderr,
+						"提示：Windows 上无法向其他控制台的进程发送 reload 信号，配置已写入；"+
+							"请在服务所在终端重启服务，或执行 fast-https reload")
+					return nil
+				}
+				return err
+			}
+			return nil
 		}),
 		Health: txn.FuncHealth(func(ctx context.Context) error {
 			st, pid, err := InspectProcess(pidPath)
