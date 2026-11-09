@@ -33,7 +33,18 @@ func freePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-const defaultAcmeJSON = `{"enabled": false, "cas": [{"name": "zerossl", "directory": "https://acme.zerossl.com/v2/DV90", "eab_kid": "KID-1", "eab_hmac_key": "HMAC-ABC"}]}`
+// defaultAcmeJSON 是最小可用的 ACME 配置夹具，内容在 testdata/acme-default.json。
+var defaultAcmeJSON = mustTestdata("acme-default.json")
+
+// mustTestdata 读 cmd/testdata 下的固定夹具。testdata 目录不会被编译器
+// 当成包内容，适合放 JSON 这类只给测试用的输入。
+func mustTestdata(name string) string {
+	b, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		panic("read testdata/" + name + ": " + err.Error())
+	}
+	return string(b)
+}
 
 func writeFixture(t *testing.T, acmeJSON string) cfgFixture {
 	t.Helper()
