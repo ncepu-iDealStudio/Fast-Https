@@ -2,7 +2,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fast-https/cmd/internal/cli"
 	"fast-https/config"
@@ -13,7 +12,6 @@ import (
 	"fast-https/runtime/server"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
 	"time"
 
@@ -347,20 +345,6 @@ func StopHandler() error {
 	return nil
 }
 
-// waitProcessGone 轮询等待进程退出。
-func waitProcessGone(pid int, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for {
-		if !processRunning(pid) {
-			return true
-		}
-		if time.Now().After(deadline) {
-			return false
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
 // ReloadHandler reload server
 // ReloadHandler 函数用于重新加载进程。
 //
@@ -436,31 +420,6 @@ func statusHandler() error {
 	}
 }
 
-// ProcessState is the result of reading the pid file and checking that process.
-type ProcessState int
-
-const (
-	ProcessAbsent ProcessState = iota
-	ProcessStale
-	ProcessRunning
-)
-
-// InspectProcess reports whether pidFile names a live process.
-func InspectProcess(pidFile string) (ProcessState, int, error) {
-	pid, err := readPid(pidFile)
-	if err != nil {
-		// 用 errors.Is 判断，别再比对错误字符串（readPid 换文案就失效）
-		if errors.Is(err, os.ErrNotExist) {
-			return ProcessAbsent, 0, nil
-		}
-		return ProcessAbsent, 0, err
-	}
-	if !processRunning(pid) {
-		return ProcessStale, pid, nil
-	}
-	return ProcessRunning, pid, nil
-}
-
 // PreCheckHandler 在服务器启动前执行以下检查：
 // 1. 检查配置文件是否有效
 // 2. 检查端口是否被占用
@@ -532,73 +491,4 @@ func runInForeground() bool {
 		return true
 	}
 	return false
-}
-
-// WritePid 将当前进程的PID写入指定文件
-// 使用JSON格式存储PID信息，便于后续进程管理
-func WritePid(filepath string) error {
-	return writePidTo(filepath, os.Getpid())
-}
-
-// writePidTo 把指定进程的 pid 写进文件。后台化时由父进程写子进程的 pid，
-// 这样 stop / reload / status 才能找到真正在服务的进程。
-// 父目录缺失时先创建：包布局的 pid 在 /run/fast-https 下，/run 是 tmpfs，
-// 重启后目录不存在，靠 systemd 的 RuntimeDirectory 或这里兜住手工启动。
-func writePidTo(path string, pid int) error {
-	if dir := filepath.Dir(path); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("error creating pid directory %s: %v", dir, err)
-		}
-	}
-	// Create a map to hold PID and GID
-	pidGidMap := map[string]int{
-		"pid": pid,
-	}
-
-	// Marshal the map to JSON
-	jsonData, err := json.Marshal(pidGidMap)
-	if err != nil {
-		return fmt.Errorf("error marshalling PID and GID to JSON: %v", err)
-	}
-
-	// Write JSON data to the specified file
-	// Windows 上目标文件偶尔会被杀毒/索引服务短暂占用，一次失败就放弃
-	// 会导致 pid 文件停留在上一次的旧值（表现为「服务在跑但 stop/status
-	// 找不到进程」），就地重试几次。
-	var writeErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		if writeErr = os.WriteFile(path, jsonData, 0644); writeErr == nil {
-			return nil
-		}
-		time.Sleep(80 * time.Millisecond)
-	}
-	return fmt.Errorf("error writing JSON data to file: %v", writeErr)
-}
-
-// readPid 从指定文件读取并解析PID信息
-// 返回进程ID和可能的错误信息
-func readPid(filepath string) (int, error) {
-	// Read the file contents
-	data, err := os.ReadFile(filepath)
-	if err != nil {
-		// 带上原始错误，调用方才能区分「文件不存在」和「读不动」
-		return 0, fmt.Errorf("error reading file: %w", err)
-	}
-
-	// Create a map to hold the PID and GID
-	pidGidMap := make(map[string]int)
-
-	// Unmarshal the JSON data into the map
-	if err := json.Unmarshal(data, &pidGidMap); err != nil {
-		return 0, fmt.Errorf("error unmarshalling JSON data: %v", err)
-	}
-
-	// Get the PID and GID from the map
-	pid, pidExists := pidGidMap["pid"]
-
-	if !pidExists {
-		return 0, fmt.Errorf("PID or GID not found in JSON data")
-	}
-
-	return pid, nil
 }

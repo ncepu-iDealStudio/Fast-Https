@@ -1,13 +1,15 @@
 //go:build !windows
 
-package cmd
+package procctl
 
 import (
 	"os"
 	"syscall"
 )
 
-func processRunning(pid int) bool {
+// Running 用 signal 0 探测进程是否存在。保留 !windows 而不是 unix：
+// 与迁移前的构建面一致，plan9/js 等目标也能编译。
+func Running(pid int) bool {
 	if pid <= 0 {
 		return false
 	}
