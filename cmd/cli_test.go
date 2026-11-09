@@ -693,7 +693,7 @@ func writeCertCmdFixture(t *testing.T) certCmdFixture {
 	site("gone", "gone.example", filepath.Join(dir, "gone.pem"), filepath.Join(dir, "gone-key.pem"))
 
 	main := filepath.Join(dir, "fast-https.json")
-	if err := os.WriteFile(main, []byte(fmt.Sprintf(`{"http": {"include": [%q]}}`, confd)), 0o644); err != nil {
+	if err := os.WriteFile(main, fmt.Appendf(nil, `{"http": {"include": [%q]}}`, confd), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return certCmdFixture{dir: dir, main: main, key: keyPath}
