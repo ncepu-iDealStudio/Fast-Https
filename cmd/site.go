@@ -49,8 +49,8 @@ func newSiteCmd() *cobra.Command {
 		Use:   "site",
 		Short: t("管理 http.include 目录下的站点文件", "manage site files under http.include"),
 		Long: t(
-			"旧的 site init / site remove 只写文件并提示 reload。新增、更新、删除、启用、停用请用 site add/update/delete/enable/disable，它们走配置事务。",
-			"Legacy site init / site remove only write files and tell you to reload. Prefer site add/update/delete/enable/disable, which go through the config transaction."),
+			"新增、更新、删除、启用、停用用 site add/update/delete/enable/disable，它们走配置事务（校验、恢复点、reload、可回滚）。site add 不带 --domain 且标准输入是终端时进向导。",
+			"Use site add/update/delete/enable/disable for adding, updating, deleting, enabling and disabling; they go through the config transaction (validation, restore point, reload, rollback). site add enters a wizard when --domain is omitted on a terminal."),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
@@ -633,7 +633,7 @@ func runSiteList(opts siteOptions) error {
 		return err
 	}
 	if len(entries) == 0 {
-		fmt.Fprintf(opts.Out, "%s 下没有站点文件。用 fast-https site init <name> 新建。\n", strings.Join(dirs, ", "))
+		fmt.Fprintf(opts.Out, "%s 下没有站点文件。用 fast-https site add 新建。\n", strings.Join(dirs, ", "))
 		return nil
 	}
 	fmt.Fprintf(opts.Out, "%-16s %-14s %-28s %s\n", "NAME", "LISTEN", "SERVER_NAME", "LOCATION")

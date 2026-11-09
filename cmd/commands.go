@@ -178,7 +178,7 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 	registerGlobalFlags(cmd)
 
 	// 不要 cobra 自带的 `completion` 子命令：它生成的是 shell 补全脚本，
-	// 与本项目无关（站点路径的 Tab 补全在 site init 的输入行里，是另一套实现）。
+	// 与本项目无关（站点路径的 Tab 补全在 site 向导的输入行里，是另一套实现）。
 	// 留着只会在 --help 里多一条看起来像是我们做的事。
 	cmd.CompletionOptions.DisableDefaultCmd = true
 

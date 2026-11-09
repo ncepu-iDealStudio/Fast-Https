@@ -134,7 +134,7 @@ func runAcmeSetup(cmd *cobra.Command) error {
 
 	plain, _ := flags.GetBool("plain")
 	opts := acmeOptions{
-		Path:  path,
+		Path:   path,
 		DryRun: dryRun,
 		// --plain 强制走逐行问答：一题一行，适合脚本录制或不喜欢全屏 TUI 的场景。
 		Accessible: plain,
@@ -492,7 +492,7 @@ func printACMENextSteps(out io.Writer, cfg *config.AcmeConfig, a acmeAnswers) {
 			fmt.Fprintln(out, `    "listen": [80, "443 ssl h2"],`)
 			fmt.Fprintln(out, `    "ssl_certificate": "./cert/<域名>.pem",`)
 			fmt.Fprintln(out, `    "ssl_certificate_key": "./cert/<域名>-key.pem"`)
-			fmt.Fprintln(out, `  （或重建站点：fast-https site init <站点> --listen 80 --listen "443 ssl h2" --tls --force）`)
+			fmt.Fprintln(out, `  （或重建站点：fast-https site add --domain <域名> --listen 80 --listen "443 ssl h2" --tls --yes）`)
 			for _, skip := range plan.Skipped {
 				fmt.Fprintf(out, "  跳过 %s：%s\n", skip.Name, skip.Reason)
 			}
