@@ -1,4 +1,4 @@
-package cmd
+package cli
 
 import (
 	"crypto/rand"
@@ -49,8 +49,8 @@ func strPtr(s string) *string {
 	return &s
 }
 
-// jsonMode 报告命令是否带了 --json。
-func jsonMode(cmd *cobra.Command) bool {
+// JSONMode 报告命令是否带了 --json。
+func JSONMode(cmd *cobra.Command) bool {
 	v, _ := cmd.Flags().GetBool("json")
 	return v
 }
@@ -60,7 +60,8 @@ func requestIDOf(cmd *cobra.Command) string {
 	return v
 }
 
-func ensureRequestID(cmd *cobra.Command) string {
+// EnsureRequestID 返回命令的请求标识，缺省时生成一个并写回 flag。
+func EnsureRequestID(cmd *cobra.Command) string {
 	id := strings.TrimSpace(requestIDOf(cmd))
 	if id != "" {
 		return id
@@ -72,7 +73,8 @@ func ensureRequestID(cmd *cobra.Command) string {
 	return id
 }
 
-func cmdTimeout(cmd *cobra.Command, def time.Duration) time.Duration {
+// CmdTimeout 取 --timeout，未设置或非正数时用命令自己的默认值。
+func CmdTimeout(cmd *cobra.Command, def time.Duration) time.Duration {
 	d, _ := cmd.Flags().GetDuration("timeout")
 	if d <= 0 {
 		return def
@@ -80,8 +82,8 @@ func cmdTimeout(cmd *cobra.Command, def time.Duration) time.Duration {
 	return d
 }
 
-// emitOK 在 --json 模式下输出成功封套。命令自己决定文本模式怎么输出。
-func emitOK(cmd *cobra.Command, id string, data any, warnings []string) error {
+// EmitOK 在 --json 模式下输出成功封套。命令自己决定文本模式怎么输出。
+func EmitOK(cmd *cobra.Command, id string, data any, warnings []string) error {
 	if warnings == nil {
 		warnings = []string{}
 	}
@@ -94,10 +96,10 @@ func emitOK(cmd *cobra.Command, id string, data any, warnings []string) error {
 	})
 }
 
-// reportError 把 Execute 返回的错误交给用户，并返回退出码。
+// ReportError 把 Execute 返回的错误交给用户，并返回退出码。
 // 文本模式与 cobra 原来的打印一致（"Error: ..." 到 stderr）；
 // --json 模式下 stdout 是错误封套，stderr 不再重复。
-func reportError(args []string, err error, out, errOut io.Writer) int {
+func ReportError(args []string, err error, out, errOut io.Writer) int {
 	if !argBool(args, "json") {
 		fmt.Fprintln(errOut, "Error:", err)
 		return ExitCode(err)
