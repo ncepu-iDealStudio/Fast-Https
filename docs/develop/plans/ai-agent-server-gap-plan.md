@@ -59,6 +59,8 @@ CPU、内存、磁盘不放进 Server。若要做，只在 Monitor 里读操作�
 
 ### C3 Monitor 写证书即将过期事件
 
+状态：已实施（`monitor/certs.go`，`TestCertExpiringOnlyWarnsNearCert`、`TestCertReadErrorDoesNotPanic`）。未配置 `cert_files` 时不检查。
+
 | 项 | 内容 |
 | --- | --- |
 | 影响 | 无请求路径。Monitor 仍不 import `config`、`certmanager`、`cmd` |

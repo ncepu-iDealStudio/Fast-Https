@@ -16,6 +16,7 @@ type Runner struct {
 	clk    Clock
 	logger *log.Logger
 	engine *Engine
+	certs  *certChecker
 
 	lastEventAt string
 }
@@ -36,6 +37,7 @@ func NewRunner(cfg Config, clk Clock, logger *log.Logger) *Runner {
 		col:    &Collector{URL: cfg.SnapshotURL, Timeout: cfg.Timeout.D()},
 		sink:   &Sink{Dir: cfg.Dir, EventMaxBytes: cfg.EventMaxBytes, EventKeep: cfg.EventKeep},
 		engine: newEngine(cfg, nil),
+		certs:  newCertChecker(cfg),
 	}
 }
 
@@ -43,6 +45,7 @@ func NewRunner(cfg Config, clk Clock, logger *log.Logger) *Runner {
 func (r *Runner) RunOnce(ctx context.Context) (Observation, []Event) {
 	obs := r.col.Collect(ctx, r.clk.Now())
 	events := r.engine.Observe(obs)
+	events = append(events, r.certs.Check(obs.At)...)
 
 	if obs.Kind == CollectOK {
 		if err := r.sink.AppendSnapshot(obs.Raw); err != nil {

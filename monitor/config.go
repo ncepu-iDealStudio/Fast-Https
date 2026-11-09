@@ -39,6 +39,10 @@ const (
 	DefaultPortProbe = true
 	DefaultStuckHint = true
 
+	// DefaultCertWarnDays 是证书剩余天数低于该值时写 certificate_expiring。
+	// 未配置 cert_files 时不检查证书。
+	DefaultCertWarnDays = 30
+
 	// EnvDir 与 CLI 读状态文件时使用的环境变量一致。
 	EnvDir = "FASTHTTPS_MONITOR_DIR"
 )
@@ -84,6 +88,8 @@ type Config struct {
 	FiveXXMinRequests int      `json:"five_xx_min_requests"`
 	PortProbe         bool     `json:"port_probe"`
 	StuckHint         bool     `json:"stuck_hint"`
+	CertFiles         []string `json:"cert_files,omitempty"`
+	CertWarnDays      int      `json:"cert_warn_days"`
 }
 
 // DefaultConfig 返回不带文件与环境变量影响的默认值。
@@ -102,6 +108,7 @@ func DefaultConfig() Config {
 		FiveXXMinRequests: DefaultFiveXXMinRequests,
 		PortProbe:         DefaultPortProbe,
 		StuckHint:         DefaultStuckHint,
+		CertWarnDays:      DefaultCertWarnDays,
 	}
 }
 
@@ -184,6 +191,18 @@ func mergeConfig(cfg *Config, file configFile) {
 	if file.StuckHint != nil {
 		cfg.StuckHint = *file.StuckHint
 	}
+	if len(file.CertFiles) > 0 {
+		files := make([]string, 0, len(file.CertFiles))
+		for _, p := range file.CertFiles {
+			if v := strings.TrimSpace(p); v != "" {
+				files = append(files, v)
+			}
+		}
+		cfg.CertFiles = files
+	}
+	if file.CertWarnDays > 0 {
+		cfg.CertWarnDays = file.CertWarnDays
+	}
 }
 
 // Validate 挡住会让采集空转的配置。它不检查目录可写：目录在首次落盘时才需要。
@@ -214,6 +233,9 @@ func (c Config) Validate() error {
 	}
 	if c.FiveXXMinRequests < 1 {
 		return fmt.Errorf("five_xx_min_requests must be at least 1")
+	}
+	if c.CertWarnDays < 1 {
+		return fmt.Errorf("cert_warn_days must be at least 1")
 	}
 	u, err := url.Parse(c.SnapshotURL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {

@@ -33,6 +33,8 @@ const (
 	EventFiveXXRatio  = "5xx_ratio"
 	EventPortProbe    = "port_probe"
 	EventStuck        = "stuck_suspected"
+	EventCertExpiring = "certificate_expiring"
+	EventCertRead     = "certificate_read_error"
 )
 
 // 状态文件里的 status 取值。stale 由读侧按时间差推导，Monitor 不写。

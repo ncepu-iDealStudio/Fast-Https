@@ -18,7 +18,7 @@ fast-https 已经有独立的 Server、只读 `/runtime`、独立 Monitor、以�
 | --- | --- | --- |
 | 12.1 摘除故障 Upstream | `proxy_pass` 是单个地址。没有节点列表、健康检查、摘除或恢复命令。上游失败只进入进程级累计计数 | 自动摘除不能做。前置是尚未实施的 [upstream-failover-plan.md](develop/plans/upstream-failover-plan.md) |
 | 12.2 502/504 升高 | `/runtime` 只有 `responses_5xx_total`，没有按 502/504 分桶。Monitor 事件是 `5xx_ratio` | 可以做 L1 诊断（5xx 比例 + 日志 + 最近 operation）。不能声称已经区分 502 与 504 |
-| 12.3 证书即将过期或续期失败 | `cert list` / `cert check` 能读 PEM。`cert renew` 不存在。Monitor 不写证书事件。ACME 续期在 Server 进程内 | 可以定时用 CLI 做 L1 分析。不能自动续期，也不能从 Monitor 事件流里收到证书事件 |
+| 12.3 证书即将过期或续期失败 | `cert list` / `cert check` 能读 PEM。Monitor 在配置了 `cert_files` 时写 `certificate_expiring`。`cert renew` 不存在。ACME 续期在 Server 进程内 | 事件流里能看到即将过期的证书。不能自动续期 |
 
 仓库里没有 Management HTTP API，没有审批存储，没有 Agent 进程，没有数据库。管理写操作的现成出口是 CLI 加上 `management/txn`。
 
@@ -127,7 +127,7 @@ Agent 不能自己改 `fast-https.json`。写配置必须走上述命令。这�
 | ACME 配置 | `cmd/acme.go`，写回 `config.WriteACMESection` | 已具备。这是改配置，属 L3 |
 | 进程内续期 | `modules/certmanager/manager.go`，certmagic | 已具备，只在 Server 进程内 |
 | `cert renew` | `cmd/` 无此子命令 | 不具备。见 CLI 计划 S13，需要回环写通道与令牌 |
-| 证书事件 | `monitor/events.go` 无证书类型 | 不具备 |
+| 证书事件 | 配置了 `cert_files` 时写 `certificate_expiring` 与 `certificate_read_error`。不读站点配置，也不写续期失败 | 部分具备 |
 
 ### 2.8 CLI
 
@@ -232,8 +232,10 @@ Agent 读到一行后生成自己的记录：
 | `port_probe` | `port_unreachable` |
 | `stuck_suspected` | `stuck_suspected` |
 | `collect_error` | `collect_error` |
+| `certificate_expiring` | `certificate_expiring`（仅当 Monitor 配置了 `cert_files`） |
+| `certificate_read_error` | `certificate_read_error` |
 
-`certificate_expiring`、`upstream_unhealthy`、`disk_space_low`、`high_resource_usage`、`config_apply_failed` 不在这张表里。证书过期走第 4.4 节的主动查询。配置应用失败走已有 `operation get`，不新增 Monitor 事件。
+`upstream_unhealthy`、`disk_space_low`、`high_resource_usage`、`config_apply_failed` 仍不在这张表里。未配置 `cert_files` 时，证书过期仍可由 Agent 主动执行 `cert list`。配置应用失败走已有 `operation get`。
 
 ### 4.2 Agent 状态目录（新）
 
@@ -275,7 +277,7 @@ Agent 读到一行后生成自己的记录：
 
 ### 4.4 证书巡检（新的 Agent 内部周期任务，不是新 Server 接口）
 
-Monitor 没有证书事件。Agent 按自己的周期执行 `cert list --json`。`days_left` 低于策略阈值时生成内部事件 `certificate_expiring`，严重级别固定为 warning，计划标记 `REQUIRE_APPROVAL`，动作为空。不调用 `cert renew`，因为该命令不存在。
+`certificate_expiring` 在 Monitor 配置了 `cert_files` 时由 Monitor 写入。未配置时，Agent 仍可按自己的周期执行 `cert list --json`。`days_left` 低于策略阈值时生成内部事件，严重级别固定为 warning，计划标记 `REQUIRE_APPROVAL`，动作为空。不调用 `cert renew`，因为该命令不存在。
 
 ### 4.5 DSH 可读的查询命令（新 CLI，只读）
 

@@ -15,6 +15,8 @@
 | `5xx_ratio` | 最近 1 分钟的 5xx 增量 ÷ 请求增量超过阈值，且请求增量不少于下限 | warning |
 | `port_probe`（可关） | `/runtime` 正常，但快照里的业务端口连不上 | warning |
 | `stuck_suspected`（可关） | `requests.active` 长时间不降且 `requests.total` 不再增长 | info（只提示） |
+| `certificate_expiring` | `cert_files` 里某张证书剩余天数低于 `cert_warn_days`（默认 30） | warning |
+| `certificate_read_error` | `cert_files` 里的文件打不开或不是证书 PEM | warning |
 
 同一条规则触发后进入冷却（默认 5 分钟），冷却期内不重复写。`recovered` 与 `restarted` 是状态跳变，每次跳变都记一条，不受冷却影响。
 
@@ -54,13 +56,17 @@ go run ./monitor -config .\config\monitor.json
   "five_xx_ratio": 0.05,
   "five_xx_min_requests": 20,
   "port_probe": true,
-  "stuck_hint": true
+  "stuck_hint": true,
+  "cert_files": [],
+  "cert_warn_days": 30
 }
 ```
 
 优先级：配置文件 > 环境变量 `FASTHTTPS_MONITOR_DIR` > 默认值。字段缺失或写成空值等于「没设置」，回落默认值。`timeout` 不得大于 `interval`；`cooldown` 省略或写 `0` 时用默认的 5 分钟。
 
 `port_probe` 与 `stuck_hint` **默认开启**：前者发现「接口活着但业务端口不通」，后者是 info 级别的提示。嫌噪声多就在配置里显式写 `false` 关掉——只写 `false` 能覆盖默认值，不会回落成开。
+
+`cert_files` 默认是空列表，空列表不检查证书，也不读 `fast-https.json`。写了路径之后，剩余整天数低于 `cert_warn_days`（默认 30，与 `cert list` 的提醒天数相同）就写 `certificate_expiring`。消息里只有文件名和 `days_left`，没有 PEM 正文，也没有目录。同一文件、同一到期时刻在 `cooldown` 内只写一次。文件打不开或解析失败写 `certificate_read_error`，同样不带路径和文件内容。
 
 ## 规则口径
 
