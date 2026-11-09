@@ -1,7 +1,8 @@
-package cmd
+package sitecmd
 
 import (
 	"errors"
+	"fast-https/cmd/internal/cli"
 	"fast-https/config"
 	"fast-https/modules/site"
 	"fmt"
@@ -20,7 +21,7 @@ import (
 // 站点文件与主配置 http.server[] 的元素同构，合并与校验复用 config 包；
 // 写完只提示 reload，不自动重载。
 
-type siteOptions struct {
+type Options struct {
 	ConfigPath     string
 	Name           string
 	Listens        []string
@@ -40,16 +41,16 @@ type siteOptions struct {
 	Out     io.Writer
 }
 
-// siteFlagChanged 是 Changed 的 nil 安全包装：测试里直接构造 siteOptions 时没有它。
-func siteFlagChanged(opts siteOptions, name string) bool {
+// siteFlagChanged 是 Changed 的 nil 安全包装：测试里直接构造 Options 时没有它。
+func siteFlagChanged(opts Options, name string) bool {
 	return opts.Changed != nil && opts.Changed(name)
 }
 
-func newSiteCmd() *cobra.Command {
+func NewSiteCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "site",
-		Short: t("管理 http.include 目录下的站点文件", "manage site files under http.include"),
-		Long: t(
+		Short: cli.T("管理 http.include 目录下的站点文件", "manage site files under http.include"),
+		Long: cli.T(
 			"新增、更新、删除、启用、停用用 site add/update/delete/enable/disable，它们走配置事务（校验、恢复点、reload、可回滚）。site add 不带 --domain 且标准输入是终端时进向导。",
 			"Use site add/update/delete/enable/disable for adding, updating, deleting, enabling and disabling; they go through the config transaction (validation, restore point, reload, rollback). site add enters a wizard when --domain is omitted on a terminal."),
 		SilenceUsage: true,
@@ -58,42 +59,42 @@ func newSiteCmd() *cobra.Command {
 
 	listCmd := &cobra.Command{
 		Use:          "list",
-		Short:        t("列出站点文件的 listen、server_name 与 location 类型", "list site files with listen, server_name and location types"),
+		Short:        cli.T("列出站点文件的 listen、server_name 与 location 类型", "list site files with listen, server_name and location types"),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if jsonMode(cmd) {
-				return runSiteListJSON(cmd)
+			if cli.JSONMode(cmd) {
+				return RunListJSON(cmd)
 			}
-			return runSiteList(siteOptionsFrom(cmd, args))
+			return RunList(OptionsFrom(cmd, args))
 		},
 	}
 	showCmd := &cobra.Command{
 		Use:          "show <name>",
-		Short:        t("打印某站点最终生效的 server 块及其来源文件", "print the effective server block of a site and its source file"),
+		Short:        cli.T("打印某站点最终生效的 server 块及其来源文件", "print the effective server block of a site and its source file"),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if jsonMode(cmd) {
-				return runSiteShowJSON(cmd, args[0])
+			if cli.JSONMode(cmd) {
+				return RunShowJSON(cmd, args[0])
 			}
-			return runSiteShow(siteOptionsFrom(cmd, args))
+			return RunShow(OptionsFrom(cmd, args))
 		},
 	}
 	for _, sub := range []*cobra.Command{listCmd, showCmd} {
-		sub.Flags().String("config", config.CONFIG_FILE_PATH, t("主配置文件", "main config file"))
+		sub.Flags().String("config", config.CONFIG_FILE_PATH, cli.T("主配置文件", "main config file"))
 	}
-	showCmd.Flags().Bool("merged", false, t("打印合并后每个字段都生效的 server 块", "print the merged server block with every effective field"))
+	showCmd.Flags().Bool("merged", false, cli.T("打印合并后每个字段都生效的 server 块", "print the merged server block with every effective field"))
 
 	root.AddCommand(listCmd, showCmd)
 	addSiteWriteCommands(root)
 	return root
 }
 
-// siteOptionsFrom 读取公共 flag 与位置参数（站点名）。
-func siteOptionsFrom(cmd *cobra.Command, args []string) siteOptions {
+// OptionsFrom 读取公共 flag 与位置参数（站点名）。
+func OptionsFrom(cmd *cobra.Command, args []string) Options {
 	flags := cmd.Flags()
 	path, _ := flags.GetString("config")
-	opts := siteOptions{
+	opts := Options{
 		ConfigPath: path,
 		Changed:    flags.Changed,
 		In:         cmd.InOrStdin(),
@@ -140,7 +141,7 @@ func siteOptionsFrom(cmd *cobra.Command, args []string) siteOptions {
 
 // siteDirs 读取主配置里的 include 目录，空时给出可执行的提示。
 // 用 --config 指定的文件而不是进程快照：site 命令不启动服务，也不该改全局状态。
-func siteDirs(opts siteOptions) ([]string, error) {
+func Dirs(opts Options) ([]string, error) {
 	dirs, err := config.SiteDirsFromFile(opts.ConfigPath)
 	if err != nil {
 		return nil, err
@@ -153,7 +154,7 @@ func siteDirs(opts siteOptions) ([]string, error) {
 
 // applySiteLocation 只改 URL 为 "/" 的那个 location（没有就补一个），
 // 用户手写的其它 location 原样保留。
-func applySiteLocation(in *config.SiteInput, opts siteOptions, changed func(string) bool) error {
+func applySiteLocation(in *config.SiteInput, opts Options, changed func(string) bool) error {
 	typeChanged := changed("type")
 	rootChanged := changed("root")
 	proxyChanged := changed("proxy-pass")
@@ -233,7 +234,7 @@ func fillSiteCerts(in *config.SiteInput) {
 
 // siteInputFrom 先用参数拼装；参数不齐且能交互时走向导补齐。
 // 返回站点名与结构：向导里可能改掉名字，所以不能只改 opts。
-func siteInputFrom(opts *siteOptions) (string, config.SiteInput, error) {
+func siteInputFrom(opts *Options) (string, config.SiteInput, error) {
 	in := config.SiteInput{
 		Listens:    cleanListens(opts.Listens),
 		ServerName: strings.TrimSpace(opts.ServerName),
@@ -317,7 +318,7 @@ func withTLS(listen string) string {
 //
 // 例：--listen 80 --tls → 80 与 "443 ssl h2"；--listen 8443 --tls →
 // "8443 ssl h2"；--listen 8443 --listen 80 --tls → "8443 ssl h2" 与 80。
-func resolveListens(opts siteOptions, given []string) []string {
+func resolveListens(opts Options, given []string) []string {
 	listens := cleanListens(given)
 	if len(listens) == 0 {
 		if opts.TLS {
@@ -352,7 +353,7 @@ func resolveListens(opts siteOptions, given []string) []string {
 
 // buildSiteInput 把选项落成站点结构：监听与证书由 TLS 规则决定，
 // 类型决定生成 local 还是 proxy 的 location。
-func buildSiteInput(opts siteOptions, in config.SiteInput) (config.SiteInput, error) {
+func buildSiteInput(opts Options, in config.SiteInput) (config.SiteInput, error) {
 	locationType := strings.TrimSpace(opts.LocationType)
 	if locationType == "" {
 		locationType = "local"
@@ -403,7 +404,7 @@ func buildSiteInput(opts siteOptions, in config.SiteInput) (config.SiteInput, er
 // Windows 的 conhost 对 bubbletea 的终端控制支持不完整（raw 读、全屏渲染
 // 都会返回 syscall.EWINDOWS，也就是 "not supported by windows"），因此
 // Windows 上完全不碰 huh 与 term，只读 stdin。
-func promptSitePlain(opts *siteOptions, in *config.SiteInput) error {
+func promptSitePlain(opts *Options, in *config.SiteInput) error {
 	// 逐行模式的标题与说明刻意和 huh 表单保持一字不差：同一套向导，
 	// 只是终端不支持全屏渲染时退化成一行一问。
 	ask := func(title, desc, initial string) (string, error) {
@@ -492,7 +493,7 @@ func supportsTUI() bool {
 }
 
 // promptSite 只问缺什么：名字、类型、上游，以及 TLS 开关。
-func promptSite(opts *siteOptions, in *config.SiteInput) error {
+func promptSite(opts *Options, in *config.SiteInput) error {
 	// 终端支持全屏渲染才用 huh 表单（与 site init 时代一致）；conhost 之类
 	// 不支持的终端退化成逐行问答，标题与说明文字保持一字不差。
 	if !supportsTUI() {
@@ -555,7 +556,7 @@ func promptSite(opts *siteOptions, in *config.SiteInput) error {
 			Description("反代目标，例如 http://127.0.0.1:8080。").
 			Placeholder("http://127.0.0.1:8080").
 			Value(&opts.ProxyPass).
-			Validate(validateNotBlank))), opts)
+			Validate(cli.ValidateNotBlank))), opts)
 	}
 
 	initial := strings.TrimSpace(opts.Root)
@@ -581,8 +582,8 @@ func promptSite(opts *siteOptions, in *config.SiteInput) error {
 }
 
 // runSiteForm 跑一屏问答，把 Ctrl+C / Esc 统一翻译成"已取消"。
-func runSiteForm(form *huh.Form, opts *siteOptions) error {
-	applyStdio(form, opts.In, opts.Out, false)
+func runSiteForm(form *huh.Form, opts *Options) error {
+	cli.ApplyStdio(form, opts.In, opts.Out, false)
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
 			return errors.New("已取消，未生成站点文件")
@@ -592,8 +593,8 @@ func runSiteForm(form *huh.Form, opts *siteOptions) error {
 	return nil
 }
 
-func runSiteList(opts siteOptions) error {
-	dirs, err := siteDirs(opts)
+func RunList(opts Options) error {
+	dirs, err := Dirs(opts)
 	if err != nil {
 		return err
 	}
@@ -617,11 +618,11 @@ func runSiteList(opts siteOptions) error {
 	return nil
 }
 
-// runSiteShow 默认打印站点文件原文，--merged 才打印合并后的完整 server 块：
+// RunShow 默认打印站点文件原文，--merged 才打印合并后的完整 server 块：
 // 后者把未写字段的默认值也铺开，排错时有用，日常查看太吵。
-func runSiteShow(opts siteOptions) error {
+func RunShow(opts Options) error {
 	if !opts.Merged {
-		if dirs, err := siteDirs(opts); err == nil {
+		if dirs, err := Dirs(opts); err == nil {
 			if path, ok := site.Find(dirs, opts.Name); ok {
 				raw, readErr := os.ReadFile(path)
 				if readErr != nil {

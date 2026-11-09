@@ -1,4 +1,4 @@
-package cmd
+package sitecmd
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 )
 
 // siteTestEnv 造一个最小主配置：一个 server 段 + 一个临时 include 目录。
-func siteTestEnv(t *testing.T) (mainPath, includeDir string) {
+func newSiteEnv(t *testing.T) (mainPath, includeDir string) {
 	t.Helper()
 	base := t.TempDir()
 	includeDir = filepath.Join(base, "conf.d")
@@ -46,10 +46,10 @@ func siteTestEnv(t *testing.T) (mainPath, includeDir string) {
 }
 
 func TestSiteInitNonInteractiveCreatesFile(t *testing.T) {
-	mainPath, includeDir := siteTestEnv(t)
+	mainPath, includeDir := newSiteEnv(t)
 	var out bytes.Buffer
 
-	opts := siteOptions{
+	opts := Options{
 		ConfigPath:     mainPath,
 		Name:           "blog",
 		Listens:        []string{"80"},
@@ -78,9 +78,9 @@ func TestSiteInitNonInteractiveCreatesFile(t *testing.T) {
 
 // TLS 站点在首次 start 之前没有证书文件，init 仍应成功。
 func TestSiteInitTLSAllowsMissingCerts(t *testing.T) {
-	mainPath, includeDir := siteTestEnv(t)
+	mainPath, includeDir := newSiteEnv(t)
 
-	opts := siteOptions{
+	opts := Options{
 		ConfigPath:     mainPath,
 		Name:           "secure",
 		Listens:        []string{"443"},
@@ -108,8 +108,8 @@ func TestSiteInitTLSAllowsMissingCerts(t *testing.T) {
 }
 
 func TestSiteInitProxyRequiresUpstream(t *testing.T) {
-	mainPath, _ := siteTestEnv(t)
-	opts := siteOptions{
+	mainPath, _ := newSiteEnv(t)
+	opts := Options{
 		ConfigPath:     mainPath,
 		Name:           "api",
 		Listens:        []string{"80"},
@@ -124,9 +124,9 @@ func TestSiteInitProxyRequiresUpstream(t *testing.T) {
 }
 
 func TestSiteListShowCheck(t *testing.T) {
-	mainPath, _ := siteTestEnv(t)
-	newOpts := func(name string) siteOptions {
-		return siteOptions{
+	mainPath, _ := newSiteEnv(t)
+	newOpts := func(name string) Options {
+		return Options{
 			ConfigPath:     mainPath,
 			Name:           name,
 			Listens:        []string{"80"},
@@ -145,8 +145,8 @@ func TestSiteListShowCheck(t *testing.T) {
 	}
 
 	var listOut bytes.Buffer
-	opts := siteOptions{ConfigPath: mainPath, Out: &listOut}
-	if err := runSiteList(opts); err != nil {
+	opts := Options{ConfigPath: mainPath, Out: &listOut}
+	if err := RunList(opts); err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if !strings.Contains(listOut.String(), "blog") || !strings.Contains(listOut.String(), "shop") {
@@ -154,8 +154,8 @@ func TestSiteListShowCheck(t *testing.T) {
 	}
 
 	var showOut bytes.Buffer
-	opts = siteOptions{ConfigPath: mainPath, Name: "blog", Out: &showOut}
-	if err := runSiteShow(opts); err != nil {
+	opts = Options{ConfigPath: mainPath, Name: "blog", Out: &showOut}
+	if err := RunShow(opts); err != nil {
 		t.Fatalf("show: %v", err)
 	}
 	if !strings.Contains(showOut.String(), "blog.example") || !strings.Contains(showOut.String(), "来源") {
@@ -184,7 +184,7 @@ func TestResolveListens(t *testing.T) {
 		{"blank entries dropped", false, []string{"80", "  "}, []string{"80"}},
 	}
 	for _, c := range cases {
-		got := resolveListens(siteOptions{TLS: c.tls}, c.given)
+		got := resolveListens(Options{TLS: c.tls}, c.given)
 		if len(got) != len(c.want) {
 			t.Fatalf("%s: listens = %v, want %v", c.name, got, c.want)
 		}
@@ -198,7 +198,7 @@ func TestResolveListens(t *testing.T) {
 
 // 向导里把类型改成反向代理后，第二屏必须问上游地址，而不是继续问站点根目录。
 func TestSiteInitWizardAsksUpstreamForProxy(t *testing.T) {
-	mainPath, includeDir := siteTestEnv(t)
+	mainPath, includeDir := newSiteEnv(t)
 	var out bytes.Buffer
 
 	// accessible 模式逐行读取：站点名、监听、server_name、类型、TLS、上游地址。
@@ -213,7 +213,7 @@ func TestSiteInitWizardAsksUpstreamForProxy(t *testing.T) {
 		"http://127.0.0.1:9000", // 上游地址
 	)
 
-	opts := siteOptions{
+	opts := Options{
 		ConfigPath: mainPath,
 		In:         input,
 		Out:        &out,
@@ -241,7 +241,7 @@ func TestSiteInitWizardAsksUpstreamForProxy(t *testing.T) {
 }
 
 func TestSiteInitWizardLocalAsksRoot(t *testing.T) {
-	mainPath, includeDir := siteTestEnv(t)
+	mainPath, includeDir := newSiteEnv(t)
 	var out bytes.Buffer
 
 	input := newLineReader(
@@ -253,7 +253,7 @@ func TestSiteInitWizardLocalAsksRoot(t *testing.T) {
 		"",            // 站点根目录（留空 → ./httpdoc/root）
 	)
 
-	opts := siteOptions{
+	opts := Options{
 		ConfigPath: mainPath,
 		In:         input,
 		Out:        &out,
@@ -275,8 +275,8 @@ func TestSiteInitWizardLocalAsksRoot(t *testing.T) {
 }
 
 func TestSiteInitTLSDefaultsToHTTPAndHTTPS(t *testing.T) {
-	mainPath, includeDir := siteTestEnv(t)
-	opts := siteOptions{
+	mainPath, includeDir := newSiteEnv(t)
+	opts := Options{
 		ConfigPath:     mainPath,
 		Name:           "secure",
 		ServerName:     "secure.example",
@@ -313,7 +313,7 @@ func TestSiteInitTLSDefaultsToHTTPAndHTTPS(t *testing.T) {
 func seedSite(t *testing.T, mainPath, includeDir string) string {
 	t.Helper()
 
-	initOpts := siteOptions{
+	initOpts := Options{
 		ConfigPath:     mainPath,
 		Name:           "blog",
 		Listens:        []string{"80"},
@@ -351,7 +351,7 @@ func seedSite(t *testing.T, mainPath, includeDir string) string {
 
 func runSiteSubcmd(t *testing.T, mainPath string, args ...string) (string, error) {
 	t.Helper()
-	cmd := newSiteCmd()
+	cmd := NewSiteCmd()
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -362,9 +362,9 @@ func runSiteSubcmd(t *testing.T, mainPath string, args ...string) (string, error
 
 // createSiteForTest 用与 site add 相同的参数采集与落盘路径造一个站点文件。
 // 测试不再依赖已移除的 runSiteInit。
-func createSiteForTest(t *testing.T, opts siteOptions) error {
+func createSiteForTest(t *testing.T, opts Options) error {
 	t.Helper()
-	dirs, err := siteDirs(opts)
+	dirs, err := Dirs(opts)
 	if err != nil {
 		return err
 	}

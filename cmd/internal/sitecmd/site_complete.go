@@ -1,4 +1,4 @@
-package cmd
+package sitecmd
 
 import (
 	"bufio"
@@ -75,7 +75,7 @@ func commonPrefix(items []string) string {
 }
 
 // canReadRaw 判断能不能进入原始模式：必须是终端，且输入确实是那个终端。
-func canReadRaw(opts siteOptions) (*os.File, bool) {
+func canReadRaw(opts Options) (*os.File, bool) {
 	// Windows 的控制台不支持 raw 模式下的逐字节读取（Tab 补全依赖它），
 	// term.MakeRaw 之后的读循环会抛 "not supported by windows"。
 	// 统一退回普通逐行输入，与重定向输入走同一条路径。
@@ -91,7 +91,7 @@ func canReadRaw(opts siteOptions) (*os.File, bool) {
 
 // readPathLine 读一行路径，Tab 补全。非终端时退回普通逐行读取，
 // 保证重定向输入时不会卡住。
-func readPathLine(opts siteOptions, title, initial string) (string, error) {
+func readPathLine(opts Options, title, initial string) (string, error) {
 	file, raw := canReadRaw(opts)
 	if !raw {
 		return readPlainPathLine(opts, title, initial)
@@ -140,7 +140,7 @@ func readPathLine(opts siteOptions, title, initial string) (string, error) {
 
 // applyCompletion 处理一次 Tab：唯一匹配直接补全，多个匹配补公共前缀并列出候选。
 // 行内重绘交给调用方，这里只负责算出新内容（列候选时直接往 out 写）。
-func applyCompletion(opts siteOptions, buf []byte) []byte {
+func applyCompletion(opts Options, buf []byte) []byte {
 	matches := pathCompletions(string(buf))
 	switch len(matches) {
 	case 0:
@@ -162,7 +162,7 @@ func applyCompletion(opts siteOptions, buf []byte) []byte {
 }
 
 // readPlainPathLine 用于非终端输入：读一行，空行保留默认值。
-func readPlainPathLine(opts siteOptions, title, initial string) (string, error) {
+func readPlainPathLine(opts Options, title, initial string) (string, error) {
 	fmt.Fprintf(opts.Out, "%s [%s]：", title, initial)
 	reader := bufio.NewReader(opts.In)
 	line, err := reader.ReadString('\n')
