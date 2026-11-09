@@ -172,7 +172,7 @@ curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
 | `./fast-https version` | 打印版本号，输出一行 `fast-https <版本>` |
 | `./fast-https acme` | 交互式配置 ACME 自动签发证书，写回 `acme` 段（改完需重启） |
 | `./fast-https acme show` | 查看当前 ACME 配置与会申请证书的域名 |
-| `./fast-https site init blog` | 在 `config/conf.d/` 下生成一个站点文件（向导，或用参数跳过提问） |
+| `./fast-https site add` | 新增站点：不带 `--domain` 时进向导，带了就用 `--listen/--root/--proxy-pass` 等参数 |
 | `./fast-https site list/check/show/remove` | 站点文件的列表、校验、查看与删除 |
 
 ## 常见问题

@@ -107,17 +107,17 @@ func TestRootHelpIsLocalized(t *testing.T) {
 func TestSubcommandHelpIsLocalized(t *testing.T) {
 	t.Cleanup(func() { currentLang = LangZH })
 
-	zh := runHelp(t, LangZH, "site", "init", "--help")
-	for _, flag := range []string{"--listen", "--root", "--tls", "--force"} {
+	zh := runHelp(t, LangZH, "site", "add", "--help")
+	for _, flag := range []string{"--domain", "--root", "--tls", "--dry-run"} {
 		if !strings.Contains(zh, flag) {
-			t.Errorf("site init 帮助缺少 %s\n---\n%s", flag, zh)
+			t.Errorf("site add 帮助缺少 %s\n---\n%s", flag, zh)
 		}
 	}
-	if !strings.Contains(zh, "按参数重建文件") {
-		t.Errorf("--force 的说明没有翻成中文\n---\n%s", zh)
+	if !strings.Contains(zh, "只生成差异，不应用") {
+		t.Errorf("--dry-run 的说明没有翻成中文\n---\n%s", zh)
 	}
-	if strings.Contains(zh, "rebuild the file from flags") {
-		t.Errorf("中文帮助里出现了英文 --force 说明\n---\n%s", zh)
+	if strings.Contains(zh, "show the diff only") {
+		t.Errorf("中文帮助里出现了英文 --dry-run 说明\n---\n%s", zh)
 	}
 	// 子命令继承根命令的 --lang，这一段标题也要是中文。
 	if !strings.Contains(zh, "全局选项") {

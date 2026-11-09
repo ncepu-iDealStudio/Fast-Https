@@ -3,7 +3,6 @@ package cmd
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -69,10 +68,11 @@ func TestSiteRootPathTraversalCLI(t *testing.T) {
 	if code != 2 {
 		t.Fatalf("exit = %d, want 2", code)
 	}
-	_, _, code = runCLI(t, "site", "add", "--config", f.main, "--domain", "y.example",
+	var out2, errOut string
+	out2, errOut, code = runCLI(t, "site", "add", "--config", f.main, "--domain", "y.example",
 		"--root", f.dir, "--yes", "--json")
 	if code != 2 {
-		t.Fatalf("指向配置目录 exit = %d, want 2", code)
+		t.Fatalf("指向配置目录 exit = %d, want 2, stdout=%s stderr=%s", code, out2, errOut)
 	}
 	stateDir := os.Getenv("FASTHTTPS_STATE_DIR")
 	_, _, code = runCLI(t, "site", "add", "--config", f.main, "--domain", "z.example",
@@ -115,32 +115,16 @@ func TestSiteUpdateInlineNotSupportedCLI(t *testing.T) {
 	}
 }
 
-func TestLegacySiteInitRemoveUnchanged(t *testing.T) {
-	mainPath, includeDir := siteTestEnv(t)
-	out, _, code := runCLI(t, "site", "init", "blog", "--config", mainPath,
-		"--non-interactive", "--listen", "80", "--server-name", "blog.example", "--root", "./httpdoc/root")
-	if code != 0 {
-		t.Fatalf("init exit = %d\n%s", code, out)
-	}
-	if !strings.Contains(out, "站点文件已生成") || !strings.Contains(out, "fast-https reload") {
-		t.Fatalf("旧 init 输出应变：%s", out)
-	}
-	if _, err := os.Stat(filepath.Join(includeDir, "blog.json")); err != nil {
-		t.Fatal(err)
-	}
-	_, errOut, code := runCLI(t, "site", "remove", "blog", "--config", mainPath)
-	if code != 1 {
-		t.Fatalf("remove 无 --yes exit = %d, want 1", code)
-	}
-	if !strings.Contains(errOut, "加 --yes") {
-		t.Fatalf("stderr = %q", errOut)
-	}
-	out, _, code = runCLI(t, "site", "remove", "blog", "--config", mainPath, "--yes")
-	if code != 0 {
-		t.Fatalf("remove --yes exit = %d\n%s", code, out)
-	}
-	if !strings.Contains(out, "已删除") || !strings.Contains(out, "fast-https reload") {
-		t.Fatalf("旧 remove 输出应变：%s", out)
+func TestLegacySiteInitRemoveRemoved(t *testing.T) {
+	mainPath, _ := siteTestEnv(t)
+	for _, sub := range []string{"init", "remove"} {
+		_, errOut, code := runCLI(t, "site", sub, "blog", "--config", mainPath)
+		if code == 0 {
+			t.Fatalf("site %s 应已移除，却执行成功", sub)
+		}
+		if errOut == "" {
+			t.Fatalf("site %s 失败但没有错误输出", sub)
+		}
 	}
 }
 

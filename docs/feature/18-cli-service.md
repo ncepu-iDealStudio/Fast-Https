@@ -18,7 +18,7 @@ fast-https monitor status|events [--json] # 只读 Monitor 状态文件与事件
 fast-https config path|show|validate|versions|diff|apply|rollback [--json] # 路径 / 脱敏配置 / 校验 / 版本 / 差异 / 应用 / 回滚
 fast-https cert list|check --domain <d> [--json] # 只读的证书状态 / 检查
 fast-https acme [setup|show]     # 交互向导 / 参数式配置 / 查看当前生效值
-fast-https site init|list|show|remove   # 旧命令：只写文件并提示 reload
+fast-https site list|show               # 只读：查看站点与生效配置
 fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操作（走配置事务）
 ```
 
@@ -32,7 +32,7 @@ fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操�
 - **输出与退出码框架**：`cmd/cli_output.go`（JSON 封套、错误输出）、`cmd/cli_errors.go`（`CLIError`、错误码到退出码的映射）、`cmd/cli_flags.go`（全局 `--json`/`--timeout`/`--request-id`、`Run`）。`main` 调 `cmd.Run()`，错误统一由 `reportError` 输出：旧命令仍是 stderr 上的 `Error: ...`，`--json` 时是 stdout 上的错误封套。`--json` 下用 `logging.SetConsoleOutput` 把控制台日志改到 stderr。不是 `*CLIError` 的错误一律退出码 1。
 - **handler 注册**：`cmd.RegisterHandlers` 把 static/proxy/rewrite/devmod 注册进 core 注册表；`RegisterServices` 把 safe（黑名单/限流）、auth、tcp/websocket 劫持、缓存清理装配进 `core.Services` 钩子——core 不反向依赖功能包。
 - **`acme` 命令**：`cmd/acme.go` 用 `charmbracelet/huh` 做交互表单（非 TTY 自动降级为逐行问答，`--non-interactive` 全走 flags），写回时走 `config.WriteACMESection` 的文本级局部替换，只改顶层 `acme` 段，注释与其它字段保持原样。
-- **`site` 命令组**：`cmd/site.go` 只做参数解析与输出；文件生成、命名校验、原子落盘在 `modules/site`，合并视图与文件级校验复用 `config`（`SiteDirsFromFile`、`ValidateSiteFile`、`ValidateNewSiteFile`、`SnapshotServer`）。`command` 结构新增 `register func() *cobra.Command`，带子命令的命令走它注册，扁平命令保持原样。`site add/update/delete/enable/disable`（`cmd/site_write.go`）先把线上配置树克隆到临时候选（`management/siteops`），在副本上调用 `modules/site`，再交给 S8 事务引擎；`--root` 由 `management/pathguard` 规范化并拒绝配置/证书/状态/日志目录。停用是把 `<name>.json` 改名为 `<name>.json.disabled`。旧的 `site init` / `site remove` 输出与退出码不变。
+- **`site` 命令组**：`cmd/site.go` 只做参数解析与输出；文件生成、命名校验、原子落盘在 `modules/site`，合并视图与文件级校验复用 `config`（`SiteDirsFromFile`、`ValidateSiteFile`、`ValidateNewSiteFile`、`SnapshotServer`）。`command` 结构新增 `register func() *cobra.Command`，带子命令的命令走它注册，扁平命令保持原样。`site add/update/delete/enable/disable`（`cmd/site_write.go`）先把线上配置树克隆到临时候选（`management/siteops`），在副本上调用 `modules/site`，再交给 S8 事务引擎；`--root` 由 `management/pathguard` 规范化并拒绝配置/证书/状态/日志目录。停用是把 `<name>.json` 改名为 `<name>.json.disabled`。`site init` / `site remove` 已移除，交互向导并入 `site add`。
 - **只读视图与脱敏**：`management/view` 把磁盘配置、站点与进程状态整理成输出数据（纯只读，不依赖 `cmd`），`management/redact` 按键名遮蔽口令、令牌、EAB 密钥和敏感请求头的值，路径不算秘密。`management` 是分层测试里的独立一层，只依赖 `infra`、`config`、`modules/site`、`modules/certmanager`。`cmd/service_status.go`、`cmd/config_cmd.go`、`cmd/site_json.go` 只做参数解析与输出，`cmd/view_errors.go` 把视图层错误转成错误码。
 - **`service status` 判定**：进程在且至少一个配置端口回环可连是 `running`，进程在但端口都连不上是 `degraded`，没进程也没端口是 `stopped`（pid 文件残留时带 `stale_pid`），证据互相矛盾（没进程却有端口可连、pid 文件读不出）是 `unknown`。端口取自 `config.ListenPortsFromFile`，只读、不替换运行期快照。读得到 `/runtime` 时补 `uptime_seconds`、`started_at`、`version`；`config_version` 来自状态目录里当前 active 的配置快照。
 - **`runtime status` / `runtime stats`**：`management/rtclient` 用标准库 HTTP 读 `127.0.0.1:9088/runtime`（可用 `FASTHTTPS_RUNTIME_URL` 覆盖）。只做客户端，不另写计数。`schema_version` 必须为 `"1"`，否则 `UNMET_DEPENDENCY`。连不上是 `SERVICE_UNREACHABLE`。`runtime stats` 的窗口固定为 `since_process_start`；`--since` / `--domain` 返回 `NOT_SUPPORTED`。
@@ -43,7 +43,7 @@ fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操�
 
 ## 测试
 
-`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏，`cli_s8_test.go` 覆盖 apply/reload 用法与旧 reload 文案，`cli_s9_test.go` 覆盖站点写命令用法与旧 `site init/remove`，`cli_s11_test.go` 覆盖 `runtime status/stats` 与强验证相关 CLI 契约，`cli_s12_test.go` 覆盖 `monitor status/events`，`logs_test.go` 覆盖 `logs error` 可读控制台镜像）、`management/redact`、`management/view`、`management/rtclient`、`management/monview`、`management/svcctl`、`management/txn`（故障注入）、`management/siteops`、`management/pathguard`、`config/validate_warnings_test.go`。`tests/client_test/runtime_e2e_test.go` 在 `FASTHTTPS_E2E_RUNTIME=1` 下核对真实进程的累计请求数。
+`tests/unit_test/cmd`（命令行为/未知命令错误）、`cmd/`（foreground/status/check；`cli_test.go` 锁封套与退出码，`compat_test.go` 锁住桌面端依赖的旧命令输出，`cli_s2_test.go` 覆盖只读命令与脱敏，`cli_s8_test.go` 覆盖 apply/reload 用法与旧 reload 文案，`cli_s9_test.go` 覆盖站点写命令用法与已移除的旧命令，`cli_s11_test.go` 覆盖 `runtime status/stats` 与强验证相关 CLI 契约，`cli_s12_test.go` 覆盖 `monitor status/events`，`logs_test.go` 覆盖 `logs error` 可读控制台镜像）、`management/redact`、`management/view`、`management/rtclient`、`management/monview`、`management/svcctl`、`management/txn`（故障注入）、`management/siteops`、`management/pathguard`、`config/validate_warnings_test.go`。`tests/client_test/runtime_e2e_test.go` 在 `FASTHTTPS_E2E_RUNTIME=1` 下核对真实进程的累计请求数。
 
 ## 已知限制
 

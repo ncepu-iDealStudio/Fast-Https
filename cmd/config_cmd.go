@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -270,10 +271,10 @@ func newConfigApplyCmd() *cobra.Command {
 		Short: t("将候选配置目录受控应用到线上", "apply a candidate config directory under management control"),
 		Long: t(
 			"校验候选目录、生成差异、保存恢复点、切换配置、reload。读得到 /runtime 时做强验证，否则退回弱验证。失败则从恢复点还原。\n"+
-				"必须加 --yes（或 --confirm）。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建恢复点。",
+				"必须加 --yes。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建恢复点。",
 			"Validate the candidate directory, diff it, save a restore point, switch files, reload, and verify.\n"+
 				"When /runtime is reachable the check is strong; otherwise it falls back to a basic process/port check.\n"+
-				"Failure rolls back from the restore point. --yes (or --confirm) is required.\n"+
+				"Failure rolls back from the restore point. --yes is required.\n"+
 				"--dry-run only reports validation and the diff; it writes nothing, does not reload, and creates no restore point."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
@@ -283,7 +284,6 @@ func newConfigApplyCmd() *cobra.Command {
 	c.Flags().String("candidate", "", t("候选配置目录（必填）", "candidate config directory (required)"))
 	c.Flags().Bool("dry-run", false, t("只校验与展示差异，不应用", "validate and show the diff only, do not apply"))
 	c.Flags().Bool("yes", false, t("确认执行（非 dry-run 必填）", "confirm the apply (required unless --dry-run)"))
-	c.Flags().Bool("confirm", false, t("与 --yes 同义", "same as --yes"))
 	return c
 }
 
@@ -293,9 +293,9 @@ func newConfigRollbackCmd() *cobra.Command {
 		Short: t("回滚到一个历史配置版本", "roll back to a historical config version"),
 		Long: t(
 			"回滚是一次新的 operation：先校验目标版本（含引用的证书仍存在），再走与 apply 相同的事务。不删除历史版本。\n"+
-				"必须加 --yes（或 --confirm）。",
+				"必须加 --yes。",
 			"Rollback is a new operation: the target version is validated first (including that referenced certificates still exist),\n"+
-				"then the same transaction as apply runs. Historical versions are not deleted. --yes (or --confirm) is required."),
+				"then the same transaction as apply runs. Historical versions are not deleted. --yes is required."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         runConfigRollback,
@@ -304,14 +304,12 @@ func newConfigRollbackCmd() *cobra.Command {
 	c.Flags().String("version", "", t("目标版本号，例如 v001（必填）", "target version, e.g. v001 (required)"))
 	c.Flags().Bool("dry-run", false, t("只校验与展示差异，不回滚", "validate and show the diff only, do not roll back"))
 	c.Flags().Bool("yes", false, t("确认执行（非 dry-run 必填）", "confirm the rollback (required unless --dry-run)"))
-	c.Flags().Bool("confirm", false, t("与 --yes 同义", "same as --yes"))
 	return c
 }
 
 func confirmed(cmd *cobra.Command) bool {
 	yes, _ := cmd.Flags().GetBool("yes")
-	confirm, _ := cmd.Flags().GetBool("confirm")
-	return yes || confirm
+	return yes
 }
 
 func runConfigApply(cmd *cobra.Command, _ []string) error {
@@ -321,7 +319,7 @@ func runConfigApply(cmd *cobra.Command, _ []string) error {
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	if !dry && !confirmed(cmd) {
-		return usageError(fmt.Errorf("apply requires --yes (or --confirm); use --dry-run to preview"))
+		return usageError(fmt.Errorf("apply requires --yes; use --dry-run to preview"))
 	}
 	live, _ := cmd.Flags().GetString("config")
 	return runTxn(cmd, "config.apply", txn.Input{
@@ -341,7 +339,7 @@ func runConfigRollback(cmd *cobra.Command, _ []string) error {
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	if !dry && !confirmed(cmd) {
-		return usageError(fmt.Errorf("rollback requires --yes (or --confirm); use --dry-run to preview"))
+		return usageError(fmt.Errorf("rollback requires --yes; use --dry-run to preview"))
 	}
 	root := cfgver.VersionDir(stateDir(), ver)
 	if info, err := os.Stat(root); err != nil || !info.IsDir() {
@@ -396,14 +394,30 @@ func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 				return err
 			}
 			if st != ProcessRunning {
-				return svcctl.ErrNotRunning
+				// 服务没在跑也允许提交：配置已经写到候选并切换完成，
+				// 下次启动会加载，没有 reload 可做。回滚反而是错的。
+				fmt.Fprintln(os.Stderr, "提示：fast-https 服务未运行，配置已写入，启动后生效")
+				return nil
 			}
 			before = nil
 			if snap, err := rtclient.Default().Get(ctx); err == nil {
 				cp := snap
 				before = &cp
 			}
-			return svcctl.SignalReload(pid)
+			// Windows 上服务与 CLI 常常不在同一个控制台，Ctrl+Break /
+			// SIGINT 投递不过去（syscall.EWINDOWS = "not supported by
+			// windows"）。此时配置已经写好，不该因为发不出信号而回滚，
+			// 提示用户手动重载即可。
+			if err := svcctl.SignalReload(pid); err != nil {
+				if runtime.GOOS == "windows" {
+					fmt.Fprintln(os.Stderr,
+						"提示：Windows 上无法向其他控制台的进程发送 reload 信号，配置已写入；"+
+							"请在服务所在终端重启服务，或执行 fast-https reload")
+					return nil
+				}
+				return err
+			}
+			return nil
 		}),
 		Health: txn.FuncHealth(func(ctx context.Context) error {
 			st, pid, err := InspectProcess(pidPath)
@@ -411,7 +425,8 @@ func newTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 				return err
 			}
 			if st != ProcessRunning {
-				return svcctl.ErrNotRunning
+				// 服务没在跑就没有健康检查可做，不构成失败。
+				return nil
 			}
 			opts := svcctl.Options{
 				ConfigPath: liveMain,

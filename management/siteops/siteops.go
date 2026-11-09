@@ -481,8 +481,15 @@ func fillCerts(in *config.SiteInput) {
 		return
 	}
 	name := strings.TrimSpace(in.ServerName)
+	cert := filepath.Join(config.CERT_DIR, name+".pem")
+	// 首次 start 之前本地 CA 还没签发这张证书，此时留空：CertInit 会按
+	// 站点自动生成。写死一个不存在的路径会被 config apply 级别的校验
+	// 拒绝（ssl_certificate not found），而这条路径本来就是启动时才产生。
+	if _, err := os.Stat(cert); err != nil {
+		return
+	}
 	if in.SSLCertificate == "" {
-		in.SSLCertificate = filepath.Join(config.CERT_DIR, name+".pem")
+		in.SSLCertificate = cert
 	}
 	if in.SSLCertificateKey == "" {
 		in.SSLCertificateKey = filepath.Join(config.CERT_DIR, name+"-key.pem")

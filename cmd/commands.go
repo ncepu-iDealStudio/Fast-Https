@@ -178,7 +178,7 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 	registerGlobalFlags(cmd)
 
 	// 不要 cobra 自带的 `completion` 子命令：它生成的是 shell 补全脚本，
-	// 与本项目无关（站点路径的 Tab 补全在 site init 的输入行里，是另一套实现）。
+	// 与本项目无关（站点路径的 Tab 补全在 site 向导的输入行里，是另一套实现）。
 	// 留着只会在 --help 里多一条看起来像是我们做的事。
 	cmd.CompletionOptions.DisableDefaultCmd = true
 
@@ -561,11 +561,17 @@ func writePidTo(path string, pid int) error {
 	}
 
 	// Write JSON data to the specified file
-	if err := os.WriteFile(path, jsonData, 0644); err != nil {
-		return fmt.Errorf("error writing JSON data to file: %v", err)
+	// Windows 上目标文件偶尔会被杀毒/索引服务短暂占用，一次失败就放弃
+	// 会导致 pid 文件停留在上一次的旧值（表现为「服务在跑但 stop/status
+	// 找不到进程」），就地重试几次。
+	var writeErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if writeErr = os.WriteFile(path, jsonData, 0644); writeErr == nil {
+			return nil
+		}
+		time.Sleep(80 * time.Millisecond)
 	}
-
-	return nil
+	return fmt.Errorf("error writing JSON data to file: %v", writeErr)
 }
 
 // readPid 从指定文件读取并解析PID信息

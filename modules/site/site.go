@@ -111,7 +111,7 @@ func Create(dirs []string, name string, in config.SiteInput, force bool) (string
 }
 
 // LoadExisting 读取一个已存在的站点文件。不存在时返回 found=false 而不是错误：
-// site init 靠它区分"新建"与"同名即更新"。
+// 用于区分「文件已存在」与「需要新建」。
 func LoadExisting(dirs []string, name string) (string, config.SiteInput, bool, error) {
 	if strings.TrimSpace(name) == "" {
 		return "", config.SiteInput{}, false, nil
@@ -143,7 +143,7 @@ func Update(dirs []string, name string, apply func(*config.SiteInput) error) (st
 	}
 	path, ok := Find(dirs, name)
 	if !ok {
-		return "", fmt.Errorf("找不到站点文件：%s.json（新建请用 fast-https site init）", name)
+		return "", fmt.Errorf("找不到站点文件：%s.json（新建请用 fast-https site add）", name)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
