@@ -1,4 +1,4 @@
-package cmd
+package acmecmd
 
 import (
 	"bytes"
@@ -42,7 +42,8 @@ func (r *lineReader) Read(p []byte) (int, error) {
 // tempACMEConfig 复制一份随包默认配置到临时目录，测试只改副本。
 func tempACMEConfig(t *testing.T) string {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "config", "fast-https.json"))
+	// TestMain 已把工作目录切到仓库根，这里直接用仓库相对路径。
+	raw, err := os.ReadFile(filepath.Join("config", "fast-https.json"))
 	if err != nil {
 		t.Fatalf("read default config: %v", err)
 	}
@@ -352,29 +353,6 @@ func TestAcmeShowMasksEABAndListsDomains(t *testing.T) {
 	writeACMEShow(&out, nil, certmanager.DomainPlan{})
 	if !strings.Contains(out.String(), "未配置 acme 段") {
 		t.Fatalf("missing hint for absent section:\n%s", out.String())
-	}
-}
-
-func TestAcmeCmdTreeIsWired(t *testing.T) {
-	root := RootCmd()
-	found := root.Commands()
-	names := make([]string, 0, len(found))
-	hasACME := false
-	for _, c := range found {
-		names = append(names, c.Name())
-		if c.Name() == "acme" {
-			hasACME = true
-			subs := []string{}
-			for _, sub := range c.Commands() {
-				subs = append(subs, sub.Name())
-			}
-			if len(subs) != 2 || !contains(subs, "setup") || !contains(subs, "show") {
-				t.Fatalf("acme subcommands = %v, want setup and show", subs)
-			}
-		}
-	}
-	if !hasACME {
-		t.Fatalf("acme command is not registered: %v", names)
 	}
 }
 

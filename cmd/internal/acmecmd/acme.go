@@ -1,7 +1,8 @@
-package cmd
+package acmecmd
 
 import (
 	"errors"
+	"fast-https/cmd/internal/cli"
 	"fast-https/config"
 	"fast-https/modules/certmanager"
 	"fmt"
@@ -11,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/x/term"
 	"github.com/spf13/cobra"
 )
 
@@ -54,11 +54,11 @@ type acmeOptions struct {
 	Out        io.Writer
 }
 
-func newAcmeCmd() *cobra.Command {
+func NewAcmeCmd() *cobra.Command {
 	wizard := &cobra.Command{
 		Use:   "acme",
-		Short: t("交互式配置 ACME 证书签发", "configure ACME certificate issuance interactively"),
-		Long: t(
+		Short: cli.T("交互式配置 ACME 证书签发", "configure ACME certificate issuance interactively"),
+		Long: cli.T(
 			"配置 ACME（Let's Encrypt / ZeroSSL）证书签发。\n\n"+
 				"不带子命令运行进入交互向导：只改写配置文件顶层的 \"acme\" 段，注释原样保留。\n"+
 				"新配置在下次 reload 或启动时生效。",
@@ -72,14 +72,14 @@ func newAcmeCmd() *cobra.Command {
 
 	setup := &cobra.Command{
 		Use:          "setup",
-		Short:        t("写入 acme 段（不加 --non-interactive 时进入交互）", "write the acme section (interactive unless --non-interactive)"),
+		Short:        cli.T("写入 acme 段（不加 --non-interactive 时进入交互）", "write the acme section (interactive unless --non-interactive)"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return runAcmeSetup(cmd) },
 	}
 
 	show := &cobra.Command{
 		Use:          "show",
-		Short:        t("打印当前 acme 设置与将要申请的域名", "print the effective acme settings and the domains that will be requested"),
+		Short:        cli.T("打印当前 acme 设置与将要申请的域名", "print the effective acme settings and the domains that will be requested"),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAcmeShow(cmd.OutOrStdout())
@@ -89,7 +89,7 @@ func newAcmeCmd() *cobra.Command {
 	// 交互向导只留 --config：CA、邮箱、挑战方式这些都在问答里逐项给出默认值，
 	// 把十几个 flag 摆在 `acme --help` 里只会让「跑一次向导」这件事看起来很难。
 	// 需要脚本化时再用 `acme setup`，那里的 flag 一个不少。
-	wizard.Flags().String("config", config.CONFIG_FILE_PATH, t("要改写的配置文件", "config file to patch"))
+	wizard.Flags().String("config", config.CONFIG_FILE_PATH, cli.T("要改写的配置文件", "config file to patch"))
 	registerAcmeSetupFlags(setup)
 
 	wizard.AddCommand(setup, show)
@@ -98,19 +98,19 @@ func newAcmeCmd() *cobra.Command {
 
 func registerAcmeSetupFlags(c *cobra.Command) {
 	f := c.Flags()
-	f.String("email", "", t("账户邮箱，启用 ACME 时必填", "account email, required when ACME is enabled"))
-	f.String("ca", string(acmeCALetsEncrypt), t("letsencrypt | staging | zerossl | custom", "letsencrypt | staging | zerossl | custom"))
-	f.String("directory", "", t("ACME directory URL，配合 --ca=custom 使用", "ACME directory URL, used with --ca=custom"))
-	f.String("eab-kid", "", t("外部账户绑定 key id（ZeroSSL）", "external account binding key id (ZeroSSL)"))
-	f.String("eab-hmac-key", "", t("外部账户绑定 HMAC key（ZeroSSL）", "external account binding HMAC key (ZeroSSL)"))
-	f.String("challenge", config.ACMEChallengeAuto, t("auto | http-01 | tls-alpn-01", "auto | http-01 | tls-alpn-01"))
-	f.Int("renew-before-days", config.DefaultACMERenewBeforeDays, t("到期前多少天开始续期", "renew this many days before expiry"))
-	f.String("storage", config.ACMECertStorageDir, t("ACME 账户与订单缓存的目录", "directory for the ACME account and order cache"))
-	f.Bool("fallback-self-signed", true, t("签发失败时继续用自签证书", "keep serving the self-signed certificate when issuance fails"))
-	f.Bool("non-interactive", false, t("全部取值来自参数，不做任何提问", "take every value from flags, never prompt"))
-	f.Bool("plain", false, t("使用逐行问答代替全屏表单", "plain line-by-line prompts instead of the full-screen form"))
-	f.Bool("dry-run", false, t("打印将要写入的配置而不是写盘", "print the patched config instead of writing it"))
-	f.String("config", config.CONFIG_FILE_PATH, t("要改写的配置文件", "config file to patch"))
+	f.String("email", "", cli.T("账户邮箱，启用 ACME 时必填", "account email, required when ACME is enabled"))
+	f.String("ca", string(acmeCALetsEncrypt), cli.T("letsencrypt | staging | zerossl | custom", "letsencrypt | staging | zerossl | custom"))
+	f.String("directory", "", cli.T("ACME directory URL，配合 --ca=custom 使用", "ACME directory URL, used with --ca=custom"))
+	f.String("eab-kid", "", cli.T("外部账户绑定 key id（ZeroSSL）", "external account binding key id (ZeroSSL)"))
+	f.String("eab-hmac-key", "", cli.T("外部账户绑定 HMAC key（ZeroSSL）", "external account binding HMAC key (ZeroSSL)"))
+	f.String("challenge", config.ACMEChallengeAuto, cli.T("auto | http-01 | tls-alpn-01", "auto | http-01 | tls-alpn-01"))
+	f.Int("renew-before-days", config.DefaultACMERenewBeforeDays, cli.T("到期前多少天开始续期", "renew this many days before expiry"))
+	f.String("storage", config.ACMECertStorageDir, cli.T("ACME 账户与订单缓存的目录", "directory for the ACME account and order cache"))
+	f.Bool("fallback-self-signed", true, cli.T("签发失败时继续用自签证书", "keep serving the self-signed certificate when issuance fails"))
+	f.Bool("non-interactive", false, cli.T("全部取值来自参数，不做任何提问", "take every value from flags, never prompt"))
+	f.Bool("plain", false, cli.T("使用逐行问答代替全屏表单", "plain line-by-line prompts instead of the full-screen form"))
+	f.Bool("dry-run", false, cli.T("打印将要写入的配置而不是写盘", "print the patched config instead of writing it"))
+	f.String("config", config.CONFIG_FILE_PATH, cli.T("要改写的配置文件", "config file to patch"))
 }
 
 // runAcmeSetup 从 flags 组装答案，交互模式下再用向导补齐。
@@ -140,7 +140,7 @@ func runAcmeSetup(cmd *cobra.Command) error {
 		Accessible: plain,
 		// 标准输入不是终端（systemd、容器、管道）时无法交互，
 		// 直接走 flags 路径，避免命令卡在等输入上。
-		NonInteractive: nonInteractive || !interactiveAvailable(),
+		NonInteractive: nonInteractive || !cli.InteractiveAvailable(),
 		In:             cmd.InOrStdin(),
 		Out:            cmd.OutOrStdout(),
 	}
@@ -252,7 +252,7 @@ func promptACME(answers *acmeAnswers, opts acmeOptions) error {
 				config.FAST_HTTPS_ETC_DIR, filepath.Join(config.FAST_HTTPS_ETC_DIR, "cert", "acme"))).
 			Placeholder(config.ACMECertStorageDir).
 			Value(&answers.Storage).
-			Validate(validateNotBlank)),
+			Validate(cli.ValidateNotBlank)),
 		huh.NewGroup(huh.NewConfirm().
 			Title("申请失败时继续用自签证书？").
 			Description("关掉后证书申请失败会导致启动告警并且没有 HTTPS 证书可用。").
@@ -298,7 +298,7 @@ func promptACME(answers *acmeAnswers, opts acmeOptions) error {
 }
 
 func runACMEForm(form *huh.Form, opts acmeOptions) error {
-	applyStdio(form, opts.In, opts.Out, opts.Accessible)
+	cli.ApplyStdio(form, opts.In, opts.Out, opts.Accessible)
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
 			return errors.New("已取消，配置未改动")
@@ -317,13 +317,13 @@ func extraACMEForm(answers *acmeAnswers) *huh.Form {
 				Title("EAB Key ID").
 				Description("ZeroSSL 后台的 External Account Binding 凭据。").
 				Value(&answers.EABKid).
-				Validate(validateNotBlank)),
+				Validate(cli.ValidateNotBlank)),
 			huh.NewGroup(huh.NewInput().
 				Title("EAB HMAC Key").
 				Description("与 Key ID 配对，粘贴时不会回显。").
 				EchoMode(huh.EchoModePassword).
 				Value(&answers.EABHmacKey).
-				Validate(validateNotBlank)),
+				Validate(cli.ValidateNotBlank)),
 		)
 	case acmeCACustom:
 		return huh.NewForm(huh.NewGroup(huh.NewInput().
@@ -334,28 +334,6 @@ func extraACMEForm(answers *acmeAnswers) *huh.Form {
 	}
 	return nil
 }
-
-// applyStdio 把表单接到注入的输入输出上。输出被重定向（管道、日志文件）
-// 时切到 accessible 模式，逐行问答而不是全屏 TUI：全屏界面写进管道只会是一堆转义序列。
-// accessible 为真时强制走 accessible，测试用它避开终端检测。
-func applyStdio(form *huh.Form, in io.Reader, out io.Writer, accessible bool) {
-	if in != nil {
-		form.WithInput(in)
-	}
-	if out != nil {
-		form.WithOutput(out)
-	}
-	if accessible || !term.IsTerminal(os.Stdout.Fd()) {
-		form.WithAccessible(true).WithShowHelp(false)
-	}
-}
-
-// interactiveAvailable 只看标准输入：输入是终端就能问问题，
-// 输出被重定向时由 applyStdio 降级成逐行问答。
-func interactiveAvailable() bool {
-	return term.IsTerminal(os.Stdin.Fd())
-}
-
 func validateEmail(v string) error {
 	v = strings.TrimSpace(v)
 	if v == "" {
@@ -367,14 +345,6 @@ func validateEmail(v string) error {
 	}
 	return nil
 }
-
-func validateNotBlank(v string) error {
-	if strings.TrimSpace(v) == "" {
-		return errors.New("不能为空")
-	}
-	return nil
-}
-
 func validateDirectory(v string) error {
 	v = strings.TrimSpace(v)
 	if v == "" {
