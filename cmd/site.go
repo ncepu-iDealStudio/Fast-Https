@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -32,6 +33,8 @@ type siteOptions struct {
 	Yes            bool
 	Merged         bool
 	NonInteractive bool
+	// Plain 走逐行问答；Windows 控制台默认启用，见 runSiteForm。
+	Plain bool
 	// Changed 报告某个 flag 是否被显式传入。同名站点按"更新"处理时，
 	// 只有显式传入的项才覆盖现有值——全部按默认值写回会把上次的配置抹掉。
 	Changed func(string) bool
@@ -92,7 +95,9 @@ func newSiteCmd() *cobra.Command {
 func siteOptionsFrom(cmd *cobra.Command, args []string) siteOptions {
 	flags := cmd.Flags()
 	path, _ := flags.GetString("config")
+	plain, _ := flags.GetBool("plain")
 	opts := siteOptions{
+		Plain:      plain,
 		ConfigPath: path,
 		Changed:    flags.Changed,
 		In:         cmd.InOrStdin(),
@@ -484,6 +489,11 @@ func promptSite(opts *siteOptions, in *config.SiteInput) error {
 
 // runSiteForm 跑一屏问答，把 Ctrl+C / Esc 统一翻译成"已取消"。
 func runSiteForm(form *huh.Form, opts *siteOptions) error {
+	// Windows 的 conhost 对 bubbletea 全屏渲染支持不稳定，会直接抛
+	// "not supported by windows"；逐行问答在哪个终端都能跑，所以默认降级。
+	if opts.Plain || runtime.GOOS == "windows" {
+		form = form.WithAccessible(true)
+	}
 	applyStdio(form, opts.In, opts.Out, false)
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
