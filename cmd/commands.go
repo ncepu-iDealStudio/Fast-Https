@@ -561,11 +561,17 @@ func writePidTo(path string, pid int) error {
 	}
 
 	// Write JSON data to the specified file
-	if err := os.WriteFile(path, jsonData, 0644); err != nil {
-		return fmt.Errorf("error writing JSON data to file: %v", err)
+	// Windows 上目标文件偶尔会被杀毒/索引服务短暂占用，一次失败就放弃
+	// 会导致 pid 文件停留在上一次的旧值（表现为「服务在跑但 stop/status
+	// 找不到进程」），就地重试几次。
+	var writeErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		if writeErr = os.WriteFile(path, jsonData, 0644); writeErr == nil {
+			return nil
+		}
+		time.Sleep(80 * time.Millisecond)
 	}
-
-	return nil
+	return fmt.Errorf("error writing JSON data to file: %v", writeErr)
 }
 
 // readPid 从指定文件读取并解析PID信息
