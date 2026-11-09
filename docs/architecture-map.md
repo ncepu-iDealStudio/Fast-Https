@@ -53,7 +53,7 @@
 | `management/diagnose` | 只读健康汇总。`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning） | `diagnose` |
 | `management/monview` | 只读 Monitor 的 `status.json` 与 `events.jsonl`。不连接 Monitor 进程；文件不存在视为未安装 | `monitor status` / `monitor events` |
 | `monitor` | 独立 Monitor 进程：周期读本机 `GET /runtime`，把原始快照追加到 `snapshots.jsonl`；`rules.go` 里的确定性规则（不可达/恢复、进程重启、5xx 比例、端口探测与疑似卡死，后两条可关）写事件到 `events.jsonl`，并原子更新 `status.json`；事件与快照按单文件上限自轮转 | 独立可执行程序，随 deb/rpm/apk 与归档发布，有独立的 systemd 单元；Server 不依赖它 |
-| `desktop/` | Wails v3 桌面管理端，独立 Go module | 独立可执行程序 |
+| `desktop/` | Wails v3 桌面管理端，独立 Go module；CLI 的图形前端，数据与操作全部转交 `fast-https <cmd> --json` | 独立可执行程序 |
 | `tests`、`tests/client_test`、`tests/unit_test/...`、`tests/arch` | 根测试入口、子进程 E2E、集中式单测、分层约束 | 测试专用 |
 
 ## 3. 请求 handler 注册机制

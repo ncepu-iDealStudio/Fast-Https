@@ -1,6 +1,6 @@
 # fast-https CLI 命令契约
 
-本文是管理类命令的稳定契约索引：命令标识、优先级、JSON 封套、错误码与退出码。人类可读说明见 [usage.md](../usage.md) 第 10 节；实现细节见 [feature/18-cli-service.md](../feature/18-cli-service.md)。
+本文是管理类命令的稳定契约索引：命令标识、优先级、JSON 封套、错误码与退出码。人类可读说明见 [usage.md](../usage.md) 第 10 节；实现细节见 [feature/18-cli-service.md](../feature/18-cli-service.md)；逐命令的 `data` 字段形状见 [cli-json-shapes.md](cli-json-shapes.md)。
 
 ## JSON 封套
 

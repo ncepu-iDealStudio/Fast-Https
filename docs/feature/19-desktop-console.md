@@ -4,67 +4,77 @@
 
 ## 功能
 
-本机图形化管理端，用来查看 fast-https 的运行状态、管理站点与主配置、看证书与日志，并启停服务。它是**单窗口 + 后台托盘**的独立进程：不接管服务进程、不给主程序加 API、不监听新端口，所有状态都从磁盘与回环端口读，所有管理动作都转交给同目录的 `fast-https` CLI。
+本机图形化管理端，用来查看 fast-https 的运行状态、管理站点与主配置、看证书与日志，并启停服务。它是**单窗口 + 后台托盘**的独立进程：不接管服务进程、不给主程序加 API、不监听新端口。
+
+**桌面端是 CLI 的图形前端**：所有状态读取与管理动作都转交同目录的 `fast-https <cmd> --json`，由主程序的配置事务负责校验、恢复点、reload 与回滚，桌面端与命令行看到的永远是同一套语义。点击站点页刷出站点列表，本质就是执行 `site list`；每个界面动作都有对应的 CLI 命令，全量命令树另有「命令面板」兜底。
 
 窗口没有系统标题栏，顶部通栏负责拖拽和窗口按钮；左下角「本机管理」菜单放外观设置、设置页入口、隐藏到托盘与帮助文档。点「关闭」会弹窗询问「隐藏到后台 / 直接退出 / 取消」，不会默默结束进程。
 
 | 工作区 | 内容 |
 | --- | --- |
-| 运行概况 | 服务状态、监听端口数、站点数、证书数四项指标；配置状态与告警条；常用操作跳转；最近事件时间线 |
-| 状态矩阵 | 运行态条（运行中／已停止 + pid、端口、站点数、刷新间隔）、站点矩阵（端口 / 协议 / 证书 / 状态）、最近 8 条结构化访问日志（时间 / 方法 / 路径 / 状态码 / 大小） |
-| 站点 | 主配置 `http.server[]` 与 `http.include` 递归收集到的站点，每行给出可点击的完整访问地址；支持「添加站点」和行尾 `⋯` 打开详情编辑 |
-| 证书 | 读 `ssl_certificate` 指向的 PEM，用 `crypto/x509` 显示主题（CN/SAN）、签发者、到期时间与剩余天数；说明区与证书列表分块展示；本地 CA 自动签发的证书标为「本地生成」；右上角「信任本地 CA…」给出导入系统信任库的引导 |
-| 日志 | 三路切换；按 JSON 字段（级别、状态码、关键词、时间范围）筛选，倒序滚动分页加载更早记录，结构化展示每行、原文放 tooltip；列表占满剩余高度，窗口内不出现明显滚动条 |
-| 设置 | 按字段编辑主配置 `fast-https.json`，以及只读展示主程序给出的运行时路径 |
+| 运行概况 | 服务状态、监听端口数、站点数、证书数四项指标（`service status` + `site list` + `cert list`）；配置状态与告警条（`config show` 的 config_dirty_hint）；常用操作跳转；「最近事件」双 tab：操作记录（`operation list`，点击看 `operation get` 详情）与本机动态；「健康检查」弹窗（`diagnose`） |
+| 状态矩阵 | 运行态条（`service status` 四态 + pid、端口、站点数）、站点矩阵（`site list`）、访问日志栏（`logs access`）；「运行快照」卡片（`runtime status` / `runtime stats`）与「Monitor」卡片（`monitor status` / `monitor events`） |
+| 站点 | `site list` 的站点按监听逐端口展开，每行给出可点击的完整访问地址；添加/详情弹窗对应 `site add` / `site show` / `site update`，启停与删除对应 `site enable/disable` / `site delete`，全部走配置事务 |
+| 证书 | `cert list` 显示主题、签发者、到期时间与剩余天数；行内「检查」对应 `cert check`（存在性/有效期/域名覆盖/密钥配对）；「ACME 设置」展示 `acme show`；「信任本地 CA…」给出导入系统信任库的引导 |
+| 日志 | `logs query` 按白名单字段筛选（级别、状态码、Host、方法、路径前缀、原因、时间），倒序滚动分页（`--until` 游标），支持 access / error / system / safe 四路 |
+| 设置 | 主配置表单的字段值来自 `config show`（脱敏）；保存写候选配置树后转交 `config apply` 事务（校验、恢复点、切换、reload、失败回滚）；「校验配置」对应 `config validate`；「配置版本」卡片对应 `config versions` / `config diff` / `config rollback`；只读展示 `config path` 的运行时路径 |
+| 命令面板 | CLI 命令树的通用图形入口（`ListCommands` / `RunCommand`）：35 条命令按组列出，动态生成参数表单，结果原样展示；写操作未勾「确认执行」时自动 `--dry-run` 预演 |
 
-「启动／停止服务」（大按钮）与「重载配置」收在概览页「运行概况」卡片右上；底部状态栏固定在窗口下沿，只放运行状态、pid、监听探测结果、刷新时间与两个图标按钮（启停、重载）。状态每 2 秒刷新一次。版本号只在侧边栏显示一次，不在状态栏或账户菜单里重复。站点／证书／日志页不再重复页面标题，说明文字直接铺在卡片里，操作收在对应列表的标题行；窗口不显示页面大标题，内容直接从顶部铺满。
+「启动／停止服务」（大按钮）与「重载配置」（`service reload` 受控重载）收在概览页「运行概况」卡片右上；底部状态栏固定在窗口下沿，只放运行状态、pid、监听探测结果、刷新时间与两个图标按钮（启停、重载）。状态每 2 秒刷新一次（`service status` + `site list`，证书与配置提示有短 TTL 缓存）。版本号只在侧边栏显示一次。站点／证书／日志页不重复页面标题，说明文字直接铺在卡片里；窗口不显示页面大标题，内容直接从顶部铺满。
 
 ## 使用
 
-从 Windows 开始菜单或 Linux 应用菜单启动 `fast-https-desktop`。它必须与 `fast-https` 主程序在同一目录（或由发行版包安装到 `/usr/bin`），否则读不到配置、也调不到 CLI，设置页会显示读取失败并禁用表单。
+从 Windows 开始菜单或 Linux 应用菜单启动 `fast-https-desktop`。它必须与 `fast-https` 主程序在同一目录（或由发行版包安装到 `/usr/bin`），否则调不到 CLI，所有页面都会显示读取失败。
 
-- **启停与重载**：点顶部按钮，桌面端转交 `start` / `stop` / `reload` / `status`；配置是否合法由主程序 `reload` 判断。
-- **添加站点**：站点页「+ 添加站点」填写 `server_name`、`listen`、类型（`local` 静态 / `proxy` 反代）、`root` 或 `proxy_pass`、可选的 `index` 与证书路径。`server_name` 支持**空格分隔多个域名**（nginx 风格），也可以填 `localhost` 或本机 IP；运行时把每个名称注册到 `HostMap`，自签证书 SAN 与 ACME 申请覆盖全部名称。用 IP 或别名访问时，默认的 `security.host_check=off` 会回落到该端口的站点，改成 `enforce` 才严格校验 Host。
-- **路径选择**：站点根目录、证书与私钥右侧的「浏览…」调系统原生选择框；选中路径在 `config` 目录内会转成 `./cert/x.pem` 这类相对写法，否则保留绝对路径。`listen` 带 `ssl` 且两个证书路径都留空时，自动写成 `./cert/<主域名>.pem` / `<主域名>-key.pem`，即主程序自动生成的本地证书。
-- **详情编辑**：行尾 `⋯` 打开同一弹窗的编辑模式，回填原 JSON 后保存。主配置里内联的 `http.server[]` 站点只读展示，引导到设置页修改。
-- **访问站点**：站点行是完整 URL（如 `https://localhost/`、`http://192.168.1.10:8080/`），点击交给系统默认浏览器打开，不用应用内嵌窗口。
-- **保存后要重载**：新建或修改站点、保存主配置都只写文件，需点「重载配置」才生效。
+- **启停与重载**：点顶部按钮，桌面端转交 `start` / `stop` / `status`；「重载配置」走 `service reload`（受控重载：校验、operation 记录、reload 后验证）。
+- **添加站点**：站点页「+ 添加站点」填写 `server_name`（空格分隔多域名，nginx 风格）、`listen`、类型（`local` 静态 / `proxy` 反代）、`root` 或 `proxy_pass`。表单与 `site add` 的 flag 一一对应：证书路径、首页与文件名由配置事务自动处理（TLS 站点证书默认 `./cert/<主域名>.pem`，文件名即主域名）。多域名创建 = `site add` + `site update --server-name` 两条命令。`listen` 里带 `ssl` 即启用 TLS。
+- **路径选择**：站点根目录右侧的「浏览…」调系统原生选择框；选中路径在 `config` 目录内会转成 `./xxx` 相对写法，否则保留绝对路径。
+- **详情编辑**：行尾 `⋯` 打开详情（`site show`），可编辑字段即 `site update` 的白名单（server_name / listen / root / proxy_pass）；证书、首页与原始 JSON 只读展示。
+- **写操作即生效**：添加/修改/删除/启停站点、保存主配置都走配置事务（校验、恢复点、切换、reload、失败自动回滚），提交后**无需手动点「重载配置」**，结果里带操作 ID 与配置版本号（`operation list` 可查）。
 - **关闭**：弹窗里的「隐藏到后台」把窗口收进托盘，托盘图标可恢复；「直接退出」或托盘右键「退出」才结束桌面端进程。`fast-https` 服务由主程序独立管理，不受桌面端退出影响。
 - **外观**：亮色／暗色、五档中性色，选择存在本机 `localStorage`；「帮助文档」打开发行包里的 `docs/usage.html`。
 
 ## 实现方案（desktop/）
 
 - **独立 module**：`fast-https-desktop` 不 import 主项目的 `config` 包，主项目 `go.mod` 不受影响。Wails v3 把 Go 方法暴露为 `DesktopService` bindings，前端是 Vanilla JS + Vite，产物编译期 embed 进单文件可执行程序。
-- **数据来源（进程外读取）**：
+- **CLI 转交层**（`internal/cli`）：`Binary / Run / RunJSON[T] / RunBareJSON[T]` 统一执行主程序、补 `--json`、分离 stdout 与 stderr、解析 `{ok,data,warnings,error}` 封套。命令的 data 形状由主程序定义（契约索引见 [docs/cli/cli-json-shapes.md](../cli/cli-json-shapes.md)），桌面端用 map 取值消费，不复制一份命令结构体；界面视图模型（`internal/model`）只做展示归一化（如合并 listen 拆行）。
+- **操作 → 命令对照**：
 
-  | 数据 | 来源 |
+  | 界面动作 | CLI 命令 |
   | --- | --- |
-  | 运行时路径 | 主程序 `fast-https config path --json` 输出 `config` / `cert` / `log` / `pid` / `root_crt`（归档 / deb / rpm / apk 布局全由主程序按编译期基址算好，桌面端不拼路径） |
-  | 站点 | 主配置 `http.server[]` + `http.include` 目录下递归收集的 `*.json`，支持 JSONC 注释与尾逗号 |
-  | TLS 判定 | `listen` 里是否含 `ssl`（与主程序 `config/validate.go` 一致） |
-  | 证书 | 读 PEM，用 `crypto/x509` 取签发者与到期时间 |
-  | pid | pid 文件是 `{"pid":1234}`，不是纯数字 |
-  | 运行状态 | 对配置声明的端口做回环 TCP 探测，避开 Windows / Unix 进程判活差异 |
-  | 日志 | 三路日志文件尾部 |
-  | 操作 | 转交主程序 `start / stop / reload / status`，桌面端不自己管理进程 |
+  | 站点页列表 / 矩阵 | `site list` |
+  | 站点详情弹窗 | `site show` |
+  | 添加 / 编辑 / 删除 / 启停站点 | `site add` / `site update` / `site delete` / `site enable` / `site disable` |
+  | 设置页表单读取 / 保存 | `config show` / `config apply`（候选树 + 事务） |
+  | 设置页校验 / 版本 / 对比 / 回滚 | `config validate` / `config versions` / `config diff` / `config rollback` |
+  | 运行概况 / 状态栏 | `service status` |
+  | 启动 / 停止 / 重载 / 查询状态 | `start` / `stop` / `service reload` / `status` |
+  | 运行快照卡片 | `runtime status` / `runtime stats` |
+  | 健康检查弹窗 | `diagnose` |
+  | Monitor 卡片 | `monitor status` / `monitor events` |
+  | 证书列表 / 检查 / ACME | `cert list` / `cert check` / `acme show` |
+  | 日志页 / 矩阵访问日志栏 | `logs query` / `logs access` |
+  | 最近操作时间线 | `operation list` / `operation get` |
+  | 命令面板 | 全部 35 条命令 |
 
-- **站点写入**（`site_editor.go`）：新站点写成 `conf.d/<名称>.json`，不改主配置、不覆盖已有文件；写入前校验端口合法性与同名同端口冲突（`local` 必须有 root、`proxy_pass` 必须带 http(s) scheme、文件名不能路径穿越），用同目录临时文件 + rename 原子创建。详情保存只回写表单覆盖的字段，其余 `location`、`rewrite`、`auth` 与未知键原样保留。
-- **主配置表单**（`config_editor.go`）：字段清单在 Go 侧维护，前端按类型通用渲染——枚举下拉、布尔勾选、固定候选勾选组、邮箱／数字／多行文本各用对应控件。保存只提交被改动的字段，合并回原始 JSON；保存前备份为 `fast-https.json.bak`，再用临时文件原子替换。
+- **候选配置树**（`internal/configops`）：保存表单时把主配置（改过字段）与 `conf.d` 站点文件副本搭成候选树（复刻主程序 `siteops.CloneLiveTree`），再 `config apply --candidate --yes`；桌面端只准备候选，不直接改线上配置。
 - **窗口与托盘**（`main.go`、`tray.go`、`service.go`）：`Frameless: true`，`WindowClosing` hook 默认取消关闭并隐藏；`appQuitting` 标记由弹窗「直接退出」或托盘「退出」置位后才放行真正的退出。
 - **交付形态**：Windows NSIS 安装包带对应架构的 `fast-https-desktop.exe`，桌面与开始菜单快捷方式指向它（`fast-https.exe` 是无控制台窗口的命令行服务端，双击不会出现界面）；Linux 的 `deb` / `rpm` / `apk` 是「主程序包 + 桌面端」的完整包，离线只装一个包即可启动服务，与独立主程序包声明 `Conflicts` / `Replaces` 避免同一路径被两个包各装一份。
 
 ## 测试
 
-- `desktop/`：主配置表单读写与字段类型、站点创建／详情保存／路径归一化／多域名、相对路径回退等 Go 单测（`go test ./...`、`go vet ./...`）。
+- `desktop/`：命令面板清单与 CLI 命令树双向比对、CLI 封套解析（`internal/cli`）、弹窗字段与 `site add/update` 参数翻译（`internal/siteops`）、表单字段解析与候选树搭建（`internal/configops`）、`site list` / `cert list` / `logs query` 数据映射（`internal/view`）（`go test ./...`、`go vet ./...`）。
 - `tests/packaging/distro/desktop-deb.sh`：Ubuntu 24.04 容器里离线单包装 → 文件与二进制一致性 → 运行期资源 → `start` 监听 80/443 → 卸载清理，以及「已装独立主程序包再装桌面端包」的替换场景，实机 `ALL-PASS`。
 - 窗口交互、表单渲染与主题用静态页面验证；Wails GUI 本身需要在桌面实机点一次。
 
 ## 已知限制
 
-- 只管理本机同目录的实例，不接管服务进程；运行状态是回环端口探测，「配置未重载」是按配置文件与 pid 文件新旧做的启发式判断。
-- 主配置表单只做 JSON/JSONC **语法**校验，不判断配置语义，权威校验在主程序 `reload`；表单保存会重新格式化文件，**JSONC 注释会丢失**，原文完整留在 `fast-https.json.bak`。
-- 未纳入表单的 `http.server[]`、`acme.cas` 与未知键原样保留；`engine`（集群占位）不进表单，因为当前没有模块读取、项目也未启用集群。
-- 主配置内联的站点在详情弹窗里只读，需到设置页的主配置表单修改。
-- 创建／修改站点、保存主配置之后都要手动点「重载配置」。
+- 只管理本机同目录的实例，不接管服务进程；**运行桌面端需要同目录有主程序 `fast-https`**（开发态可退回 PATH），没有主程序时所有页面都会报「未找到主程序」。
+- 站点列表是 `site list` 的口径：只列 `http.include` 目录下的站点文件（含停用），主配置 `http.server[]` 内联的站点不进列表，只能在设置页的主配置表单里看与改。
+- 站点弹窗的字段是 `site add` / `site update` flag 的并集：自定义证书路径、自定义首页（index）与自定义文件名不在命令契约里，由配置事务按域名自动处理；需要这些能力时用命令行直接改站点 JSON。
+- 日志查询是 `logs query` 的白名单字段（不含原文、不含 user_agent、无关键词全文搜索），分页用 `--until` 时间游标而不是 offset；时间筛选接受时长（`1h`）或 RFC3339，纯日期会自动补全。
+- `acme show` 没有 JSON 输出，命令面板与 ACME 卡片展示的是它的文本结果。
+- 设置页表单只做 JSON/JSONC **语法**校验，不判断配置语义；权威校验在 `config apply` 事务里。保存会重新格式化配置（JSONC 注释丢失），恢复点在配置版本里可回滚。
+- 配置事务的站点目录约定是 `conf.d`：`http.include` 里的绝对路径会被改写成 `["conf.d"]`（与 `site add` 事务一致）。
 - Linux 运行期需要 GTK4 + WebKitGTK 6.0，Windows 需要 WebView2 Runtime。
 - Alt+F4 走 `WindowClosing` hook 的默认行为，直接隐藏到托盘，不弹关闭询问框。
