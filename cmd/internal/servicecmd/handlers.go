@@ -1,4 +1,4 @@
-package cmd
+package servicecmd
 
 import (
 	"fast-https/config"

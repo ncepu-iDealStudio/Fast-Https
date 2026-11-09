@@ -1,6 +1,8 @@
-package cmd
+package servicecmd
 
 import (
+	"fast-https/cmd/internal/cli"
+	"fast-https/cmd/internal/procctl"
 	"fmt"
 	"io"
 	"time"
@@ -13,11 +15,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newServiceStatusCmd() *cobra.Command {
+func NewServiceStatusCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "status",
-		Short: t("查询服务运行状态", "query the service status"),
-		Long: t(
+		Short: cli.T("查询服务运行状态", "query the service status"),
+		Long: cli.T(
 			"查询服务运行状态：读 pid 文件判断进程，再对配置里的端口做一次回环连接。\n"+
 				"状态：running、degraded（进程在但端口都连不上）、stopped、unknown（证据互相矛盾）。\n"+
 				"读得到 /runtime 时补 uptime_seconds、started_at、version；config_version 来自状态目录里当前 active 的快照。\n"+
@@ -37,39 +39,39 @@ func newServiceStatusCmd() *cobra.Command {
 
 			st, warnings := view.ServiceStatusOf(view.ServiceStatusInput{
 				Inspect: func() (view.ProcState, int, error) {
-					state, pid, err := InspectProcess(config.PID_FILE)
-					return procStateOf(state), pid, err
+					state, pid, err := procctl.InspectProcess(config.PID_FILE)
+					return ProcStateOf(state), pid, err
 				},
 				Ports:    ports,
 				PortsErr: portsErr,
 			})
-			snap, snapErr := fetchRuntime(cmd.Context())
-			st, warnings = enrichServiceStatus(st, warnings, snap, snapErr, activeConfigVersion(path))
+			snap, snapErr := cli.FetchRuntime(cmd.Context())
+			st, warnings = EnrichServiceStatus(st, warnings, snap, snapErr, ActiveConfigVersion(path))
 
-			if jsonMode(cmd) {
-				return emitOK(cmd, "service.status", st, warnings)
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "service.status", st, warnings)
 			}
-			printWarnings(cmd.ErrOrStderr(), warnings)
-			writeServiceStatusText(cmd.OutOrStdout(), st)
+			cli.PrintWarnings(cmd.ErrOrStderr(), warnings)
+			WriteServiceStatusText(cmd.OutOrStdout(), st)
 			return nil
 		},
 	}
-	addConfigFlag(c)
+	cli.AddConfigFlag(c)
 	return c
 }
 
-func procStateOf(s ProcessState) view.ProcState {
+func ProcStateOf(s procctl.ProcessState) view.ProcState {
 	switch s {
-	case ProcessRunning:
+	case procctl.ProcessRunning:
 		return view.ProcRunning
-	case ProcessStale:
+	case procctl.ProcessStale:
 		return view.ProcStale
 	default:
 		return view.ProcAbsent
 	}
 }
 
-func writeServiceStatusText(w io.Writer, st view.ServiceStatus) {
+func WriteServiceStatusText(w io.Writer, st view.ServiceStatus) {
 	if st.PID != nil {
 		fmt.Fprintf(w, "fast-https: %s (pid %d)\n", st.Status, *st.PID)
 	} else {
@@ -96,7 +98,7 @@ func writeServiceStatusText(w io.Writer, st view.ServiceStatus) {
 	}
 }
 
-func enrichServiceStatus(st view.ServiceStatus, warnings []string, snap rtclient.Snapshot, snapErr error, cfgVer string) (view.ServiceStatus, []string) {
+func EnrichServiceStatus(st view.ServiceStatus, warnings []string, snap rtclient.Snapshot, snapErr error, cfgVer string) (view.ServiceStatus, []string) {
 	if cfgVer != "" {
 		st.ConfigVersion = cfgVer
 	}
@@ -116,8 +118,8 @@ func enrichServiceStatus(st view.ServiceStatus, warnings []string, snap rtclient
 	return st, warnings
 }
 
-func activeConfigVersion(mainPath string) string {
-	list, err := cfgver.List(stateDir(), mainPath)
+func ActiveConfigVersion(mainPath string) string {
+	list, err := cfgver.List(cli.StateDir(), mainPath)
 	if err != nil {
 		return ""
 	}

@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"context"
+
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fast-https/management/rtclient"
 	"fmt"
 	"io"
 	"strings"
@@ -173,4 +176,13 @@ func argString(args []string, name string) string {
 		}
 	}
 	return ""
+}
+
+// FetchRuntime 取运行时快照。ctx 为空时用 background，便于只读命令在没有
+// 超时约束时直接调用。
+func FetchRuntime(ctx context.Context) (rtclient.Snapshot, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return rtclient.Default().Get(ctx)
 }

@@ -1,6 +1,6 @@
 //go:build !windows
 
-package cmd
+package servicecmd
 
 import (
 	"fast-https/config"
@@ -41,7 +41,7 @@ var daemonChildReady *os.File
 //
 // 返回值：pid 是后台进程的 pid；isParent 为 true 表示当前是父进程，
 // 调用方应调用 waitDaemonStarted 等子进程报告就绪，再决定是否成功。
-func daemonize() (pid int, isParent bool, err error) {
+func Daemonize() (pid int, isParent bool, err error) {
 	if os.Getenv(daemonEnv) == "1" {
 		// 子进程：接管父进程留下的就绪通道写端。
 		if fd, convErr := strconv.Atoi(os.Getenv(daemonReadyEnv)); convErr == nil && fd > 0 {
@@ -71,9 +71,9 @@ func daemonize() (pid int, isParent bool, err error) {
 	// 标准输出/错误不能留在终端（终端关闭后写日志会收到 SIGPIPE 直接退出），
 	// 也不能扔进 /dev/null：启动期任何 Fatal 都会随进程一起消失，父进程只能
 	// 看到「pid 文件写了、进程没了」。落到 daemon.log，失败原因就能捞出来。
-	logFile, logErr := openDaemonLog()
+	logFile, logErr := OpenDaemonLog()
 	if logErr != nil {
-		logging.ConsoleLog.Warn().Msgf("open %s failed: %v, daemon output is discarded", daemonLogPath(), logErr)
+		logging.ConsoleLog.Warn().Msgf("open %s failed: %v, daemon output is discarded", DaemonLogPath(), logErr)
 	}
 	devNull, _ := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if devNull != nil {
@@ -117,7 +117,7 @@ func daemonize() (pid int, isParent bool, err error) {
 
 // daemonLogPath 返回后台进程控制台输出的路径，与四路文件日志同目录。
 // 配置还没加载成功时退回默认日志目录。
-func daemonLogPath() string {
+func DaemonLogPath() string {
 	root := strings.TrimSpace(config.Current().LogRoot)
 	if root == "" {
 		root = config.DEFAULT_LOG_ROOT
@@ -127,8 +127,8 @@ func daemonLogPath() string {
 
 // openDaemonLog 打开（并清空）后台进程控制台日志。
 // 每次 start 覆盖，避免上一次启动的残留把这次的错误埋掉。
-func openDaemonLog() (*os.File, error) {
-	path := daemonLogPath()
+func OpenDaemonLog() (*os.File, error) {
+	path := DaemonLogPath()
 	if dir := filepath.Dir(path); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, err
@@ -140,7 +140,7 @@ func openDaemonLog() (*os.File, error) {
 // notifyDaemonReady 在监听端口建立之后通知父进程启动成功。
 // 子进程在就绪之前退出时，写端随进程关闭，父进程读到 EOF 就知道启动失败，
 // 不用再靠「pid 文件写了没有」猜。
-func notifyDaemonReady() {
+func NotifyDaemonReady() {
 	if daemonChildReady == nil {
 		return
 	}
@@ -154,7 +154,7 @@ func notifyDaemonReady() {
 // 三种结果：读到 ready 表示端口已监听；读到 EOF 表示子进程在就绪前退出，
 // 此时把 daemon.log 的尾部打出来，父进程返回错误而不是假报成功；
 // 超时（子进程还活着但很慢）只告警，保持旧行为，不打断正在启动的实例。
-func waitDaemonStarted(pid int, timeout time.Duration) error {
+func WaitDaemonStarted(pid int, timeout time.Duration) error {
 	pipe := daemonReadyPipe
 	daemonReadyPipe = nil
 	if pipe == nil {
@@ -175,16 +175,16 @@ func waitDaemonStarted(pid int, timeout time.Duration) error {
 			return nil
 		}
 		return fmt.Errorf("fast-https failed to start (pid %d exited during startup), see %s:\n%s",
-			pid, daemonLogPath(), tailFile(daemonLogPath(), 20))
+			pid, DaemonLogPath(), TailFile(DaemonLogPath(), 20))
 	case <-time.After(timeout):
 		logging.ConsoleLog.Warn().Msgf("fast-https (pid %d) did not report ready in %s, check %s",
-			pid, timeout, daemonLogPath())
+			pid, timeout, DaemonLogPath())
 		return nil
 	}
 }
 
 // tailFile 取文件末尾最多 maxLines 行，用于把子进程的启动错误回显给调用者。
-func tailFile(path string, maxLines int) string {
+func TailFile(path string, maxLines int) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Sprintf("(read %s failed: %v)", path, err)
@@ -198,6 +198,6 @@ func tailFile(path string, maxLines int) string {
 
 // signalStopProcess 让服务优雅停机：Unix 下服务端收到 SIGTERM 会关闭监听、
 // 等在途请求处理完（见 runtime/server 的 GracefulStopTimeout）。
-func signalStopProcess(process *os.Process) error {
+func SignalStopProcess(process *os.Process) error {
 	return process.Signal(syscall.SIGTERM)
 }

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -90,13 +89,6 @@ func runRuntimeStats(cmd *cobra.Command, _ []string) error {
 	printWarnings(cmd.ErrOrStderr(), warnings)
 	writeRuntimeStatsText(cmd.OutOrStdout(), data)
 	return nil
-}
-
-func fetchRuntime(ctx context.Context) (rtclient.Snapshot, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return rtclient.Default().Get(ctx)
 }
 
 func runtimeCLIError(id string, err error) *CLIError {

@@ -1,4 +1,4 @@
-package cmd
+package servicecmd
 
 import (
 	"encoding/json"
@@ -12,8 +12,8 @@ import (
 	"fast-https/runtime/metrics"
 )
 
-// runtimeListenAddr 是本机只读快照的固定地址（决策 MD2）。
-const runtimeListenAddr = "127.0.0.1:9088"
+// RuntimeListenAddr 是本机只读快照的固定地址（决策 MD2）。
+const RuntimeListenAddr = "127.0.0.1:9088"
 
 var (
 	runtimeMu  sync.Mutex
@@ -24,17 +24,17 @@ var (
 // StartRuntimeEndpoint 在 127.0.0.1:9088 提供 GET /runtime。
 // 绑定失败只打日志并返回错误，调用方应继续启动业务端口。
 func StartRuntimeEndpoint() error {
-	return startRuntimeEndpoint(runtimeListenAddr)
+	return StartRuntimeEndpointWith(RuntimeListenAddr)
 }
 
-func startRuntimeEndpoint(addr string) error {
+func StartRuntimeEndpointWith(addr string) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		logging.ConsoleLog.Error().Msgf("runtime endpoint listen %s failed: %s", addr, err.Error())
 		return err
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/runtime", serveRuntime)
+	mux.HandleFunc("/runtime", ServeRuntime)
 	srv := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: time.Second,
@@ -59,7 +59,7 @@ func startRuntimeEndpoint(addr string) error {
 	return nil
 }
 
-func runtimeEndpointAddr() string {
+func RuntimeEndpointAddr() string {
 	runtimeMu.Lock()
 	defer runtimeMu.Unlock()
 	if runtimeLn == nil {
@@ -80,7 +80,7 @@ func StopRuntimeEndpoint() {
 	}
 }
 
-func serveRuntime(w http.ResponseWriter, r *http.Request) {
+func ServeRuntime(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return

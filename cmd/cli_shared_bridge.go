@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"io"
 	"time"
 
 	"fast-https/cmd/internal/cli"
+	"fast-https/management/rtclient"
 	"fast-https/management/state"
 
 	"github.com/spf13/cobra"
@@ -44,3 +46,7 @@ func runWith(root *cobra.Command, args []string, out, errOut io.Writer) int {
 func resolveStateDir() string { return cli.ResolveStateDir() }
 
 func stateDir() state.Dir { return cli.StateDir() }
+
+func fetchRuntime(ctx context.Context) (rtclient.Snapshot, error) {
+	return cli.FetchRuntime(ctx)
+}
