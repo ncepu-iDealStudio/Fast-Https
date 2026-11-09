@@ -620,7 +620,7 @@ checksum:
   name_template: checksums.txt
 
 snapshot:
-  version_template: "1.6.1"
+  version_template: "1.6.2"
 
 changelog:
   sort: asc
