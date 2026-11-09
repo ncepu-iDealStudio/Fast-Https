@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fast-https/cmd/internal/cli"
 	"sort"
 	"strings"
 	"testing"
@@ -37,7 +38,7 @@ func hasHan(s string) bool {
 }
 
 func TestHelpDefaultsToChinese(t *testing.T) {
-	t.Cleanup(func() { currentLang = LangZH })
+	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 	root := RootCmdForLang(LangZH)
 
 	if !hasHan(root.Short) {
@@ -51,7 +52,7 @@ func TestHelpDefaultsToChinese(t *testing.T) {
 }
 
 func TestHelpEnglishVersion(t *testing.T) {
-	t.Cleanup(func() { currentLang = LangZH })
+	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 	root := RootCmdForLang(LangEN)
 
 	if hasHan(root.Short) {
@@ -67,7 +68,7 @@ func TestHelpEnglishVersion(t *testing.T) {
 // TestEveryCommandTranslated 兜住以后新增命令忘记写中文的情况：
 // 只写了一个参数的 t(zh) 在英文模式下会露出中文，反过来也是。
 func TestEveryCommandTranslated(t *testing.T) {
-	t.Cleanup(func() { currentLang = LangZH })
+	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 
 	for _, sub := range RootCmdForLang(LangZH).Commands() {
 		if sub.Short == "" {
@@ -81,7 +82,7 @@ func TestEveryCommandTranslated(t *testing.T) {
 }
 
 func TestRootHelpIsLocalized(t *testing.T) {
-	t.Cleanup(func() { currentLang = LangZH })
+	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 
 	// 根命令没有继承来的 flag，所以「全局选项」只在子命令的帮助里出现。
 	zh := runHelp(t, LangZH, "--help")
@@ -105,7 +106,7 @@ func TestRootHelpIsLocalized(t *testing.T) {
 }
 
 func TestSubcommandHelpIsLocalized(t *testing.T) {
-	t.Cleanup(func() { currentLang = LangZH })
+	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 
 	zh := runHelp(t, LangZH, "site", "add", "--help")
 	for _, flag := range []string{"--domain", "--root", "--tls", "--dry-run"} {
@@ -178,7 +179,7 @@ func flagNames(c *cobra.Command) []string {
 // TestNoShellCompletionCommand：cobra 默认会挂一个 `completion` 子命令，
 // 它生成的是 shell 补全脚本，与本项目无关，已显式关掉。
 func TestNoShellCompletionCommand(t *testing.T) {
-	t.Cleanup(func() { currentLang = LangZH })
+	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 
 	for _, sub := range RootCmdForLang(LangZH).Commands() {
 		if sub.Name() == "completion" {
@@ -190,7 +191,7 @@ func TestNoShellCompletionCommand(t *testing.T) {
 // TestAcmeWizardKeepsFlagsMinimal 守住「跑一次向导不需要记参数」：
 // acme 只剩 --config，配置项都在问答里问；脚本化走 acme setup。
 func TestAcmeWizardKeepsFlagsMinimal(t *testing.T) {
-	t.Cleanup(func() { currentLang = LangZH })
+	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 
 	acme := findSubCmd(t, RootCmdForLang(LangZH), "acme")
 

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"fast-https/cmd/internal/cli"
 	"strings"
 	"testing"
 
@@ -12,7 +13,7 @@ import (
 func runCmd(t *testing.T, lang Lang, args ...string) (string, error) {
 	t.Helper()
 	root := RootCmdForLang(lang)
-	t.Cleanup(func() { currentLang = LangZH })
+	t.Cleanup(func() { cli.SetLang(cli.LangZH) })
 
 	var out bytes.Buffer
 	root.SetOut(&out)

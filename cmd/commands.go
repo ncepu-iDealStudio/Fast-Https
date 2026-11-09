@@ -4,6 +4,7 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"fast-https/cmd/internal/cli"
 	"fast-https/config"
 	"fast-https/infra/banner"
 	"fast-https/infra/logging"
@@ -136,7 +137,7 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 	if lang != LangEN {
 		lang = LangZH
 	}
-	currentLang = lang
+	cli.SetLang(lang)
 
 	cmd := &cobra.Command{
 		Use:   "fast-https",

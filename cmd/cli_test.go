@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"fast-https/cmd/internal/cli"
 	"io"
 	"os"
 	"strings"
@@ -28,7 +29,7 @@ func runCLIWith(t *testing.T, mutate func(root *cobra.Command), args ...string) 
 		mutate(root)
 	}
 	t.Cleanup(func() {
-		currentLang = LangZH
+		cli.SetLang(cli.LangZH)
 		logging.SetConsoleOutput(os.Stdout)
 	})
 
