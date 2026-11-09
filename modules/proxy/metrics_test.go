@@ -3,6 +3,8 @@ package proxy
 import (
 	"io"
 	"net"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -171,6 +173,58 @@ func TestCountersSurviveReload(t *testing.T) {
 	after, _ := Snapshot()
 	if after.DialFailTotal != before.DialFailTotal || after.DialFailTotal != 1 {
 		t.Fatalf("reload reset upstream counters: before=%+v after=%+v", before, after)
+	}
+}
+
+func TestDialFailSplitByAddress(t *testing.T) {
+	ResetMetricsForTest()
+	ev1 := newProxyEvent(t)
+	ev2 := newProxyEvent(t)
+	if _, err := getProxy(ev1, &ev1.RR, &listener.ListenCfg{ProxyAddr: "127.0.0.1:1"}); err != ProxyErrorDialUpstream {
+		t.Fatal(err)
+	}
+	if _, err := getProxy(ev2, &ev2.RR, &listener.ListenCfg{ProxyAddr: "127.0.0.2:1"}); err != ProxyErrorDialUpstream {
+		t.Fatal(err)
+	}
+	st, _ := Snapshot()
+	if st.DialFailTotal != 2 || len(st.Upstreams) != 2 {
+		t.Fatalf("stats = %+v, want total 2 and two addresses", st)
+	}
+	if st.Upstreams[0].Address != "127.0.0.1:1" || st.Upstreams[1].Address != "127.0.0.2:1" {
+		t.Fatalf("addresses = %+v", st.Upstreams)
+	}
+	if st.Upstreams[0].DialFailTotal != 1 || st.Upstreams[1].DialFailTotal != 1 {
+		t.Fatalf("per-address dial = %+v", st.Upstreams)
+	}
+}
+
+func TestMetricAddrDropsUserinfo(t *testing.T) {
+	ResetMetricsForTest()
+	noteDialFail("http://user:s3cret@10.1.2.3:9000/api")
+	st, _ := Snapshot()
+	if st.DialFailTotal != 1 || len(st.Upstreams) != 1 {
+		t.Fatalf("stats = %+v", st)
+	}
+	if st.Upstreams[0].Address != "10.1.2.3:9000" {
+		t.Fatalf("address = %q", st.Upstreams[0].Address)
+	}
+	raw := st.Upstreams[0].Address
+	if strings.Contains(raw, "user") || strings.Contains(raw, "s3cret") || strings.Contains(raw, "/api") {
+		t.Fatalf("address leaked userinfo or path: %q", raw)
+	}
+}
+
+func TestUpstreamAddrCapKeepsTotal(t *testing.T) {
+	ResetMetricsForTest()
+	for i := 0; i < maxUpstreamAddrs+1; i++ {
+		noteDialFail("10.0.0." + strconv.Itoa(i) + ":9")
+	}
+	st, _ := Snapshot()
+	if st.DialFailTotal != uint64(maxUpstreamAddrs+1) {
+		t.Fatalf("total = %d", st.DialFailTotal)
+	}
+	if len(st.Upstreams) != maxUpstreamAddrs {
+		t.Fatalf("listed = %d, want %d", len(st.Upstreams), maxUpstreamAddrs)
 	}
 }
 

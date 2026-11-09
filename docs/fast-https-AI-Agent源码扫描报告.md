@@ -53,14 +53,7 @@ fast-https 已经有独立的 Server、只读 `/runtime`、独立 Monitor、以�
 - 耗时：`request_duration` 直方图（`runtime/metrics/histogram.go`）
 - 监听：`listeners[].port/ssl/h2`
 
-上游分段由 `modules/proxy/metrics.go` 的 `Snapshot` 经 `RegisterSection` 挂入，字段只有：
-
-- `dial_fail_total`
-- `send_timeout_total`
-- `read_timeout_total`
-- `idle_conns`
-
-这些是进程启动以来的总和，不按上游地址、不按状态码 502/504 拆开。`runtime stats` 的 `--since` / `--domain` 返回 `NOT_SUPPORTED`（`cmd/runtime.go`）。
+上游分段由 `modules/proxy/metrics.go` 的 `Snapshot` 经 `RegisterSection` 挂入。四个字段仍是进程内总和：`dial_fail_total`、`send_timeout_total`、`read_timeout_total`、`idle_conns`。另有 `upstreams`，按 `host:port` 列出失败次数，最多 64 个地址，不含用户信息和路径。没有失败地址时这段列表省略。这些仍是进程启动以来的累计，不表示节点健康，也不能据此摘除节点。`runtime stats` 的 `--since` / `--domain` 返回 `NOT_SUPPORTED`（`cmd/runtime.go`）。
 
 CPU、内存、磁盘、打开文件数：Server 与 Monitor 都不采集（`docs/feature/21-monitor.md` 已知限制）。
 

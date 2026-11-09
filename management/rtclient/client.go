@@ -148,11 +148,21 @@ type DurationBucket struct {
 }
 
 // UpstreamInfo 是代理上游计数。未挂入时整段省略。
+// 四个总和覆盖全部地址；upstreams 最多列出 64 个 host:port，不含用户信息和路径。
 type UpstreamInfo struct {
+	DialFailTotal    uint64             `json:"dial_fail_total"`
+	SendTimeoutTotal uint64             `json:"send_timeout_total"`
+	ReadTimeoutTotal uint64             `json:"read_timeout_total"`
+	IdleConns        int64              `json:"idle_conns"`
+	Upstreams        []UpstreamAddrInfo `json:"upstreams,omitempty"`
+}
+
+// UpstreamAddrInfo 是一个上游地址上的失败计数。
+type UpstreamAddrInfo struct {
+	Address          string `json:"address"`
 	DialFailTotal    uint64 `json:"dial_fail_total"`
 	SendTimeoutTotal uint64 `json:"send_timeout_total"`
 	ReadTimeoutTotal uint64 `json:"read_timeout_total"`
-	IdleConns        int64  `json:"idle_conns"`
 }
 
 // UptimeSeconds 由 started_at 推算。解析失败则省略。

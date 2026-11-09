@@ -114,6 +114,13 @@ func (rka *ReadKeepAlive) Read(data []byte) (int, error) {
 	}
 }
 
+func proxyAddrOf(rka *ReadKeepAlive) string {
+	if rka == nil || rka.p == nil {
+		return ""
+	}
+	return rka.p.ProxyAddr
+}
+
 // debug by zhangjiayue
 // ReadBytes 读满 Content-Length 承诺的 body。任何读错误都必须上抛：
 // 上游半响应即断开/重置时，把截断数据当 200 回给客户端（更糟的是
@@ -130,7 +137,7 @@ func (rka *ReadKeepAlive) ReadBytes(size int) error {
 		tempLen, err := rka.Read(tmpBuf)
 		if err != nil {
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				noteReadTimeout()
+				noteReadTimeout(proxyAddrOf(rka))
 				return ProxyErrorReadFromUpstreamTimeout
 			}
 			return err
@@ -152,7 +159,7 @@ readAgain:
 	if err != nil {
 		neterr, ok := err.(net.Error)
 		if ok && neterr.Timeout() {
-			noteReadTimeout()
+			noteReadTimeout(proxyAddrOf(rka))
 			return ProxyErrorReadFromUpstreamTimeout
 		} else if ok {
 			logging.ConsoleLog.Debug().Msgf("proxy: unhandled net error: %v", err)

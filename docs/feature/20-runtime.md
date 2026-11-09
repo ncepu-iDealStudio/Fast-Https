@@ -27,7 +27,7 @@ Invoke-RestMethod http://127.0.0.1:9088/runtime | ConvertTo-Json -Depth 5
 - HTTP 出口在组合根 `cmd/runtime_endpoint.go`。`StartHandler` 在写 PID 之后、`InitSystem` 之前启动监听；`RegisterServices` 把关闭挂到 `core.Services.AfterStop`，并把 `modules/proxy` 的上游计数挂为 `upstream` 分段。
 - 分段注册：`metrics.RegisterSection` 供组合根挂入功能包数据，`runtime` 不 import `modules`。
 - `request_duration` 口径是进入 `EventHandler` 到返回，不含读请求头；HTTP/2 在 `EventHandler` 返回后才写响应的那部分不在内。桶为累积 `le`（1/5/10/25/50/100/250/500/1000/5000 ms 与 `+Inf`）。
-- 上游失败只在错误产生处计数：`dialUpstream` 的拨号失败、`sendToUpstreamServer` 的写超时、`proxy_read.go` 两处读超时。websocket 的 `CircleData` 类型转换失败不算拨号失败。
+- 上游失败只在错误产生处计数：`dialUpstream` 的拨号失败、`sendToUpstreamServer` 的写超时、`proxy_read.go` 两处读超时。四个总和保留，同时按 `host:port` 写入 `upstreams`，最多 64 个地址；再多的失败只进总和。地址去掉协议、路径和用户信息。websocket 的 `CircleData` 类型转换失败不算拨号失败。
 - `requests.total` 只含进入 `EventHandler` 的请求；解析失败与被拒绝连接单独计，不进入 `responses_*_total`。TCP / WebSocket 会话计入 `connections.active`，升级握手那一次请求计入 `requests.total`。
 
 ## 测试

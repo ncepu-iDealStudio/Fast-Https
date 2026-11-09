@@ -87,6 +87,8 @@ Monitor 的 `5xx_ratio` 继续用 5xx 合计。502/504 的比例规则放到 C4 
 
 ### C5 按上游地址累计失败
 
+状态：已实施（`modules/proxy/metrics.go`，`TestDialFailSplitByAddress`、`TestMetricAddrDropsUserinfo`）。总和仍在，最多列出 64 个地址。不能据此摘除节点。
+
 | 项 | 内容 |
 | --- | --- |
 | 影响 | 有。拨号失败、写超时、读超时发生在代理路径上，计数从进程级总和改为按地址一份 |
