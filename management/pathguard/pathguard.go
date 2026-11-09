@@ -26,20 +26,16 @@ func CheckRoot(root string, banned []string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrPath, err)
 	}
-	info, err := os.Lstat(abs)
+	// 统一展开符号链接：banned 侧总是 EvalSymlinks，而它在 Windows 上
+	// 顺带把 8.3 短名（如 JFENG2~1）展开成长名。root 侧不展开时两边
+	// 字符串形式不同，sameOrInside 会漏判（「--root 指向配置目录」就是
+	// 这样绕过去的）。
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = real
+	}
+	info, err := os.Stat(abs)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrPath, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		real, err := filepath.EvalSymlinks(abs)
-		if err != nil {
-			return "", fmt.Errorf("%w: %v", ErrPath, err)
-		}
-		abs = real
-		info, err = os.Stat(abs)
-		if err != nil {
-			return "", fmt.Errorf("%w: %v", ErrPath, err)
-		}
 	}
 	if !info.IsDir() {
 		return "", fmt.Errorf("%w: %s is not a directory", ErrPath, abs)
