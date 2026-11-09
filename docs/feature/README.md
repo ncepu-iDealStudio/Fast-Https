@@ -2,7 +2,7 @@
 
 按编号组织本项目已实现的功能。每篇文档包含：功能说明、使用方式、实现方案、测试位置与已知限制。
 
-未实现的方案不在本目录，统一写在 [docs/develop/plans/](../develop/README.md)。
+编号文档之外，本目录还收 CLI 与 Monitor 两个改造已落地的**扫描报告、开发规范与分步计划**（见文末「设计与实施记录」）。未实现的方案不在本目录，统一写在 [docs/develop/plans/](../develop/README.md)。
 
 ## 已实现
 
@@ -30,6 +30,21 @@
 | 19 | [19-desktop-console.md](19-desktop-console.md) | 桌面管理端 | Wails v3 单窗口 + 托盘：状态、站点与配置表单、证书日志，转交 CLI 启停 |
 | 20 | [20-runtime.md](20-runtime.md) | 本机运行快照 | `GET 127.0.0.1:9088/runtime`：生命周期、连接、请求、耗时与上游计数 |
 | 21 | [21-monitor.md](21-monitor.md) | 独立 Monitor 进程 | 周期采集 `/runtime`、写快照与事件文件；规则：不可达/恢复/重启/5xx 比例/端口探测/疑似卡死 |
+
+## 设计与实施记录
+
+CLI 与 Monitor 两轮改造开工前各有一份扫描报告与一份分步计划，CLI 另有命令与接口规范。代码落地后这些文档随功能文档一起留在本目录：正文保留开工时的判断，只在开头补一段「执行状态」指出现行行为看哪一篇。
+
+| 文档 | 内容 |
+| --- | --- |
+| [fast-https-CLI代码扫描报告.md](fast-https-CLI代码扫描报告.md) | 开工前扫描：现有代码是否具备开发管理 CLI 的条件 |
+| [fast-https-CLI开发规范.md](fast-https-CLI开发规范.md) | CLI 命令与接口规范（面向 AI 代码智能体的实现基线） |
+| [fast-https-CLI改造开发计划.md](fast-https-CLI改造开发计划.md) | S0–S14 的改动范围、验收测试与回退方式 |
+| [fast-https-Monitor代码扫描报告.md](fast-https-Monitor代码扫描报告.md) | 开工前扫描：是否具备开发独立 Monitor 进程的条件 |
+| [fast-https-Monitor开发前置条件与代码扫描清单.md](fast-https-Monitor开发前置条件与代码扫描清单.md) | 开工前的逐项核对清单，已于 2026-11-08 扫完 |
+| [fast-https-Monitor改造开发计划.md](fast-https-Monitor改造开发计划.md) | 第 0–8 步的改动范围、验收测试与回退方式 |
+
+命令级的字段、错误码与实测输出见 [docs/cli/](../cli/command-spec.md)；尚未闭环的验收与可选能力见 [cli-monitor-followup.md](../develop/plans/cli-monitor-followup.md)。
 
 ## 约定
 

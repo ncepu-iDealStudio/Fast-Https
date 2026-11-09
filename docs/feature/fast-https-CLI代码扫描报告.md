@@ -1,8 +1,8 @@
 # fast-https CLI 代码扫描报告
 
-日期：2026-11-08。本文回答一个问题：**现有代码是否具备按 [CLI 命令与接口开发规范](fast-https-CLI开发规范_AI代码智能体版.md)（下称「规范」）开发的条件。** 配套的执行方案见 [CLI 改造开发计划](fast-https-CLI改造开发计划.md)。
+日期：2026-11-08。本文回答一个问题：**现有代码是否具备按 [CLI 命令与接口开发规范](fast-https-CLI开发规范.md)（下称「规范」）开发的条件。** 配套的执行方案见 [CLI 改造开发计划](fast-https-CLI改造开发计划.md)。
 
-**这是开工前的扫描，不是现状说明。** 文中「没有 JSON 封套」「没有 Monitor」「`runtime` 无数据」描述的是当时的仓库。落地后的行为见 [feature/18-cli-service.md](feature/18-cli-service.md) 与 [feature/21-monitor.md](feature/21-monitor.md)。
+**这是开工前的扫描，不是现状说明。** 文中「没有 JSON 封套」「没有 Monitor」「`runtime` 无数据」描述的是当时的仓库。落地后的行为见 [18-cli-service.md](18-cli-service.md) 与 [21-monitor.md](21-monitor.md)。
 
 扫描方法：只读源码，不改业务代码；另跑了一次构建和相关包测试作为基线（第 8 节）。结论以调用链为准，不按函数名推断；静态阅读确认不了的事项标为「待运行验证」。
 
@@ -34,7 +34,7 @@
 | 5 | Runtime 指标能否获取 | 不能。没有连接数、请求数、状态码、耗时计数；`safe.Snapshot` 只在进程内，且 `totalChecked` 是每连接一次的限流检查，不是请求数。独立 Monitor 进程不存在（`monitor/` 里只有一个未入库的 `monitor.exe`，是提交 `5ab84d6` 移除的旧托盘程序的构建残留，不作依据） | [Monitor 扫描报告](fast-https-Monitor代码扫描报告.md) 第 2 节；`modules/safe/safe.go` |
 | 6 | 日志格式、轮转、敏感字段 | 四路单行 JSON（`access`/`error`/`system`/`safe`），时间 RFC3339 带毫秒，字典序即时间序；logrotate `copytruncate`、单文件 100MB。**`error.log` 只收 `logging.PrintErr` 的几行**，真正的错误（reload 失败、ACME 失败、连接 panic）走 `ConsoleLog`，只到 stdout / `daemon.log` / journald。`path` 含查询串，可能带 token；没有任何脱敏实现 | `infra/logging/*.go`；`build/packaging/logrotate/fast-https`；`cmd/daemon_unix.go` 的 `daemonLogPath` |
 | 7 | 是否由 systemd 管理 | 包安装用 systemd（`Type=simple`、`ExecReload=… reload`、`RuntimeDirectory`）；单元文件里没有 `User=`（grep 无命中，待运行验证：推断以 root 运行）；源码直跑自己转后台；容器/systemd 下保持前台 | `build/packaging/systemd/fast-https.service`；`cmd/commands.go` 的 `runInForeground` |
-| 8 | Monitor 是否已存在 | 不存在（见第 5 项）；已有扫描报告与分步改造计划，未实施 | `docs/fast-https-Monitor代码扫描报告.md`、`docs/fast-https-Monitor改造开发计划.md` |
+| 8 | Monitor 是否已存在 | 不存在（见第 5 项）；已有扫描报告与分步改造计划，未实施 | `docs/feature/fast-https-Monitor代码扫描报告.md`、`docs/feature/fast-https-Monitor改造开发计划.md` |
 | 9 | operation 持久化 | 没有。`grep` 全仓无 `operation_id`、`request_id`、audit 相关实现 | 全仓搜索 |
 | 10 | 配置版本与回滚 | 没有。只有桌面端的单文件 `.bak`（写前备份一份、站点删除改名为 `.bak`），不是版本体系，也不在主模块里 | `desktop/config_editor.go`；`desktop/site_editor.go` |
 

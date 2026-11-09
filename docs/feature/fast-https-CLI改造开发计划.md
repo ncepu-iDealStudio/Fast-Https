@@ -1,8 +1,8 @@
 # fast-https CLI 改造开发计划
 
-日期：2026-11-08。依据 [CLI 代码扫描报告](fast-https-CLI代码扫描报告.md) 的结论，把 [CLI 命令与接口开发规范](fast-https-CLI开发规范_AI代码智能体版.md) 落到可逐步执行的方案。Server 侧的指标与 Monitor 部分另有文档，见 [Monitor 代码扫描报告](fast-https-Monitor代码扫描报告.md) 与 [Monitor 改造开发计划](fast-https-Monitor改造开发计划.md)，本文只引用它的步骤号，不重复。
+日期：2026-11-08。依据 [CLI 代码扫描报告](fast-https-CLI代码扫描报告.md) 的结论，把 [CLI 命令与接口开发规范](fast-https-CLI开发规范.md) 落到可逐步执行的方案。Server 侧的指标与 Monitor 部分另有文档，见 [Monitor 代码扫描报告](fast-https-Monitor代码扫描报告.md) 与 [Monitor 改造开发计划](fast-https-Monitor改造开发计划.md)，本文只引用它的步骤号，不重复。
 
-**执行状态（2026-11-08）：** S0–S12 与 S14 的文档已落地。现行行为看 [feature/18-cli-service.md](feature/18-cli-service.md)、[docs/cli/command-spec.md](cli/command-spec.md)。S13 `cert renew` 未做。尚未跑完的验收见 [cli-monitor-followup.md](develop/plans/cli-monitor-followup.md)。下文逐步说明保留开工时的设计，不再表示「尚未开始」。
+**执行状态（2026-11-08）：** S0–S12 与 S14 的文档已落地。现行行为看 [18-cli-service.md](18-cli-service.md)、[docs/cli/command-spec.md](../cli/command-spec.md)。S13 `cert renew` 未做。尚未跑完的验收见 [cli-monitor-followup.md](../develop/plans/cli-monitor-followup.md)。下文逐步说明保留开工时的设计，不再表示「尚未开始」。
 
 ## 0. 怎么读这份文档
 
@@ -823,7 +823,7 @@ Copy-Item .\config $env:TEMP\cand -Recurse -Force
 
 **目标：** 查询独立 Monitor 进程的状态与事件。
 
-**状态：** 已落地。Monitor 进程在 `monitor/`（见 [feature/21-monitor.md](feature/21-monitor.md)）。CLI 只读它写下的文件，实现在 `management/monview` 与 `cmd/monitor.go`。开工前 `monitor/` 里曾有未入库的旧托盘 `monitor.exe`，该残留已不在，不能再当成「没有源码」。
+**状态：** 已落地。Monitor 进程在 `monitor/`（见 [21-monitor.md](21-monitor.md)）。CLI 只读它写下的文件，实现在 `management/monview` 与 `cmd/monitor.go`。开工前 `monitor/` 里曾有未入库的旧托盘 `monitor.exe`，该残留已不在，不能再当成「没有源码」。
 
 **影响：** CLI 侧无。启停归 systemd 或使用者自己的进程管理。
 

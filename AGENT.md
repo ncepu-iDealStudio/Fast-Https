@@ -117,6 +117,9 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 | 安装、构建、卸载、排障 | [docs/help/](docs/help/README.md) |
 | 环境、测试、规范、发布 | [docs/develop/](docs/develop/README.md) |
 | 功能怎么用、怎么实现 | [docs/feature/](docs/feature/README.md) |
+| CLI 命令的字段、错误码、退出码 | [docs/cli/command-spec.md](docs/cli/command-spec.md)（示例见 `docs/cli/examples.md`） |
+| CLI / Monitor 的设计依据与分步实施记录 | [docs/feature/](docs/feature/README.md) 的「设计与实施记录」 |
+| AI Agent 能力规划 | [docs/fast-https AI agent功能设计与开发规范.md](docs/fast-https%20AI%20agent功能设计与开发规范.md) |
 | 历史踩坑记录 | [docs/help/dev-issues.md](docs/help/dev-issues.md) |
 | 装包实机验证的结果与是否要重跑 | [docs/test/3-distro-verification.md](docs/test/3-distro-verification.md) |
 | 证书与 ACME 的实操流程、挑战原理 | [docs/help/tls-certificates.md](docs/help/tls-certificates.md) |

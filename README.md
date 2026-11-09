@@ -220,7 +220,8 @@ Fast-Https 自己解析 HTTP/1.1、每个连接一个协程，没有 C 扩展或
 | [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | 面向部署运维：配置项、站点、证书、代理、缓存、WAF |
 | [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | 同上，英文版 |
 | [docs/usage.md](docs/usage.md) | 仓库内使用文档源文件，生成 `docs/usage.html` 随发行包分发 |
-| [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案 |
+| [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案；另收 CLI / Monitor 的扫描报告、规范与改造计划 |
+| [docs/cli/](docs/cli/command-spec.md) | 管理命令契约：字段、错误码、退出码，以及只收录实际输出示例 |
 | [docs/develop/](docs/develop/README.md) | 环境构建、测试体系、代码规范、新增配置项、调试、发布 |
 | [docs/help/](docs/help/README.md) | 构建与安装、装完的目录布局、常见问题排查、开发问题日志 |
 | [docs/architecture.html](docs/architecture.html) | 项目架构图（[PNG](docs/images/architecture.png) / [深色 PNG](docs/images/architecture-dark.png)），分层与请求链 |

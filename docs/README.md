@@ -3,7 +3,8 @@
 ```
 docs/
   README.md          ← 本文件
-  feature/           产品功能（按编号排列，只放已实现的能力）
+  feature/           产品功能（按编号排列，只放已实现的能力）+ CLI / Monitor 的扫描报告、开发规范与改造计划
+  cli/               管理命令契约：command-spec.md（命令、字段、错误码、退出码）、examples.md（只收实际跑过的输出）、S14-delivery-summary.md
   develop/           开发文档（环境/测试/规范/配置/调试/发布 + plans 未实施方案 + archive 已归档方案）
   help/              帮助文档（构建与安装/目录布局/常见问题/开发问题日志）
   test/              测试专项（覆盖率评估/边界用例集/压测计划/发行版实机验证）
@@ -15,6 +16,7 @@ docs/
   about.md               启动与运行逻辑（含流程图）
   nginx-core-gap.md         与 Nginx 核心功能对比
   product-design-latest.md  当前产品设计（只记录已经实现的行为）
+  fast-https AI agent功能设计与开发规范.md   AI Agent 总体功能设计与技术规范（后续开发的依据）
 ```
 
 `usage.html` 由 `go run ./tools/docgen` 生成，版本号取自 `config.CURRENT_VERSION`。改了 `usage.md` 之后必须重新生成，`tools/docgen` 的测试会在不一致时报错。
@@ -35,6 +37,9 @@ docs/
 | 看整体架构图（分层与请求链） | [architecture.html](architecture.html)、[images/architecture.png](images/architecture.png) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
 | 了解历史决策与演进 | [develop/README.md](develop/README.md)（`plans/` 未实施，`archive/` 已归档） |
+| 写脚本调用管理命令（字段、错误码、退出码） | [cli/command-spec.md](cli/command-spec.md)、[cli/examples.md](cli/examples.md) |
+| 看 CLI / Monitor 的设计依据与分步实施记录 | [feature/fast-https-CLI改造开发计划.md](feature/fast-https-CLI改造开发计划.md)、[feature/fast-https-Monitor改造开发计划.md](feature/fast-https-Monitor改造开发计划.md) |
+| 规划 AI Agent 能力 | [fast-https AI agent功能设计与开发规范.md](fast-https%20AI%20agent功能设计与开发规范.md) |
 | CLI / Monitor 落地后还剩什么 | [develop/plans/cli-monitor-followup.md](develop/plans/cli-monitor-followup.md) |
 
 ## 维护约定

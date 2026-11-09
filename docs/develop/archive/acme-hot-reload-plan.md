@@ -275,7 +275,7 @@ A 与 B 都完成才算功能闭环；A 单独上线会让「reload 打开 ACME�
 
 ## 10. 范围外（不在本计划内）
 
-- **不做**配置文件自动监听重载：那是 [config-autoreload-plan.md](config-autoreload-plan.md)（R7）的范围。本文只定义 reload 被触发之后「要做什么」。
+- **不做**配置文件自动监听重载：那是 [config-autoreload-plan.md](../plans/config-autoreload-plan.md)（R7）的范围。本文只定义 reload 被触发之后「要做什么」。
 - **不做**域名集合的增量管理（`ManageAsync(新增)` + 单独处理移除）：重建更简单，「停止申请某个域名」在增量模型里很容易漏。
 - **不做** reload 防抖/合并：等真实出现 reload 风暴再说，避免引入额外状态。
 - **不做** DNS-01 与通配符：与本文无关。

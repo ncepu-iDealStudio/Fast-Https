@@ -4,8 +4,8 @@
 
 对照原文（逐步设计仍保留，文首已标明执行状态，不再把「没有 Monitor」当成现状）：
 
-- [fast-https-CLI改造开发计划.md](../../fast-https-CLI改造开发计划.md)（S0–S14）
-- [fast-https-Monitor改造开发计划.md](../../fast-https-Monitor改造开发计划.md)（第 0–8 步）
+- [fast-https-CLI改造开发计划.md](../../feature/fast-https-CLI改造开发计划.md)（S0–S14）
+- [fast-https-Monitor改造开发计划.md](../../feature/fast-https-Monitor改造开发计划.md)（第 0–8 步）
 
 现行行为以功能文档为准：[18-cli-service.md](../../feature/18-cli-service.md)、[20-runtime.md](../../feature/20-runtime.md)、[21-monitor.md](../../feature/21-monitor.md)。收口当时的记录见 [S14-delivery-summary.md](../../cli/S14-delivery-summary.md)（其中「Monitor 第 6–7 步未做」已标明过时）。
 

@@ -2,7 +2,7 @@
 
 日期：2026-11-08。本文回答一个问题：**现有代码是否具备开发独立 Monitor 守护进程的条件。** 对应 [开发前置条件与代码扫描清单](fast-https-Monitor开发前置条件与代码扫描清单.md) 第 7 节要求的评估报告。配套的执行方案见 [Monitor 改造开发计划](fast-https-Monitor改造开发计划.md)。
 
-**这是开工前的扫描，不是现状说明。** 文中「仓库里没有 Monitor 源码」「没有 `/runtime`」描述的是当时的仓库。落地后的行为见 [feature/20-runtime.md](feature/20-runtime.md) 与 [feature/21-monitor.md](feature/21-monitor.md)。`monitor/` 现在是独立进程源码。
+**这是开工前的扫描，不是现状说明。** 文中「仓库里没有 Monitor 源码」「没有 `/runtime`」描述的是当时的仓库。落地后的行为见 [20-runtime.md](20-runtime.md) 与 [21-monitor.md](21-monitor.md)。`monitor/` 现在是独立进程源码。
 
 扫描方法：只读源码，沿调用链确认，不按函数名推断；没有改代码，也没有启动服务。静态阅读确认不了的事项标为「待运行验证」，汇总在第 8 节。首版结论经过一次对照源码的复核，更正和补充记录在附录 A。
 
