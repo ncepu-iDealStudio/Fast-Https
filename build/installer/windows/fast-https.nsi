@@ -118,6 +118,10 @@ SectionEnd
 !ifndef SC_STARTMENU
   !define SC_STARTMENU "1"
 !endif
+; PATH 开关：默认 1（加入系统 PATH）。向导按勾选传 /DSC_PATH=0 关闭。
+!ifndef SC_PATH
+  !define SC_PATH "1"
+!endif
 
 Section "Fast-Https 核心文件（必选）" SEC_CORE
   SectionIn RO
@@ -165,6 +169,14 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   ; 记进注册表，卸载只回收实际创建过的快捷方式。
   WriteRegStr HKLM "Software\${APP_NAME}" "ShortcutDesktop" "${SC_DESKTOP}"
   WriteRegStr HKLM "Software\${APP_NAME}" "ShortcutStartMenu" "${SC_STARTMENU}"
+  WriteRegStr HKLM "Software\${APP_NAME}" "AddToPath" "${SC_PATH}"
+
+  ; 可选：把安装目录加进系统 PATH（管理员身份下写 HKLM 环境 + 广播
+  ; WM_SETTINGCHANGE，新开终端立即可用；幂等）。由引擎调 wizard.ps1
+  ; 的无头模式执行，勾选状态与快捷方式同源（/DSC_PATH=0 关闭）。
+  ${If} ${SC_PATH} != "0"
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\wizard.ps1" -PathMode add -Dir "$INSTDIR"'
+  ${EndIf}
 
   ${If} ${SC_DESKTOP} == "0"
     ; 用户取消桌面快捷方式：清掉升级残留的旧图标
@@ -219,6 +231,16 @@ Section "Uninstall"
   nsExec::ExecToLog 'taskkill /F /IM ${MONITOR_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${DESKTOP_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${APP_EXE}'
+
+  ; PATH 清理用的向导脚本从插件目录提取（$INSTDIR 马上要被删）。
+  ; 卸载引擎已提权（uninstall.exe 以管理员运行），写 HKLM 环境成立。
+  SetOutPath "$PLUGINSDIR"
+  File "/oname=wizard.ps1" "wizard.ps1"
+
+  ; 从系统 PATH 移除安装目录（安装时若勾选了加入 PATH）。幂等：不在
+  ; PATH 里时原样返回。走 wizard.ps1 的无头模式，与安装时同一段代码。
+  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\wizard.ps1" -PathMode remove -Dir "$INSTDIR"'
+  Pop $R1
 
   DeleteRegKey HKLM "${UNINST_KEY}"
 

@@ -15,11 +15,13 @@ param(
     [string]$Icon = "",          # 品牌图（png，随包提供）
     [string]$Title = "Fast-Https",
     [string]$Version = "",
+    [string]$Dir = "",           # 安装目录（卸载向导用：进度轮询与 PATH 操作目标）
     [switch]$Uninstall,
     [switch]$SelfTest,           # 只加载界面与命名元素后退出，供无头自检
     [string]$PreviewPng = "",    # 把界面无头渲染成 PNG（调样式用）
     [string]$PreviewScreen = "welcome",  # welcome | working | done | error
-    [string]$AutoInstall = ""    # 无头端到端测试：跳过界面直接按指定目录安装
+    [string]$AutoInstall = "",   # 无头端到端测试：跳过界面直接按指定目录安装
+    [string]$PathMode = ""       # 无头环境操作：add | remove（把 $Dir 加进/移出系统 PATH）
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,6 +51,7 @@ $T = if ($zh) {
         uacDenied = '未获得管理员授权，安装已取消。'
         optDesktop = '创建桌面快捷方式'
         optStartMenu = '添加到开始菜单'
+        optPath = '加入系统 PATH（可在任意终端直接运行 fast-https）'
         doneTitle = '安装完成'
         doneSub = '已安装到'
         runApp = '运行 Fast-Https Desktop'
@@ -84,6 +87,7 @@ $T = if ($zh) {
         uacDenied = 'Administrator permission was denied; installation cancelled.'
         optDesktop = 'Create desktop shortcut'
         optStartMenu = 'Add to Start menu'
+        optPath = 'Add to system PATH (run fast-https from any terminal)'
         doneTitle = 'Installation complete'
         doneSub = 'Installed to'
         runApp = 'Run Fast-Https Desktop'
@@ -107,7 +111,7 @@ $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Width="560" Height="404" WindowStartupLocation="CenterScreen"
+        Width="560" Height="460" WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize" ShowInTaskbar="True" FontFamily="Microsoft YaHei UI"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Border Background="#FFFFFF" CornerRadius="14" Margin="14">
@@ -162,9 +166,10 @@ $xaml = @'
           <TextBlock x:Name="txtAnd" FontSize="10.5" Foreground="#949AA3" Margin="4,0"/>
           <TextBlock FontSize="10.5"><Hyperlink x:Name="lnkPrivacy" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"><Run x:Name="runPrivacy" Text=""/></Hyperlink></TextBlock>
         </StackPanel>
-        <StackPanel x:Name="rowOptions" HorizontalAlignment="Center" Margin="0,14,0,0" Orientation="Horizontal">
-          <CheckBox x:Name="chkDesktop" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,18,0" Cursor="Hand"/>
-          <CheckBox x:Name="chkStartMenu" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand"/>
+        <StackPanel x:Name="rowOptions" HorizontalAlignment="Center" Margin="0,10,0,0">
+          <CheckBox x:Name="chkDesktop" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
+          <CheckBox x:Name="chkStartMenu" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
+          <CheckBox x:Name="chkPath" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand" HorizontalAlignment="Left"/>
         </StackPanel>
       </StackPanel>
 
@@ -228,7 +233,7 @@ $txtTitle = N 'txtTitle'; $txtTagline = N 'txtTagline'; $txtBody = N 'txtBody'; 
 $btnPrimary = N 'btnPrimary'; $btnSecondary = N 'btnSecondary'
 $rowPath = N 'rowPath'; $txtInstallTo = N 'txtInstallTo'; $txtPath = N 'txtPath'; $btnBrowse = N 'btnBrowse'
 $rowAgree = N 'rowAgree'; $txtAgree = N 'txtAgree'; $lnkTerms = N 'lnkTerms'; $runTerms = N 'runTerms'; $txtAnd = N 'txtAnd'; $lnkPrivacy = N 'lnkPrivacy'; $runPrivacy = N 'runPrivacy'
-$rowOptions = N 'rowOptions'; $chkDesktop = N 'chkDesktop'; $chkStartMenu = N 'chkStartMenu'
+$rowOptions = N 'rowOptions'; $chkDesktop = N 'chkDesktop'; $chkStartMenu = N 'chkStartMenu'; $chkPath = N 'chkPath'
 $txtPct = N 'txtPct'
 $txtPhase = N 'txtPhase'; $barWork = N 'barWork'
 $doneCircle = N 'doneCircle'; $doneCheck = N 'doneCheck'; $txtDoneTitle = N 'txtDoneTitle'; $txtDoneSub = N 'txtDoneSub'
@@ -263,6 +268,9 @@ if ($PreviewPng) {
         $txtPath.Text = (Join-Path $env:ProgramFiles $Title)
         $txtAgree.Text = $T.agree; $runTerms.Text = $T.terms
         $txtAnd.Text = $T.and; $runPrivacy.Text = $T.privacy
+        $chkDesktop.Content = $T.optDesktop
+        $chkStartMenu.Content = $T.optStartMenu
+        $chkPath.Content = $T.optPath
     }
     # 预览指定屏：校验进度页与完成页的排版
     switch ($PreviewScreen) {
@@ -321,6 +329,8 @@ if ($AutoInstall) {
     exit $code
 }
 
+# 无头 PATH 操作在函数定义之后执行（见文件尾部的 if ($PathMode) 块）。
+
 # Run-Engine 调起静默引擎（写操作需要管理员：RunAs 触发 UAC，仅弹一次）。
 # extra 是向导传给引擎的附加开关（如快捷方式选项 /DSC_DESKTOP=0）。
 # 返回引擎退出码；用户拒绝 UAC 时返回 1223（Windows 标准码）。
@@ -339,22 +349,59 @@ function Run-Engine([string]$dest, [string[]]$extra = @()) {
     }
 }
 
-# Watch-Install 安装期间的真进度：轮询目标目录的文件数（引擎按解压
-# 顺序落文件），映射到进度条；完成时拉满。stageCount 是安装包文件总数
-# 的近似上界（由向导启动时从引擎副本数不清，这里用启发式目标值）。
-function Watch-Install([string]$dest, [System.Windows.Threading.DispatcherTimer]$timer) {
-    $script:progress = 5
+# Update-MachinePath 把 $dir 加入（mode=add）或移出（mode=remove）系统
+# PATH（HKLM 环境，写后广播 WM_SETTINGCHANGE 让新开的终端立刻可见）。
+# 幂等：add 时不重复、remove 时不存在即原样返回。
+# 调用方保证管理员身份（安装/卸载引擎已提权，PathMode 复用同一令牌）。
+function Update-MachinePath([string]$dir, [string]$mode) {
+    $key = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+    $cur = (Get-ItemProperty $key -Name Path -ErrorAction Stop).Path
+    $parts = $cur -split ';' | Where-Object { $_ -ne '' }
+    $has = $parts | Where-Object { $_.TrimEnd('\') -ieq $dir.TrimEnd('\') }
+    if ($mode -eq 'add') {
+        if ($has) { return }
+        $new = ($parts + $dir.TrimEnd('\')) -join ';'
+    } else {
+        if (-not $has) { return }
+        $new = ($parts | Where-Object { $_.TrimEnd('\') -ine $dir.TrimEnd('\') }) -join ';'
+    }
+    Set-ItemProperty $key -Name Path -Value $new -Type ExpandString
+    # 广播环境变更：新开的终端/进程立即拿到新 PATH，不用注销重登
+    Add-Type -Namespace Win32 -Name NativeMethods -MemberDefinition `
+        '[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);'
+    $result = [UIntPtr]::Zero
+    [Win32.NativeMethods]::SendMessageTimeout(0xffff, 0x001A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$result) | Out-Null
+}
+
+# Watch-Install 进度轮询：install 模式看目标目录文件数递增（对数曲线
+# 5%→92%），uninstall 模式看安装目录文件数递减（从初始计数往 0 走）。
+# 都由引擎完成后的 100% 收尾。返回计时器，调用方 Stop。
+function Watch-Install([string]$dir, [bool]$uninstall) {
     $barWork.Value = 5; $txtPct.Text = '5%'
+    $script:baseCount = 0
+    if ($uninstall) {
+        $script:baseCount = (Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
+    }
     $watch = [System.Windows.Threading.DispatcherTimer]::new()
     $watch.Interval = [TimeSpan]::FromMilliseconds(250)
     $watch.Add_Tick({
         try {
-            if (Test-Path $dest) {
-                $n = (Get-ChildItem $dest -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
-                # 经验值：完整安装约 220 个文件；对数曲线避免前快后停
-                $pct = [Math]::Min(92, [int](5 + 87 * [Math]::Log(1 + $n) / [Math]::Log(1 + 200)))
+            if (Test-Path $dir) {
+                $n = (Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
+                $pct = 5
+                if ($uninstall -and $script:baseCount -gt 0) {
+                    # 递减：清理掉的占比
+                    $done = $script:baseCount - $n
+                    $pct = [Math]::Min(92, [int](5 + 87 * ($done / $script:baseCount)))
+                } elseif (-not $uninstall) {
+                    # 递增：经验值完整安装约 200 个文件，对数曲线避免前快后停
+                    $pct = [Math]::Min(92, [int](5 + 87 * [Math]::Log(1 + $n) / [Math]::Log(1 + 200)))
+                }
                 $barWork.Value = $pct
                 $txtPct.Text = "$pct%"
+            } elseif ($uninstall) {
+                # 目录已被整体删掉：接近完成
+                $barWork.Value = 95; $txtPct.Text = '95%'
             }
         } catch { }
     })
@@ -425,16 +472,22 @@ function Initialize-UninstallScreen {
     $btnPrimary.Background = [System.Windows.Media.Brushes]::IndianRed
     $rowPath.Visibility = 'Collapsed'
     $rowAgree.Visibility = 'Collapsed'
+    $rowOptions.Visibility = 'Collapsed'
 
     $btnPrimary.Add_Click({
         $txtPhase.Text = $T.uninstalling
         Show-Screen $screenWorking
         $window.UpdateLayout()
+        # 卸载真进度：轮询安装目录剩余文件数（递减），引擎清理完拉满
+        $unDir = if ($Dir) { $Dir } else { Split-Path -Parent $Self }
+        $watch = Watch-Install $unDir $true
         try {
             $code = Run-Engine $null
         } catch {
             $code = -1
         }
+        $watch.Stop()
+        $barWork.Value = 100; $txtPct.Text = '100%'
         Show-Result $code $false ''
     })
 }
@@ -453,6 +506,7 @@ function Initialize-WelcomeScreen {
     $runPrivacy.Text = $T.privacy
     $chkDesktop.Content = $T.optDesktop
     $chkStartMenu.Content = $T.optStartMenu
+    $chkPath.Content = $T.optPath
     $lnkTerms.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $lnkPrivacy.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $btnBrowse.Add_Click({
@@ -467,11 +521,12 @@ function Initialize-WelcomeScreen {
         Show-Screen $screenWorking
         $window.UpdateLayout()
         # 真进度：轮询目标目录文件数；引擎退出后拉满
-        $watch = Watch-Install $dest $null
+        $watch = Watch-Install $dest $false
         try {
             $extra = @()
             if (-not $chkDesktop.IsChecked) { $extra += '/DSC_DESKTOP=0' }
             if (-not $chkStartMenu.IsChecked) { $extra += '/DSC_STARTMENU=0' }
+            if (-not $chkPath.IsChecked) { $extra += '/DSC_PATH=0' }
             $code = Run-Engine $dest $extra
         } catch {
             $code = -1
@@ -504,13 +559,26 @@ if ($Uninstall) {
 # 元素存在 + 两种模式的事件绑定全跑一遍。曾发生过 TextBlock 绑 Click
 # 在运行时才崩（向导弹不出来、nsExec 报错退出），只有真实初始化才能暴露。
 if ($SelfTest) {
-    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','rowAgree','txtAgree','lnkTerms','runTerms','txtAnd','lnkPrivacy','runPrivacy','rowOptions','chkDesktop','chkStartMenu','txtPhase','barWork','txtPct','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
+    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','rowAgree','txtAgree','lnkTerms','runTerms','txtAnd','lnkPrivacy','runPrivacy','rowOptions','chkDesktop','chkStartMenu','chkPath','txtPhase','barWork','txtPct','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
     foreach ($n in $names) { if ($null -eq (N $n)) { Write-Error "selftest: missing element $n"; exit 1 } }
     if (-not $Self) { $script:Self = "selftest-fake.exe" }
     Initialize-WelcomeScreen      # 安装模式文案与事件绑定（崩溃在这里当场爆）
     Initialize-UninstallScreen    # 卸载模式文案与事件绑定
     Write-Host "selftest ok: wizard UI + bindings loaded"
     exit 0
+}
+
+# ---- 无头 PATH 操作（函数定义之后才能调 Update-MachinePath）----
+# 由已提权的引擎（或测试）调用，把 $Dir 加进/移出系统 PATH。
+if ($PathMode -and $Dir) {
+    try {
+        Update-MachinePath $Dir $PathMode
+        Write-Host ("path " + $PathMode + " ok: " + $Dir)
+        exit 0
+    } catch {
+        Write-Error ("path " + $PathMode + " failed: " + $_.Exception.Message)
+        exit 1
+    }
 }
 
 $null = $window.ShowDialog()
