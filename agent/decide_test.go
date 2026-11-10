@@ -51,8 +51,11 @@ func TestPolicyDeniesMutations(t *testing.T) {
 	if policyOf("http_5xx_spike", []string{"config apply --yes"}) != policyDeny {
 		t.Fatal("config apply must be denied")
 	}
-	if policyOf("service_unavailable", []string{"upstream drain 10.0.0.1:80"}) != policyDeny {
-		t.Fatal("drain must be denied")
+	if policyOf("http_5xx_spike", []string{"upstream drain 10.0.0.2:8080", "config apply"}) != policyDeny {
+		t.Fatal("a drain step plus another command must be denied")
+	}
+	if policyOf("http_5xx_spike", []string{"upstream drain 10.0.0.2:8080"}) != policyApproval {
+		t.Fatal("a single drain step must wait for approval")
 	}
 }
 
@@ -162,6 +165,27 @@ type scriptedModel struct{ content []byte }
 
 func (s scriptedModel) Generate(ctx context.Context, req model.Request) (*model.Response, error) {
 	return &model.Response{Content: s.content}, nil
+}
+
+func TestDrainStepFromContext(t *testing.T) {
+	ctx := `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","healthy":false},{"address":"10.0.0.2:8080","healthy":true}]}}`
+	state := seedTask(t, "5xx_ratio", "ratio up", "12121212121212121212121212121212", "", ctx)
+	if _, err := DiagnosePending(state, time.Now(), nil); err != nil {
+		t.Fatal(err)
+	}
+	st := mustStore(t, state)
+	defer st.Close()
+	var steps string
+	if err := st.db.QueryRow(`SELECT steps_json FROM agent_plan WHERE task_id = ?`, "t_12121212121212121212121212121212").Scan(&steps); err != nil {
+		t.Fatal(err)
+	}
+	if steps != `["upstream drain 10.0.0.1:8080"]` {
+		t.Fatalf("steps = %s", steps)
+	}
+	status, _ := st.taskStatus("t_12121212121212121212121212121212")
+	if status != "WAITING_APPROVAL" {
+		t.Fatalf("status = %s", status)
+	}
 }
 
 func seedTask(t *testing.T, kind, message, id, started, context string) string {

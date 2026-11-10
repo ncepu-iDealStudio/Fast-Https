@@ -10,6 +10,9 @@ const (
 
 // policyOf 只根据分类和步骤文本判断。事件 message 里的命令不会变成步骤。
 func policyOf(classification string, steps []string) string {
+	if len(steps) == 1 && isDrainStep(steps[0]) {
+		return policyApproval
+	}
 	for _, step := range steps {
 		if mutating(step) {
 			return policyDeny
@@ -38,6 +41,18 @@ func mutating(step string) bool {
 		}
 	}
 	return false
+}
+
+// isDrainStep 只接受「upstream drain <host>」或「upstream undrain <host>」。
+func isDrainStep(step string) bool {
+	fields := strings.Fields(step)
+	if len(fields) != 3 || fields[0] != "upstream" {
+		return false
+	}
+	if fields[1] != "drain" && fields[1] != "undrain" {
+		return false
+	}
+	return fields[2] != "" && !strings.ContainsAny(fields[2], ";&|$`'\"\\")
 }
 
 func statusFor(classification, decision string) string {

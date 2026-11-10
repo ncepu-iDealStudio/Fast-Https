@@ -43,7 +43,7 @@ func DiagnosePending(stateDir string, now time.Time, narrator model.Provider) (i
 		if text, ok := narrate(context.Background(), narrator, d); ok {
 			d.Cause = text
 		}
-		p := makePlan(task.taskID, task.eventID, d.Classification)
+		p := makePlan(task.taskID, task.eventID, d.Classification, drainStep(d.Classification, task.context))
 		decision := policyOf(d.Classification, p.Steps)
 		status := statusFor(d.Classification, decision)
 		if err := st.saveDiagnosis(task, d, p, decision, status, now); err != nil {

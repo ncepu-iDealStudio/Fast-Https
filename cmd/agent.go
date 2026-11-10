@@ -26,7 +26,7 @@ func newAgentCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
 	root.PersistentFlags().String("state-dir", "", t("Agent 状态目录", "agent state directory"))
-	root.AddCommand(newAgentStatusCmd(), newAgentTasksCmd(), newAgentTaskCmd(), newAgentApprovalsCmd())
+	root.AddCommand(newAgentStatusCmd(), newAgentTasksCmd(), newAgentTaskCmd(), newAgentApprovalsCmd(), newAgentApproveCmd())
 	return root
 }
 

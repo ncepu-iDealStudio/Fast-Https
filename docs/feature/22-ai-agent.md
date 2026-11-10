@@ -75,4 +75,4 @@ fast-https agent approvals --json
 - 不自动修改配置，不摘除上游，不续期证书。
 - 模型可选。设置 `FASTHTTPS_AGENT_MODEL_URL`（以及可选的 `FASTHTTPS_AGENT_MODEL_EXTERNAL_URL`）后，只重写诊断说明。没配置、超时，或说明里出现写命令时，仍用规则原文。策略和步骤不交给模型。
 - 不打包进 deb/rpm，也没有 systemd 单元。
-- 待审批只能查看，不能在 CLI 里批准后执行。
+- 待审批可以查看。`agent approve <plan-id> --yes` 只执行计划里唯一的 `upstream drain` 或 `upstream undrain`。哈希对不上，或会摘掉最后一个地址时，名单不变。不能批准证书续期或其他写命令。
