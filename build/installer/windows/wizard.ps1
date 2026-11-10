@@ -124,7 +124,7 @@ $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Width="560" Height="400" WindowStartupLocation="CenterScreen"
+        Width="560" SizeToContent="Height" WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize" ShowInTaskbar="True" FontFamily="Microsoft YaHei UI"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Border Background="#FFFFFF" CornerRadius="14" Margin="14">
@@ -164,9 +164,7 @@ $xaml = @'
         </Button>
         <Button x:Name="btnSecondary" Width="148" Height="44" Cursor="Hand" HorizontalAlignment="Center" Margin="0,10,0,0"
                 Background="Transparent" BorderThickness="0" Foreground="#666C75" FontSize="13" Content="" Visibility="Collapsed"/>
-        <!-- 自定义安装：默认收起，点「自定义安装」展开路径与选项。
-             必须是 Button：TextBlock 的 MouseLeftButtonDown 在 PowerShell
-             的事件包装下不触发（实测），ButtonBase 的 Click 可靠 -->
+        <!-- 自定义安装：默认收起，点「自定义安装」展开路径与选项 -->
         <Button x:Name="lnkCustomize" HorizontalAlignment="Center" Margin="0,16,0,0" Cursor="Hand"
                 BorderThickness="0" Background="Transparent" Foreground="#8A93A0" FontSize="11">
           <Button.Template>
@@ -189,31 +187,43 @@ $xaml = @'
                     Background="Transparent" BorderBrush="#D7DBE1" BorderThickness="1" Content="…"/>
           </StackPanel>
           <StackPanel x:Name="rowOptions" HorizontalAlignment="Center" Margin="0,10,0,0">
-            <!-- 圆点选择框：语义仍是独立开关（CheckBox），外观画成圆点；
-                 自定义模板保证亮暗都清晰 -->
-            <StackPanel.Resources>
-              <ControlTemplate x:Key="DotCheck" TargetType="CheckBox">
-                <StackPanel Orientation="Horizontal">
-                  <Grid Width="16" Height="16" VerticalAlignment="Center">
-                    <Ellipse x:Name="ring" Width="16" Height="16" Stroke="#949AA3" StrokeThickness="1.4" Fill="Transparent"/>
-                    <Ellipse x:Name="dot" Width="7" Height="7" Fill="#5A626E" Visibility="Collapsed"/>
-                  </Grid>
-                  <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
-                  <ControlTemplate.Triggers>
-                    <Trigger Property="IsChecked" Value="True">
-                      <Setter TargetName="ring" Property="Stroke" Value="#5A626E"/>
-                      <Setter TargetName="dot" Property="Visibility" Value="Visible"/>
-                    </Trigger>
-                    <Trigger Property="IsMouseOver" Value="True">
-                      <Setter TargetName="ring" Property="Stroke" Value="#5A626E"/>
-                    </Trigger>
-                  </ControlTemplate.Triggers>
-                </StackPanel>
-              </ControlTemplate>
-            </StackPanel.Resources>
-            <CheckBox x:Name="chkDesktop" Template="{StaticResource DotCheck}" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
-            <CheckBox x:Name="chkStartMenu" Template="{StaticResource DotCheck}" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
-            <CheckBox x:Name="chkPath" Template="{StaticResource DotCheck}" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand" HorizontalAlignment="Left"/>
+            <!-- 圆点选择行：PowerShell 侧管状态（optDesktop 等三个 $script: 布尔），
+                 按钮文字带 ●/○ 前缀。不用 CheckBox 模板——ControlTemplate.Triggers
+                 在 XamlReader::Parse 下间歇性解析失败（实测），按钮 Click 是本脚本
+                 唯一验证过可靠的事件通道 -->
+            <Button x:Name="chkDesktop" HorizontalAlignment="Left" Margin="0,0,0,6" Cursor="Hand"
+                    BorderThickness="0" Background="Transparent" Foreground="#666C75" FontSize="12"
+                    HorizontalContentAlignment="Left">
+              <Button.Template>
+                <ControlTemplate TargetType="Button">
+                  <Border Background="{TemplateBinding Background}">
+                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                  </Border>
+                </ControlTemplate>
+              </Button.Template>
+            </Button>
+            <Button x:Name="chkStartMenu" HorizontalAlignment="Left" Margin="0,0,0,6" Cursor="Hand"
+                    BorderThickness="0" Background="Transparent" Foreground="#666C75" FontSize="12"
+                    HorizontalContentAlignment="Left">
+              <Button.Template>
+                <ControlTemplate TargetType="Button">
+                  <Border Background="{TemplateBinding Background}">
+                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                  </Border>
+                </ControlTemplate>
+              </Button.Template>
+            </Button>
+            <Button x:Name="chkPath" HorizontalAlignment="Left" Cursor="Hand"
+                    BorderThickness="0" Background="Transparent" Foreground="#666C75" FontSize="12"
+                    HorizontalContentAlignment="Left">
+              <Button.Template>
+                <ControlTemplate TargetType="Button">
+                  <Border Background="{TemplateBinding Background}">
+                    <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                  </Border>
+                </ControlTemplate>
+              </Button.Template>
+            </Button>
           </StackPanel>
         </StackPanel>
         <!-- 开源推荐：Star 引导（文字后跟一颗小按钮，中性色） -->
@@ -321,6 +331,15 @@ if ($Version) { $window.Title = "$Title $Version" } else { $window.Title = $Titl
 # 无头自检的元素清单与初始化调用放在函数定义之后（脚本尾部），
 # 这里只提前声明：升级版自检见文件末尾的 if ($SelfTest) 块。
 
+# ---- 圆点选项状态与渲染（预览块与主流程共用，定义在两者之前）----
+$script:optMap = @{}
+
+function Paint-Options {
+    $chkDesktop.Content   = "$(if ($script:optMap.desktop) {'●'} else {'○'})  " + $T.optDesktop
+    $chkStartMenu.Content = "$(if ($script:optMap.startmenu) {'●'} else {'○'})  " + $T.optStartMenu
+    $chkPath.Content      = "$(if ($script:optMap.addpath) {'●'} else {'○'})  " + $T.optPath
+}
+
 # 无头预览：把界面渲染成 PNG（不 ShowDialog），用于调样式与截图留档
 if ($PreviewPng) {
     $txtTitle.Text = if ($Version) { "$Title $Version" } else { $Title }
@@ -338,16 +357,11 @@ if ($PreviewPng) {
         $btnPrimary.Content = $T.install + '  ›'
         $txtInstallTo.Text = $T.installTo
         $txtPath.Text = (Join-Path $env:ProgramFiles $Title)
-        $chkDesktop.Content = $T.optDesktop
-        $chkStartMenu.Content = $T.optStartMenu
-        $chkPath.Content = $T.optPath
+        $script:optMap = @{ desktop = $true; startmenu = $true; addpath = $true }
+        Paint-Options
         $runGithubLead.Text = $T.starLead
         $btnStar.Content = $T.starBtn
-        if ($PreviewExpand) {
-            $panelCustom.Visibility = 'Visible'
-            $runCustomize.Text = $T.customizeOn
-            $window.Height = 580
-        }
+        if ($PreviewExpand) { $panelCustom.Visibility = 'Visible' }
     }
     # 预览指定屏：校验进度页与完成页的排版
     switch ($PreviewScreen) {
@@ -621,9 +635,8 @@ function Initialize-WelcomeScreen {
     $txtInstallTo.Text = $T.installTo
     $txtPath.Text = $defaultDir
     $btnBrowse.Content = '…'
-    $chkDesktop.Content = $T.optDesktop
-    $chkStartMenu.Content = $T.optStartMenu
-    $chkPath.Content = $T.optPath
+    $script:optMap = @{ desktop = $true; startmenu = $true; addpath = $true }
+    Paint-Options
     $runGithubLead.Text = $T.starLead
     $btnStar.Content = $T.starBtn
     # 默认收起：点「自定义安装」展开路径与选项（窗口随之伸缩）
@@ -631,13 +644,25 @@ function Initialize-WelcomeScreen {
     $panelCustom.Visibility = 'Collapsed'
     $runCustomize.Text = $T.customize
     $lnkCustomize.Add_Click({
+        "customize clicked: open=$script:customOpen" | Out-File (Join-Path $env:TEMP "fast-https-wizard-diag.txt") -Append
         $script:customOpen = -not $script:customOpen
         $panelCustom.Visibility = if ($script:customOpen) { 'Visible' } else { 'Collapsed' }
         $runCustomize.Text = if ($script:customOpen) { $T.customizeOn } else { $T.customize }
-        # 展开时加高窗口（路径行 + 三行勾选），收起时还原；
-        # 居中相对窗口当前所在的显示器（多显示器下不许跳回主屏）
-        $window.Height = if ($script:customOpen) { 580 } else { 400 }
+        # 窗口高度随内容伸缩；居中相对窗口当前所在显示器（多显示器不跳屏）
         Set-CenterToCurrentMonitor
+    })
+    # 圆点选项：点击切换状态并重绘（●=选中 ○=未选）
+    $chkDesktop.Add_Click({
+        $script:optMap.desktop = -not $script:optMap.desktop
+        Paint-Options
+    })
+    $chkStartMenu.Add_Click({
+        $script:optMap.startmenu = -not $script:optMap.startmenu
+        Paint-Options
+    })
+    $chkPath.Add_Click({
+        $script:optMap.addpath = -not $script:optMap.addpath
+        Paint-Options
     })
     $btnStar.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $btnBrowse.Add_Click({
@@ -655,9 +680,9 @@ function Initialize-WelcomeScreen {
         $watch = Watch-Install $dest $false
         try {
             $extra = @()
-            if (-not $chkDesktop.IsChecked) { $extra += '/DSC_DESKTOP=0' }
-            if (-not $chkStartMenu.IsChecked) { $extra += '/DSC_STARTMENU=0' }
-            if (-not $chkPath.IsChecked) { $extra += '/DSC_PATH=0' }
+            if (-not $script:optMap.desktop) { $extra += '/DSC_DESKTOP=0' }
+            if (-not $script:optMap.startmenu) { $extra += '/DSC_STARTMENU=0' }
+            if (-not $script:optMap.addpath) { $extra += '/DSC_PATH=0' }
             $code = Run-Engine $dest $extra
         } catch {
             $code = -1
@@ -714,3 +739,8 @@ if ($PathMode -and $Dir) {
 
 $null = $window.ShowDialog()
 exit $exitCode
+
+
+
+
+
