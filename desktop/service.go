@@ -12,8 +12,6 @@ import (
 
 	"fast-https-desktop/internal/cli"
 
-	"golang.org/x/sys/windows/registry"
-
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -236,58 +234,4 @@ func (s *DesktopService) PickPath(kind string) (string, error) {
 		return p, nil
 	}
 	return rel, nil
-}
-
-// ------------------------------------------------------------ 开机自启动
-// 写 HKCU\...\Run（当前用户级，无需管理员）：值为桌面端自身路径，
-// 附 --tray 参数让开机只进托盘、不弹主窗口。注册表是自启的事实来源：
-// GetAutoStart 读它画勾，SetAutoStart 增删。
-
-const autostartRunKey = `Software\Microsoft\Windows\CurrentVersion\Run`
-const autostartValueName = "Fast-Https Desktop"
-
-// autostartCommand 开机启动的完整命令行：exe + --tray（托盘常驻模式）。
-func autostartCommand() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	return `"` + exe + `" --tray`, nil
-}
-
-// GetAutoStart 报告是否已配置开机自启。
-func (s *DesktopService) GetAutoStart() (bool, error) {
-	k, err := registry.OpenKey(registry.CURRENT_USER, autostartRunKey, registry.QUERY_VALUE)
-	if err != nil {
-		return false, nil // 键不存在＝没配置
-	}
-	defer k.Close()
-	v, _, err := k.GetStringValue(autostartValueName)
-	if err != nil {
-		return false, nil
-	}
-	want, _ := autostartCommand()
-	return strings.Contains(v, filepath.Base(strings.Trim(want, `"`))), nil
-}
-
-// SetAutoStart 设置或取消开机自启；返回当前状态与可读结果。
-func (s *DesktopService) SetAutoStart(enabled bool) (bool, error) {
-	k, _, err := registry.CreateKey(registry.CURRENT_USER, autostartRunKey, registry.SET_VALUE)
-	if err != nil {
-		return false, fmt.Errorf("打开注册表失败：%w", err)
-	}
-	defer k.Close()
-	if enabled {
-		cmd, err := autostartCommand()
-		if err != nil {
-			return false, fmt.Errorf("取程序路径失败：%w", err)
-		}
-		if err := k.SetStringValue(autostartValueName, cmd); err != nil {
-			return false, fmt.Errorf("写入注册表失败：%w", err)
-		}
-	} else {
-		// 值不存在时 DeleteValue 返回错误，删除目标本就是「没有」，忽略
-		_ = k.DeleteValue(autostartValueName)
-	}
-	return s.GetAutoStart()
 }
