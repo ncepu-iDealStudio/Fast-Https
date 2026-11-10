@@ -18,11 +18,15 @@ param(
     [switch]$Uninstall,
     [switch]$SelfTest,           # 只加载界面与命名元素后退出，供无头自检
     [string]$PreviewPng = "",    # 把界面无头渲染成 PNG（调样式用）
-    [string]$PreviewScreen = "welcome"  # welcome | working | done | error
+    [string]$PreviewScreen = "welcome",  # welcome | working | done | error
+    [string]$AutoInstall = ""    # 无头端到端测试：跳过界面直接按指定目录安装
 )
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework, WindowsBase, PresentationCore, System.Windows.Forms
+
+# 诊断：参数绑定快照（向导窗口起不来时可在 nsExec 日志里直接看到）
+Write-Host ("wizard diag: Self=[$Self] Icon=[$Icon] Version=[$Version] Uninstall=$Uninstall AutoInstall=[$AutoInstall]")
 
 # ---- 文案（中英，按系统语言选择） ----
 $zh = $PSUICulture -like 'zh*'
@@ -40,6 +44,9 @@ $T = if ($zh) {
         phase1 = '正在准备安装…'
         phase2 = '正在复制程序文件…'
         phase3 = '正在注册组件与快捷方式…'
+        uacTitle = '需要管理员权限'
+        uacBody = '安装到 Program Files 需要管理员授权。即将弹出 UAC 确认框，请选择「是」。'
+        uacDenied = '未获得管理员授权，安装已取消。'
         doneTitle = '安装完成'
         doneSub = '已安装到'
         runApp = '运行 Fast-Https Desktop'
@@ -70,6 +77,9 @@ $T = if ($zh) {
         phase1 = 'Preparing…'
         phase2 = 'Copying program files…'
         phase3 = 'Registering components and shortcuts…'
+        uacTitle = 'Administrator permission required'
+        uacBody = 'Installing into Program Files needs admin approval. A UAC prompt will appear — please click Yes.'
+        uacDenied = 'Administrator permission was denied; installation cancelled.'
         doneTitle = 'Installation complete'
         doneSub = 'Installed to'
         runApp = 'Run Fast-Https Desktop'
@@ -144,9 +154,9 @@ $xaml = @'
         </StackPanel>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0" x:Name="rowAgree">
           <TextBlock x:Name="txtAgree" FontSize="10.5" Foreground="#949AA3"/>
-          <TextBlock x:Name="lnkTerms" FontSize="10.5" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand" Margin="4,0,0,0"/>
+          <TextBlock FontSize="10.5" Margin="4,0,0,0"><Hyperlink x:Name="lnkTerms" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"><Run x:Name="runTerms" Text=""/></Hyperlink></TextBlock>
           <TextBlock x:Name="txtAnd" FontSize="10.5" Foreground="#949AA3" Margin="4,0"/>
-          <TextBlock x:Name="lnkPrivacy" FontSize="10.5" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"/>
+          <TextBlock FontSize="10.5"><Hyperlink x:Name="lnkPrivacy" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"><Run x:Name="runPrivacy" Text=""/></Hyperlink></TextBlock>
         </StackPanel>
       </StackPanel>
 
@@ -208,7 +218,7 @@ $imgLogo = N 'imgLogo'; $imgLogo2 = N 'imgLogo2'
 $txtTitle = N 'txtTitle'; $txtTagline = N 'txtTagline'; $txtBody = N 'txtBody'; $txtBody2 = N 'txtBody2'
 $btnPrimary = N 'btnPrimary'; $btnSecondary = N 'btnSecondary'
 $rowPath = N 'rowPath'; $txtInstallTo = N 'txtInstallTo'; $txtPath = N 'txtPath'; $btnBrowse = N 'btnBrowse'
-$rowAgree = N 'rowAgree'; $txtAgree = N 'txtAgree'; $lnkTerms = N 'lnkTerms'; $txtAnd = N 'txtAnd'; $lnkPrivacy = N 'lnkPrivacy'
+$rowAgree = N 'rowAgree'; $txtAgree = N 'txtAgree'; $lnkTerms = N 'lnkTerms'; $runTerms = N 'runTerms'; $txtAnd = N 'txtAnd'; $lnkPrivacy = N 'lnkPrivacy'; $runPrivacy = N 'runPrivacy'
 $txtPhase = N 'txtPhase'; $barWork = N 'barWork'
 $doneCircle = N 'doneCircle'; $doneCheck = N 'doneCheck'; $txtDoneTitle = N 'txtDoneTitle'; $txtDoneSub = N 'txtDoneSub'
 $btnRun = N 'btnRun'; $btnFinish = N 'btnFinish'
@@ -221,13 +231,8 @@ if ($Icon -and (Test-Path $Icon)) {
 }
 if ($Version) { $window.Title = "$Title $Version" } else { $window.Title = $Title }
 
-# 无头自检：界面与命名元素都加载成功即通过
-if ($SelfTest) {
-    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','rowAgree','txtAgree','lnkTerms','txtAnd','lnkPrivacy','txtPhase','barWork','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
-    foreach ($n in $names) { if ($null -eq (N $n)) { Write-Error "selftest: missing element $n"; exit 1 } }
-    Write-Host "selftest ok: wizard UI loaded"
-    exit 0
-}
+# 无头自检的元素清单与初始化调用放在函数定义之后（脚本尾部），
+# 这里只提前声明：升级版自检见文件末尾的 if ($SelfTest) 块。
 
 # 无头预览：把界面渲染成 PNG（不 ShowDialog），用于调样式与截图留档
 if ($PreviewPng) {
@@ -245,8 +250,8 @@ if ($PreviewPng) {
         $btnPrimary.Content = $T.install + '  ›'
         $txtInstallTo.Text = $T.installTo
         $txtPath.Text = (Join-Path $env:ProgramFiles $Title)
-        $txtAgree.Text = $T.agree; $lnkTerms.Text = $T.terms
-        $txtAnd.Text = $T.and; $lnkPrivacy.Text = $T.privacy
+        $txtAgree.Text = $T.agree; $runTerms.Text = $T.terms
+        $txtAnd.Text = $T.and; $runPrivacy.Text = $T.privacy
     }
     # 预览指定屏：校验进度页与完成页的排版
     switch ($PreviewScreen) {
@@ -290,6 +295,70 @@ if ($PreviewPng) {
     exit 0
 }
 
+# 无头端到端：与「安装」按钮走完全相同的引擎调用（Run-Engine，含提权），
+# 供守卫测试与排障用，不显示界面。已是管理员时 RunAs 不弹窗直接执行。
+if ($AutoInstall) {
+    $dest = $AutoInstall
+    Write-Host ("engine: " + $Self + " /S /D=" + $dest)
+    try {
+        $code = Run-Engine $dest
+    } catch {
+        Write-Error ("engine failed to start: " + $_.Exception.Message)
+        $code = -1
+    }
+    Write-Host ("engine exit code: " + $code)
+    exit $code
+}
+
+# Run-Engine 调起静默引擎（写操作需要管理员：RunAs 触发 UAC，仅弹一次）。
+# 返回引擎退出码；用户拒绝 UAC 时返回 1223（Windows 标准码）。
+function Run-Engine([string]$dest) {
+    $argList = if ($dest) { @('/S', ('/D=' + $dest)) } else { @('/S') }
+    try {
+        $p = Start-Process -FilePath $Self -ArgumentList $argList -Verb RunAs -PassThru -Wait
+        return $p.ExitCode
+    } catch {
+        # 用户在 UAC 弹窗点了「否」：Win32Exception 里带 1223（ERROR_CANCELLED）
+        if ($_.Exception.InnerException -and $_.Exception.InnerException.ErrorCode -eq 1223) { return 1223 }
+        if ($_.Exception.ErrorCode -ne $null -and $_.Exception.ErrorCode -eq 1223) { return 1223 }
+        throw
+    }
+}
+
+function Show-Result([int]$code, [bool]$install, [string]$dest) {
+    $ok = ($code -eq 0)
+    $cancelled = ($code -eq 1223)
+    if ($cancelled) {
+        $txtDoneTitle.Text = if ($install) { $T.errTitle } else { $T.errTitle }
+        $txtDoneSub.Text = $T.uacDenied
+    } elseif ($ok) {
+        if ($install) {
+            $txtDoneTitle.Text = $T.doneTitle
+            $txtDoneSub.Text = $T.doneSub + ' ' + $dest
+            $btnRun.Content = $T.runApp + '  ›'
+        } else {
+            $txtDoneTitle.Text = $T.unDoneTitle
+            $txtDoneSub.Text = $T.unDoneSub
+        }
+    } else {
+        $txtDoneTitle.Text = $T.errTitle
+        $txtDoneSub.Text = $T.errSub
+    }
+    if (-not ($ok -and $install)) { $btnRun.Visibility = 'Collapsed' } else { $btnRun.Visibility = 'Visible' }
+    if ($ok) {
+        $doneCircle.Fill = New-Object System.Windows.Media.SolidColorBrush([System.Windows.Media.Color]::FromRgb(0xEA, 0xF7, 0xF0))
+        $doneCheck.Data = 'M6,15 L12,21 L24,8'
+        $doneCheck.Stroke = [System.Windows.Media.Brushes]::ForestGreen
+        $btnFinish.Content = $T.finish
+    } else {
+        $doneCircle.Fill = [System.Windows.Media.Brushes]::MistyRose
+        $doneCheck.Data = 'M8,8 L22,22 M22,8 L8,22'
+        $doneCheck.Stroke = [System.Windows.Media.Brushes]::IndianRed
+        $btnFinish.Content = $T.close
+    }
+    Show-Screen $screenDone
+}
+
 # ---- 行为 ----
 $dragBar.Add_MouseLeftButtonDown({ $window.DragMove() })
 $btnClose.Add_Click({ $window.Close() })
@@ -303,10 +372,8 @@ try {
 
 function Open-Link([string]$url) { Start-Process $url }
 
-$exitCode = 0
-
-if ($Uninstall) {
-    # ---- 卸载：自绘确认 → 静默卸载 → 完成 ----
+# Initialize-UninstallScreen 卸载确认屏的文案与事件绑定。
+function Initialize-UninstallScreen {
     $txtTitle.Text = $T.unTitle
     $txtTagline.Visibility = 'Collapsed'
     $txtBody.Text = $T.unBody
@@ -317,36 +384,22 @@ if ($Uninstall) {
     $btnPrimary.Background = [System.Windows.Media.Brushes]::IndianRed
     $rowPath.Visibility = 'Collapsed'
     $rowAgree.Visibility = 'Collapsed'
-    $btnClose.Add_Click({ $script:exitCode = 1; $window.Close() })
 
     $btnPrimary.Add_Click({
         $txtPhase.Text = $T.uninstalling
         Show-Screen $screenWorking
         $window.UpdateLayout()
         try {
-            $p = Start-Process -FilePath $Self -ArgumentList '/S' -PassThru -Wait
-            $script:exitCode = $p.ExitCode
-        } catch { $script:exitCode = 1 }
-        if ($script:exitCode -eq 0) {
-            $txtDoneTitle.Text = $T.unDoneTitle
-            $txtDoneSub.Text = $T.unDoneSub
-            $doneCheck.Data = 'M6,15 L12,21 L24,8'
-            $btnRun.Visibility = 'Collapsed'
-            $btnFinish.Content = $T.finish
-            Show-Screen $screenDone
-        } else {
-            $txtDoneTitle.Text = $T.errTitle
-            $txtDoneSub.Text = $T.errSub
-            $doneCircle.Fill = [System.Windows.Media.Brushes]::MistyRose
-            $doneCheck.Data = 'M8,8 L22,22 M22,8 L8,22'
-            $doneCheck.Stroke = [System.Windows.Media.Brushes]::IndianRed
-            $btnRun.Visibility = 'Collapsed'
-            $btnFinish.Content = $T.close
-            Show-Screen $screenDone
+            $code = Run-Engine $null
+        } catch {
+            $code = -1
         }
+        Show-Result $code $false ''
     })
-} else {
-    # ---- 安装：欢迎（目录 + 静议）→ 静默安装 → 完成 ----
+}
+
+# Initialize-WelcomeScreen 安装欢迎屏的文案与事件绑定。
+function Initialize-WelcomeScreen {
     $txtTitle.Text = if ($Version) { "$Title $Version" } else { $Title }
     $txtTagline.Text = $T.tagline
     $btnPrimary.Content = $T.install + '  ›'
@@ -354,9 +407,9 @@ if ($Uninstall) {
     $txtPath.Text = $defaultDir
     $btnBrowse.Content = '…'
     $txtAgree.Text = $T.agree
-    $lnkTerms.Text = $T.terms
+    $runTerms.Text = $T.terms
     $txtAnd.Text = $T.and
-    $lnkPrivacy.Text = $T.privacy
+    $runPrivacy.Text = $T.privacy
     $lnkTerms.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $lnkPrivacy.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $btnBrowse.Add_Click({
@@ -380,26 +433,12 @@ if ($Uninstall) {
         })
         $timer.Start()
         try {
-            $p = Start-Process -FilePath $Self -ArgumentList '/S', ('/D=' + $dest) -PassThru -Wait
-            $script:exitCode = $p.ExitCode
-        } catch { $script:exitCode = 1 }
-        $timer.Stop()
-        if ($script:exitCode -eq 0) {
-            $txtDoneTitle.Text = $T.doneTitle
-            $txtDoneSub.Text = $T.doneSub + ' ' + $dest
-            $btnRun.Content = $T.runApp + '  ›'
-            $btnFinish.Content = $T.finish
-            Show-Screen $screenDone
-        } else {
-            $txtDoneTitle.Text = $T.errTitle
-            $txtDoneSub.Text = $T.errSub
-            $doneCircle.Fill = [System.Windows.Media.Brushes]::MistyRose
-            $doneCheck.Data = 'M8,8 L22,22 M22,8 L8,22'
-            $doneCheck.Stroke = [System.Windows.Media.Brushes]::IndianRed
-            $btnRun.Visibility = 'Collapsed'
-            $btnFinish.Content = $T.close
-            Show-Screen $screenDone
+            $code = Run-Engine $dest
+        } catch {
+            $code = -1
         }
+        $timer.Stop()
+        Show-Result $code $true $dest
     })
     $btnFinish.Add_Click({ $window.Close() })
     $btnRun.Add_Click({
@@ -408,6 +447,30 @@ if ($Uninstall) {
         else { Start-Process $txtPath.Text.Trim() }
         $window.Close()
     })
+}
+
+$exitCode = 0
+
+if ($Uninstall) {
+    # ---- 卸载：自绘确认 → 静默卸载 → 完成 ----
+    Initialize-UninstallScreen
+    $btnClose.Add_Click({ $script:exitCode = 1; $window.Close() })
+} else {
+    # ---- 安装：欢迎（目录 + 协议）→ 静默安装 → 完成 ----
+    Initialize-WelcomeScreen
+}
+
+# ---- 无头自检（放在函数定义之后才能调 Initialize-*）----
+# 元素存在 + 两种模式的事件绑定全跑一遍。曾发生过 TextBlock 绑 Click
+# 在运行时才崩（向导弹不出来、nsExec 报错退出），只有真实初始化才能暴露。
+if ($SelfTest) {
+    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','rowAgree','txtAgree','lnkTerms','runTerms','txtAnd','lnkPrivacy','runPrivacy','txtPhase','barWork','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
+    foreach ($n in $names) { if ($null -eq (N $n)) { Write-Error "selftest: missing element $n"; exit 1 } }
+    if (-not $Self) { $script:Self = "selftest-fake.exe" }
+    Initialize-WelcomeScreen      # 安装模式文案与事件绑定（崩溃在这里当场爆）
+    Initialize-UninstallScreen    # 卸载模式文案与事件绑定
+    Write-Host "selftest ok: wizard UI + bindings loaded"
+    exit 0
 }
 
 $null = $window.ShowDialog()

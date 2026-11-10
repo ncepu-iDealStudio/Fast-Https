@@ -106,15 +106,23 @@ function Prepare-Desktop {
 
     Push-Location $desktop
     try {
+        # wails3/task 把普通进度日志写到 stderr；在 EAP=Stop 下用 2>&1
+        # 重定向会被包装成 NativeCommandError 直接终止脚本（外部命令
+        # stderr 与 Stop 的经典冲突）。这里用临时放宽的子作用域执行，
+        # 只在真实非零退出码时才报错。
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+
         Write-Host "==> desktop: generate bindings"
         & wails3 generate bindings -clean=true -time-type=Date
-        if ($LASTEXITCODE -ne 0) { throw "wails3 generate bindings failed (exit $LASTEXITCODE)" }
+        if ($LASTEXITCODE -ne 0) { $ErrorActionPreference = $prevEap; throw "wails3 generate bindings failed (exit $LASTEXITCODE)" }
 
         # Windows 桌面端 exe 是安装包里的图形入口：wails3 build 会顺带构建前端
         # （dist 供 goreleaser 的 Linux 构建 embed）并生成 .syso（图标 + 版本信息）。
         Write-Host "==> desktop: windows amd64 build"
         & wails3 build
-        if ($LASTEXITCODE -ne 0) { throw "wails3 build failed (exit $LASTEXITCODE)" }
+        if ($LASTEXITCODE -ne 0) { $ErrorActionPreference = $prevEap; throw "wails3 build failed (exit $LASTEXITCODE)" }
+        $ErrorActionPreference = $prevEap
 
         # arm64 安装包需要对应架构的 exe。Windows 后端不依赖 CGO，可直接交叉编译。
         Write-Host "==> desktop: windows arm64 build"
@@ -150,7 +158,11 @@ if (-not $SkipBuild) {
     # 本地打包不发布：-Publish 才真正上传，需要 GITHUB_TOKEN
     if (-not $Publish) { $grArgs += "--skip=publish" }
     Write-Host "==> goreleaser $($grArgs -join ' ')"
+    # 同 Prepare-Desktop：goreleaser 的进度日志走 stderr，放宽 Stop 语义
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     & goreleaser @grArgs
+    $ErrorActionPreference = $prevEap
     if ($LASTEXITCODE -ne 0) { throw "goreleaser failed (exit $LASTEXITCODE)" }
 }
 

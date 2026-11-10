@@ -42,7 +42,12 @@ Name "${APP_NAME} ${APP_VERSION} (${APP_ARCH})"
 OutFile "${OUT_FILE}"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "Software\${APP_NAME}" "InstallDir"
-RequestExecutionLevel admin
+; 按需提权：本进程以普通用户启动（双击即可，不弹 UAC），自绘向导负责
+; 界面；点「安装」后向导用 RunAs 重新拉起本程序 /S（那时才弹一次 UAC）
+; 执行真正的安装段。静默模式（/S）由调用方保证管理员身份。
+; 注意：RequestExecutionLevel admin 会让双击立即弹 UAC，用户取消就
+; exit 2 什么都没有——曾表现为「安装包打完装不上」。
+RequestExecutionLevel user
 SetCompressor /SOLID lzma
 ShowInstDetails show
 ShowUninstDetails show
