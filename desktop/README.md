@@ -156,6 +156,7 @@ src/
   actions.js        data-action 按钮统一入口
   account-menu.js   左下角账户菜单（外观、语言、设置、托盘、帮助）
   ui/dom.js         $ / $$ / bind / esc / toast / localStorage
+  ui/icons.js       统一线性图标集（24×24 描边 SVG，一处维护；静态页挂 data-ic，动态渲染调 iconSVG）
   ui/events.js      概览「最近事件」：操作记录（operation list/get）+ 本机动态时间线
   pages/            overview / details / config / logs / commands / panels 六个页面模块
                     （panels.js = 运行快照、Monitor、ACME 三块卡片，手动刷新）

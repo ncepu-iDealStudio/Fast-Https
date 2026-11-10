@@ -1,6 +1,7 @@
 // 概览页渲染：运行指标、主操作按钮、状态矩阵概况与告警条。
 // 运行状态按 service status 的四态显示（ov.status），ov.running 仍是 bool。
 import { $, bind } from '../ui/dom.js';
+import { iconSVG } from '../ui/icons.js';
 import { t } from '../i18n.js';
 import { state } from '../state.js';
 import { pushOverviewEvents } from '../ui/events.js';
@@ -47,11 +48,11 @@ export function renderPrimary(ov) {
     if (ov.running) {
       btn.setAttribute('data-action', 'stop');
       $('#primaryLabel').textContent = t('overview.stop');
-      if (glyph) glyph.textContent = '■';
+      if (glyph) glyph.innerHTML = iconSVG('stop');
     } else {
       btn.setAttribute('data-action', 'start');
       $('#primaryLabel').textContent = t('overview.start');
-      if (glyph) glyph.textContent = '▶';
+      if (glyph) glyph.innerHTML = iconSVG('play');
     }
   }
   // 底部状态栏只放图标：随运行状态切换图形与提示
@@ -59,11 +60,11 @@ export function renderPrimary(ov) {
   if (foot) {
     if (ov.running) {
       foot.setAttribute('data-action', 'stop');
-      foot.textContent = '■';
+      foot.innerHTML = iconSVG('stop');
       foot.title = t('overview.stop');
     } else {
       foot.setAttribute('data-action', 'start');
-      foot.textContent = '▶';
+      foot.innerHTML = iconSVG('play');
       foot.title = t('overview.start');
     }
   }

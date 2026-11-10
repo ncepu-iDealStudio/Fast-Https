@@ -25,17 +25,17 @@
 
   <div class="app">
     <aside class="sidebar">
-      <button class="side-cta" data-action="open-config-dir"><span class="ico i-plus"></span><span data-i18n="nav.openConfigDir">打开配置目录</span></button>
+      <button class="side-cta" data-action="open-config-dir"><span class="ico" data-ic="folder"></span><span data-i18n="nav.openConfigDir">打开配置目录</span></button>
       <div class="group"><span data-i18n="nav.group">工作实例</span></div>
-      <button class="nav-item on" data-nav="overview" title="本机实例" data-i18n-title="nav.overviewTip"><span class="ico i-dash"></span><span data-i18n="nav.overview">概览</span></button>
-      <button class="nav-item" data-nav="matrix" title="状态矩阵" data-i18n-title="nav.matrixTip"><span class="ico i-grid"></span><span data-i18n="nav.matrix">状态矩阵</span></button>
-      <button class="nav-item" data-nav="sites" title="站点" data-i18n-title="nav.sitesTip"><span class="ico i-file"></span><span data-i18n="nav.sites">站点</span></button>
-      <button class="nav-item" data-nav="certs" title="证书" data-i18n-title="nav.certsTip"><span class="ico i-shield"></span><span data-i18n="nav.certs">证书</span></button>
-      <button class="nav-item" data-nav="logs" title="日志" data-i18n-title="nav.logsTip"><span class="ico i-lines"></span><span data-i18n="nav.logs">日志</span></button>
-    <button class="nav-item" data-nav="commands" title="命令面板" data-i18n-title="nav.commandsTip"><span class="ico i-grid"></span><span data-i18n="nav.commands">命令面板</span></button>
+      <button class="nav-item on" data-nav="overview" title="本机实例" data-i18n-title="nav.overviewTip"><span class="ico" data-ic="pulse"></span><span data-i18n="nav.overview">概览</span></button>
+      <button class="nav-item" data-nav="matrix" title="状态矩阵" data-i18n-title="nav.matrixTip"><span class="ico" data-ic="grid"></span><span data-i18n="nav.matrix">状态矩阵</span></button>
+      <button class="nav-item" data-nav="sites" title="站点" data-i18n-title="nav.sitesTip"><span class="ico" data-ic="globe"></span><span data-i18n="nav.sites">站点</span></button>
+      <button class="nav-item" data-nav="certs" title="证书" data-i18n-title="nav.certsTip"><span class="ico" data-ic="shield"></span><span data-i18n="nav.certs">证书</span></button>
+      <button class="nav-item" data-nav="logs" title="日志" data-i18n-title="nav.logsTip"><span class="ico" data-ic="logs"></span><span data-i18n="nav.logs">日志</span></button>
+    <button class="nav-item" data-nav="commands" title="命令面板" data-i18n-title="nav.commandsTip"><span class="ico" data-ic="terminal"></span><span data-i18n="nav.commands">命令面板</span></button>
       <div class="side-foot-wrap">
         <button class="side-foot" id="accountBtn" aria-haspopup="menu" aria-expanded="false">
-          <span class="avatar">F</span><span class="acct-name" data-i18n="nav.account">本机管理</span><span class="ver" data-bind="version">1.7.0</span><span class="acct-caret">⌃</span>
+          <span class="avatar">F</span><span class="acct-name" data-i18n="nav.account">本机管理</span><span class="ver" data-bind="version">1.7.0</span><span class="acct-caret" data-ic="chevronUp"></span>
         </button>
       </div>
     </aside>
@@ -44,7 +44,7 @@
       <div class="content">
         <div class="pane" data-pane="overview">
           <section class="card overview-card">
-            <div class="card-head"><h3 data-i18n="overview.title">运行概况</h3><div class="card-head-actions"><span class="card-note" data-i18n="overview.note">本机实例 · 实时状态</span><button class="btn primary" id="primaryAction" data-action="start"><span class="glyph">▶</span><span id="primaryLabel" data-i18n="overview.start">启动服务</span></button><button class="btn" data-action="reload"><span class="glyph">↻</span><span data-i18n="overview.reload">重载配置</span></button></div></div>
+            <div class="card-head"><h3 data-i18n="overview.title">运行概况</h3><div class="card-head-actions"><span class="card-note" data-i18n="overview.note">本机实例 · 实时状态</span><button class="btn primary" id="primaryAction" data-action="start"><span class="glyph" data-ic="play"></span><span id="primaryLabel" data-i18n="overview.start">启动服务</span></button><button class="btn" data-action="reload"><span class="glyph" data-ic="reload"></span><span data-i18n="overview.reload">重载配置</span></button></div></div>
             <div class="metrics">
               <div class="metric"><span class="m-label" data-i18n="overview.metricStatus">服务状态</span><strong class="m-value" id="metricRunning">—</strong><span class="m-sub" data-bind="statusText">—</span></div>
               <div class="metric"><span class="m-label" data-i18n="overview.metricPorts">监听端口</span><strong class="m-value" id="metricPorts">0</strong><span class="m-sub" data-bind="portCount">—</span></div>
@@ -66,9 +66,9 @@
             <section class="card quick-card">
               <div class="card-head"><h3 data-i18n="overview.quickTitle">常用操作</h3><span class="card-note" data-i18n="overview.quickNote">快速管理本机实例</span></div>
               <div class="quick-grid">
-                <button class="quick" data-goto="sites"><span class="quick-ico ico i-grid"></span><b data-i18n="overview.quickSites">管理站点</b><small data-i18n="overview.quickSitesSub">新增、编辑与管理代理</small></button>
-                <button class="quick" data-goto="certs"><span class="quick-ico ico i-shield"></span><b data-i18n="overview.quickCerts">管理证书</b><small data-i18n="overview.quickCertsSub">查看有效期与 TLS 证书</small></button>
-                <button class="quick" data-goto="logs"><span class="quick-ico ico i-lines"></span><b data-i18n="overview.quickLogs">查看日志</b><small data-i18n="overview.quickLogsSub">排查请求与运行问题</small></button>
+                <button class="quick" data-goto="sites"><span class="quick-ico" data-ic="globe"></span><b data-i18n="overview.quickSites">管理站点</b><small data-i18n="overview.quickSitesSub">新增、编辑与管理代理</small></button>
+                <button class="quick" data-goto="certs"><span class="quick-ico" data-ic="shield"></span><b data-i18n="overview.quickCerts">管理证书</b><small data-i18n="overview.quickCertsSub">查看有效期与 TLS 证书</small></button>
+                <button class="quick" data-goto="logs"><span class="quick-ico" data-ic="logs"></span><b data-i18n="overview.quickLogs">查看日志</b><small data-i18n="overview.quickLogsSub">排查请求与运行问题</small></button>
               </div>
             </section>
             <section class="card events-card">
@@ -256,8 +256,8 @@
         </div>
         <div class="foot-actions">
           <span data-bind="checkedAt">—</span>
-          <button class="btn-icon" id="footStart" data-action="start" title="启动服务" data-i18n-title="overview.start">▶</button>
-          <button class="btn-icon" data-action="reload" title="重载配置" data-i18n-title="overview.reload">↻</button>
+          <button class="btn-icon" id="footStart" data-action="start" title="启动服务" data-i18n-title="overview.start"><span data-ic="play"></span></button>
+          <button class="btn-icon" data-action="reload" title="重载配置" data-i18n-title="overview.reload"><span data-ic="reload"></span></button>
         </div>
       </footer>
     </main>

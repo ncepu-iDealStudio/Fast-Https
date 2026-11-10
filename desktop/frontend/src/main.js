@@ -5,6 +5,7 @@ import { DesktopService, msgOf } from './api.js';
 import { initI18n, t } from './i18n.js';
 import { state } from './state.js';
 import { $, $$, toast } from './ui/dom.js';
+import { initIcons } from './ui/icons.js';
 import { initTheme } from './theme.js';
 import { activate } from './router.js';
 import { doAction } from './actions.js';
@@ -49,6 +50,8 @@ document.addEventListener('contextmenu', (e) => {
 function init() {
   // 文案翻译放在最前面：上面注入的弹窗/菜单模板也在静态翻译范围内。
   initI18n();
+  // 图标水合：把 <span data-ic="..."> 换成统一的线性 SVG。
+  initIcons();
   // CSS 伪元素（.form-row.missing 的「未配置」角标）没法调 t()，
   // 用 CSS 变量把当前语言的文案喂进去（content 需要带引号）。
   document.documentElement.style.setProperty('--i18n-missing', JSON.stringify(t('settings.formMissing')));

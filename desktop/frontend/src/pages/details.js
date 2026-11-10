@@ -2,6 +2,7 @@
 // 站点行来自 ListSites()（model.Site：id/name/port/listen/tls/source/enabled/
 // certStatus/error），行内按钮用 data-id（站点名，site 命令的位置参数）。
 import { $, esc } from '../ui/dom.js';
+import { iconSVG } from '../ui/icons.js';
 import { t } from '../i18n.js';
 import { state } from '../state.js';
 
@@ -91,14 +92,12 @@ export function renderSites(sites, certs) {
           + ' data-id="' + esc(s.id) + '"'
           + ' data-enabled="' + (isOn ? '0' : '1') + '"'
           + ' title="' + esc(isOn ? t('sites.toggleOn') : t('sites.toggleOff')) + '">'
-          + '<svg viewBox="0 0 16 16" aria-hidden="true">'
-          + '<path d="M8 2.2v5.1M4.6 4.1a5 5 0 1 0 6.8 0"/>'
-          + (isOn ? '' : '<path d="M2.4 2.4l11.2 11.2"/>')
-          + '</svg></button>';
-        const delBtn = '<button class="icon-btn site-del" data-id="' + esc(s.id) + '" data-name="' + esc(s.name) + '" title="' + esc(t('sites.del')) + '">'
-          + '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.6 4.4h10.8M6.3 4.4V2.8h3.4v1.6M3.9 4.4l.5 8.1c.04.6.55 1.1 1.16 1.1h4.88c.61 0 1.12-.5 1.16-1.1l.5-8.1M6.6 7.2v3.8M9.4 7.2v3.8"/></svg>'
+          + iconSVG('power')
           + '</button>';
-        const detailBtn = '<button class="icon-btn site-more" data-id="' + esc(s.id) + '" title="' + esc(t('sites.detail')) + '">⋯</button>';
+        const delBtn = '<button class="icon-btn site-del" data-id="' + esc(s.id) + '" data-name="' + esc(s.name) + '" title="' + esc(t('sites.del')) + '">'
+          + iconSVG('trash')
+          + '</button>';
+        const detailBtn = '<button class="icon-btn site-more" data-id="' + esc(s.id) + '" title="' + esc(t('sites.detail')) + '">' + iconSVG('more') + '</button>';
         const badge = certBadge(s.certStatus);
         const err = s.error ? '<span class="row-err" title="' + esc(s.error) + '">' + esc(s.error) + '</span>' : '';
         return `<div class="kv-row">`
@@ -144,7 +143,7 @@ export function renderCerts(certs) {
           + `<span class="v">${esc(detail)}</span>`
           + `<span class="n with-action">${certBadge(c.status) || esc(c.local ? t('certs.localGenerated') : (c.selfSigned ? t('certs.selfSigned') : t('certs.issued')))}`
           + `<button class="icon-btn cert-check" data-domain="${esc(c.domain)}" title="${esc(t('certs.check'))}">`
-          + `<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4L14 14"/></svg>`
+          + iconSVG('search')
           + `</button></span></div>`;
       }).join('')
     : `<div class="kv-row"><span class="k">—</span><span class="v">${esc(t('certs.empty'))}</span></div>`;

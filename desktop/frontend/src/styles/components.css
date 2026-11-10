@@ -53,7 +53,8 @@
 .kv-row .n.with-action { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .icon-btn { width: 26px; height: 26px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; display: grid; place-items: center; }
 .icon-btn:hover { border-color: var(--line-strong); background: var(--accent-soft); color: var(--text); }
-.icon-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn svg, .btn-icon svg { width: 15px; height: 15px; }
+.glyph { width: 13px; height: 13px; margin-right: 6px; opacity: .9; }
 /* 删除是破坏性操作：hover 用危险色，和详情按钮区分开 */
 .icon-btn.site-del:hover { border-color: rgba(192,57,43,.35); background: rgba(192,57,43,.08); color: var(--danger); }
 .dialog-source { font: 11px/1.5 Consolas, "Courier New", monospace; color: var(--faint); margin: -2px 0 12px; overflow-wrap: anywhere; }
@@ -75,7 +76,6 @@
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn:disabled:hover { filter: none; border-color: var(--line-strong); color: var(--text); }
 .btn.primary:disabled:hover { border-color: var(--accent); color: var(--accent-ink); }
-.glyph { font-size: 12px; margin-right: 6px; }
 
 .card { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(16,20,28,.03); }
 .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
