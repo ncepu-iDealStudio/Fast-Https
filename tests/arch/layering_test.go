@@ -81,6 +81,12 @@ var layers = []layer{
 		why:   "独立 Monitor 进程只读本机 /runtime 与 PID 文件，不得依赖数据面、管理核心与组合根",
 	},
 	{
+		name:  "agent",
+		match: prefix("agent"),
+		allow: []string{"agent"},
+		why:   "独立 Agent 进程只读事件文件和本机管理命令，不得依赖数据面、管理核心与组合根",
+	},
+	{
 		name: "composition",
 		match: func(pkg string) bool {
 			return pkg == "cmd" || pkg == "init" || pkg == "."
@@ -230,6 +236,28 @@ func importEdges(t *testing.T) []edge {
 		return edges[i].to < edges[j].to
 	})
 	return edges
+}
+
+// TestAgentDoesNotImportServer 锁住 Agent 与 Server 的方向：agent 不能引用数据面、组合根或管理核心。
+// Server 侧的 cmd、runtime、monitor、core 也不能引用 agent。
+func TestAgentDoesNotImportServer(t *testing.T) {
+	bannedFromAgent := []string{"runtime", "cmd", "core", "management", "config", "modules"}
+	for _, e := range importEdges(t) {
+		from := relative(e.from)
+		to := relative(e.to)
+		if strings.HasPrefix(from, "agent") {
+			for _, banned := range bannedFromAgent {
+				if to == banned || strings.HasPrefix(to, banned+"/") {
+					t.Errorf("agent imports %s", to)
+				}
+			}
+		}
+		if to == "agent" || strings.HasPrefix(to, "agent/") {
+			if strings.HasPrefix(from, "cmd") || strings.HasPrefix(from, "runtime") || strings.HasPrefix(from, "monitor") || strings.HasPrefix(from, "core") {
+				t.Errorf("%s imports %s", from, to)
+			}
+		}
+	}
 }
 
 // packagePath 把文件路径换算成 import path。

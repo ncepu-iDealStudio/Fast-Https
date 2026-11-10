@@ -152,14 +152,16 @@ SQLite 文件默认：
 逻辑表与第 14 节实体对应。审计表只插入。任务状态变更写 `updated_at`。`plan_hash` 是计划参数的哈希，审批若将来绑定，必须对上这个哈希。
 
 ```text
-agent_event(event_id PRIMARY KEY, monitor_type, severity, summary, received_at, source)
-agent_task(task_id PRIMARY KEY, event_id, status, attempts, created_at, updated_at)
+agent_event(event_id PRIMARY KEY, monitor_type, severity, summary, received_at, source, snapshot_started_at)
+agent_task(task_id PRIMARY KEY, event_id, status, attempts, context_json, created_at, updated_at)
 agent_diagnosis(task_id PRIMARY KEY, classification, subject, cause, impact, evidence_json, needs_human)
 agent_plan(plan_id PRIMARY KEY, task_id, event_id, risk, plan_hash, steps_json, needs_approval)
 agent_approval(plan_id PRIMARY KEY, status, reason, created_at)
 agent_audit(id INTEGER PRIMARY KEY, at, task_id, kind, payload_json)
 agent_offset(id INTEGER PRIMARY KEY CHECK (id = 1), monitor_offset)
 ```
+
+`snapshot_started_at` 只用于把 `recovered` 对上同一次启动里的 `unreachable`，不作为新的 Monitor 字段。
 
 `agent_operation` 仍不建表。真正执行现有 CLI 写命令时，沿用 `management/operation` 的 `operation_id`，Agent 只在审计里记下这个 ID。
 
@@ -336,9 +338,7 @@ AI Agent 第一阶段建议采用单个独立进程、模块化内部结构，�
 - 创建待处理任务。
 - 记录事件来源和接收时间。
 
-建议第一阶段采用本机 HTTP API 或 Unix Domain Socket 进行事件投递。
-
-具体选择应结合现有 Monitor 的实现方式决定。
+第一阶段不另开 HTTP 或 Unix 套接字。Agent 尾读 Monitor 已经写下的 `events.jsonl`。推送通道留到以后，避免改 Monitor 的落盘格式。
 
 不建议第一阶段引入 Kafka、RabbitMQ 等复杂消息中间件。
 
@@ -602,7 +602,9 @@ Monitor 与 AI Agent 之间应采用统一的结构化事件协议。
 }
 ```
 
-上述字段是建议的协议基础，最终字段和类型需要结合现有 Monitor 的实现确定。
+上述字段是目标协议，不是 Monitor 当前的文件格式。当前一行是 `time`、`type`、`rule`、`severity`、`message`、`event_id` 和可选的 `snapshot`。第一阶段不改这个格式。
+
+Agent 读到合法的 `event_id`（32 位十六进制）就直接用。旧行没有该字段时，用与 `monitor/events.go` 的 `eventID` 相同的输入补一个：`type`、`severity`、`message`，以及 `snapshot` 里的 pid 和 `started_at`。不含时间，也不含文件偏移。
 
 ## 4.2 事件类型
 
@@ -731,7 +733,7 @@ AI Agent 应当采用明确的状态机管理每一次故障处理任务。
 | 删除站点或证书 | 禁止自主执行 |
 | 任意 Shell 命令 | 禁止 |
 
-以上操作权限属于初始建议，最终必须结合 fast-https 已有功能和实际业务风险确认。
+以上操作权限属于目标权限，不是当前可执行清单。摘除上游、恢复上游和清理缓存在补齐计划 C6 提供对应命令之前，策略引擎固定为 DENY，不能因为本表写成 L2 就自动执行。
 
 ## 6.3 L2 自动修复约束
 
@@ -1076,7 +1078,7 @@ AI Agent 只应拥有完成授权任务所需要的权限。
 9. 验证 Upstream 状态和 HTTP 请求情况。
 10. 成功后关闭事件，失败时熔断并升级人工。
 
-注意：如果 fast-https 现有实现不支持安全的 Upstream 节点动态管理，应先将其列为前置能力，不应假设可以直接执行。
+注意：当前 `proxy_pass` 仍是单个地址，没有摘除命令。第一阶段只做到第 6 步的计划，策略结果为 DENY 或待审批，不执行第 8、9 步。自动摘除留到补齐计划 C6。
 
 ## 12.2 场景二：502 / 504 异常增加
 
@@ -1216,12 +1218,18 @@ Server 侧已有的 operation 记录继续放在 `management/state`，不并入 
 
 ## 15.3 修复能力验收
 
+第一阶段（执行计划 A1–A6）验收这些：
+
+- [ ] 无法自动处理时写入待审批或升级记录。
+- [ ] 能够查询待审批操作。
+- [ ] 不执行配置、reload、摘除节点、证书续期或重启。
+
+下列条目留到 C6 或 C7 提供受控写命令之后，本阶段不作为验收失败：
+
 - [ ] 能够执行至少一种预授权低风险修复。
 - [ ] 能够验证修复结果。
+- [ ] 能够记录人工审批结果并按该结果执行。
 - [ ] 修复失败后能够停止重复尝试。
-- [ ] 无法处理时能够升级人工。
-- [ ] 能够查询待审批操作。
-- [ ] 能够记录人工审批结果。
 
 ## 15.4 稳定性验收
 

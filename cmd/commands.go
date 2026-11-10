@@ -88,6 +88,11 @@ func commandList() []command {
 			register:    newMonitorCmd,
 		},
 		{
+			name:        "agent",
+			description: t("查询 AI Agent 的任务与待审批", "query AI agent tasks and pending approvals"),
+			register:    newAgentCmd,
+		},
+		{
 			name:        "operation",
 			description: t("查询管理操作记录", "query management operations"),
 			register:    newOperationCmd,

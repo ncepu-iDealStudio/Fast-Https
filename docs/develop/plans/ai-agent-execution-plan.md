@@ -1,12 +1,12 @@
 # fast-https AI Agent 第一阶段执行计划
 
-修订日期：2026-11-09。状态：**未实施**（本文件与扫描报告除外）。
+修订日期：2026-11-10。状态：**A1–A6 已实施**（只读诊断与待审批）。自动摘除与 `cert renew` 仍见补齐计划 C6、C7。
 
 设计规范：[fast-https AI agent功能设计与开发规范.md](../../fast-https%20AI%20agent功能设计与开发规范.md)。  
 能力以扫描为准：[fast-https-AI-Agent源码扫描报告.md](../../fast-https-AI-Agent源码扫描报告.md)。  
 Server / Monitor 上要补的观测和写接口另见 [ai-agent-server-gap-plan.md](ai-agent-server-gap-plan.md)，不并进下面的 A1–A6。
 
-本计划不假设这些能力已经存在：Upstream 多节点与摘除、502/504 分桶、证书续期命令、Management HTTP API、审批执行、本地模型。规范 12.1 的自动摘除因此不在本阶段。规范 15.3「至少一种预授权低风险修复」在出现真实的低风险写接口之前标为做不到。
+本计划不假设这些能力已经存在：Upstream 多节点与摘除、502/504 的 Monitor 事件、证书续期命令、Management HTTP API、审批后的执行、本地模型。`/runtime` 已有 502/504 累计和按地址的失败次数，诊断可以引用。规范 12.1 的自动摘除不在本阶段。规范 15.3 里「执行一种低风险修复」在 C6 或 C7 之前标为做不到。
 
 已撤回的 `agent-refactor-plan.md` 不执行。不把 Agent 链进 Server，不直接调用 `modules/safe/control.go`。
 
@@ -68,10 +68,12 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 
 ### A1 事件收件与 SQLite
 
+状态：已实施（`agent/ingest.go`，`TestTailIdempotent`、`TestResumeOffset`、`TestSkipBadLine`）。
+
 | 项 | 内容 |
 | --- | --- |
 | 模块 | `agent/` Event Receiver、Queue、Audit |
-| 目标 | 尾读 JSONL，按扫描报告 4.1 生成 `event_id`，写入规范第 1.5 节的表，重启后续跑 |
+| 目标 | 尾读 JSONL。`event_id` 优先用 Monitor 写下的 32 位十六进制；旧行没有时按 `monitor/events.go` 的 `eventID` 补齐。写入规范第 1.5 节的表，重启后续跑 |
 | 现有基础 | `monitor/events.go` 的 `Event` 字段。仓库目前没有数据库，SQLite 只给 Agent 用 |
 | 新增文件 | `agent/main.go`、`agent/config.go`、`agent/tail.go`、`agent/store.go`、`agent/task.go`、`agent/model/provider.go`、`agent/model/router.go`，以及对应测试 |
 | 接口 | 读：`events.jsonl`。写：`agent.db` 的 `agent_event`、`agent_task`、`agent_audit`、`agent_offset`。驱动用纯 Go 的 SQLite（`modernc.org/sqlite`），通过 `database/sql` 访问，构建不需要 CGO |
@@ -84,6 +86,8 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 
 ### A2 上下文采集
 
+状态：已实施（`agent/collect.go`，`TestCLIAllowlistRejects`、`TestRuntimeSchema`、`TestCollectRuntime`）。
+
 | 项 | 内容 |
 | --- | --- |
 | 模块 | Context Collector |
@@ -91,7 +95,7 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 | 现有基础 | `cmd/runtime_endpoint.go`、`management/rtclient` 的 schema 校验规则（复制字段判断，不 import） |
 | 新增文件 | `agent/collect.go`、`agent/runtime.go`、`agent/cli.go` |
 | 接口 | `GET /runtime`，超时 1 秒。CLI 允许列表见扫描报告 4.3，超时 5 秒，stdout 必须是一个 JSON 对象 |
-| 数据 | 上下文写入 `agent_task` 的上下文字段（JSON 文本列）。单份日志最多保留 CLI 已有的 `--limit`（建议 20）。采集失败记入 `warnings`，任务继续诊断 |
+| 数据 | 上下文写入 `agent_task.context_json`。单份日志最多保留 CLI 已有的 `--limit`（建议 20）。采集失败记入 `warnings`，任务继续诊断 |
 | 依赖 | A1 |
 | 验收 | 命令不在白名单时 `cli.go` 拒绝执行。白名单调用不使用 `sh -c`。`/runtime` 的 `schema_version` 不是 `"1"` 时上下文标 `runtime: unavailable` |
 | 测试 | `TestCLIAllowlistRejects`、`TestRuntimeSchema`、用 `httptest` 的 `TestCollectRuntime`。CLI 测试启动一个假的 `fast-https` 脚本不可行时，注入 `exec` 函数替身 |
@@ -99,6 +103,8 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 假二进制只在测试里由替身函数代替，生产路径使用 `exec.Command(binary, args...)`，`args` 来自白名单表，不拼接 Shell。
 
 ### A3 规则诊断、计划与策略
+
+状态：已实施（`agent/diagnose.go`、`agent/plan.go`、`agent/policy.go`，`TestDiagnoseMapping`、`TestPolicyDeniesMutations`、`TestInjectionIsData`、`TestRecoveredClosesUnreachable`）。
 
 | 项 | 内容 |
 | --- | --- |
@@ -116,6 +122,8 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 
 ### A4 证书巡检
 
+状态：已实施（`agent/certpoll.go`，`TestCertPollThreshold`、`TestCertPollSkipsWhenMonitorAlreadyWrote`、`TestCertPollFailureDoesNotInvent`）。
+
 | 项 | 内容 |
 | --- | --- |
 | 模块 | 内部周期任务，复用 A1 的存储 |
@@ -123,12 +131,14 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 | 现有基础 | `cert list --json` 的 `days_left` |
 | 新增文件 | `agent/certpoll.go` |
 | 接口 | 仅 `cert list --json`。阈值默认 30 天，配置项 `cert_warn_days` |
-| 数据 | 合成 `event_type=certificate_expiring`，`event_id` 由域名 + `not_after` 哈希，同一证书同一到期日不重复开任务 |
+| 数据 | 合成事件类型 `certificate_expiring`。若 `events.jsonl` 里已经有同一证书的该事件，不再插第二条任务。`event_id` 在需要合成时由域名 + `not_after` 哈希。同一证书同一到期日不重复开任务 |
 | 依赖 | A2、A3 |
 | 验收 | `days_left` 小于阈值生成 `WAITING_APPROVAL`。大于等于阈值不生成。CLI 失败时记审计，不编造证书状态 |
 | 测试 | `TestCertPollThreshold`，CLI 替身返回夹具 JSON |
 
 ### A5 只读查询
+
+状态：已实施（`management/agentview`、`cmd/agent.go`，`TestAgentStatusMissing`、`TestAgentApprovalsReadOnly`、`TestAgentTaskJSON`）。
 
 | 项 | 内容 |
 | --- | --- |
@@ -145,6 +155,8 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 查询命令不负责启动 Agent。
 
 ### A6 收口
+
+状态：已实施（`docs/feature/22-ai-agent.md`，`TestAgentDoesNotImportServer`）。
 
 | 项 | 内容 |
 | --- | --- |
@@ -174,7 +186,7 @@ A5 只依赖表结构，可以在 A3 之后立即做，让诊断结果能被看�
 | 15.3 自动修复、修复验证、批准后执行 | **本阶段不做。** 没有可安全自动执行的写接口。待审批只记录、可查询 |
 | 15.4 Agent 停止不影响 Server；模型不可用 | 无模型依赖，故降级条款不适用。解耦由分层测试与「Server 不 import agent」保证 |
 | 12.1 Upstream 自动摘除 | 阻塞于 `upstream-failover-plan.md`。该计划落地并提供明确的 CLI 之后，再单独立项把对应动作加入策略表 |
-| 12.2 502/504 | 做成 `5xx_ratio` 的 L1 诊断与待审批，不声称区分 502 与 504 |
+| 12.2 502/504 | 诊断引用 `/runtime` 的 `responses_502_total` 与 `responses_504_total`。Monitor 仍只有 `5xx_ratio` 事件，不另写 502/504 规则 |
 | 12.3 证书 | A4 的 L1 巡检与待审批。不续期 |
 
 ## 7. 完成后再开的项

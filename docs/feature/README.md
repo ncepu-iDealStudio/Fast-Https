@@ -30,6 +30,7 @@
 | 19 | [19-desktop-console.md](19-desktop-console.md) | 桌面管理端 | Wails v3 单窗口 + 托盘：状态、站点与配置表单、证书日志，转交 CLI 启停 |
 | 20 | [20-runtime.md](20-runtime.md) | 本机运行快照 | `GET 127.0.0.1:9088/runtime`：生命周期、连接、请求、耗时与上游计数 |
 | 21 | [21-monitor.md](21-monitor.md) | 独立 Monitor 进程 | 周期采集 `/runtime`、写快照与事件文件；规则：不可达/恢复/重启/5xx 比例/端口探测/疑似卡死 |
+| 22 | [22-ai-agent.md](22-ai-agent.md) | 独立 AI Agent | 尾读 Monitor 事件，只读诊断并记录待审批；不自动改配置 |
 
 ## 设计与实施记录
 

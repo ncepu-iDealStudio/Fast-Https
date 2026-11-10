@@ -175,11 +175,11 @@ Agent 不能自己改 `fast-https.json`。写配置必须走上述命令。这�
 
 | 规范能力 | 标记 | 差距 |
 | --- | --- | --- |
-| 事件驱动 | 部分具备 | 事件在 `events.jsonl`。无 `event_id`，无推送，CLI 丢掉 `snapshot` |
-| 事件类型 `upstream_unhealthy` 等 8 种 | 不具备 | 现有 7 种类型见 2.3。无证书、磁盘、CPU、配置失败事件 |
+| 事件驱动 | 部分具备 | 事件在 `events.jsonl`。新行有 `event_id` 和可选 `snapshot`，CLI 会带回白名单摘要。没有推送，Agent 尾读文件 |
+| 事件类型 `upstream_unhealthy` 等规范名 | 部分具备 | 已有 Monitor 类型见 2.3，含 `certificate_expiring`（需配置 `cert_files`）。没有上游健康、磁盘、CPU、配置失败事件 |
 | Agent 状态机与重启恢复 | 不具备 | 无 `agent/` 进程，无任务库 |
 | 上下文：服务、日志、配置、operation、5xx 累计 | 已具备 | 经 CLI `--json` 与 `/runtime` |
-| 上下文：分上游健康、502/504、CPU/内存/磁盘 | 不具备 | 见 2.2 |
+| 上下文：分上游健康、CPU/内存/磁盘 | 不具备 | 502/504 累计和按地址的失败次数已经在 `/runtime`。没有节点健康标记，也没有系统资源 |
 | 规则诊断 | 部分具备 | Monitor 已做阈值判断。Agent 侧诊断对象还不存在 |
 | AI 诊断与模型路由 | 不具备 | 仓库无模型客户端。第一阶段规则闭环不依赖它 |
 | 计划 / 策略 / 审计 / 升级 | 不具备 | 无对应存储 |
@@ -205,7 +205,7 @@ Agent 读到一行后生成自己的记录：
 
 | 字段 | 来源 |
 | --- | --- |
-| `event_id` | 对 `time` + `type` + `message` + 文件偏移做稳定哈希。Monitor 今天没有可复用的 ID |
+| `event_id` | 行内已有 32 位十六进制就用它。旧行没有时，用与 `monitor/events.go` 的 `eventID` 相同的输入补齐：`type`、`severity`、`message`，以及 `snapshot` 的 pid 和 `started_at`。不含时间，不含文件偏移 |
 | `event_type` | 原样保存 Monitor 的 `type`，另给规范名一个只读映射，见下表 |
 | `severity`、`summary` | `severity`、`message` |
 | `source` | 固定 `fast_https_monitor` |
