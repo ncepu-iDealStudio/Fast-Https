@@ -20,6 +20,7 @@ param(
     [switch]$SelfTest,           # 只加载界面与命名元素后退出，供无头自检
     [string]$PreviewPng = "",    # 把界面无头渲染成 PNG（调样式用）
     [string]$PreviewScreen = "welcome",  # welcome | working | done | error
+    [switch]$PreviewExpand,      # 预览时展开「自定义安装」区（看展开态排版）
     [string]$AutoInstall = "",   # 无头端到端测试：跳过界面直接按指定目录安装
     [string]$PathMode = ""       # 无头环境操作：add | remove（把 $Dir 加进/移出系统 PATH）
 )
@@ -56,6 +57,10 @@ $T = if ($zh) {
         optDesktop = '创建桌面快捷方式'
         optStartMenu = '添加到开始菜单'
         optPath = '加入系统 PATH（可在任意终端直接运行 fast-https）'
+        customize = '自定义安装 ▾'
+        customizeOn = '收起 ▴'
+        githubLead = '开源项目，'
+        githubTail = '上有点赞、文档与源码 —— 去点个 Star 就是对作者最大的鼓励 ✦'
         doneTitle = '安装完成'
         doneSub = '已安装到'
         runApp = '运行 Fast-Https Desktop'
@@ -92,6 +97,10 @@ $T = if ($zh) {
         optDesktop = 'Create desktop shortcut'
         optStartMenu = 'Add to Start menu'
         optPath = 'Add to system PATH (run fast-https from any terminal)'
+        customize = 'Customize install ▾'
+        customizeOn = 'Collapse ▴'
+        githubLead = 'Free & open source —'
+        githubTail = 'stars, docs and source code. A star means a lot to the author ✦'
         doneTitle = 'Installation complete'
         doneSub = 'Installed to'
         runApp = 'Run Fast-Https Desktop'
@@ -115,7 +124,7 @@ $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Width="560" Height="460" WindowStartupLocation="CenterScreen"
+        Width="560" Height="420" WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize" ShowInTaskbar="True" FontFamily="Microsoft YaHei UI"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Border Background="#FFFFFF" CornerRadius="14" Margin="14">
@@ -155,25 +164,31 @@ $xaml = @'
         </Button>
         <Button x:Name="btnSecondary" Width="148" Height="44" Cursor="Hand" HorizontalAlignment="Center" Margin="0,10,0,0"
                 Background="Transparent" BorderThickness="0" Foreground="#666C75" FontSize="13" Content="" Visibility="Collapsed"/>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0" x:Name="rowPath">
-          <TextBlock x:Name="txtInstallTo" FontSize="11.5" Foreground="#666C75" VerticalAlignment="Center"/>
-          <TextBox x:Name="txtPath" Width="290" Height="30" Margin="8,0,0,0" FontSize="11.5" Foreground="#16181D"
-                   BorderThickness="0" VerticalContentAlignment="Center" Padding="10,0">
-            <TextBox.Background><SolidColorBrush Color="#F2F4F8"/></TextBox.Background>
-          </TextBox>
-          <Button x:Name="btnBrowse" Height="30" Margin="6,0,0,0" Padding="10,0" Cursor="Hand" FontSize="11.5"
-                  Background="Transparent" BorderBrush="#D7DBE1" BorderThickness="1" Content="…"/>
+        <!-- 自定义安装：默认收起，点「自定义安装」展开路径与选项 -->
+        <TextBlock x:Name="lnkCustomize" FontSize="11" Foreground="#8A93A0" HorizontalAlignment="Center" Margin="0,16,0,0" Cursor="Hand">
+          <Run x:Name="runCustomize" Text="自定义安装 ▾"/>
+        </TextBlock>
+        <StackPanel x:Name="panelCustom" Visibility="Collapsed" HorizontalAlignment="Center">
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0" x:Name="rowPath">
+            <TextBlock x:Name="txtInstallTo" FontSize="11.5" Foreground="#666C75" VerticalAlignment="Center"/>
+            <TextBox x:Name="txtPath" Width="290" Height="30" Margin="8,0,0,0" FontSize="11.5" Foreground="#16181D"
+                     BorderThickness="0" VerticalContentAlignment="Center" Padding="10,0">
+              <TextBox.Background><SolidColorBrush Color="#F2F4F8"/></TextBox.Background>
+            </TextBox>
+            <Button x:Name="btnBrowse" Height="30" Margin="6,0,0,0" Padding="10,0" Cursor="Hand" FontSize="11.5"
+                    Background="Transparent" BorderBrush="#D7DBE1" BorderThickness="1" Content="…"/>
+          </StackPanel>
+          <StackPanel x:Name="rowOptions" HorizontalAlignment="Center" Margin="0,10,0,0">
+            <CheckBox x:Name="chkDesktop" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
+            <CheckBox x:Name="chkStartMenu" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
+            <CheckBox x:Name="chkPath" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand" HorizontalAlignment="Left"/>
+          </StackPanel>
         </StackPanel>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0" x:Name="rowAgree">
-          <TextBlock x:Name="txtAgree" FontSize="10.5" Foreground="#949AA3"/>
-          <TextBlock FontSize="10.5" Margin="4,0,0,0"><Hyperlink x:Name="lnkTerms" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"><Run x:Name="runTerms" Text=""/></Hyperlink></TextBlock>
-          <TextBlock x:Name="txtAnd" FontSize="10.5" Foreground="#949AA3" Margin="4,0"/>
-          <TextBlock FontSize="10.5"><Hyperlink x:Name="lnkPrivacy" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"><Run x:Name="runPrivacy" Text=""/></Hyperlink></TextBlock>
-        </StackPanel>
-        <StackPanel x:Name="rowOptions" HorizontalAlignment="Center" Margin="0,10,0,0">
-          <CheckBox x:Name="chkDesktop" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
-          <CheckBox x:Name="chkStartMenu" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
-          <CheckBox x:Name="chkPath" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand" HorizontalAlignment="Left"/>
+        <!-- 开源推荐语：替代用户协议/隐私政策 -->
+        <StackPanel x:Name="rowGithub" HorizontalAlignment="Center" Margin="0,12,0,0">
+          <TextBlock FontSize="10.5" Foreground="#949AA3" HorizontalAlignment="Center" TextAlignment="Center"><Run x:Name="runGithubLead" Text=""/></TextBlock>
+          <TextBlock FontSize="10.5" HorizontalAlignment="Center" Margin="0,2,0,0"><Hyperlink x:Name="lnkGithub" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"><Run x:Name="runGithubLink" Text="gitee.com/ncepu-bj/fast-https"/></Hyperlink></TextBlock>
+          <TextBlock FontSize="10.5" Foreground="#949AA3" HorizontalAlignment="Center" Margin="0,2,0,0"><Run x:Name="runGithubTail" Text=""/></TextBlock>
         </StackPanel>
       </StackPanel>
 
@@ -236,7 +251,9 @@ $imgLogo = N 'imgLogo'; $imgLogo2 = N 'imgLogo2'
 $txtTitle = N 'txtTitle'; $txtTagline = N 'txtTagline'; $txtBody = N 'txtBody'; $txtBody2 = N 'txtBody2'
 $btnPrimary = N 'btnPrimary'; $btnSecondary = N 'btnSecondary'
 $rowPath = N 'rowPath'; $txtInstallTo = N 'txtInstallTo'; $txtPath = N 'txtPath'; $btnBrowse = N 'btnBrowse'
-$rowAgree = N 'rowAgree'; $txtAgree = N 'txtAgree'; $lnkTerms = N 'lnkTerms'; $runTerms = N 'runTerms'; $txtAnd = N 'txtAnd'; $lnkPrivacy = N 'lnkPrivacy'; $runPrivacy = N 'runPrivacy'
+$rowAgree = N 'rowAgree'; $txtAgree = N 'txtAgree'
+$lnkCustomize = N 'lnkCustomize'; $runCustomize = N 'runCustomize'; $panelCustom = N 'panelCustom'
+$rowGithub = N 'rowGithub'; $runGithubLead = N 'runGithubLead'; $lnkGithub = N 'lnkGithub'; $runGithubLink = N 'runGithubLink'; $runGithubTail = N 'runGithubTail'
 $rowOptions = N 'rowOptions'; $chkDesktop = N 'chkDesktop'; $chkStartMenu = N 'chkStartMenu'; $chkPath = N 'chkPath'
 $txtPct = N 'txtPct'
 $txtPhase = N 'txtPhase'; $barWork = N 'barWork'
@@ -264,17 +281,22 @@ if ($PreviewPng) {
         $txtBody2.Text = $T.unKeep; $txtBody2.Visibility = 'Visible'
         $btnPrimary.Content = $T.unBtn
         $btnPrimary.Background = [System.Windows.Media.Brushes]::IndianRed
-        $rowPath.Visibility = 'Collapsed'; $rowAgree.Visibility = 'Collapsed'
+        $rowPath.Visibility = 'Collapsed'; $rowGithub.Visibility = 'Collapsed'
+        $lnkCustomize.Visibility = 'Collapsed'; $panelCustom.Visibility = 'Collapsed'
     } else {
         $txtTagline.Text = $T.tagline
         $btnPrimary.Content = $T.install + '  ›'
         $txtInstallTo.Text = $T.installTo
         $txtPath.Text = (Join-Path $env:ProgramFiles $Title)
-        $txtAgree.Text = $T.agree; $runTerms.Text = $T.terms
-        $txtAnd.Text = $T.and; $runPrivacy.Text = $T.privacy
         $chkDesktop.Content = $T.optDesktop
         $chkStartMenu.Content = $T.optStartMenu
         $chkPath.Content = $T.optPath
+        $runGithubLead.Text = $T.githubLead; $runGithubTail.Text = $T.githubTail
+        if ($PreviewExpand) {
+            $panelCustom.Visibility = 'Visible'
+            $runCustomize.Text = $T.customizeOn
+            $window.Height = 585
+        }
     }
     # 预览指定屏：校验进度页与完成页的排版
     switch ($PreviewScreen) {
@@ -475,8 +497,8 @@ function Initialize-UninstallScreen {
     $btnPrimary.Content = $T.unBtn
     $btnPrimary.Background = [System.Windows.Media.Brushes]::IndianRed
     $rowPath.Visibility = 'Collapsed'
-    $rowAgree.Visibility = 'Collapsed'
-    $rowOptions.Visibility = 'Collapsed'
+    $lnkCustomize.Visibility = 'Collapsed'; $panelCustom.Visibility = 'Collapsed'
+    $rowGithub.Visibility = 'Collapsed'
 
     $btnPrimary.Add_Click({
         $txtPhase.Text = $T.uninstalling
@@ -504,15 +526,25 @@ function Initialize-WelcomeScreen {
     $txtInstallTo.Text = $T.installTo
     $txtPath.Text = $defaultDir
     $btnBrowse.Content = '…'
-    $txtAgree.Text = $T.agree
-    $runTerms.Text = $T.terms
-    $txtAnd.Text = $T.and
-    $runPrivacy.Text = $T.privacy
     $chkDesktop.Content = $T.optDesktop
     $chkStartMenu.Content = $T.optStartMenu
     $chkPath.Content = $T.optPath
-    $lnkTerms.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
-    $lnkPrivacy.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
+    $runGithubLead.Text = $T.githubLead
+    $runGithubTail.Text = $T.githubTail
+    # 默认收起：点「自定义安装」展开路径与选项（窗口随之伸缩）
+    $script:customOpen = $false
+    $panelCustom.Visibility = 'Collapsed'
+    $runCustomize.Text = $T.customize
+    $lnkCustomize.Add_MouseLeftButtonDown({
+        $script:customOpen = -not $script:customOpen
+        $panelCustom.Visibility = if ($script:customOpen) { 'Visible' } else { 'Collapsed' }
+        $runCustomize.Text = if ($script:customOpen) { $T.customizeOn } else { $T.customize }
+        # 展开时加高窗口（路径行 + 三行勾选），收起时还原；保持屏幕居中
+        $window.Height = if ($script:customOpen) { 585 } else { 420 }
+        $window.Left = ([System.Windows.SystemParameters]::WorkArea.Width - $window.Width) / 2 + [System.Windows.SystemParameters]::VirtualScreenLeft
+        $window.Top = ([System.Windows.SystemParameters]::WorkArea.Height - $window.Height) / 2 + [System.Windows.SystemParameters]::VirtualScreenTop
+    })
+    $lnkGithub.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $btnBrowse.Add_Click({
         $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
         if ($dlg.ShowDialog() -eq 'OK') { $txtPath.Text = $dlg.SelectedPath }
@@ -563,7 +595,7 @@ if ($Uninstall) {
 # 元素存在 + 两种模式的事件绑定全跑一遍。曾发生过 TextBlock 绑 Click
 # 在运行时才崩（向导弹不出来、nsExec 报错退出），只有真实初始化才能暴露。
 if ($SelfTest) {
-    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','rowAgree','txtAgree','lnkTerms','runTerms','txtAnd','lnkPrivacy','runPrivacy','rowOptions','chkDesktop','chkStartMenu','chkPath','txtPhase','barWork','txtPct','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
+    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','lnkCustomize','runCustomize','panelCustom','rowGithub','runGithubLead','lnkGithub','runGithubLink','runGithubTail','rowOptions','chkDesktop','chkStartMenu','chkPath','txtPhase','barWork','txtPct','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
     foreach ($n in $names) { if ($null -eq (N $n)) { Write-Error "selftest: missing element $n"; exit 1 } }
     if (-not $Self) { $script:Self = "selftest-fake.exe" }
     Initialize-WelcomeScreen      # 安装模式文案与事件绑定（崩溃在这里当场爆）
