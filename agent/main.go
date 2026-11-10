@@ -5,18 +5,30 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"fast-https/agent/model"
 )
 
 func main() {
-	monitorDir := flag.String("monitor-dir", "", "Monitor 事件目录，默认同 FASTHTTPS_MONITOR_DIR，再没有则用 logs/monitor")
-	stateDir := flag.String("state-dir", "", "Agent 状态目录，默认同 FASTHTTPS_AGENT_DIR，再没有则用 ./state/agent")
+	configPath := flag.String("config", "agent.json", "Agent 配置文件；不存在时按环境变量和默认值运行")
+	monitorDir := flag.String("monitor-dir", "", "覆盖配置里的 Monitor 事件目录")
+	stateDir := flag.String("state-dir", "", "覆盖配置里的 Agent 状态目录")
 	once := flag.Bool("once", false, "读完当前事件文件后退出")
 	flag.Parse()
 
-	mon := firstNonEmpty(*monitorDir, os.Getenv("FASTHTTPS_MONITOR_DIR"), "logs/monitor")
-	state := firstNonEmpty(*stateDir, os.Getenv("FASTHTTPS_AGENT_DIR"), "state/agent")
+	cfg, err := LoadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "agent: %v\n", err)
+		os.Exit(1)
+	}
+	if *monitorDir != "" {
+		cfg.MonitorDir = *monitorDir
+	}
+	if *stateDir != "" {
+		cfg.StateDir = *stateDir
+	}
 	if *once {
-		if err := runOnce(mon, state); err != nil {
+		if err := runOnce(cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "agent: %v\n", err)
 			os.Exit(1)
 		}
@@ -25,33 +37,32 @@ func main() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
-		if err := runOnce(mon, state); err != nil {
+		if err := runOnce(cfg); err != nil {
 			fmt.Fprintf(os.Stderr, "agent: %v\n", err)
 		}
 		<-ticker.C
 	}
 }
 
-func runOnce(mon, state string) error {
+func runOnce(cfg Config) error {
 	now := time.Now()
-	if _, err := IngestOnce(mon, state, now); err != nil {
+	if _, err := IngestOnce(cfg.MonitorDir, cfg.StateDir, now); err != nil {
 		return err
 	}
-	if _, err := PollCerts(mon, state, defaultCertWarnDays, nil, now); err != nil {
+	if _, err := PollCerts(cfg.MonitorDir, cfg.StateDir, cfg.FastHTTPSBin, cfg.CertWarnDays, nil, now); err != nil {
 		return err
 	}
-	if _, err := CollectPending(state, CollectOptions{Now: now}); err != nil {
+	if _, err := CollectPending(cfg.StateDir, CollectOptions{
+		Binary:     cfg.FastHTTPSBin,
+		RuntimeURL: cfg.RuntimeURL,
+		Now:        now,
+	}); err != nil {
 		return err
 	}
-	_, err := DiagnosePending(state, now)
+	_, err := DiagnosePending(cfg.StateDir, now, cfg.models())
 	return err
 }
 
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
+func (c Config) models() model.Provider {
+	return model.FromEnv(c.ModelURL, c.Model, c.ModelExternalURL, c.ModelExternal, c.ModelKey)
 }

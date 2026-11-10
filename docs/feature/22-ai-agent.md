@@ -27,7 +27,25 @@ go run ./agent -once -monitor-dir .\logs\monitor -state-dir .\state\agent
 go run ./agent -monitor-dir .\logs\monitor -state-dir .\state\agent
 ```
 
-状态库默认是 `./state/agent/agent.db`，可用 `FASTHTTPS_AGENT_DIR` 或 `-state-dir` 覆盖。事件目录可用 `FASTHTTPS_MONITOR_DIR` 或 `-monitor-dir`。
+状态库默认是 `./state/agent/agent.db`。配置文件是 Agent 自己的 `agent.json`，不读 `fast-https.json`。文件不存在时按环境变量和默认值运行。优先级：命令行 > `agent.json` > 环境变量 > 默认值。
+
+```json
+{
+  "monitor_dir": "logs/monitor",
+  "state_dir": "state/agent",
+  "fast_https_bin": "fast-https",
+  "runtime_url": "http://127.0.0.1:9088/runtime",
+  "cert_warn_days": 30,
+  "model_url": "http://127.0.0.1:11434/v1",
+  "model": "local"
+}
+```
+
+`model_url` 留空则不调用模型。`model_key` 可以写在文件里，也可以只用环境变量 `FASTHTTPS_AGENT_MODEL_KEY`，避免把令牌提交进仓库。
+
+```powershell
+go run ./agent -once -config .\agent.json
+```
 
 查询不启动 Agent：
 
@@ -55,6 +73,6 @@ fast-https agent approvals --json
 ## 已知限制
 
 - 不自动修改配置，不摘除上游，不续期证书。
+- 模型可选。设置 `FASTHTTPS_AGENT_MODEL_URL`（以及可选的 `FASTHTTPS_AGENT_MODEL_EXTERNAL_URL`）后，只重写诊断说明。没配置、超时，或说明里出现写命令时，仍用规则原文。策略和步骤不交给模型。
 - 不打包进 deb/rpm，也没有 systemd 单元。
-- 不调用大模型。`agent/model` 只有接口，未配置时返回「模型不可用」。
 - 待审批只能查看，不能在 CLI 里批准后执行。

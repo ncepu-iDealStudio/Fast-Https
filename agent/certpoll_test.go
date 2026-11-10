@@ -15,7 +15,7 @@ func TestCertPollThreshold(t *testing.T) {
 		{"domains":["soon.example"],"file":"E:/secret/soon.pem","not_after":"2026-11-20T00:00:00Z","days_left":9},
 		{"domains":["later.example"],"file":"E:/secret/later.pem","not_after":"2027-01-01T00:00:00Z","days_left":40}
 	]}}`)
-	n, err := PollCerts(mon, state, 30, func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	n, err := PollCerts(mon, state, "fast-https", 30, func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		if name != "fast-https" || len(args) != 3 || args[0] != "cert" || args[1] != "list" || args[2] != "--json" {
 			t.Fatalf("argv = %s %v", name, args)
 		}
@@ -30,7 +30,7 @@ func TestCertPollThreshold(t *testing.T) {
 	if _, err := CollectPending(state, CollectOptions{Now: now, RuntimeURL: "http://127.0.0.1:1", Run: okRunner}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := DiagnosePending(state, now); err != nil {
+	if _, err := DiagnosePending(state, now, nil); err != nil {
 		t.Fatal(err)
 	}
 	st := mustStore(t, state)
@@ -51,7 +51,7 @@ func TestCertPollThreshold(t *testing.T) {
 		t.Fatalf("message = %q", msg)
 	}
 
-	again, err := PollCerts(mon, state, 30, func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	again, err := PollCerts(mon, state, "fast-https", 30, func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return body, nil
 	}, now)
 	if err != nil {
@@ -66,7 +66,7 @@ func TestCertPollSkipsWhenMonitorAlreadyWrote(t *testing.T) {
 	mon := t.TempDir()
 	state := t.TempDir()
 	writeEvents(t, mon, `{"type":"certificate_expiring","message":"certificate expiring: soon.example days_left=9"}`+"\n")
-	n, err := PollCerts(mon, state, 30, func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	n, err := PollCerts(mon, state, "fast-https", 30, func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return []byte(`{"ok":true,"data":{"certificates":[{"domains":["soon.example"],"not_after":"2026-11-20T00:00:00Z","days_left":9}]}}`), nil
 	}, time.Now())
 	if err != nil {
@@ -79,7 +79,7 @@ func TestCertPollSkipsWhenMonitorAlreadyWrote(t *testing.T) {
 
 func TestCertPollFailureDoesNotInvent(t *testing.T) {
 	state := t.TempDir()
-	n, err := PollCerts(t.TempDir(), state, 30, func(ctx context.Context, name string, args ...string) ([]byte, error) {
+	n, err := PollCerts(t.TempDir(), state, "fast-https", 30, func(ctx context.Context, name string, args ...string) ([]byte, error) {
 		return nil, errors.New("exit 1")
 	}, time.Now())
 	if err != nil {

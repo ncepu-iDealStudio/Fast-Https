@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"time"
+
+	"fast-https/agent/model"
 )
 
 type openTask struct {
@@ -15,8 +18,9 @@ type openTask struct {
 	context   string
 }
 
-// DiagnosePending 处理已有上下文的 PENDING 任务。不执行写命令，不调用模型。
-func DiagnosePending(stateDir string, now time.Time) (int, error) {
+// DiagnosePending 处理已有上下文的 PENDING 任务。narrator 只改写说明文字；为 nil 时保留规则原文。
+// 分类、步骤和策略不交给模型。
+func DiagnosePending(stateDir string, now time.Time, narrator model.Provider) (int, error) {
 	st, err := OpenStore(stateDir)
 	if err != nil {
 		return 0, err
@@ -36,6 +40,9 @@ func DiagnosePending(stateDir string, now time.Time) (int, error) {
 			continue
 		}
 		d := diagnose(task.kind, task.message, task.startedAt, task.context)
+		if text, ok := narrate(context.Background(), narrator, d); ok {
+			d.Cause = text
+		}
 		p := makePlan(task.taskID, task.eventID, d.Classification)
 		decision := policyOf(d.Classification, p.Steps)
 		status := statusFor(d.Classification, decision)

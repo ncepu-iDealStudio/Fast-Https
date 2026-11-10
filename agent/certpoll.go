@@ -22,14 +22,14 @@ type certItem struct {
 
 // PollCerts 在 Monitor 还没写过同一张证书的过期事件时，用 cert list 补一条任务。
 // CLI 失败只记审计，不编造证书状态。
-func PollCerts(monitorDir, stateDir string, warnDays int, run cmdRunner, now time.Time) (int, error) {
+func PollCerts(monitorDir, stateDir, binary string, warnDays int, run cmdRunner, now time.Time) (int, error) {
 	if warnDays < 1 {
 		warnDays = defaultCertWarnDays
 	}
 	if now.IsZero() {
 		now = time.Now()
 	}
-	body, err := runAllowed(context.Background(), run, "fast-https", []string{"cert", "list", "--json"})
+	body, err := runAllowed(context.Background(), run, binary, []string{"cert", "list", "--json"})
 	st, sterr := OpenStore(stateDir)
 	if sterr != nil {
 		return 0, sterr
