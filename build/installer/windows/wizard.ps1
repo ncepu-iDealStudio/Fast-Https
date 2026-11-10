@@ -164,10 +164,20 @@ $xaml = @'
         </Button>
         <Button x:Name="btnSecondary" Width="148" Height="44" Cursor="Hand" HorizontalAlignment="Center" Margin="0,10,0,0"
                 Background="Transparent" BorderThickness="0" Foreground="#666C75" FontSize="13" Content="" Visibility="Collapsed"/>
-        <!-- 自定义安装：默认收起，点「自定义安装」展开路径与选项 -->
-        <TextBlock x:Name="lnkCustomize" FontSize="11" Foreground="#8A93A0" HorizontalAlignment="Center" Margin="0,16,0,0" Cursor="Hand">
+        <!-- 自定义安装：默认收起，点「自定义安装」展开路径与选项。
+             必须是 Button：TextBlock 的 MouseLeftButtonDown 在 PowerShell
+             的事件包装下不触发（实测），ButtonBase 的 Click 可靠 -->
+        <Button x:Name="lnkCustomize" HorizontalAlignment="Center" Margin="0,16,0,0" Cursor="Hand"
+                BorderThickness="0" Background="Transparent" Foreground="#8A93A0" FontSize="11">
+          <Button.Template>
+            <ControlTemplate TargetType="Button">
+              <Border Background="{TemplateBinding Background}">
+                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+            </ControlTemplate>
+          </Button.Template>
           <Run x:Name="runCustomize" Text="自定义安装 ▾"/>
-        </TextBlock>
+        </Button>
         <StackPanel x:Name="panelCustom" Visibility="Collapsed" HorizontalAlignment="Center">
           <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0" x:Name="rowPath">
             <TextBlock x:Name="txtInstallTo" FontSize="11.5" Foreground="#666C75" VerticalAlignment="Center"/>
@@ -620,7 +630,7 @@ function Initialize-WelcomeScreen {
     $script:customOpen = $false
     $panelCustom.Visibility = 'Collapsed'
     $runCustomize.Text = $T.customize
-    $lnkCustomize.Add_MouseLeftButtonDown({
+    $lnkCustomize.Add_Click({
         $script:customOpen = -not $script:customOpen
         $panelCustom.Visibility = if ($script:customOpen) { 'Visible' } else { 'Collapsed' }
         $runCustomize.Text = if ($script:customOpen) { $T.customizeOn } else { $T.customize }
