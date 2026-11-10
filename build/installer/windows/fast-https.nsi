@@ -110,6 +110,15 @@ SectionEnd
 
 ; ------------------------------------------------------------ 安装
 
+; 快捷方式开关：默认 1（创建）。自绘向导按用户勾选传 /DSC_DESKTOP=0/1
+; 与 /DSC_STARTMENU=0/1；/S 静默用默认值。
+!ifndef SC_DESKTOP
+  !define SC_DESKTOP "1"
+!endif
+!ifndef SC_STARTMENU
+  !define SC_STARTMENU "1"
+!endif
+
 Section "Fast-Https 核心文件（必选）" SEC_CORE
   SectionIn RO
 
@@ -152,6 +161,33 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
 
   WriteRegStr HKLM "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "Software\${APP_NAME}" "Version" "${APP_VERSION}"
+  ; 快捷方式开关由自绘向导传入（/DSC_DESKTOP=1 /DSC_STARTMENU=1），缺省都建；
+  ; 记进注册表，卸载只回收实际创建过的快捷方式。
+  WriteRegStr HKLM "Software\${APP_NAME}" "ShortcutDesktop" "${SC_DESKTOP}"
+  WriteRegStr HKLM "Software\${APP_NAME}" "ShortcutStartMenu" "${SC_STARTMENU}"
+
+  ${If} ${SC_DESKTOP} == "0"
+    ; 用户取消桌面快捷方式：清掉升级残留的旧图标
+    Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
+    Delete "$DESKTOP\Fast-Https 安装目录.lnk"
+  ${EndIf}
+  ${If} ${SC_DESKTOP} != "0"
+    ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
+      CreateShortcut "$DESKTOP\Fast-Https 桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
+    ${Else}
+      CreateShortcut "$DESKTOP\Fast-Https 安装目录.lnk" "$INSTDIR"
+    ${EndIf}
+  ${EndIf}
+
+  ${If} ${SC_STARTMENU} != "0"
+    CreateDirectory "$SMPROGRAMS\${APP_NAME}"
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\使用文档.lnk" "$INSTDIR\docs\usage.html"
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\安装目录.lnk" "$INSTDIR"
+    ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
+      CreateShortcut "$SMPROGRAMS\${APP_NAME}\桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
+    ${EndIf}
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\uninstall.exe"
+  ${EndIf}
 
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME} ${APP_VERSION} (${APP_ARCH})"
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${APP_VERSION}"
@@ -162,24 +198,6 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
-SectionEnd
-
-Section "创建桌面快捷方式" SEC_DESKTOP
-  ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
-    CreateShortcut "$DESKTOP\Fast-Https 桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
-  ${Else}
-    CreateShortcut "$DESKTOP\Fast-Https 安装目录.lnk" "$INSTDIR"
-  ${EndIf}
-SectionEnd
-
-Section "添加到 Windows 开始菜单" SEC_STARTMENU
-  CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\使用文档.lnk" "$INSTDIR\docs\usage.html"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\安装目录.lnk" "$INSTDIR"
-  ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
-    CreateShortcut "$SMPROGRAMS\${APP_NAME}\桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
-  ${EndIf}
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\uninstall.exe"
 SectionEnd
 
 ; ------------------------------------------------------------ 卸载向导
@@ -203,6 +221,14 @@ Section "Uninstall"
   nsExec::ExecToLog 'taskkill /F /IM ${APP_EXE}'
 
   DeleteRegKey HKLM "${UNINST_KEY}"
+
+  ; 只回收实际创建过的快捷方式（按安装时写进注册表的开关），
+  ; 再通配兜底一次，开始菜单整组删除
+  ReadRegStr $R1 HKLM "Software\${APP_NAME}" "ShortcutDesktop"
+  ${If} $R1 != "0"
+    Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
+    Delete "$DESKTOP\Fast-Https 安装目录.lnk"
+  ${EndIf}
   DeleteRegKey HKLM "Software\${APP_NAME}"
 
   Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
@@ -219,4 +245,5 @@ SectionEnd
 
 ; ------------------------------------------------------------ 描述
 ; 安装流程由自绘向导（wizard.ps1）接管，组件页已移除，无组件描述可写。
+
 

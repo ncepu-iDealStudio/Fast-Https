@@ -77,6 +77,10 @@ func command(dir string, args []string) (*exec.Cmd, error) {
 }
 
 // Run 执行一条命令并返回合并后的文本输出（用于 status 这类纯文本命令）。
+//
+// 旧命令（start/stop/reload）失败时 zerolog 会在 stdout 打一行 JSON
+// （{"level":"fatal",...,"message":"..."}）并 os.Exit(1)：这里把它翻译成
+// 人话——提取 message 字段作为错误返回，不把 JSON 甩给界面。
 func Run(dir string, args ...string) (string, error) {
 	cmd, err := command(dir, args)
 	if err != nil {
@@ -84,10 +88,35 @@ func Run(dir string, args ...string) (string, error) {
 	}
 	out, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(out))
-	if err != nil && text == "" {
-		return "", fmt.Errorf("执行 %s %s 失败：%w", filepath.Base(Binary(dir)), strings.Join(args, " "), err)
+	if err != nil {
+		if msg := fatalMessage(text); msg != "" {
+			return text, fmt.Errorf("%s", msg)
+		}
+		if text == "" {
+			return "", fmt.Errorf("执行 %s %s 失败：%w", filepath.Base(Binary(dir)), strings.Join(args, " "), err)
+		}
+		return text, fmt.Errorf("%s", text)
 	}
 	return text, nil
+}
+
+// fatalMessage 从 zerolog 输出里提取人读的 message；不是 fatal JSON 行时返回空。
+func fatalMessage(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "{") || !strings.Contains(line, "\"level\"") {
+			continue
+		}
+		var m struct {
+			Level   string `json:"level"`
+			Message string `json:"message"`
+		}
+		if json.Unmarshal([]byte(line), &m) == nil && m.Message != "" &&
+			(m.Level == "fatal" || m.Level == "error") {
+			return m.Message
+		}
+	}
+	return ""
 }
 
 // RunBareJSON 执行一条「--json 输出裸 JSON、不套封套」的命令。

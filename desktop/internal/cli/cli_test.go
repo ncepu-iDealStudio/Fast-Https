@@ -64,3 +64,19 @@ func TestEnvelopeVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// TestFatalMessage 旧命令失败时 zerolog 输出 JSON，Run 要把它翻译成
+// 人话错误，而不是把整行 JSON 甩给界面（曾表现为「点停止弹一堆 JSON」）。
+func TestFatalMessage(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{`{"level":"fatal","kind":"console","time":"2026-11-10T14:00:00+08:00","message":"fast-https stop failed: access denied"}`, "fast-https stop failed: access denied"},
+		{`{"level":"error","message":"write pid failed"}`, "write pid failed"},
+		{"plain text output", ""},
+		{`{"level":"info","message":"not an error"}`, ""},
+	}
+	for i, c := range cases {
+		if got := fatalMessage(c.in); got != c.want {
+			t.Errorf("case %d: fatalMessage(%q) = %q, want %q", i, c.in, got, c.want)
+		}
+	}
+}

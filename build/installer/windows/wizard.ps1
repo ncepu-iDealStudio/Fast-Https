@@ -47,6 +47,8 @@ $T = if ($zh) {
         uacTitle = '需要管理员权限'
         uacBody = '安装到 Program Files 需要管理员授权。即将弹出 UAC 确认框，请选择「是」。'
         uacDenied = '未获得管理员授权，安装已取消。'
+        optDesktop = '创建桌面快捷方式'
+        optStartMenu = '添加到开始菜单'
         doneTitle = '安装完成'
         doneSub = '已安装到'
         runApp = '运行 Fast-Https Desktop'
@@ -80,6 +82,8 @@ $T = if ($zh) {
         uacTitle = 'Administrator permission required'
         uacBody = 'Installing into Program Files needs admin approval. A UAC prompt will appear — please click Yes.'
         uacDenied = 'Administrator permission was denied; installation cancelled.'
+        optDesktop = 'Create desktop shortcut'
+        optStartMenu = 'Add to Start menu'
         doneTitle = 'Installation complete'
         doneSub = 'Installed to'
         runApp = 'Run Fast-Https Desktop'
@@ -158,13 +162,18 @@ $xaml = @'
           <TextBlock x:Name="txtAnd" FontSize="10.5" Foreground="#949AA3" Margin="4,0"/>
           <TextBlock FontSize="10.5"><Hyperlink x:Name="lnkPrivacy" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"><Run x:Name="runPrivacy" Text=""/></Hyperlink></TextBlock>
         </StackPanel>
+        <StackPanel x:Name="rowOptions" HorizontalAlignment="Center" Margin="0,14,0,0" Orientation="Horizontal">
+          <CheckBox x:Name="chkDesktop" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,18,0" Cursor="Hand"/>
+          <CheckBox x:Name="chkStartMenu" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand"/>
+        </StackPanel>
       </StackPanel>
 
       <!-- 进度 -->
       <StackPanel x:Name="screenWorking" VerticalAlignment="Center" Visibility="Collapsed">
         <Image x:Name="imgLogo2" Width="64" Height="64" HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
         <TextBlock x:Name="txtPhase" FontSize="13" Foreground="#666C75" HorizontalAlignment="Center" Margin="0,20,0,0"/>
-        <ProgressBar x:Name="barWork" Width="280" Height="6" Margin="0,18,0,0" IsIndeterminate="True"/>
+        <ProgressBar x:Name="barWork" Width="280" Height="6" Margin="0,18,0,0" Minimum="0" Maximum="100"/>
+        <TextBlock x:Name="txtPct" FontSize="11" Foreground="#949AA3" HorizontalAlignment="Center" Margin="0,8,0,0"/>
       </StackPanel>
 
       <!-- 完成 / 错误 -->
@@ -219,6 +228,8 @@ $txtTitle = N 'txtTitle'; $txtTagline = N 'txtTagline'; $txtBody = N 'txtBody'; 
 $btnPrimary = N 'btnPrimary'; $btnSecondary = N 'btnSecondary'
 $rowPath = N 'rowPath'; $txtInstallTo = N 'txtInstallTo'; $txtPath = N 'txtPath'; $btnBrowse = N 'btnBrowse'
 $rowAgree = N 'rowAgree'; $txtAgree = N 'txtAgree'; $lnkTerms = N 'lnkTerms'; $runTerms = N 'runTerms'; $txtAnd = N 'txtAnd'; $lnkPrivacy = N 'lnkPrivacy'; $runPrivacy = N 'runPrivacy'
+$rowOptions = N 'rowOptions'; $chkDesktop = N 'chkDesktop'; $chkStartMenu = N 'chkStartMenu'
+$txtPct = N 'txtPct'
 $txtPhase = N 'txtPhase'; $barWork = N 'barWork'
 $doneCircle = N 'doneCircle'; $doneCheck = N 'doneCheck'; $txtDoneTitle = N 'txtDoneTitle'; $txtDoneSub = N 'txtDoneSub'
 $btnRun = N 'btnRun'; $btnFinish = N 'btnFinish'
@@ -311,9 +322,12 @@ if ($AutoInstall) {
 }
 
 # Run-Engine 调起静默引擎（写操作需要管理员：RunAs 触发 UAC，仅弹一次）。
+# extra 是向导传给引擎的附加开关（如快捷方式选项 /DSC_DESKTOP=0）。
 # 返回引擎退出码；用户拒绝 UAC 时返回 1223（Windows 标准码）。
-function Run-Engine([string]$dest) {
-    $argList = if ($dest) { @('/S', ('/D=' + $dest)) } else { @('/S') }
+function Run-Engine([string]$dest, [string[]]$extra = @()) {
+    $argList = @('/S')
+    if ($dest) { $argList += ('/D=' + $dest) }
+    if ($extra) { $argList += $extra }
     try {
         $p = Start-Process -FilePath $Self -ArgumentList $argList -Verb RunAs -PassThru -Wait
         return $p.ExitCode
@@ -323,6 +337,29 @@ function Run-Engine([string]$dest) {
         if ($_.Exception.ErrorCode -ne $null -and $_.Exception.ErrorCode -eq 1223) { return 1223 }
         throw
     }
+}
+
+# Watch-Install 安装期间的真进度：轮询目标目录的文件数（引擎按解压
+# 顺序落文件），映射到进度条；完成时拉满。stageCount 是安装包文件总数
+# 的近似上界（由向导启动时从引擎副本数不清，这里用启发式目标值）。
+function Watch-Install([string]$dest, [System.Windows.Threading.DispatcherTimer]$timer) {
+    $script:progress = 5
+    $barWork.Value = 5; $txtPct.Text = '5%'
+    $watch = [System.Windows.Threading.DispatcherTimer]::new()
+    $watch.Interval = [TimeSpan]::FromMilliseconds(250)
+    $watch.Add_Tick({
+        try {
+            if (Test-Path $dest) {
+                $n = (Get-ChildItem $dest -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
+                # 经验值：完整安装约 220 个文件；对数曲线避免前快后停
+                $pct = [Math]::Min(92, [int](5 + 87 * [Math]::Log(1 + $n) / [Math]::Log(1 + 200)))
+                $barWork.Value = $pct
+                $txtPct.Text = "$pct%"
+            }
+        } catch { }
+    })
+    $watch.Start()
+    return $watch
 }
 
 function Show-Result([int]$code, [bool]$install, [string]$dest) {
@@ -414,6 +451,8 @@ function Initialize-WelcomeScreen {
     $runTerms.Text = $T.terms
     $txtAnd.Text = $T.and
     $runPrivacy.Text = $T.privacy
+    $chkDesktop.Content = $T.optDesktop
+    $chkStartMenu.Content = $T.optStartMenu
     $lnkTerms.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $lnkPrivacy.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $btnBrowse.Add_Click({
@@ -427,21 +466,18 @@ function Initialize-WelcomeScreen {
         $txtPhase.Text = $T.phase1
         Show-Screen $screenWorking
         $window.UpdateLayout()
-        $timer = [System.Windows.Threading.DispatcherTimer]::new()
-        $script:phase = 0
-        $timer.Interval = [TimeSpan]::FromMilliseconds(700)
-        $timer.Add_Tick({
-            $script:phase++
-            if ($script:phase -eq 1) { $txtPhase.Text = $T.phase2 }
-            elseif ($script:phase -ge 2) { $txtPhase.Text = $T.phase3 }
-        })
-        $timer.Start()
+        # 真进度：轮询目标目录文件数；引擎退出后拉满
+        $watch = Watch-Install $dest $null
         try {
-            $code = Run-Engine $dest
+            $extra = @()
+            if (-not $chkDesktop.IsChecked) { $extra += '/DSC_DESKTOP=0' }
+            if (-not $chkStartMenu.IsChecked) { $extra += '/DSC_STARTMENU=0' }
+            $code = Run-Engine $dest $extra
         } catch {
             $code = -1
         }
-        $timer.Stop()
+        $watch.Stop()
+        $barWork.Value = 100; $txtPct.Text = '100%'
         Show-Result $code $true $dest
     })
     $btnFinish.Add_Click({ $window.Close() })
@@ -468,7 +504,7 @@ if ($Uninstall) {
 # 元素存在 + 两种模式的事件绑定全跑一遍。曾发生过 TextBlock 绑 Click
 # 在运行时才崩（向导弹不出来、nsExec 报错退出），只有真实初始化才能暴露。
 if ($SelfTest) {
-    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','rowAgree','txtAgree','lnkTerms','runTerms','txtAnd','lnkPrivacy','runPrivacy','txtPhase','barWork','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
+    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','rowAgree','txtAgree','lnkTerms','runTerms','txtAnd','lnkPrivacy','runPrivacy','rowOptions','chkDesktop','chkStartMenu','txtPhase','barWork','txtPct','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
     foreach ($n in $names) { if ($null -eq (N $n)) { Write-Error "selftest: missing element $n"; exit 1 } }
     if (-not $Self) { $script:Self = "selftest-fake.exe" }
     Initialize-WelcomeScreen      # 安装模式文案与事件绑定（崩溃在这里当场爆）

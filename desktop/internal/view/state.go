@@ -160,29 +160,73 @@ func StartServer(dir string) (string, error) {
 	return "启动指令已发送，状态会在 2 秒后刷新", nil
 }
 
-// StopServer 跑完 stop 再用 service status 复核。pid 文件缺失时 stop 会当作
-// 「没在跑」直接成功，而服务可能仍在监听（安装目录不可写 pid 时就是
-// 这种表现）；此时把真实原因交回界面，而不是报一句「已停止」。
+// StopServer 停止服务，保证「点停止就是真停」：
+//
+//  1. 转交 stop（pid 文件是相对路径 ./fast-https.pid，按 stop 进程的 CWD
+//     解析；桌面端固定 CWD=dir，与 StartServer 一致，正常情况这一步就停掉）
+//  2. 用 service status 复核。仍监听说明 stop 没找到 pid（pid 文件缺失或
+//     指向别的进程，常见于服务不是桌面端启动、或上次异常退出留下错位 pid），
+//     此时按 exe 路径找进程强杀兜底——用户要的是「停」，不是一句「已停止」
+//     而站点仍可访问。
 func StopServer(dir string) (string, error) {
 	text, err := cli.Run(dir, "stop")
 	if err != nil {
 		return text, err
 	}
 	time.Sleep(1200 * time.Millisecond)
-	paths := ResolvePaths(dir)
-	if data, _, err := cli.RunJSON[any](dir, append([]string{"service", "status"}, ConfigArg(paths)...)...); err == nil {
-		m := cli.AsMap(data)
-		if st := cli.Str(m, "status"); st == "running" || st == "degraded" {
-			var ports []string
-			for _, p := range cli.AsSlice(m["ports"]) {
-				pm := cli.AsMap(p)
-				ports = append(ports, ":"+strconv.Itoa(cli.Int(pm, "port")))
+	if running, ports := serverStillRunning(dir); running {
+		killed, killErr := killServerProcesses(dir)
+		if killed > 0 && killErr == nil {
+			time.Sleep(800 * time.Millisecond)
+			if still, _ := serverStillRunning(dir); !still {
+				return text + "（stop 未找到 pid，已按进程强停）", nil
 			}
-			return text, fmt.Errorf("服务仍在监听 %s：pid 文件 %s 未生成或不可写，stop 无法定位进程",
-				strings.Join(ports, " "), paths.Pid)
 		}
+		return text, fmt.Errorf("stop 未能停止服务（pid 文件错位），强杀也失败：%s；请手动结束 fast-https.exe 进程",
+			strings.Join(ports, " "))
 	}
 	return text, nil
+}
+
+// serverStillRunning 用 service status 判断服务是否仍在监听，返回结论与端口串。
+func serverStillRunning(dir string) (bool, []string) {
+	paths := ResolvePaths(dir)
+	data, _, err := cli.RunJSON[any](dir, append([]string{"service", "status"}, ConfigArg(paths)...)...)
+	if err != nil {
+		return false, nil
+	}
+	m := cli.AsMap(data)
+	st := cli.Str(m, "status")
+	if st != "running" && st != "degraded" {
+		return false, nil
+	}
+	var ports []string
+	for _, p := range cli.AsSlice(m["ports"]) {
+		pm := cli.AsMap(p)
+		ports = append(ports, ":"+strconv.Itoa(cli.Int(pm, "port")))
+	}
+	return true, ports
+}
+
+// killServerProcesses 按 exe 路径强杀本实例的 fast-https 进程（兜底路径）。
+// 只杀 exe 路径与本实例安装目录一致的进程，不碰别的实例。
+func killServerProcesses(dir string) (int, error) {
+	exe, err := filepath.Abs(ServerBinary(dir))
+	if err != nil {
+		return 0, err
+	}
+	killed := 0
+	var lastErr error
+	for _, p := range GetProcessesByName(filepath.Base(exe)) {
+		if strings.EqualFold(p.Path, exe) || p.Path == "" { // Path 空时（权限不足）也按名杀
+			if err := KillProcess(int(p.Pid)); err != nil {
+				lastErr = err
+				continue
+			}
+			killed++
+		}
+	}
+	return killed, lastErr
 }
 
 // ------------------------------------------------------------ 站点（site list）
