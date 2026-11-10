@@ -60,7 +60,7 @@
 - **内嵌帮助**（`src/help-content.js` + `src/dialogs/help.js`）：初学者向帮助（上手、常见操作、平台差异、命令行备忘、FAQ）在应用内弹窗展示，中英双语；文中命令都在实机跑过，Windows 的 `start` 前台运行、`reload` 跨窗口失败等差异如实写明。
 - **前端点击测试台**（`frontend/devtest/`）：bindings 换成 mock 后用 Playwright（无头 Edge）遍历所有页面、弹窗与关键交互，逐屏截图并收集控制台错误，中英界面各跑一遍（`node run.mjs [en]`）。
 - **窗口与托盘**（`main.go`、`tray.go`、`service.go`）：`Frameless: true`，`WindowClosing` hook 默认取消关闭并隐藏；`appQuitting` 标记由弹窗「直接退出」或托盘「退出」置位后才放行真正的退出。
-- **交付形态**：Windows NSIS 安装包带对应架构的 `fast-https-desktop.exe`，桌面与开始菜单快捷方式指向它（`fast-https.exe` 是无控制台窗口的命令行服务端，双击不会出现界面）；Linux 的 `deb` / `rpm` / `apk` 是「主程序包 + 桌面端」的完整包，离线只装一个包即可启动服务，与独立主程序包声明 `Conflicts` / `Replaces` 避免同一路径被两个包各装一份。
+- **交付形态**：Windows NSIS 安装包带对应架构的 `fast-https-desktop.exe`，桌面与开始菜单快捷方式指向它（`fast-https.exe` 是无控制台窗口的命令行服务端，双击不会出现界面）；安装向导为定制界面（品牌图、产品化中英文案、完成页「运行」勾选、卸载确认明确告知数据清理范围），卸载先停进程再回收快捷方式/注册表/WebView2 配置目录与程序目录，不留残留。Linux 的 `deb` / `rpm` / `apk` 是「主程序包 + 桌面端」的完整包，离线只装一个包即可启动服务，与独立主程序包声明 `Conflicts` / `Replaces` 避免同一路径被两个包各装一份。
 
 ## 测试
 
