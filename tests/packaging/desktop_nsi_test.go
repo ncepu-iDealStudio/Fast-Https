@@ -97,9 +97,11 @@ func TestSetupUsesCustomWizard(t *testing.T) {
 		`File "/oname=wizard.ps1" "wizard.ps1"`,       // 向导脚本随包提供（安装段装进 $INSTDIR 供卸载用）
 		`File "/oname=appicon.png"`,                   // 品牌图随向导提取
 		`--self "$EXEPATH"`,                           // 向导知道引擎在哪（自身）
-		`IfSilent wizard_done`,                        // /S 引擎模式跳过向导
+		`IfSilent oninit_done`,                        // /S 引擎模式跳过向导（.onInit 宿主）
+		`Exec 'powershell -NoProfile -STA`,            // Exec 不等待不进 job：主进程 Quit 不杀向导
 		`--uninstall --self "$INSTDIR\uninstall.exe"`, // 卸载走向导确认页
 		`powershell -NoProfile -STA`,                  // WPF 向导需要 STA
+		`ShowInstDetails nevershow`,                   // 引擎界面彻底不可见（防「正在安装」窗口同屏）
 	} {
 		if !strings.Contains(nsi, want) {
 			t.Errorf("fast-https.nsi 缺少自绘向导接线：%s", want)

@@ -49,8 +49,11 @@ InstallDirRegKey HKLM "Software\${APP_NAME}" "InstallDir"
 ; exit 2 什么都没有——曾表现为「安装包打完装不上」。
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-ShowInstDetails show
-ShowUninstDetails show
+; 引擎界面彻底不可见：交互模式的界面 100% 由自绘向导负责（Section 宿主
+; 拉起 wizard.ps1 后 Quit），nsExec 的 ExecToLog 输出进 DetailView，而
+; DetailView 在 nevershow 下不会创建窗口；静默模式本来就无窗口。
+ShowInstDetails nevershow
+ShowUninstDetails nevershow
 
 VIProductVersion "${APP_VERSION4}"
 VIAddVersionKey "ProductName" "${APP_NAME}"
@@ -80,18 +83,29 @@ VIAddVersionKey "LegalCopyright" "GPL-2.0"
 !insertmacro MUI_LANGUAGE "English"
 
 ; ------------------------------------------------------------ 向导宿主
-; 交互模式：把界面交给自绘向导，向导点「安装」后静默调起本程序 /S
-; （引擎模式）完成安装；本实例随后退出，不再显示任何默认页面。
-; 静默模式（/S）：跳过本段，直接跑下面的安装段。
+; 交互模式在 .onInit 里把界面交给自绘向导后退出：用 Exec（ShellExecute，
+; 不等待、不进 job 对象）拉起向导，主进程 Quit 不会连带杀掉它——曾用
+; Section+nsExec 方案，引擎「正在安装」窗口（#32770）会与自绘向导同屏；
+; 曾用 .onInit+nsExec 方案，nsExec 等待子进程且子进程随主进程退出被杀，
+; 向导弹不出来。Exec+Quit 是两个问题的合解。静默模式（/S）直接走安装段。
 
-Section "-wizard host" SEC_WIZARD
-  IfSilent wizard_done
+Function .onInit
+  IfSilent oninit_done
   SetOutPath "$PLUGINSDIR"
   File "/oname=wizard.ps1" "wizard.ps1"
   File "/oname=appicon.png" "..\..\..\desktop\build\appicon.png"
-  nsExec::ExecToLog 'powershell -NoProfile -STA -ExecutionPolicy Bypass -File "$PLUGINSDIR\wizard.ps1" --self "$EXEPATH" --icon "$PLUGINSDIR\appicon.png" --title "${APP_NAME}" --version "${APP_VERSION}"'
+  Exec 'powershell -NoProfile -STA -ExecutionPolicy Bypass -File "$PLUGINSDIR\wizard.ps1" --self "$EXEPATH" --icon "$PLUGINSDIR\appicon.png" --title "${APP_NAME}" --version "${APP_VERSION}"'
   Quit
-wizard_done:
+oninit_done:
+FunctionEnd
+
+; ------------------------------------------------------------ 向导宿主（已并入 .onInit）
+; 历史方案留档：Section+nsExec（引擎窗口同屏）、.onInit+nsExec（子进程被
+; job 连杀）。现行为：上方 .onInit + Exec。
+
+Section "-wizard host" SEC_WIZARD
+  ; 静默模式不会走到这里（.onInit 的 IfSilent 分支直通安装段）；
+  ; 交互模式已在 .onInit 里 Quit。保留空段以防 MUI 依赖 Section 存在。
 SectionEnd
 
 ; ------------------------------------------------------------ 安装

@@ -363,11 +363,15 @@ function Show-Result([int]$code, [bool]$install, [string]$dest) {
 $dragBar.Add_MouseLeftButtonDown({ $window.DragMove() })
 $btnClose.Add_Click({ $window.Close() })
 
-# 安装目录默认值：优先沿用上次安装位置
+# 安装目录默认值：市面标准是 C:\Program Files\<产品名>。
+# 只在「上次安装目录真实存在且不在临时目录」时才沿用（升级重装体验），
+# 防止测试/卸载残留的 Temp 路径被当成默认值（曾表现为默认装到 %TEMP%）。
 $defaultDir = Join-Path $env:ProgramFiles $Title
 try {
     $reg = Get-ItemProperty 'HKLM:\Software\Fast-Https' -Name InstallDir -ErrorAction Stop
-    if ($reg.InstallDir) { $defaultDir = $reg.InstallDir }
+    $prev = $reg.InstallDir
+    $isTemp = $prev -and ($prev -like "$env:TEMP*" -or $prev -like "$env:TMP*" -or $prev -like "*\Temp\*")
+    if ($prev -and (Test-Path $prev) -and -not $isTemp) { $defaultDir = $prev }
 } catch { }
 
 function Open-Link([string]$url) { Start-Process $url }
