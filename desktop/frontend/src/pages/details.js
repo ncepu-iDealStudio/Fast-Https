@@ -1,6 +1,7 @@
 // 明细渲染：站点、证书、运行时路径，以及状态矩阵里的访问日志栏。
 // 站点行来自 ListSites()（model.Site：id/name/port/listen/tls/source/enabled/
-// certStatus/error），行内按钮用 data-id（站点名，site 命令的位置参数）。
+// error），行内按钮用 data-id（站点名，site 命令的位置参数）。证书的有效期
+// 与状态徽标只在证书页展示，站点页与矩阵只提示签发来源。
 import { $, esc } from '../ui/dom.js';
 import { iconSVG } from '../ui/icons.js';
 import { t } from '../i18n.js';
@@ -98,11 +99,10 @@ export function renderSites(sites, certs) {
           + iconSVG('trash')
           + '</button>';
         const detailBtn = '<button class="icon-btn site-more" data-id="' + esc(s.id) + '" title="' + esc(t('sites.detail')) + '">' + iconSVG('more') + '</button>';
-        const badge = certBadge(s.certStatus);
         const err = s.error ? '<span class="row-err" title="' + esc(s.error) + '">' + esc(s.error) + '</span>' : '';
         return `<div class="kv-row">`
           + `<span class="k">${esc(s.port || '—')}</span>`
-          + `<span class="v"><a class="site-link${off}" href="#" data-url="${esc(url)}" title="${esc(url)}">${esc(url)}</a>${badge}</span>`
+          + `<span class="v"><a class="site-link${off}" href="#" data-url="${esc(url)}" title="${esc(url)}">${esc(url)}</a></span>`
           + `<span class="n with-action"><span title="${esc(s.source || '')}">${esc(s.name || s.source || '')}</span>${err}${toggleBtn}${delBtn}${detailBtn}</span>`
           + `</div>`;
       }).join('')
@@ -115,12 +115,13 @@ export function renderSites(sites, certs) {
           if (c?.local || c?.selfSigned) { dot = 'warn'; text = t('matrix.localCert'); }
           else { dot = 'ok'; text = t('matrix.legendOk'); }
         }
-        const issuer = c ? (c.local ? t('certs.local') : (c.issuer || '—')) : (s.certStatus || '—');
+        // 证书列只提示签发来源（详情与有效期在证书页看），不放有效/到期徽标
+        const issuer = c ? (c.local ? t('certs.local') : (c.issuer || '—')) : '—';
         return `<tr>
           <td title="${esc(s.name)}">${esc(s.name)}</td>
           <td class="mono">${esc(s.port || '—')}</td>
           <td><span class="tls-pill ${s.tls ? 'on' : ''}">${s.tls ? 'ssl' : 'HTTP'}</span></td>
-          <td class="cert" title="${esc(issuer)}">${certBadge(s.certStatus) || esc(issuer)}</td>
+          <td class="cert" title="${esc(issuer)}">${esc(issuer)}</td>
           <td class="state-cell"><span class="matrix-state"><i class="dot ${dot}"></i>${text}</span></td>
         </tr>`;
       }).join('')
