@@ -27,8 +27,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework, WindowsBase, PresentationCore, System.Windows.Forms
 
-# 诊断：参数绑定快照（向导窗口起不来时可在 nsExec 日志里直接看到）
-Write-Host ("wizard diag: Self=[$Self] Icon=[$Icon] Version=[$Version] Uninstall=$Uninstall AutoInstall=[$AutoInstall]")
+# 诊断：参数绑定快照。只写诊断文件不进 stdout（向导以无窗口模式运行，
+# stdout 没人看，写文件才可在排障时拿到）。
+if ($env:TEMP) {
+    "Self=[$Self] Icon=[$Icon] Version=[$Version] Uninstall=$Uninstall AutoInstall=[$AutoInstall] PathMode=[$PathMode] Dir=[$Dir]" |
+        Out-File (Join-Path $env:TEMP "fast-https-wizard-diag.txt") -ErrorAction SilentlyContinue
+}
 
 # ---- 文案（中英，按系统语言选择） ----
 $zh = $PSUICulture -like 'zh*'

@@ -98,7 +98,8 @@ func TestSetupUsesCustomWizard(t *testing.T) {
 		`File "/oname=appicon.png"`,                   // 品牌图随向导提取
 		`--self "$EXEPATH"`,                           // 向导知道引擎在哪（自身）
 		`IfSilent oninit_done`,                        // /S 引擎模式跳过向导（.onInit 宿主）
-		`Exec 'powershell -NoProfile -STA`,            // Exec 不等待不进 job：主进程 Quit 不杀向导
+		`start "" /min powershell`,                    // 无窗口拉起：ShellExecute 最小化启动
+		`-WindowStyle Hidden`,                         // PS 自身窗口隐藏（无控制台黑窗）
 		`--uninstall --self "$INSTDIR\uninstall.exe"`, // 卸载走向导确认页
 		`powershell -NoProfile -STA`,                  // WPF 向导需要 STA
 		`ShowInstDetails nevershow`,                   // 引擎界面彻底不可见（防「正在安装」窗口同屏）

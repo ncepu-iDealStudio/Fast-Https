@@ -94,7 +94,11 @@ Function .onInit
   SetOutPath "$PLUGINSDIR"
   File "/oname=wizard.ps1" "wizard.ps1"
   File "/oname=appicon.png" "..\..\..\desktop\build\appicon.png"
-  Exec 'powershell -NoProfile -STA -ExecutionPolicy Bypass -File "$PLUGINSDIR\wizard.ps1" --self "$EXEPATH" --icon "$PLUGINSDIR\appicon.png" --title "${APP_NAME}" --version "${APP_VERSION}"'
+  ; Exec 走 ShellExecute 会给 powershell 分配一个控制台窗口（用户看到
+  ; 一个 cmd 黑窗）。改走 cmd /c start /min：仍以 ShellExecute 拉起、
+  ; 不等待、不进 job，但窗口最小化到任务栏；配合 wizard.ps1 自身的
+  ; -WindowStyle Hidden，任务栏条目也会很快消失，全程无可见窗口。
+  Exec 'cmd /c start "" /min powershell -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "$PLUGINSDIR\wizard.ps1" --self "$EXEPATH" --icon "$PLUGINSDIR\appicon.png" --title "${APP_NAME}" --version "${APP_VERSION}"'
   Quit
 oninit_done:
 FunctionEnd
@@ -219,7 +223,8 @@ SectionEnd
 Function un.onInit
   IfSilent un_done
   IfFileExists "$INSTDIR\wizard.ps1" 0 un_done
-  nsExec::ExecToLog 'powershell -NoProfile -STA -ExecutionPolicy Bypass -File "$INSTDIR\wizard.ps1" --uninstall --self "$INSTDIR\uninstall.exe" --title "${APP_NAME}"'
+  ; 与 .onInit 同理：start /min + -WindowStyle Hidden，全程无可见控制台
+  Exec 'cmd /c start "" /min powershell -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\wizard.ps1" --uninstall --self "$INSTDIR\uninstall.exe" --title "${APP_NAME}"'
   Quit
 un_done:
 FunctionEnd
