@@ -1,6 +1,6 @@
 # fast-https AI Agent 第一阶段执行计划
 
-修订日期：2026-11-10。状态：**A1–A6 已实施**（只读诊断与待审批）。自动摘除与 `cert renew` 仍见补齐计划 C6、C7。
+修订日期：2026-11-10。状态：**A1–A6 已实施**（只读诊断与待审批）。C6 的多上游与 `upstream drain`、C7 的 `cert renew` 通道已在 Server 侧落地。Agent 仍不能批准 `cert renew`。
 
 设计规范：[fast-https AI agent功能设计与开发规范.md](../../fast-https%20AI%20agent功能设计与开发规范.md)。  
 能力以扫描为准：[fast-https-AI-Agent源码扫描报告.md](../../fast-https-AI-Agent源码扫描报告.md)。  
@@ -26,7 +26,7 @@ CLI 增加只读的 `agent status|tasks|task get|approvals`。DSH 以后用 SSH 
 ## 2. 不做
 
 - 修改 `monitor/events.go` 的字段或新增 Monitor 事件类型。
-- 实现 `cert renew`、Upstream 故障转移、缓存清理命令、资源指标。
+- 把 `cert renew` 放进 Agent 批准。Server 通道已经有了，策略仍是 DENY。缓存清理命令、资源指标也不在本阶段。
 - 调用 `config apply`、`service reload`、`site *` 写命令、顶层 `start`/`stop`。
 - 引入 `github.com/openai/openai-go`。模型包只保留接口；未配置时路由器返回「模型不可用」，规则诊断继续。
 - 使用 Python 作为生产进程，或引入通用 Agent 框架。
@@ -194,6 +194,6 @@ A5 只依赖表结构，可以在 A3 之后立即做，让诊断结果能被看�
 只在本阶段测试通过后考虑，不提前写进 A1–A6 的文件：
 
 1. Upstream 故障转移本身（已有计划），然后才是摘除动作的策略与验证。
-2. `cert renew` 的回环令牌通道（CLI 计划 S13），然后才允许审批后的续期执行。
+2. 审批后的 `cert renew`。回环令牌通道已经落地，策略表仍拒绝这条命令，要单独再开批准步骤。
 3. 本地模型只改写诊断说明。已实现：配置 `FASTHTTPS_AGENT_MODEL_URL` 后走 OpenAI 兼容接口；超时、失败或说明里出现写命令时保留规则原文。分类、步骤和策略仍由 Go 决定。
 4. `agent approve`：只执行计划里已经写好的一条 `upstream drain` 或 `upstream undrain`。批准时核对 `plan_id` 与步骤哈希。哈希不一致或会摘掉最后一个地址时不改名单。模型不能把该步骤改成自动执行。`cert renew` 仍不能批准。

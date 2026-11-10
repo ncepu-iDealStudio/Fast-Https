@@ -21,7 +21,7 @@ func newCertCmd() *cobra.Command {
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
-	root.AddCommand(newCertListCmd(), newCertCheckCmd())
+	root.AddCommand(newCertListCmd(), newCertCheckCmd(), newCertRenewCmd())
 	return root
 }
 

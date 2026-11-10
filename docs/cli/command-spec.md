@@ -77,7 +77,7 @@
 |---|---|---|
 | `site list` … `site disable` | `site.*` | 已实现（写操作走事务） |
 | `cert list` / `cert check` | `cert.list` / `cert.check` | 已实现 |
-| `cert renew` | — | **未实现** |
+| `cert renew` | `cert.renew` | 已实现。本机 `127.0.0.1:9089`，令牌文件 `renew.token`，必须 `--yes` |
 | `logs access` / `logs query` | `logs.*` | 按规范范围实现情况见 usage §10 |
 | `monitor status` | `monitor.status` | 已实现（只读文件；无 Monitor 时为 `not_installed`） |
 | `monitor events` | `monitor.events` | 已实现 |
@@ -88,6 +88,7 @@
 |---|---|
 | `FASTHTTPS_STATE_DIR` | 状态目录（锁、配置版本、operation） |
 | `FASTHTTPS_RUNTIME_URL` | 覆盖默认 `http://127.0.0.1:9088/runtime` |
+| `FASTHTTPS_RENEW_URL` | 覆盖默认 `http://127.0.0.1:9089/renew` |
 | `FASTHTTPS_MONITOR_DIR` | 覆盖 Monitor 状态目录（默认 `<log_root>/monitor`） |
 | `FAST_HTTPS_LANG` / `--lang` | `en` / `zh` 帮助与部分文案 |
 
@@ -95,7 +96,7 @@
 
 ## operation 与 `--request-id`
 
-适用：`service reload`、`config apply`、`config rollback`、`site add/update/delete/enable/disable`。
+适用：`service reload`、`config apply`、`config rollback`、`site add/update/delete/enable/disable`、`upstream drain`、`upstream undrain`、`cert renew`。`cert renew` 的幂等记录写在 Server 进程里：同一个 `request_id` 不会向 CA 发第二次。
 
 - 相同 `request_id` + 相同参数：返回已有记录，不重复副作用。
 - 相同 `request_id` + 不同参数：退出码 10，`REQUEST_ID_CONFLICT`。

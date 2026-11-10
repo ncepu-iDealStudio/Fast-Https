@@ -47,6 +47,7 @@ func RegisterServices() {
 		AfterListen:        afterListen,
 		AfterStop: func() {
 			StopRuntimeEndpoint()
+			StopRenewEndpoint()
 			afterStop()
 		},
 	})

@@ -1,6 +1,6 @@
 # fast-https 核心补齐计划（为 AI Agent）
 
-修订日期：2026-11-09。状态：**C1–C5 已实施，C6、C7 未做。**
+修订日期：2026-11-10。状态：**C1–C7 已实施。** C7 只开放 CLI 续期通道。Agent 批准 `cert renew` 仍是 DENY。
 
 依据：[fast-https-AI-Agent源码扫描报告.md](../../fast-https-AI-Agent源码扫描报告.md)。  
 Agent 进程用 Go 实现，见规范第 1.4 节。本文不改语言选择，只列 Server、Monitor 与管理核心上还缺的观测和受控操作。Agent 任务在 [ai-agent-execution-plan.md](ai-agent-execution-plan.md)。
@@ -19,7 +19,7 @@ Agent 进程用 Go 实现，见规范第 1.4 节。本文不改语言选择，�
 | 5xx 没有拆开 502 / 504 | `runtime/metrics/requests.go` 的 `RequestEnd` 只按百位加一 | 规范 12.2 |
 | 上游失败不按地址拆 | `modules/proxy/metrics.go` 四个进程级计数，`noteDialFail` 不带地址 | 规范 12.1 的诊断，仍不能摘除节点 |
 | 没有多上游、没有摘除命令 | `docs/feature/7-proxy.md`：`proxy_pass` 单地址 | 规范 12.1 的 L2 修复 |
-| 没有 `cert renew` | `cmd/cert.go` 只有 `list` / `check`。续期在 `modules/certmanager` 进程内 | 规范 12.3 里经审批后的执行 |
+| 没有 `cert renew` | CLI 已把请求转到 `127.0.0.1:9089`。Agent 策略仍拒绝 `cert renew` | 规范 12.3 里经审批后的执行还没接到 `agent approve` |
 
 配置应用失败已经在 `management/operation` 里，状态为 `failed`。不再为它加 Monitor 事件，Agent 读 `operation list`。
 
@@ -119,9 +119,9 @@ Monitor 的 `5xx_ratio` 继续用 5xx 合计。502/504 的比例规则放到 C4 
 | 影响 | 大。Server 上新增本机写接口 |
 | 前置 | CLI 计划 S13 的安全要求。本步是那一节的落地顺序，不降低要求 |
 | 改动 | 与 `GET /runtime` 分开的本机监听。令牌文件在状态目录，权限 0600，启动时生成。请求必须带令牌且来自回环。`cert renew --domain <name> --yes --request-id` 把请求转给该接口。响应只含阶段 `obtained`、`written`、`reloaded`，不含私钥和 PEM。域名不在 `certmanager.Plan` 内则 404。失败不替换现有证书文件 |
-| 不改 | 不在 `/runtime` 上加写方法。Agent 策略表在本通道完成前保持 DENY |
-| 测试 | 无令牌、错令牌、非回环来源均拒绝。同一 `request_id` 不向 CA 发第二次。夹具私钥字符串不出现在响应、日志和 operation |
-| 验收 | S13 列出的拒绝用例全部有测试名。未通过前 `cmd/cert.go` 不加一个会真正发 CA 请求的子命令 |
+| 不改 | 不在 `/runtime` 上加写方法。Agent 策略表保持 DENY，`agent approve` 仍不能执行续期 |
+| 测试 | `TestRenewRejectsMissingToken`、`TestRenewRejectsWrongToken`、`TestRenewRejectsNonLoopback`、`TestRenewDomainOutsidePlan`、`TestRenewSameRequestIDCallsIssuerOnce`、`TestRenewFailureDoesNotReplaceCertificate`。夹具私钥字符串不出现在响应、日志和 operation |
+| 验收 | 上述测试已落地。生产路径在管理器未运行或 CA 失败时于写盘前返回 |
 
 ## 3. 顺序
 
@@ -139,6 +139,6 @@ C1 到 C3 可以在 Agent 进程开工之前做，也可以和 Agent 的只读�
 | C3 | 从事件流收到证书即将过期 | 续期 |
 | C4、C5 | 诊断里引用 502/504 和分地址失败 | 摘除节点 |
 | C6 | 在有替代地址时，经审批调用 drain | 无替代地址时自动摘除 |
-| C7 | 经审批调用 `cert renew` | 自主覆盖私钥 |
+| C7 | CLI 调用 `cert renew` | 批准后续期，以及自主覆盖私钥 |
 
 C1–C5 不改变 [ai-agent-execution-plan.md](ai-agent-execution-plan.md) 里「写操作 DENY」的策略。只有 C6、C7 的命令经过安全评审并有测试之后，才允许把对应动作从 DENY 改成 REQUIRE_APPROVAL。

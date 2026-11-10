@@ -503,6 +503,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `operation list` / `operation get` | 查询落盘的管理操作。`running` 且持有者进程已不在时对账为 `unknown` |
 | `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
 | `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
+| `cert renew --domain <域名> --yes --request-id <id>` | 把续期交给正在运行的进程。监听在 `127.0.0.1:9089`，与 `GET /runtime` 分开，只接受回环地址，并校验状态目录 `renew.token`（权限 0600，进程每次启动重写）。域名不在 ACME 托管名单里退出码 9。失败不替换现有证书。输出只有 `obtained`、`written`、`reloaded`，没有私钥和 PEM。同一 `request-id` 不会向 CA 发第二次 |
 | `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。含 `PrintErr` 以及控制台 Warn/Error 的镜像（`source:"console"`，`kind:"error"`） |
 | `logs access` | 只读 `access.log`，过滤条件同上，另有 `--status`（`500`、`4xx` 或 `400-499`） |
 | `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
@@ -547,7 +548,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 
 ### 10.2 机器可读输出与退出码
 
-根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前 `--json` 在下列命令上有效：`service version`、`service status`、`service reload`、`runtime status`、`runtime stats`、`monitor status`、`monitor events`、`agent status`、`agent tasks`、`agent task get`、`agent approvals`、`config show`、`config validate`、`config versions`、`config diff`、`config apply`、`config rollback`、`site list`、`site show`、`site add`、`site update`、`site delete`、`site enable`、`site disable`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`、`diagnose`、`operation list`、`operation get`，以及保持原格式的 `config path`。`--request-id` 用于修改类命令的幂等。`config path --json` 现有六个键，其中 `state` 是新增的管理状态目录。
+根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前 `--json` 在下列命令上有效：`service version`、`service status`、`service reload`、`runtime status`、`runtime stats`、`monitor status`、`monitor events`、`agent status`、`agent tasks`、`agent task get`、`agent approvals`、`config show`、`config validate`、`config versions`、`config diff`、`config apply`、`config rollback`、`site list`、`site show`、`site add`、`site update`、`site delete`、`site enable`、`site disable`、`cert list`、`cert check`、`cert renew`、`logs error`、`logs access`、`logs query`、`diagnose`、`operation list`、`operation get`，以及保持原格式的 `config path`。`--request-id` 用于修改类命令的幂等。`config path --json` 现有六个键，其中 `state` 是新增的管理状态目录。
 
 `--json` 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：
 
@@ -623,7 +624,7 @@ Windows 没有 `SIGHUP`。这条断线语义只在 Unix 上实现，Windows 上�
 | `engine` 配置段 | 主从注册的预留字段，当前不参与运行逻辑 |
 | 上游故障转移 | 未实现，单个上游不可用时直接返回错误页 |
 | 配置文件自动重载 | 暂不支持，监听文件变化后自动 reload 仍未排期 |
-| `cert renew` | 未实现。续期需要服务端写通道，本阶段不做；读取用 `cert list` 与 `cert check` |
+| `cert renew` | 服务进程没在跑、或状态目录里没有 `renew.token` 时退出码 4。Agent 不能批准这条命令 |
 | Monitor 进程 | 采集进程是独立二进制 `fast-https-monitor`，随 deb / rpm / apk 与归档发布，包内另有独立单元 `fast-https-monitor.service`；CLI 不启停它，只读 `status.json` 与 `events.jsonl`，文件不存在时 `monitor status` 为 `not_installed` |
 
 ## 14. 版本与许可

@@ -386,8 +386,8 @@ func (m *Manager) onEvent(ctx context.Context, event string, data map[string]any
 		}
 	case "cert_failed":
 		// 回落自签：现有证书保持不变，certmagic 会按退避重试。
-		logging.ConsoleLog.Error().Msgf("acme: certificate for %s could not be obtained, keeping the current certificate: %v",
-			name, data["error"])
+		// 不把 data["error"] 写进日志：CA 的错误文本不属于我们能保证不含密钥材料的范围。
+		logging.ConsoleLog.Error().Msgf("acme: certificate for %s could not be obtained, keeping the current certificate", name)
 	}
 	return nil
 }
@@ -458,6 +458,31 @@ type DomainPlan struct {
 type DomainSkip struct {
 	Name   string
 	Reason string
+}
+
+// Managed 报告这个域名是否在 Plan 的托管名单里。大小写和结尾的点不构成区别。
+func Managed(cfg *config.Fast_Https, domain string) bool {
+	name := normalizeName(domain)
+	if name == "" {
+		return false
+	}
+	for _, item := range Plan(cfg).Managed {
+		if item == name {
+			return true
+		}
+	}
+	return false
+}
+
+// Renew 让正在运行的 ACME 管理器向 CA 强制续期。
+// 管理器没在跑，或 CA 拒绝时，直接返回错误，不会调用 commit，已有证书文件保持不变。
+// 成功时 certmagic 的 cert_obtained 回调同步落盘并热替换。
+func Renew(ctx context.Context, domain string) error {
+	m := activeManager.Load()
+	if m == nil || m.magic == nil || m.stopped.Load() {
+		return errors.New("acme manager is not running")
+	}
+	return m.magic.RenewCertSync(ctx, normalizeName(domain), true)
 }
 
 // Plan 计算哪些 server_name 会走 ACME。纯函数、不写日志：

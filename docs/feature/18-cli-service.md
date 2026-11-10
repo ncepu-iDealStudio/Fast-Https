@@ -52,7 +52,7 @@ fast-https site add|update|delete|enable|disable [--json]  # 受控站点写操�
 - `config validate --candidate` 校验整棵候选目录（主文件 + `conf.d`），不再读线上 `conf.d`。
 - `service reload` / `config apply` 在 `/runtime` 可达时是强验证（`verification.level: runtime`，`reload_confirmed` 在生成号加一时为 true）；快照不可达时退回弱验证（`basic`）。`--dry-run` 始终是 basic。
 - Monitor 采集进程在 `monitor/`，作为独立可执行程序随 deb / rpm / apk 与归档发布，有独立的 systemd 单元。CLI 只读它的 `status.json` 与 `events.jsonl`，不启停它；文件不存在时 `monitor status` 是 `not_installed`。
-- `cert renew` 未实现。续期要在 Server 里加写通道，本阶段明确不做；`cert list` 与 `cert check` 覆盖读取。
+- `cert renew` 把请求交给 Server 上单独的 `127.0.0.1:9089`。令牌在状态目录 `renew.token`，权限 0600，每次启动重写。域名不在 ACME 托管名单里拒绝。失败不替换现有证书。响应、日志和 operation 都不含私钥。Agent 策略仍拒绝这条命令。
 - 命令字段、错误码与退出码以 [command-spec.md](../cli/command-spec.md) 为准。操作说明与退出码表的人类可读版本在 [usage.md](../usage.md) 第 10 节，两边不一致时改 `command-spec.md` 并同步 usage。示例只收录实际跑过的命令输出，见 [examples.md](../cli/examples.md)。
 - `config apply --dry-run` 不写正式配置、不 reload、默认不创建 operation。非 dry-run 必须 `--yes`（`--confirm` 同义）。`site add/update/delete/enable/disable` 同样要求 `--yes`（除非 `--dry-run`）。
 - 旧顶层 `reload` 仍保留原文案；`FindProcess`/发信号失败时仍 `Fatal`。新增端口被占用时改为命令失败，避免 Server 在 reload 时 `Fatal` 退出。
