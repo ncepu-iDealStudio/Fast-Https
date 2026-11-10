@@ -16,8 +16,6 @@ export const ICONS = {
   shield: '<path d="M12 3.2l7 2.7v5.3c0 4.3-2.8 8-7 9.6-4.2-1.6-7-5.3-7-9.6V5.9z"/><path d="M8.7 12.2l2.3 2.3 4.3-4.8"/>',
   // 日志：带行标的清单
   logs: '<path d="M9.5 6h11M9.5 12h11M9.5 18h11"/><circle cx="4.7" cy="6" r="1.25" fill="currentColor" stroke="none"/><circle cx="4.7" cy="12" r="1.25" fill="currentColor" stroke="none"/><circle cx="4.7" cy="18" r="1.25" fill="currentColor" stroke="none"/>',
-  // 命令面板：终端
-  terminal: '<rect x="3" y="4.5" width="18" height="15" rx="2.2"/><path d="M7.2 9.6l2.8 2.4-2.8 2.4M12.8 15h4.2"/>',
   // 打开配置目录：文件夹
   folder: '<path d="M3.5 6.8a2 2 0 0 1 2-2h3.4l2.1 2.3h7.5a2 2 0 0 1 2 2v8.7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/>',
   // 启动：实心三角

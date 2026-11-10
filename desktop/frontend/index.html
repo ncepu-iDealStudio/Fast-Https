@@ -32,7 +32,6 @@
       <button class="nav-item" data-nav="sites" title="站点" data-i18n-title="nav.sitesTip"><span class="ico" data-ic="globe"></span><span data-i18n="nav.sites">站点</span></button>
       <button class="nav-item" data-nav="certs" title="证书" data-i18n-title="nav.certsTip"><span class="ico" data-ic="shield"></span><span data-i18n="nav.certs">证书</span></button>
       <button class="nav-item" data-nav="logs" title="日志" data-i18n-title="nav.logsTip"><span class="ico" data-ic="logs"></span><span data-i18n="nav.logs">日志</span></button>
-    <button class="nav-item" data-nav="commands" title="命令面板" data-i18n-title="nav.commandsTip"><span class="ico" data-ic="terminal"></span><span data-i18n="nav.commands">命令面板</span></button>
       <div class="side-foot-wrap">
         <button class="side-foot" id="accountBtn" aria-haspopup="menu" aria-expanded="false">
           <span class="avatar">F</span><span class="acct-name" data-i18n="nav.account">本机管理</span><span class="ver" data-bind="version">1.7.0</span><span class="acct-caret" data-ic="chevronUp"></span>
@@ -197,21 +196,6 @@
           </section>
         </div>
 
-        <div class="pane" data-pane="commands" hidden>
-  <section class="card">
-    <div class="card-head"><h3 data-i18n="cmd.title">命令面板</h3><span class="card-note" data-i18n="cmd.note">CLI 命令的图形化入口，结果原样展示</span></div>
-    <p class="pane-notes" data-i18n-html="cmd.lede">桌面端不直接读写配置：这里的每条命令都转交主程序 <span class="mono">fast-https … --json</span>，由配置事务负责校验、恢复点与回滚。写操作请勾选「确认执行」，未勾选时自动以 <span class="mono">--dry-run</span> 预演。</p>
-    <div class="cmd-layout">
-      <div class="cmd-list" id="commandList"></div>
-      <div class="cmd-main">
-        <h4 id="cmdFormTitle" data-i18n="cmd.select">选择一条命令</h4>
-        <div id="cmdForm" class="site-form"></div>
-        <button class="btn primary" id="cmdRun" type="button" data-i18n="cmd.run">执行</button>
-        <pre class="cmd-result is-empty" id="cmdResult" data-i18n="cmd.resultEmpty">选择一条命令并点击「执行」。</pre>
-      </div>
-    </div>
-  </section>
-</div>
 <div class="pane" data-pane="settings" hidden>
           <section class="card config-card">
             <div class="card-head"><h3 data-i18n="settings.configTitle">主配置</h3><span class="card-note" data-i18n="settings.configNote">按字段编辑 fast-https.json</span></div>

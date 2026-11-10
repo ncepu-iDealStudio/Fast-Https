@@ -99,13 +99,6 @@ export const DesktopService = {
   },
   async PickPath() { return ''; },
   async MinimiseWindow() { }, async ToggleMaximiseWindow() { }, async HideWindow() { }, async QuitApp() { },
-  async ListCommands() {
-    return [
-      { group: '站点', name: 'site list', label: '列出站点', args: [], flags: ['--config'], needsYes: false, textOnly: false },
-      { group: '站点', name: 'site add', label: '新增站点', args: [], flags: ['--domain', '--root', '--listen', '--yes'], needsYes: true, textOnly: false },
-      { group: '服务', name: 'status', label: '服务运行状态', args: [], flags: [], needsYes: false, textOnly: true }
-    ];
-  },
   async RunCommand(args) {
     const key = args.slice(0, 2).join(' ');
     const data = {

@@ -127,15 +127,7 @@
 .log-empty { color: var(--faint); font-size: 12px; padding: 16px 0; }
 
 /* 命令面板：左侧清单 / 右侧参数与结果 */
-.cmd-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; margin-top: 12px; }
-.cmd-list { max-height: 460px; overflow-y: auto; border-right: 1px solid var(--line); padding-right: 10px; }
-.cmd-group h4 { margin: 12px 0 6px; font-size: 12px; color: var(--muted); }
-.cmd-item { display: block; width: 100%; text-align: left; padding: 6px 8px; border: 0; background: transparent; color: var(--text); cursor: pointer; border-radius: 6px; }
-.cmd-item:hover, .cmd-item.on { background: var(--accent-soft); }
-.cmd-item small { display: block; color: var(--muted); font-size: 11px; }
-.cmd-main { min-width: 0; }
-.cmd-main h4 { margin: 0 0 10px; }
-.cmd-check .form-control { display: flex; align-items: center; gap: 8px; }
+/* 命令结果代码块：操作详情、ACME 输出、帮助里的命令示例共用 */
 .cmd-result { margin-top: 12px; padding: 12px; max-height: 320px; overflow: auto; background: rgba(0,0,0,.04); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
 .cmd-result.is-empty { color: var(--muted); }
 .cmd-result.is-error { color: var(--danger); }

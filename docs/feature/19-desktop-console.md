@@ -6,7 +6,7 @@
 
 本机图形化管理端，用来查看 fast-https 的运行状态、管理站点与主配置、看证书与日志，并启停服务。它是**单窗口 + 后台托盘**的独立进程：不接管服务进程、不给主程序加 API、不监听新端口。
 
-**桌面端是 CLI 的图形前端**：所有状态读取与管理动作都转交同目录的 `fast-https <cmd> --json`，由主程序的配置事务负责校验、恢复点、reload 与回滚，桌面端与命令行看到的永远是同一套语义。点击站点页刷出站点列表，本质就是执行 `site list`；每个界面动作都有对应的 CLI 命令，全量命令树另有「命令面板」兜底。
+**桌面端是 CLI 的图形前端**：所有状态读取与管理动作都转交同目录的 `fast-https <cmd> --json`，由主程序的配置事务负责校验、恢复点、reload 与回滚，桌面端与命令行看到的永远是同一套语义。点击站点页刷出站点列表，本质就是执行 `site list`；每个界面动作都有对应的 CLI 命令。
 
 窗口没有系统标题栏，顶部通栏负责拖拽和窗口按钮；左下角「本机管理」菜单放外观设置、设置页入口、隐藏到托盘与帮助文档。点「关闭」会弹窗询问「隐藏到后台 / 直接退出 / 取消」，不会默默结束进程。
 
@@ -18,7 +18,6 @@
 | 证书 | `cert list` 显示主题、签发者、到期时间与剩余天数；行内「检查」对应 `cert check`（存在性/有效期/域名覆盖/密钥配对）；「ACME 设置」展示 `acme show`；「信任本地 CA…」给出导入系统信任库的引导 |
 | 日志 | `logs query` 按白名单字段筛选（级别、状态码、Host、方法、路径前缀、原因、时间），倒序滚动分页（`--until` 游标），支持 access / error / system / safe 四路 |
 | 设置 | 主配置表单的字段值来自 `config show`（脱敏）；保存写候选配置树后转交 `config apply` 事务（校验、恢复点、切换、reload、失败回滚）；「校验配置」对应 `config validate`；「配置版本」卡片对应 `config versions` / `config diff` / `config rollback`；只读展示 `config path` 的运行时路径 |
-| 命令面板 | CLI 命令树的通用图形入口（`ListCommands` / `RunCommand`）：35 条命令按组列出，动态生成参数表单，结果原样展示；写操作未勾「确认执行」时自动 `--dry-run` 预演 |
 
 「启动／停止服务」（大按钮）与「重载配置」（`service reload` 受控重载）收在概览页「运行概况」卡片右上；底部状态栏固定在窗口下沿，只放运行状态、pid、监听探测结果、刷新时间与两个图标按钮（启停、重载）。状态每 2 秒刷新一次（`service status` + `site list`，证书与配置提示有短 TTL 缓存）。版本号只在侧边栏显示一次。站点／证书／日志页不重复页面标题，说明文字直接铺在卡片里；窗口不显示页面大标题，内容直接从顶部铺满。
 
@@ -55,7 +54,6 @@
   | 证书列表 / 检查 / ACME | `cert list` / `cert check` / `acme show` |
   | 日志页 / 矩阵访问日志栏 | `logs query` / `logs access` |
   | 最近操作时间线 | `operation list` / `operation get` |
-  | 命令面板 | 全部 35 条命令 |
 
 - **候选配置树**（`internal/configops`）：保存表单时把主配置（改过字段）与 `conf.d` 站点文件副本搭成候选树（复刻主程序 `siteops.CloneLiveTree`），再 `config apply --candidate --yes`；桌面端只准备候选，不直接改线上配置。
 - **多语言**（`src/i18n.js` + `src/locales/`）：界面文案全部走 `t('key')`（静态 HTML 挂 `data-i18n`，动态渲染调 `t()`），中英字典各 437 key 一一对应，`npm run i18n:check` 自查一致性与覆盖率；加一种语言只加一个字典文件 + 注册表一行，缺 key 回落中文。语言切换整窗重载。
@@ -66,7 +64,7 @@
 
 ## 测试
 
-- `desktop/`：命令面板清单与 CLI 命令树双向比对、CLI 封套解析（`internal/cli`）、弹窗字段与 `site add/update` 参数翻译（`internal/siteops`）、表单字段解析与候选树搭建（`internal/configops`）、`site list` / `cert list` / `logs query` 数据映射（`internal/view`）（`go test ./...`、`go vet ./...`）。
+- `desktop/`：CLI 封套解析（`internal/cli`）、弹窗字段与 `site add/update` 参数翻译（`internal/siteops`）、表单字段解析与候选树搭建（`internal/configops`）、`site list` / `cert list` / `logs query` 数据映射（`internal/view`）、纯文本命令判定（`commands_test.go`）（`go test ./...`、`go vet ./...`）。
 - `tests/packaging/distro/desktop-deb.sh`：Ubuntu 24.04 容器里离线单包装 → 文件与二进制一致性 → 运行期资源 → `start` 监听 80/443 → 卸载清理，以及「已装独立主程序包再装桌面端包」的替换场景，实机 `ALL-PASS`。
 - 窗口交互、表单渲染与主题用 `frontend/devtest/` 的点击测试台遍历截图（中英双语界面）；Wails GUI 本身需要在桌面实机点一次。
 
@@ -76,7 +74,7 @@
 - 站点列表是 `site list` 的口径：只列 `http.include` 目录下的站点文件（含停用），主配置 `http.server[]` 内联的站点不进列表，只能在设置页的主配置表单里看与改。
 - 站点弹窗的字段是 `site add` / `site update` flag 的并集：自定义证书路径、自定义首页（index）与自定义文件名不在命令契约里，由配置事务按域名自动处理；需要这些能力时用命令行直接改站点 JSON。
 - 日志查询是 `logs query` 的白名单字段（不含原文、不含 user_agent、无关键词全文搜索），分页用 `--until` 时间游标而不是 offset；时间筛选接受时长（`1h`）或 RFC3339，纯日期会自动补全。
-- `acme show` 没有 JSON 输出，命令面板与 ACME 卡片展示的是它的文本结果。
+- `acme show` 没有 JSON 输出，ACME 设置卡片展示的是它的文本结果。
 - 设置页表单只做 JSON/JSONC **语法**校验，不判断配置语义；权威校验在 `config apply` 事务里。保存会重新格式化配置（JSONC 注释丢失），恢复点在配置版本里可回滚。
 - 配置事务的站点目录约定是 `conf.d`：`http.include` 里的绝对路径会被改写成 `["conf.d"]`（与 `site add` 事务一致）。
 - Linux 运行期需要 GTK4 + WebKitGTK 6.0，Windows 需要 WebView2 Runtime。

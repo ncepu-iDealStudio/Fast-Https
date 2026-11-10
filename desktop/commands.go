@@ -19,73 +19,16 @@ type CommandResult struct {
 	Text     string   `json:"text,omitempty"`
 }
 
-// commandSpec 是前端命令面板用的元数据：一条命令、它的参数与展示信息。
-// 清单在这里维护（与 CLI 命令树一一对应），前端只负责渲染表单与结果。
-type CommandSpec struct {
-	Group    string   `json:"group"`
-	Name     string   `json:"name"`
-	Label    string   `json:"label"`
-	Args     []string `json:"args"`
-	Flags    []string `json:"flags"`
-	NeedsYes bool     `json:"needsYes"`
-	TextOnly bool     `json:"textOnly"`
+// textOnlyCommands 是没有 --json 封套的命令（旧的纯文本命令，以及
+// config path、acme show 这两个特例）。这类命令不能补 --json，结果按
+// 纯文本返回。
+var textOnlyCommands = []string{
+	"status", "version", "start", "stop", "reload",
+	"config path", "acme show",
 }
 
-// commandSpecs 覆盖 CLI 的全部命令。加命令时只改这张表，不用动前端。
-// Flags 只列真实存在的 flag（与 cmd/ 命令树一一对应）；TextOnly 表示命令
-// 没有 --json 封套（含 acme show、config path 这两个特例）。
-var commandSpecs = []CommandSpec{
-	// ---- 站点 ----
-	{Group: "站点", Name: "site list", Label: "列出站点", Flags: []string{"--config"}},
-	{Group: "站点", Name: "site show", Label: "查看站点生效配置", Args: []string{"<name>"}, Flags: []string{"--merged", "--config"}},
-	{Group: "站点", Name: "site add", Label: "新增站点", Flags: []string{"--domain", "--root", "--proxy-pass", "--listen", "--tls", "--yes", "--dry-run", "--config"}, NeedsYes: true},
-	{Group: "站点", Name: "site update", Label: "更新站点", Args: []string{"<name>"}, Flags: []string{"--server-name", "--root", "--proxy-pass", "--listen", "--tls", "--yes", "--dry-run", "--config"}, NeedsYes: true},
-	{Group: "站点", Name: "site delete", Label: "删除站点", Args: []string{"<name>"}, Flags: []string{"--yes", "--dry-run", "--config"}, NeedsYes: true},
-	{Group: "站点", Name: "site enable", Label: "启用站点", Args: []string{"<name>"}, Flags: []string{"--dry-run", "--config"}},
-	{Group: "站点", Name: "site disable", Label: "停用站点", Args: []string{"<name>"}, Flags: []string{"--dry-run", "--config"}},
-	// ---- 配置 ----
-	{Group: "配置", Name: "config path", Label: "运行期路径", Flags: []string{"--config"}, TextOnly: true},
-	{Group: "配置", Name: "config show", Label: "显示配置（脱敏）", Flags: []string{"--section", "--config"}},
-	{Group: "配置", Name: "config validate", Label: "校验配置", Flags: []string{"--candidate", "--config"}},
-	{Group: "配置", Name: "config versions", Label: "配置版本", Flags: []string{"--config"}},
-	{Group: "配置", Name: "config diff", Label: "比较候选配置", Flags: []string{"--candidate", "--current", "--config"}},
-	{Group: "配置", Name: "config apply", Label: "应用候选配置", Flags: []string{"--candidate", "--yes", "--dry-run", "--config"}, NeedsYes: true},
-	{Group: "配置", Name: "config rollback", Label: "回滚版本", Flags: []string{"--version", "--yes", "--dry-run", "--config"}, NeedsYes: true},
-	// ---- 服务 ----
-	{Group: "服务", Name: "status", Label: "服务运行状态", TextOnly: true},
-	{Group: "服务", Name: "version", Label: "CLI 版本", TextOnly: true},
-	{Group: "服务", Name: "start", Label: "启动服务", TextOnly: true},
-	{Group: "服务", Name: "stop", Label: "停止服务", TextOnly: true},
-	{Group: "服务", Name: "reload", Label: "重载配置（快速）", TextOnly: true},
-	{Group: "服务", Name: "service status", Label: "服务状态（详细）", Flags: []string{"--config"}},
-	{Group: "服务", Name: "service version", Label: "CLI / 服务版本"},
-	{Group: "服务", Name: "service reload", Label: "受控重载", Flags: []string{"--dry-run", "--config"}},
-	// ---- 运行快照 ----
-	{Group: "运行", Name: "runtime status", Label: "当前运行态"},
-	{Group: "运行", Name: "runtime stats", Label: "累计统计", Flags: []string{"--since", "--domain"}},
-	{Group: "运行", Name: "diagnose", Label: "健康检查汇总", Flags: []string{"--config"}},
-	// ---- Monitor ----
-	{Group: "监控", Name: "monitor status", Label: "Monitor 状态", Flags: []string{"--config"}},
-	{Group: "监控", Name: "monitor events", Label: "Monitor 事件", Flags: []string{"--limit", "--severity", "--since", "--config"}},
-	// ---- 证书 ----
-	{Group: "证书", Name: "cert list", Label: "证书清单", Flags: []string{"--config"}},
-	{Group: "证书", Name: "cert check", Label: "检查域名证书", Flags: []string{"--domain", "--config"}},
-	{Group: "证书", Name: "acme show", Label: "ACME 设置", TextOnly: true},
-	// ---- 日志与操作记录 ----
-	{Group: "日志", Name: "logs access", Label: "访问日志", Flags: []string{"--limit", "--since", "--domain", "--status", "--config"}},
-	{Group: "日志", Name: "logs error", Label: "错误日志", Flags: []string{"--limit", "--since", "--domain", "--config"}},
-	{Group: "日志", Name: "logs query", Label: "按条件查询日志", Flags: []string{"--kind", "--limit", "--until", "--level", "--method", "--path-prefix", "--reason", "--status", "--since", "--domain", "--config"}},
-	{Group: "操作", Name: "operation list", Label: "近期操作", Flags: []string{"--limit", "--status", "--since"}},
-	{Group: "操作", Name: "operation get", Label: "查询一条操作", Args: []string{"<operation-id>"}, Flags: []string{}},
-	// ACME setup 是交互式向导，不适合放到通用命令面板里执行
-}
-
-// ListCommands 给前端命令面板用。
-func (s *DesktopService) ListCommands() []CommandSpec {
-	return commandSpecs
-}
-
-// RunCommand 转交一条 CLI 命令。
+// RunCommand 转交一条 CLI 命令，供界面里的补充面板使用
+// （运行快照、Monitor、操作记录、健康检查、证书检查、ACME、配置版本等）。
 //
 // args 由前端拼好（命令名 + 位置参数 + flag），这里只做基本的空白清理和
 // 结果封套转换；不做白名单校验——命令本身就是 CLI 的公开命令树，越权的
@@ -120,11 +63,8 @@ func (s *DesktopService) RunCommand(args []string) (CommandResult, error) {
 // isTextOnly 判断哪些命令没有 --json 封套（纯文本输出）。
 func isTextOnly(args []string) bool {
 	head := strings.Join(args, " ")
-	for _, c := range commandSpecs {
-		if !c.TextOnly {
-			continue
-		}
-		if head == c.Name || strings.HasPrefix(head, c.Name+" ") {
+	for _, name := range textOnlyCommands {
+		if head == name || strings.HasPrefix(head, name+" ") {
 			return true
 		}
 	}

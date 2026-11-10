@@ -56,7 +56,7 @@ try {
   check('概览渲染', await page.locator('#metricRunning').count() > 0);
 
   // 左侧导航逐个打开
-  for (const [key, label] of [['matrix', '矩阵'], ['sites', '站点'], ['certs', '证书'], ['logs', '日志'], ['commands', '命令面板']]) {
+  for (const [key, label] of [['matrix', '矩阵'], ['sites', '站点'], ['certs', '证书'], ['logs', '日志']]) {
     await page.click(`[data-nav="${key}"]`);
     await sleep(500);
     await shot('02-nav-' + label);
@@ -155,11 +155,6 @@ try {
     await sleep(400);
     await shot('17-logs-more');
   }
-
-  // 命令面板
-  await page.click('[data-nav="commands"]');
-  await sleep(300);
-  await shot('18-commands');
 
   check('无控制台错误', errors.length === 0, errors.slice(0, 5).join(' | '));
 } catch (e) {

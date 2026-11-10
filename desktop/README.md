@@ -96,7 +96,6 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 | 证书列表 / 检查 / ACME 设置 | `cert list` / `cert check` / `acme show` |
 | 日志页 / 矩阵访问日志栏 | `logs query` / `logs access` |
 | 最近操作时间线 | `operation list` / `operation get` |
-| 命令面板 | 全部 35 条命令（通用表单 + 原样结果） |
 
 命令的 `data` JSON 形状见 [docs/cli/cli-json-shapes.md](../docs/cli/cli-json-shapes.md)；`internal/cli` 解析封套，`internal/model` 做界面视图模型（例如合并 listen 拆行），不复制命令结构体。运行期路径仍由 `config path --json` 提供（归档 / deb / rpm / apk 布局由主程序按编译期基址算好，桌面端不拼路径）。本地保留的文件读取只有两处：搭建候选配置树（保存表单时）与文件元数据（大小/修改时间）。
 
@@ -158,7 +157,7 @@ src/
   ui/dom.js         $ / $$ / bind / esc / toast / localStorage
   ui/icons.js       统一线性图标集（24×24 描边 SVG，一处维护；静态页挂 data-ic，动态渲染调 iconSVG）
   ui/events.js      概览「最近事件」：操作记录（operation list/get）+ 本机动态时间线
-  pages/            overview / details / config / logs / commands / panels 六个页面模块
+  pages/            overview / details / config / logs / panels 五个页面模块
                     （panels.js = 运行快照、Monitor、ACME 三块卡片，手动刷新）
   dialogs/          close / confirm / site / trust / diagnose / certcheck / help 七个弹窗
   styles/           base / layout / components / pages（变量、骨架、组件、页面）
