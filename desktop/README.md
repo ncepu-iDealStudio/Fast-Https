@@ -64,6 +64,17 @@ go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/fast-h
 
 `build/` 已按范围清理：只保留 `appicon.png`、`config.yml`、共通与平台 Taskfile、Windows 图标/NSIS 脚本、Linux nfpm 与 `.desktop` 生成任务。iOS / Android / macOS 打包资产、MSIX、AppImage、RPM/Arch、server mode、Docker 交叉编译与模板占位配置都已删除，Taskfile 的 includes 与任务也同步精简。
 
+## 安装向导与卸载（Windows）
+
+NSIS 只当打包引擎，向导本身是定制过的：
+
+- **品牌图**：欢迎/完成页侧边图（164×314）与页眉图（150×57）由应用图标生成，桌面端与主程序安装器共用；换图标后跑 `build/windows/nsis/gen-wizard-bitmaps.ps1` 重新生成（脚本用 UTF-8 BOM，PowerShell 5.1 才认）。
+- **产品化文案**：欢迎页讲清「管理端与服务是两个程序」，完成页引导看帮助文档并带「运行 Fast-Https Desktop」勾选框，中英双语（覆盖 MUI 语言文件的同名 LangString）。
+- **卸载向导**：确认页明确列出清理范围（程序、配置、站点、证书、日志、状态、缓存全部删除，不留残留），并提示只想关窗口时用「隐藏到后台托盘」。
+- **卸载动作**：先 taskkill 掉 `fast-https-monitor.exe` / `fast-https-desktop.exe` / `fast-https.exe` 三个进程（服务占着 exe、日志与 pid 时删不干净），再回收桌面/开始菜单快捷方式（含用户后加的 `*.lnk`）、注册表卸载项、WebView2 配置目录 `%APPDATA%\fast-https-desktop.exe`，最后删程序目录（连同 `config` / `logs` / `state`）。Linux 全量包共用主包脚本：`preremove.sh` 停进程，`postremove.sh` 仅在 `purge` / `rpm -e` 时清数据，`/etc/fast-https` 只删空目录（用户的 `.bak` 备份保留）。
+
+这些语义由 `tests/packaging/desktop_nsi_test.go` 与 `postremove_test.go` 锁定。
+
 ## 自绘标题栏
 
 窗口用 `Frameless: true`，没有系统标题栏（图标、标题文字与系统按钮那条都不显示）。顶部通栏通过 `--wails-draggable: drag` 承担窗口拖拽，右侧三个自绘按钮按系统原生比例做成 46px 宽、撑满通栏高度、直角，图标是统一线宽的 SVG；分别调用 Go 侧 `MinimiseWindow` / `ToggleMaximiseWindow`。点「关闭」不直接隐藏，而是弹出询问框：

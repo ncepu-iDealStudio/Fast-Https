@@ -59,6 +59,12 @@ VIAddVersionKey "LegalCopyright" "GPL-2.0"
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !define MUI_UNFINISHPAGE_NOAUTOCLOSE
 
+; ---- 定制向导：品牌图与桌面端安装向导同一套（由应用图标生成，见
+; desktop/build/windows/nsis/gen-wizard-bitmaps.ps1）----
+!define MUI_WELCOMEFINISHPAGE_BITMAP "..\..\..\desktop\build\windows\nsis\wizard-side.bmp"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "..\..\..\desktop\build\windows\nsis\wizard-head.bmp"
+
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 ; 快捷方式与开始菜单由用户勾选，不强制创建
@@ -158,6 +164,10 @@ Section "Uninstall"
   Delete "$DESKTOP\Fast-Https 安装目录.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\*.lnk"
   RMDir "$SMPROGRAMS\${APP_NAME}"
+
+  ; 桌面端的 WebView2 配置目录（主题偏好、localStorage、缓存）也清掉：
+  ; 不删的话卸载完 %APPDATA%\fast-https-desktop.exe 还会留着
+  RMDir /r "$AppData\${DESKTOP_EXE}"
 
   RMDir /r "$INSTDIR"
 SectionEnd
