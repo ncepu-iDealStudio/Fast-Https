@@ -32,6 +32,8 @@
       <button class="nav-item" data-nav="sites" title="站点" data-i18n-title="nav.sitesTip"><span class="ico" data-ic="globe"></span><span data-i18n="nav.sites">站点</span></button>
       <button class="nav-item" data-nav="certs" title="证书" data-i18n-title="nav.certsTip"><span class="ico" data-ic="shield"></span><span data-i18n="nav.certs">证书</span></button>
       <button class="nav-item" data-nav="logs" title="日志" data-i18n-title="nav.logsTip"><span class="ico" data-ic="logs"></span><span data-i18n="nav.logs">日志</span></button>
+      <button class="nav-item" data-nav="runtime" title="运行快照" data-i18n-title="nav.runtimeTip"><span class="ico" data-ic="pulse"></span><span data-i18n="nav.runtime">运行快照</span></button>
+      <button class="nav-item" data-nav="operations" title="操作记录" data-i18n-title="nav.operationsTip"><span class="ico" data-ic="grid"></span><span data-i18n="nav.operations">操作记录</span></button>
       <div class="side-foot-wrap">
         <button class="side-foot" id="accountBtn" aria-haspopup="menu" aria-expanded="false">
           <span class="avatar">F</span><span class="acct-name" data-i18n="nav.account">本机管理</span><span class="ver" data-bind="version">1.7.0</span><span class="acct-caret" data-ic="chevronUp"></span>
@@ -154,15 +156,24 @@
           </section>
 
           <section class="card">
-            <div class="card-head"><h3 data-i18n="certs.acmeTitle">ACME 设置</h3><div class="card-head-actions"><span class="card-note" data-i18n="certs.acmeNote">acme show · 纯文本输出</span><button class="btn small" id="acmeRefresh" data-i18n="common.refresh">刷新</button></div></div>
-            <pre class="cmd-result is-empty" id="acmeShow" data-i18n="certs.acmeEmpty">尚未读取；点「刷新」读取当前 ACME 配置。</pre>
+            <div class="card-head"><h3 data-i18n="acme.title">ACME 自动签发</h3><div class="card-head-actions"><span class="card-note" data-i18n="acme.note">配置证书自动申请与续期</span><button class="btn small" id="acmeRefresh" data-i18n="common.refresh">刷新</button></div></div>
+            <div id="acmeForm" class="acme-form">
+              <div class="acme-row"><label class="acme-label" for="acmeEnabled" data-i18n="acme.enabled">启用自动签发</label><div class="acme-control"><input type="checkbox" id="acmeEnabled"/></div></div>
+              <div class="acme-row"><label class="acme-label" for="acmeEmail" data-i18n="acme.email">账户邮箱</label><div class="acme-control"><input id="acmeEmail" type="email" placeholder="you@example.com"/></div></div>
+              <div class="acme-row"><label class="acme-label" for="acmeCA" data-i18n="acme.ca">证书机构</label><div class="acme-control"><select id="acmeCA"><option value="letsencrypt" data-i18n="acme.caLetsencrypt">Let's Encrypt（正式）</option><option value="staging" data-i18n="acme.caStaging">Let's Encrypt（测试 staging）</option><option value="zerossl" data-i18n="acme.caZerossl">ZeroSSL</option></select></div></div>
+              <div class="acme-row"><label class="acme-label" for="acmeChallenge" data-i18n="acme.challenge">验证方式</label><div class="acme-control"><select id="acmeChallenge"><option value="auto">auto</option><option value="http-01">http-01</option><option value="tls-alpn-01">tls-alpn-01</option><option value="dns-01">dns-01</option></select></div></div>
+              <div class="acme-row"><label class="acme-label" for="acmeRenew" data-i18n="acme.renewBefore">提前续期（天）</label><div class="acme-control"><input id="acmeRenew" type="number" min="1" value="30"/></div></div>
+              <div class="acme-row"><label class="acme-label" for="acmeStorage" data-i18n="acme.storage">缓存目录</label><div class="acme-control"><input id="acmeStorage" type="text" placeholder="./cert/acme"/></div></div>
+              <div class="acme-row"><label class="acme-label" for="acmeFallback" data-i18n="acme.fallback">失败回落自签</label><div class="acme-control"><input type="checkbox" id="acmeFallback" checked/></div></div>
+              <div class="acme-actions"><button class="btn primary" id="acmeSave" data-i18n="acme.save">保存设置</button><span id="acmeStatus" class="acme-status"></span></div>
+            </div>
           </section>
         </div>
 
         <div class="pane" data-pane="logs" hidden>
           <section class="card">
             <div class="pane-notes">
-              <p class="lede" data-i18n="logs.lede">JSON 结构化 · 只读；切换 access / error / system / safe，按级别、状态、Host、方法、路径前缀与时间筛选，滚动加载更早记录。</p>
+              <p class="lede" data-i18n="logs.lede">JSON 结构化 · 只读；切换日志类型，按级别与状态快速筛选，实时拉取最新记录，滚动加载更早记录。</p>
             </div>
             <div class="log-switch">
               <div class="log-tabs">
@@ -171,28 +182,63 @@
                 <button class="btn small" data-log="system">system</button>
                 <button class="btn small" data-log="safe">safe</button>
               </div>
-              <button class="btn small" id="logRefresh" data-i18n="common.refresh">刷新</button>
+              <div class="log-switch-actions">
+                <label class="switch-label" title="每 2 秒拉取最新日志"><input type="checkbox" id="logLive" checked/><span data-i18n="logs.autoRefresh">实时</span></label>
+                <button class="btn small" id="logRefresh" data-i18n="logs.refresh">刷新</button>
+              </div>
             </div>
-            <div class="log-filters">
-              <input id="logLevel" type="text" placeholder="级别：info / error" data-i18n-placeholder="logs.levelPh"/>
-              <select id="logStatus" aria-label="状态码" data-i18n-aria="logs.statusAria">
-                <option value="" data-i18n="logs.statusAll">全部状态</option>
-                <option value="2xx">2xx</option>
-                <option value="3xx">3xx</option>
-                <option value="4xx">4xx</option>
-                <option value="5xx">5xx</option>
-              </select>
-              <input id="logHost" type="text" placeholder="Host：blog.example.com" data-i18n-placeholder="logs.hostPh"/>
-              <input id="logMethod" type="text" placeholder="方法：GET" data-i18n-placeholder="logs.methodPh"/>
-              <input id="logPathPrefix" type="text" placeholder="路径前缀：/api" data-i18n-placeholder="logs.pathPh"/>
-              <input id="logReason" type="text" placeholder="原因（safe）：blacklist" data-i18n-placeholder="logs.reasonPh"/>
-              <input id="logSince" type="text" placeholder="起：1h / 30m 或 RFC3339" data-i18n-placeholder="logs.sincePh"/>
-              <input id="logUntil" type="text" placeholder="止：10m / 1h 或 RFC3339" data-i18n-placeholder="logs.untilPh"/>
+            <div class="log-filters-primary">
+              <label class="filter-field"><span data-i18n="logs.level">级别</span>
+                <select id="logLevel"><option value="" data-i18n="logs.levelAll">全部</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option><option value="debug">debug</option></select>
+              </label>
+              <label class="filter-field"><span data-i18n="logs.status">状态码</span>
+                <select id="logStatus" aria-label="状态码" data-i18n-aria="logs.statusAria">
+                  <option value="" data-i18n="logs.statusAll">全部状态</option>
+                  <option value="2xx">2xx</option><option value="3xx">3xx</option><option value="4xx">4xx</option><option value="5xx">5xx</option>
+                </select>
+              </label>
               <button class="btn small" id="logApply" data-i18n="logs.apply">应用筛选</button>
               <button class="btn small" id="logReset" data-i18n="logs.reset">重置</button>
+              <button class="btn small ghost" id="logMoreFilters" data-i18n="logs.moreFilters">更多筛选 ▾</button>
             </div>
-            <div class="log-list" id="logList"><div class="log-empty" data-i18n="logs.loading">正在读取日志…</div></div>
+            <div class="log-filters-advanced" id="logAdvanced" hidden>
+              <label class="filter-field"><span data-i18n="logs.host">Host</span><input id="logHost" type="text" placeholder="blog.example.com" data-i18n-placeholder="logs.hostPh"/></label>
+              <label class="filter-field"><span data-i18n="logs.method">方法</span><input id="logMethod" type="text" placeholder="GET" data-i18n-placeholder="logs.methodPh"/></label>
+              <label class="filter-field"><span data-i18n="logs.pathPrefix">路径前缀</span><input id="logPathPrefix" type="text" placeholder="/api" data-i18n-placeholder="logs.pathPh"/></label>
+              <label class="filter-field"><span data-i18n="logs.reason">原因</span><input id="logReason" type="text" placeholder="blacklist" data-i18n-placeholder="logs.reasonPh"/></label>
+              <label class="filter-field"><span data-i18n="logs.since">起始</span><input id="logSince" type="text" placeholder="1h / RFC3339" data-i18n-placeholder="logs.sincePh"/></label>
+              <label class="filter-field"><span data-i18n="logs.until">截止</span><input id="logUntil" type="text" placeholder="10m / RFC3339" data-i18n-placeholder="logs.untilPh"/></label>
+            </div>
+            <div class="log-table">
+              <div class="log-head">
+                <span data-i18n="logs.colTime">时间</span><span data-i18n="logs.colLevel">级别</span>
+                <span data-i18n="logs.colMethod">方法</span><span data-i18n="logs.colPath">路径</span>
+                <span data-i18n="logs.colStatus">状态</span><span data-i18n="logs.colSize">大小</span>
+                <span data-i18n="logs.colHost">Host</span><span data-i18n="logs.colRemote">来源</span>
+                <span data-i18n="logs.colReason">原因</span>
+              </div>
+              <div class="log-list" id="logList"><div class="log-empty" data-i18n="logs.loading">正在读取日志…</div></div>
+            </div>
             <div class="log-footer"><span id="logStatusText">—</span><button class="btn small" id="logMore" hidden data-i18n="logs.more">加载更早</button></div>
+          </section>
+        </div>
+
+        <div class="pane" data-pane="runtime" hidden>
+          <section class="card">
+            <div class="card-head"><h3 data-i18n="runtime.pageTitle">运行快照</h3><div class="card-head-actions"><span class="card-note" data-i18n="runtime.pageNote">服务进程内的实时状态与累计统计</span><label class="switch-label"><input type="checkbox" id="runtimeLive" checked/><span data-i18n="runtime.autoRefresh">自动刷新（2 秒）</span></label><button class="btn small" id="rtPageRefresh" data-i18n="runtime.refresh">刷新</button></div></div>
+            <div class="runtime-grid" id="rtPageBody"><div class="runtime-empty" data-i18n="runtime.loading">正在读取运行快照…</div></div>
+            <div class="runtime-foot" id="rtPageFoot"></div>
+          </section>
+        </div>
+
+        <div class="pane" data-pane="operations" hidden>
+          <section class="card">
+            <div class="card-head"><h3 data-i18n="ops.pageTitle">操作记录</h3><div class="card-head-actions"><span class="card-note" data-i18n="ops.pageNote">配置事务的每次提交、回滚与重载</span><select id="opsStatusFilter"><option value="" data-i18n="ops.filterAll">全部状态</option><option value="succeeded">succeeded</option><option value="failed">failed</option><option value="running">running</option></select><button class="btn small" id="opsRefresh" data-i18n="ops.refresh">刷新</button></div></div>
+            <div class="ops-table">
+              <div class="ops-head"><span data-i18n="ops.colTime">时间</span><span data-i18n="ops.colCommand">命令</span><span data-i18n="ops.colStatus">状态</span><span data-i18n="ops.colId">操作 ID</span><span data-i18n="ops.colVersion">版本</span><span data-i18n="ops.colRestore">恢复点</span></div>
+              <div class="ops-list" id="opsList"><div class="runtime-empty" data-i18n="ops.empty">暂无操作记录。</div></div>
+            </div>
+            <div class="ops-detail" id="opsDetail" hidden></div>
           </section>
         </div>
 

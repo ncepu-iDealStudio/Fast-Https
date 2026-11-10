@@ -15,6 +15,8 @@ import { renderOverview } from './pages/overview.js';
 import { initConfigEditor, loadConfigVersions } from './pages/config.js';
 import { initLogPage, loadLogs, rerenderLogs } from './pages/logs.js';
 import { initPanels, refreshMatrixPanels, loadAcmeShow } from './pages/panels.js';
+import { initRuntimePage, refreshRuntimePage } from './pages/runtime.js';
+import { initOperationsPage, refreshOperationsPage } from './pages/operations.js';
 import { template as siteTemplate, initSiteDialog, initSiteLinks } from './dialogs/site.js';
 import { template as closeTemplate, initCloseDialog, openCloseDialog } from './dialogs/close.js';
 import { template as confirmTemplate, initConfirmDialog } from './dialogs/confirm.js';
@@ -87,6 +89,8 @@ function init() {
   initCertCheckDialog();
   initHelpDialog();
   initPanels();
+  initRuntimePage();
+  initOperationsPage();
   initEventsCard();
 
   $$('[data-nav]').forEach((n) => n.addEventListener('click', () => activate(n.getAttribute('data-nav'))));

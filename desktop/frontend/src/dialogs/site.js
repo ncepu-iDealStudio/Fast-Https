@@ -228,13 +228,31 @@ export function initSiteDialog() {
       const id = toggle.getAttribute('data-id');
       const enabled = toggle.getAttribute('data-enabled') === '1';
       const word = t(enabled ? 'dialog.site.enable' : 'dialog.site.disable');
+      toggle.disabled = true;
       try {
-        toast(await DesktopService.SetSiteEnabled(id, enabled));
+        const msg = await DesktopService.SetSiteEnabled(id, enabled);
+        toast(msg || t('toast.actionDone', { action: word }));
         await refreshDetails();
         await refreshOverview();
         refreshOperations();
       } catch (err) {
-        toast(t('toast.actionFailed', { action: word, msg: msgOf(err) }));
+        // Go 侧已把 CLI 封套错误翻成人话；这里再按场景补一句可操作的建议
+        const raw = msgOf(err);
+        let hint = raw;
+        if (!enabled && /\u552f\u4e00|\u5168\u90e8\u505c\u7528|no server configured|no usable site/i.test(raw)) {
+          hint = t('friendly.siteOnlyOne');
+        } else if (/\u5df2\u7ecf\u662f\u542f\u7528|already enabled/i.test(raw)) {
+          hint = t('friendly.siteAlreadyOn');
+        } else if (/\u5df2\u7ecf\u662f\u505c\u7528|already disabled/i.test(raw)) {
+          hint = t('friendly.siteAlreadyOff');
+        } else if (/\u627e\u4e0d\u5230|not found/i.test(raw)) {
+          hint = t('friendly.siteNotFound');
+        } else if (/\u5185\u8054|inline/i.test(raw)) {
+          hint = t('friendly.siteInline');
+        }
+        toast(hint);
+      } finally {
+        toggle.disabled = false;
       }
       return;
     }

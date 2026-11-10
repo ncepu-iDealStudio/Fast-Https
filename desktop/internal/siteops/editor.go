@@ -133,6 +133,21 @@ func planAdd(in SiteInput) ([][]string, error) {
 	return plan, nil
 }
 
+// runSite 统一执行站点 CLI：补 --config（配置树路径由主程序给出，不依赖
+// CWD），失败时把封套错误翻译成人话（cli.FriendlyError）。
+func runSite(dir string, args ...string) (any, error) {
+	paths := view.ResolvePaths(dir)
+	full := append([]string{}, args...)
+	if paths.Config != "" {
+		full = append(full, "--config", paths.Config)
+	}
+	data, _, err := cli.RunJSON[any](dir, full...)
+	if err != nil {
+		return nil, fmt.Errorf("%s", cli.FriendlyError(err, strings.Join(args, " ")))
+	}
+	return data, nil
+}
+
 // AddSite 受控新增站点：转交 site add（多域名再补一条 site update）。
 func AddSite(dir string, in SiteInput) (string, error) {
 	plan, err := planAdd(in)
@@ -142,7 +157,7 @@ func AddSite(dir string, in SiteInput) (string, error) {
 	primary := strings.Fields(in.Name)[0]
 	var msgs []string
 	for _, args := range plan {
-		data, _, err := cli.RunJSON[any](dir, args...)
+		data, err := runSite(dir, args...)
 		if err != nil {
 			if len(msgs) > 0 {
 				return "", fmt.Errorf("站点已创建但补充多域名失败：%w", err)
@@ -163,7 +178,7 @@ func DeleteSite(dir, id string) (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("缺少站点名")
 	}
-	data, _, err := cli.RunJSON[any](dir, "site", "delete", id, "--yes")
+	data, err := runSite(dir, "site", "delete", id, "--yes")
 	if err != nil {
 		return "", err
 	}
@@ -183,7 +198,7 @@ func SetSiteEnabled(dir, id string, enabled bool) (string, error) {
 	if enabled {
 		action, word = "enable", "启用"
 	}
-	data, _, err := cli.RunJSON[any](dir, "site", action, name)
+	data, err := runSite(dir, "site", action, name)
 	if err != nil {
 		return "", err
 	}
@@ -198,7 +213,7 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 		return SiteDetail{}, fmt.Errorf("缺少站点名")
 	}
 	paths := view.ResolvePaths(dir)
-	data, _, err := cli.RunJSON[any](dir, append([]string{"site", "show", id}, view.ConfigArg(paths)...)...)
+	data, err := runSite(dir, "site", "show", id)
 	if err != nil {
 		return SiteDetail{}, err
 	}
@@ -292,7 +307,7 @@ func SaveSiteDetail(dir string, in SiteInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, _, err := cli.RunJSON[any](dir, args...)
+	data, err := runSite(dir, args...)
 	if err != nil {
 		return "", err
 	}

@@ -16,7 +16,7 @@
 .side-foot:hover, .side-foot[aria-expanded="true"] { background: var(--surface); }
 .acct-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-caret { margin-left: 2px; color: var(--faint); font-size: 11px; }
-.avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); border: 1px solid var(--line-strong); display: grid; place-items:center; font-size: 10px; color: var(--accent); font-weight: 700; }
+.avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); border: 1px solid var(--line-strong); display: grid; place-items:center; font-size: 10px; color: var(--accent); font-weight: 600; }
 .side-foot .ver { margin-left: auto; font-size: 11px; color: var(--faint); }
 
 /* 工作区 */

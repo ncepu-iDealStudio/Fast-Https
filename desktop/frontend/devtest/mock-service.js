@@ -124,6 +124,7 @@ export const DesktopService = {
         { path: 'acme.email', op: 'modified', changed: true }
       ] },
       'config rollback': { dry_run: false, operation_id: 'op_009', status: 'succeeded', version: 'v012', restore_point: 'v013' },
+      'config show': { config: { acme: { enabled: false, email: '', ca: 'letsencrypt', challenge: 'auto', renew_before_days: 30, storage: './cert/acme', fallback_self_signed: true, staging: false } } },
       'config validate': { valid: true, file: 'C:\\demo\\config\\fast-https.json', candidate: false },
       'runtime status': { observed_at: '2026-11-10T02:20:00Z', source: 'runtime', state: 'running', pid: 1234, uptime_seconds: 5400, connections: { active: 3, accepted_total: 1000, closed_total: 997, rejected_total: 0 }, requests: { active: 1, total: 5000 } },
       'runtime stats': { observed_at: '2026-11-10T02:20:00Z', source: 'runtime', window: 'since_process_start', requests: { active: 1, total: 5000, parse_errors_total: 0, aborted_total: 0 }, responses: { '2xx_total': 4800, '3xx_total': 100, '4xx_total': 90, '5xx_total': 10, unknown_total: 0 }, upstream: { dial_fail_total: 0, idle_conns: 2 } },

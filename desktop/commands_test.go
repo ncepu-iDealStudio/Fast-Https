@@ -30,3 +30,40 @@ func TestRunCommandRejectsEmpty(t *testing.T) {
 		t.Fatal("只有空白的命令应被拒绝")
 	}
 }
+
+// TestShouldAddConfig 锁定「哪些命令自动补 --config」：
+// dev 模式下配置可能被放在任意目录（例如 desktop/bin/config），
+// 不能依赖 CLI 进程的 CWD 找 ./config/fast-https.json。
+func TestShouldAddConfig(t *testing.T) {
+	for _, args := range [][]string{
+		{"site", "list"},
+		{"site", "disable", "default"},
+		{"config", "show", "--section", "acme"},
+		{"cert", "list"},
+		{"monitor", "status"},
+		{"logs", "query", "--kind", "access"},
+		{"runtime", "status"},
+		{"diagnose"},
+		{"operation", "list", "--limit", "20"},
+	} {
+		if !shouldAddConfig(args) {
+			t.Errorf("%v 应自动补 --config", args)
+		}
+	}
+	for _, args := range [][]string{
+		{"site", "list", "--config", "/x/fast-https.json"}, // 已显式带
+		{"status"},
+		{"version"},
+		{"start"},
+		{"stop"},
+		{"reload"},
+		{"config", "path"},
+		{"acme", "show"},
+		{"acme", "setup", "--non-interactive", "--email", "a@b.c"},
+		{"service", "reload"},
+	} {
+		if shouldAddConfig(args) {
+			t.Errorf("%v 不应自动补 --config", args)
+		}
+	}
+}

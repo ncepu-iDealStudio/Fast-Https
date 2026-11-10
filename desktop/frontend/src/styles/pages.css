@@ -1,11 +1,11 @@
-/* 页面层：概览指标、状态矩阵、访问日志、日志页与设置页。 */
+﻿/* 页面层：概览指标、状态矩阵、访问日志、日志页与设置页。 */
 
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .metric { padding: 16px 14px 16px 0; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .metric:not(:first-child) { padding-left: 16px; }
 .metric:last-child { border-right: 0; }
 .m-label { font-size: 12px; color: var(--muted); }
-.m-value { font-size: 25px; font-weight: 650; line-height: 1.25; }
+.m-value { font-size: 25px; font-weight: 600; line-height: 1.25; }
 .m-value.state-ok { color: var(--ok); }
 .m-value.state-warn { color: var(--warn); }
 .m-value.state-off { color: var(--danger); }
@@ -15,9 +15,9 @@
 .config-line .k { color: var(--muted); }
 
 .alert-strip { display: flex; gap: 12px; align-items: flex-start; background: rgba(192,57,43,.06); border: 1px solid rgba(192,57,43,.22); border-radius: 8px; padding: 13px 16px; margin-bottom: 16px; color: var(--danger); }
-.alert-icon { width: 17px; height: 17px; flex: 0 0 17px; border: 1px solid currentColor; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; }
+.alert-icon { width: 17px; height: 17px; flex: 0 0 17px; border: 1px solid currentColor; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 600; }
 .alert-strip.is-warn { background: rgba(167,91,10,.06); border-color: rgba(167,91,10,.22); color: var(--warn); }
-.alert-strip strong { font-size: 13px; font-weight: 650; }
+.alert-strip strong { font-size: 13px; font-weight: 600; }
 .alert-strip p { margin: 4px 0 0; font-size: 12px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
 
 .two-col { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(0,1fr); gap: 16px; }
@@ -59,23 +59,38 @@
 .config-form { border-top: 1px solid var(--line); margin-top: 4px; }
 .config-group { padding: 14px 0 8px; border-bottom: 1px solid var(--line); }
 .config-group:last-child { border-bottom: 0; }
-.config-group-title { font-size: 12px; font-weight: 650; color: var(--text); margin: 0 0 8px; }
+.config-group-title { font-size: 12px; font-weight: 600; color: var(--text); margin: 0 0 8px; }
 
-.log-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
-.log-filters select, .log-filters input { height: 32px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; }
-.log-filters input { flex: 1 1 150px; min-width: 120px; }
-.log-list { flex: 1 1 auto; min-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; }
+/* 日志页：常用筛选一行，高级筛选折叠，实时开关，9 列结构化表格 */
+.log-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.log-switch-actions { display: flex; align-items: center; gap: 10px; }
+.switch-label { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.switch-label input { width: 14px; height: 14px; accent-color: var(--accent); }
+.log-filters-primary { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-bottom: 10px; }
+.log-filters-advanced { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; padding: 12px; margin-bottom: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.filter-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.filter-field > span { font-size: 11px; color: var(--muted); }
+.filter-field select, .filter-field input { height: 32px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 12px; width: 100%; min-width: 0; }
+.btn.ghost { background: transparent; border: 1px dashed var(--line-strong); }
+.log-table { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.log-head, .log-row { display: grid; grid-template-columns: 92px 54px 56px minmax(90px, 1.1fr) 56px 68px minmax(90px, 1fr) 100px minmax(110px, 1.4fr); gap: 8px; align-items: center; }
+.log-head { padding: 8px 12px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 600; color: var(--muted); }
+.log-head > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-list { flex: 1 1 auto; min-height: 180px; max-height: 420px; overflow-y: auto; }
 [data-pane="logs"] .card { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; margin-bottom: 0; }
-.log-row { display: grid; grid-template-columns: 74px 58px minmax(0,1fr); gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); font: 12px/1.6 Consolas, "Courier New", monospace; }
+.log-row { padding: 8px 12px; border-bottom: 1px solid var(--line); font: 12px/1.6 Consolas, "Courier New", monospace; }
 .log-row:last-child { border-bottom: 0; }
 .log-row:hover { background: var(--accent-soft); }
+.log-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .log-time { color: var(--faint); }
 .log-level { font-weight: 600; }
 .log-level.lv-info { color: var(--ok); }
 .log-level.lv-warn { color: var(--warn); }
 .log-level.lv-error { color: var(--danger); }
-.log-msg { overflow-wrap: anywhere; }
-.log-msg small { display: block; color: var(--faint); font-size: 11px; margin-top: 2px; }
+.log-status.ok { color: var(--ok); }
+.log-status.warn { color: var(--warn); }
+.log-status.err { color: var(--danger); }
+.log-reason small { display: block; color: var(--faint); font-size: 11px; margin-top: 2px; white-space: normal; overflow-wrap: anywhere; }
 .log-empty { padding: 20px; text-align: center; color: var(--faint); font-size: 12px; }
 .log-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 12px; color: var(--faint); }
 
@@ -85,7 +100,7 @@
 .ms-lamp { width: 10px; height: 10px; flex: 0 0 10px; border-radius: 50%; background: var(--faint); box-shadow: 0 0 0 4px var(--accent-soft); }
 .ms-lamp.on { background: var(--ok); box-shadow: 0 0 0 4px rgba(22,121,74,.12); }
 .ms-lamp.off { background: var(--danger); box-shadow: 0 0 0 4px rgba(192,57,43,.10); }
-.ms-left strong { display: block; font-size: 17px; font-weight: 650; }
+.ms-left strong { display: block; font-size: 17px; font-weight: 600; }
 .ms-left small { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; }
 .ms-metrics { display: flex; gap: 26px; flex-wrap: wrap; }
 .ms-metrics div { display: flex; flex-direction: column; gap: 3px; }
@@ -131,3 +146,46 @@
 .cmd-result { margin-top: 12px; padding: 12px; max-height: 320px; overflow: auto; background: rgba(0,0,0,.04); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
 .cmd-result.is-empty { color: var(--muted); }
 .cmd-result.is-error { color: var(--danger); }
+
+
+/* 运行快照页：卡片网格 */
+.runtime-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.rt-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+.rt-card h4 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.rt-kv { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px dashed var(--line); font-size: 12px; }
+.rt-kv:last-child { border-bottom: 0; }
+.rt-k { color: var(--muted); }
+.rt-v { color: var(--text); font-variant-numeric: tabular-nums; }
+.runtime-empty { padding: 24px; text-align: center; color: var(--faint); font-size: 12px; }
+.runtime-empty.is-warn { color: var(--warn); }
+.runtime-empty small { display: block; margin-top: 6px; color: var(--faint); font-size: 11px; }
+.runtime-foot { margin-top: 10px; font-size: 11px; color: var(--faint); text-align: right; }
+
+/* 操作记录页：表格 + 详情 */
+.ops-table { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.ops-head, .ops-row { display: grid; grid-template-columns: 160px minmax(110px, 1fr) 110px minmax(150px, 1.3fr) 80px 90px; gap: 10px; align-items: center; padding: 9px 12px; }
+.ops-head { background: var(--surface); border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 600; color: var(--muted); }
+.ops-list { max-height: 460px; overflow-y: auto; }
+.ops-row { border-bottom: 1px solid var(--line); font-size: 12px; cursor: pointer; }
+.ops-row:last-child { border-bottom: 0; }
+.ops-row:hover { background: var(--accent-soft); }
+.ops-row.is-open { background: var(--accent-soft); }
+.ops-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ops-detail { margin-top: 12px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.ops-detail-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+.ops-detail-summary { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.ops-detail summary { cursor: pointer; font-size: 12px; color: var(--muted); }
+.ops-detail .cmd-result { max-height: 320px; }
+
+
+/* ACME 图形化表单 */
+.acme-form { display: grid; gap: 2px; }
+.acme-row { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 14px; align-items: center; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+.acme-row:last-of-type { border-bottom: 0; }
+.acme-label { font-size: 12px; color: var(--muted); }
+.acme-control input[type="text"], .acme-control input[type="email"], .acme-control input[type="number"], .acme-control select { width: 100%; max-width: 420px; height: 32px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px; }
+.acme-control input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+.acme-actions { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.acme-status { font-size: 12px; color: var(--muted); }
+.acme-status.is-error { color: var(--danger); }
+.acme-status.is-ok { color: var(--ok); }

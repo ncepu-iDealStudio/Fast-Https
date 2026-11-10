@@ -1,22 +1,24 @@
-// 工作区切换：pane 显隐、导航高亮、按需加载设置页与各卡片数据，
-// 并刷新明细数据。新增卡片（运行快照/Monitor/ACME/配置版本）的刷新
-// 各自管理，只在进入页面时拉取，不进定时轮询。
+// 工作区切换：pane 显隐、导航高亮、按需加载页面，并刷新明细数据。
 import { $$ } from './ui/dom.js';
 import { state } from './state.js';
-import { loadConfig, loadConfigVersions } from './pages/config.js';
-import { refreshMatrixPanels, loadAcmeShow } from './pages/panels.js';
+import { loadConfig } from './pages/config.js';
 import { refreshDetails } from './refresh.js';
+import { refreshRuntimePage } from './pages/runtime.js';
+import { refreshOperationsPage } from './pages/operations.js';
+import { refreshMatrixPanels, loadAcmeShow } from './pages/panels.js';
+import { refreshOperations } from './ui/events.js';
 
 export function activate(key) {
   $$('[data-pane]').forEach((p) => { p.hidden = p.getAttribute('data-pane') !== key; });
   $$('[data-nav]').forEach((n) => {
     n.classList.toggle('on', n.getAttribute('data-nav') === key);
   });
-  if (key === 'settings') {
-    if (!state.configLoaded) loadConfig();
-    loadConfigVersions();
-  }
+  // 切到某页时才拉它的数据：避免后台页面空转轮询
+  if (key === 'settings' && !state.configLoaded) loadConfig();
   if (key === 'matrix') refreshMatrixPanels();
   if (key === 'certs') loadAcmeShow();
+  if (key === 'runtime') refreshRuntimePage();
+  if (key === 'operations') refreshOperationsPage();
+  if (key === 'overview') refreshOperations();
   refreshDetails();
 }

@@ -152,6 +152,7 @@ archives:
       - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
+      - config/monitor.json
       - docs/usage.html
       - httpdoc/root/favicon.ico
       - httpdoc/root/index.html
@@ -177,6 +178,7 @@ archives:
       - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
+      - config/monitor.json
       - docs/usage.html
       - httpdoc/root/favicon.ico
       - httpdoc/root/index.html
@@ -202,6 +204,7 @@ archives:
       - config/conf.d/default.json
       - config/fast-https.json
       - config/mime.json
+      - config/monitor.json
       - docs/usage.html
       - httpdoc/root/favicon.ico
       - httpdoc/root/index.html

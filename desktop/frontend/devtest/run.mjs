@@ -58,6 +58,18 @@ try {
   await shot('01-overview');
   check('概览渲染', await page.locator('#metricRunning').count() > 0);
 
+  // 全局体检：DOM 里不允许出现重复 id。$('#x') 只拿第一个，重复 id 会让
+  // 后出现的那个元素永远拿不到数据（运行快照页就踩过：旧面板与新页面同 id，
+  // 新页面一直是 loading 占位）。这类 bug 界面看起来"没报错"，极难发现。
+  const dupIds = await page.evaluate(() => {
+    const seen = new Map();
+    document.querySelectorAll('[id]').forEach((el) => {
+      seen.set(el.id, (seen.get(el.id) || 0) + 1);
+    });
+    return [...seen.entries()].filter(([, n]) => n > 1).map(([id, n]) => id + '×' + n);
+  });
+  check('DOM 无重复 id', dupIds.length === 0, dupIds.join(', '));
+
   // 服务未启动场景：TailLog 失败不应连累站点/证书/路径（磁盘数据不依赖服务）
   if (stopped) {
     await page.click('[data-nav="sites"]');
@@ -75,6 +87,28 @@ try {
     await sleep(500);
     await shot('02-nav-' + label);
   }
+
+  // 新增页面：运行快照、操作记录、日志实时、ACME 表单
+  await page.click('[data-nav="runtime"]');
+  // 等卡片真正渲染（loading 占位消失），否则截图只有"正在读取…"
+  await page.waitForSelector('#rtPageBody .rt-card, #rtPageBody .runtime-empty', { timeout: 5000 }).catch(() => {});
+  check('运行快照页渲染', await page.locator('#rtPageBody .rt-card').count() > 0,
+    'cards=' + await page.locator('#rtPageBody .rt-card').count());
+  await shot('07-runtime');
+  await page.click('[data-nav="operations"]');
+  await page.waitForSelector('#opsList .ops-row, #opsList .runtime-empty', { timeout: 5000 }).catch(() => {});
+  check('操作记录页渲染', await page.locator('#opsList .ops-row').count() > 0);
+  await shot('08-operations');
+  await page.click('[data-nav="logs"]');
+  check('日志实时开关存在', await page.locator('#logLive').count() > 0);
+  check('日志高级筛选默认收起', await page.locator('#logAdvanced').isHidden());
+  await page.click('#logMoreFilters');
+  check('日志高级筛选可展开', await page.locator('#logAdvanced').isVisible());
+  await page.click('#logMoreFilters');
+  await page.click('[data-nav="certs"]');
+  await sleep(300);
+  check('ACME 图形化表单', await page.locator('#acmeForm #acmeEmail').count() > 0 && await page.locator('#acmeSave').count() > 0);
+  await shot('09-acme-form');
 
   // 站点页：添加站点弹窗 + 协议/端口联动
   await page.click('[data-nav="sites"]');
