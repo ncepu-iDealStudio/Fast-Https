@@ -1,7 +1,8 @@
 // 前端点击测试：启动 mock 后端的 Vite，Playwright（Edge 无头）把所有
 // 页面、弹窗、关键交互点一遍，逐屏截图到 shots/，并收集控制台错误。
-// 用法：cd desktop/frontend/devtest && npm install && node run.mjs [en]
-// 不带参数走中文界面；带 en 走英文界面（验证 i18n）。
+// 用法：cd desktop/frontend/devtest && npm install && node run.mjs [en] [stopped]
+// 不带参数走中文界面；带 en 走英文界面（验证 i18n）；
+// 带 stopped 走「服务未启动」场景（TailLog 报错，站点/证书仍应渲染）。
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -13,6 +14,8 @@ const shots = path.join(here, 'shots');
 mkdirSync(shots, { recursive: true });
 const lang = process.argv[2] === 'en' ? 'en' : 'zh-CN';
 const suffix = lang === 'en' ? '-en' : '';
+const stopped = process.argv.includes('stopped');
+const query = stopped ? '?stopped=1' : '';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -50,10 +53,21 @@ function check(name, ok, detail) {
 }
 
 try {
-  await page.goto('http://localhost:9247/');
+  await page.goto('http://localhost:9247/' + query);
   await sleep(800);
   await shot('01-overview');
   check('概览渲染', await page.locator('#metricRunning').count() > 0);
+
+  // 服务未启动场景：TailLog 失败不应连累站点/证书/路径（磁盘数据不依赖服务）
+  if (stopped) {
+    await page.click('[data-nav="sites"]');
+    await sleep(500);
+    const rows = await page.locator('#sitesTable .kv-row').count();
+    const siteLabel = await page.locator('#siteCountLabel').textContent();
+    check('服务停止时站点仍刷出', rows > 1 && Number(siteLabel) > 0,
+      `rows=${rows} countLabel=${siteLabel}`);
+    await shot('02-stopped-sites');
+  }
 
   // 左侧导航逐个打开
   for (const [key, label] of [['matrix', '矩阵'], ['sites', '站点'], ['certs', '证书'], ['logs', '日志']]) {

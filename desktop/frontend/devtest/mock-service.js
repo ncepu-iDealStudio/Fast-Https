@@ -1,11 +1,16 @@
 // 点击测试台的 DesktopService 假实现：返回贴近 model.go 契约的样例数据，
 // 让页面在纯浏览器里能渲染、能点。字段名与 desktop/internal/model/*.go
 // 的 json tag 一致，改契约时这里要跟着改。
+// ?stopped=1 模拟「服务未启动」：GetOverview 报 stopped，TailLog 抛错
+// （日志文件可能还不存在），但 ListSites / ListCerts / Paths 照常返回——
+// 用来验证磁盘数据不依赖服务进程、明细页不会整片留白。
+const STOPPED = typeof location !== 'undefined' && /[?&]stopped=1/.test(location.search);
 export const DesktopService = {
   async GetOverview() {
     return {
-      status: 'running', running: true, pid: 1234, version: 'fast-https V1.7.0',
-      uptimeSeconds: 5400, configVersion: 'v013',
+      status: STOPPED ? 'stopped' : 'running', running: !STOPPED, pid: STOPPED ? 0 : 1234,
+      version: 'fast-https V1.7.0',
+      uptimeSeconds: STOPPED ? 0 : 5400, configVersion: 'v013',
       ports: [':80', ':443'], siteCount: 2, tlsCount: 1, nearestCertDays: 80,
       configDirty: false,
       paths: {
@@ -32,6 +37,9 @@ export const DesktopService = {
     }];
   },
   async TailLog() {
+    // 服务未启动时日志文件可能不存在：模拟 CLI 报错，用于验证
+    // refreshDetails 不会因为它把站点/证书/路径一起带崩。
+    if (STOPPED) throw new Error('log source unavailable: access.log not found');
     return [
       { time: '2026-11-10T02:20:05.123', level: 'info', kind: 'access', message: 'request served', method: 'GET', path: '/index.html', status: '200', size: '1234', host: 'blog.example.com', remoteAddr: '127.0.0.1', raw: '{}' },
       { time: '2026-11-10T02:19:05.123', level: 'info', kind: 'access', message: 'request served', method: 'POST', path: '/api/ping', status: '500', size: '12', host: 'api.example.com', remoteAddr: '127.0.0.1', raw: '{}' }

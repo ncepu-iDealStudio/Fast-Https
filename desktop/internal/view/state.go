@@ -384,7 +384,9 @@ func CollectOverview(dir string) Overview {
 	paths := ResolvePaths(dir)
 	ov.Paths = paths
 
-	// service status：只读查询，服务没在跑也成功。
+	// service status：只读查询，服务没在跑也成功（status=stopped）。
+	// 拿不到时只把状态标成 unknown，不当成「读取失败」——站点、证书、
+	// 路径都是纯磁盘数据，服务没启动完全不影响它们刷出来。
 	if data, _, err := cli.RunJSON[any](dir, append([]string{"service", "status"}, ConfigArg(paths)...)...); err == nil {
 		m := cli.AsMap(data)
 		ov.Status = cli.Str(m, "status")
@@ -401,10 +403,11 @@ func CollectOverview(dir string) Overview {
 		}
 		sort.Strings(ov.Ports)
 	} else {
-		ov.Error = err.Error()
+		ov.Status = "unknown"
 	}
 
 	// site list：站点数与 TLS 站点数（按唯一站点计，不按拆行后的行数）。
+	// 站点数据是磁盘上的站点文件，服务没启动也照常列出。
 	if data, err := runSiteList(dir); err == nil {
 		seen := map[string]bool{}
 		for _, s := range siteRows(cli.AsMap(data)) {
