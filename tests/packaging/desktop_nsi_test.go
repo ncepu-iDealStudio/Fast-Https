@@ -182,3 +182,28 @@ func TestWindowsExeDefinesMatchInstalledNames(t *testing.T) {
 		t.Error("wails_tools.nsh 的 PRODUCT_EXECUTABLE 应保持 ${INFO_PROJECTNAME}.exe（taskkill 依赖它）")
 	}
 }
+
+// TestTrayHasServiceActions 锁住托盘菜单的服务操作：托盘常驻是桌面的
+// 第二入口，用户要求它支持基本的启停，缺了就是功能回退。
+func TestTrayHasServiceActions(t *testing.T) {
+	src := string(readPkgFileBytes(t, "desktop/tray.go"))
+	for _, want := range []string{
+		`menu.Add("启动服务")`,
+		`menu.Add("停止服务")`,
+		`menu.Add("重载配置")`,
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("tray.go 托盘菜单缺少服务操作：%s", want)
+		}
+	}
+}
+
+// readPkgFileBytes 与 readPkgFile 相同但返回原始字节，供非文本断言。
+func readPkgFileBytes(t *testing.T, rel string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "..", filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	return data
+}

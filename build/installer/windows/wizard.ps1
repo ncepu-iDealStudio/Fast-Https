@@ -60,7 +60,7 @@ $T = if ($zh) {
         customize = '自定义安装 ▾'
         customizeOn = '收起 ▴'
         starLead = '如果 Fast-Https 帮到了你，请在仓库点个 Star——这对我们意义重大'
-        starBtn = '去点 Star ✦'
+        starBtn = 'Star'
         doneTitle = '安装完成'
         doneSub = '已安装到'
         runApp = '运行 Fast-Https Desktop'
@@ -99,8 +99,8 @@ $T = if ($zh) {
         optPath = 'Add to system PATH (run fast-https from any terminal)'
         customize = 'Customize install ▾'
         customizeOn = 'Collapse ▴'
-        starLead = 'If Fast-Https helps you, a star on the repo means a lot to us'
-        starBtn = 'Star it ✦'
+        starLead = 'If Fast-Https helps you, a GitHub star means a lot'
+        starBtn = 'Star'
         doneTitle = 'Installation complete'
         doneSub = 'Installed to'
         runApp = 'Run Fast-Https Desktop'
@@ -124,7 +124,7 @@ $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Width="560" Height="420" WindowStartupLocation="CenterScreen"
+        Width="560" Height="400" WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize" ShowInTaskbar="True" FontFamily="Microsoft YaHei UI"
         UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
   <Border Background="#FFFFFF" CornerRadius="14" Margin="14">
@@ -179,32 +179,52 @@ $xaml = @'
                     Background="Transparent" BorderBrush="#D7DBE1" BorderThickness="1" Content="…"/>
           </StackPanel>
           <StackPanel x:Name="rowOptions" HorizontalAlignment="Center" Margin="0,10,0,0">
-            <CheckBox x:Name="chkDesktop" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
-            <CheckBox x:Name="chkStartMenu" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
-            <CheckBox x:Name="chkPath" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand" HorizontalAlignment="Left"/>
+            <!-- 圆点选择框：语义仍是独立开关（CheckBox），外观画成圆点；
+                 自定义模板保证亮暗都清晰 -->
+            <StackPanel.Resources>
+              <ControlTemplate x:Key="DotCheck" TargetType="CheckBox">
+                <StackPanel Orientation="Horizontal">
+                  <Grid Width="16" Height="16" VerticalAlignment="Center">
+                    <Ellipse x:Name="ring" Width="16" Height="16" Stroke="#949AA3" StrokeThickness="1.4" Fill="Transparent"/>
+                    <Ellipse x:Name="dot" Width="7" Height="7" Fill="#5A626E" Visibility="Collapsed"/>
+                  </Grid>
+                  <ContentPresenter Margin="7,0,0,0" VerticalAlignment="Center"/>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsChecked" Value="True">
+                      <Setter TargetName="ring" Property="Stroke" Value="#5A626E"/>
+                      <Setter TargetName="dot" Property="Visibility" Value="Visible"/>
+                    </Trigger>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="ring" Property="Stroke" Value="#5A626E"/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </StackPanel>
+              </ControlTemplate>
+            </StackPanel.Resources>
+            <CheckBox x:Name="chkDesktop" Template="{StaticResource DotCheck}" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
+            <CheckBox x:Name="chkStartMenu" Template="{StaticResource DotCheck}" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Margin="0,0,0,6" Cursor="Hand" HorizontalAlignment="Left"/>
+            <CheckBox x:Name="chkPath" Template="{StaticResource DotCheck}" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand" HorizontalAlignment="Left"/>
           </StackPanel>
         </StackPanel>
-        <!-- 开源推荐：Star 引导（链接不露 URL，做成星星按钮） -->
-        <StackPanel x:Name="rowGithub" HorizontalAlignment="Center" Margin="0,12,0,0">
-          <TextBlock FontSize="10.5" Foreground="#949AA3" HorizontalAlignment="Center"><Run x:Name="runGithubLead" Text=""/></TextBlock>
-          <Button x:Name="btnStar" Width="190" Height="34" Cursor="Hand" HorizontalAlignment="Center" Margin="0,8,0,0"
-                  BorderThickness="0" Foreground="#FFFFFF" FontSize="12.5" FontWeight="SemiBold" Content="">
+        <!-- 开源推荐：Star 引导（文字后跟一颗小按钮，中性色） -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0" x:Name="rowGithub">
+          <TextBlock FontSize="10.5" Foreground="#949AA3" VerticalAlignment="Center"><Run x:Name="runGithubLead" Text=""/></TextBlock>
+          <Button x:Name="btnStar" Height="24" MinWidth="64" Cursor="Hand" Margin="8,0,0,0" Padding="10,0"
+                  BorderThickness="0" Foreground="#FFFFFF" FontSize="10.5" FontWeight="SemiBold" Content="">
             <Button.Background>
-              <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                <GradientStop Color="#E8B33A" Offset="0"/><GradientStop Color="#D99A1F" Offset="1"/>
-              </LinearGradientBrush>
+              <SolidColorBrush Color="#5A626E"/>
             </Button.Background>
             <Button.Template>
               <ControlTemplate TargetType="Button">
-                <Border x:Name="bd" CornerRadius="17" Background="{TemplateBinding Background}">
+                <Border x:Name="bd" CornerRadius="12" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
                   <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <TextBlock Text="★" FontSize="13" Margin="0,0,6,0" Foreground="#FFF7DF"/>
+                    <TextBlock Text="★" FontSize="10" Margin="0,0,4,0" Foreground="#FFF7DF"/>
                     <ContentPresenter VerticalAlignment="Center"/>
                   </StackPanel>
                 </Border>
                 <ControlTemplate.Triggers>
-                  <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.88"/></Trigger>
-                  <Trigger Property="IsPressed" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.72"/></Trigger>
+                  <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.85"/></Trigger>
+                  <Trigger Property="IsPressed" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.7"/></Trigger>
                 </ControlTemplate.Triggers>
               </ControlTemplate>
             </Button.Template>
@@ -316,7 +336,7 @@ if ($PreviewPng) {
         if ($PreviewExpand) {
             $panelCustom.Visibility = 'Visible'
             $runCustomize.Text = $T.customizeOn
-            $window.Height = 585
+            $window.Height = 580
         }
     }
     # 预览指定屏：校验进度页与完成页的排版
@@ -606,7 +626,7 @@ function Initialize-WelcomeScreen {
         $runCustomize.Text = if ($script:customOpen) { $T.customizeOn } else { $T.customize }
         # 展开时加高窗口（路径行 + 三行勾选），收起时还原；
         # 居中相对窗口当前所在的显示器（多显示器下不许跳回主屏）
-        $window.Height = if ($script:customOpen) { 585 } else { 420 }
+        $window.Height = if ($script:customOpen) { 580 } else { 400 }
         Set-CenterToCurrentMonitor
     })
     $btnStar.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })

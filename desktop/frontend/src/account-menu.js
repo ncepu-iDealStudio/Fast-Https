@@ -33,6 +33,9 @@ export const template = `<div class="account-menu" id="accountMenu" hidden role=
   <div class="menu-title" data-i18n="common.language">语言</div>
   ${langItems}
 
+  <div class="menu-title" data-i18n="menu.system">系统</div>
+  <button class="menu-item" data-menu="autostart"><span data-i18n="menu.autostart">开机自启动</span><span class="menu-check" data-autostart-check></span></button>
+
   <div class="menu-sep"></div>
   <button class="menu-item" data-menu="settings"><span data-i18n="menu.settings">设置</span><span class="menu-hint" data-i18n="menu.settingsHint">本机管理端</span></button>
   <button class="menu-item" data-menu="tray"><span data-i18n="menu.tray">隐藏到后台托盘</span><span class="menu-hint" data-i18n="menu.trayHint">保留窗口</span></button>
@@ -51,6 +54,14 @@ function paintLangChecks() {
   });
 }
 
+// 开机自启打勾：每次打开菜单时从注册表状态刷新（可能被外部改动）
+async function paintAutostartCheck() {
+  try {
+    const on = await DesktopService.GetAutoStart();
+    $$('[data-autostart-check]').forEach((b) => { b.textContent = on ? '✓' : ''; });
+  } catch (e) { /* 注册表读不到时保持当前显示 */ }
+}
+
 export function initAccountMenu() {
   const btn = $('#accountBtn');
   const menu = $('#accountMenu');
@@ -60,6 +71,7 @@ export function initAccountMenu() {
     e.stopPropagation();
     menu.hidden = !menu.hidden;
     btn.setAttribute('aria-expanded', String(!menu.hidden));
+    if (!menu.hidden) paintAutostartCheck();
   });
   document.addEventListener('click', (e) => {
     if (!menu.hidden && !menu.contains(e.target) && !btn.contains(e.target)) close();
@@ -77,6 +89,16 @@ export function initAccountMenu() {
   $$('[data-menu]').forEach((b) => b.addEventListener('click', async () => {
     const key = b.getAttribute('data-menu');
     if (key === 'light' || key === 'dark') { setMode(key); return; }
+    if (key === 'autostart') {
+      // 开机自启开关：切换注册表状态并刷新打勾，菜单保持打开让用户看到结果
+      try {
+        const cur = await DesktopService.GetAutoStart();
+        const on = await DesktopService.SetAutoStart(!cur);
+        $$('[data-autostart-check]').forEach((x) => { x.textContent = on ? '✓' : ''; });
+        toast(on ? t('menu.autostartOn') : t('menu.autostartOff'));
+      } catch (e) { toast(t('toast.actionFailed', { action: t('menu.autostart'), msg: msgOf(e) })); }
+      return;
+    }
     close();
     if (key === 'settings') { activate('settings'); return; }
     if (key === 'tray') {
