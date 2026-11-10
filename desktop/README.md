@@ -66,14 +66,15 @@ go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/fast-h
 
 ## 安装向导与卸载（Windows）
 
-NSIS 只当打包引擎，向导本身是定制过的：
+**向导是完全自绘的现代界面，NSIS 只当安装引擎**（引擎 = `build/installer/windows/fast-https.nsi` 的安装段，安装逻辑一行不动）：
 
-- **品牌图**：欢迎/完成页侧边图（164×314）与页眉图（150×57）由应用图标生成，桌面端与主程序安装器共用；换图标后跑 `build/windows/nsis/gen-wizard-bitmaps.ps1` 重新生成（脚本用 UTF-8 BOM，PowerShell 5.1 才认）。
-- **产品化文案**：欢迎页讲清「管理端与服务是两个程序」，完成页引导看帮助文档并带「运行 Fast-Https Desktop」勾选框，中英双语（覆盖 MUI 语言文件的同名 LangString）。
-- **卸载向导**：确认页明确列出清理范围（程序、配置、站点、证书、日志、状态、缓存全部删除，不留残留），并提示只想关窗口时用「隐藏到后台托盘」。
-- **卸载动作**：先 taskkill 掉 `fast-https-monitor.exe` / `fast-https-desktop.exe` / `fast-https.exe` 三个进程（服务占着 exe、日志与 pid 时删不干净），再回收桌面/开始菜单快捷方式（含用户后加的 `*.lnk`）、注册表卸载项、WebView2 配置目录 `%APPDATA%\fast-https-desktop.exe`，最后删程序目录（连同 `config` / `logs` / `state`）。Linux 全量包共用主包脚本：`preremove.sh` 停进程，`postremove.sh` 仅在 `purge` / `rpm -e` 时清数据，`/etc/fast-https` 只删空目录（用户的 `.bak` 备份保留）。
+- **架构**：双击 `fast-https-<ver>-windows-<arch>-setup.exe` → 隐藏的向导宿主段弹出 `wizard.ps1`（PowerShell 5.1 + WPF 自绘，零额外依赖：圆角卡片、品牌图、胶囊按钮、自定义进度页）→ 点「安装」后向导以 `/S /D=<目录>` 静默调起同一个 exe（引擎模式）→ 向导显示完成页（可直接「运行 Fast-Https Desktop」）。`/S` 手动使用时同一 exe 就是静默引擎。卸载同理：`uninstall.exe`（交互）→ 向导弹自绘卸载确认（明确列出清理范围）→ 静默卸载。
+- **中英双语**：向导文案按系统语言切换。
+- **调样式工具**：`wizard.ps1 -SelfTest` 无头自检（XAML 与命名元素可加载）；`-PreviewPng x.png [-PreviewScreen welcome|working|done|error] [-Uninstall]` 把界面无头渲染成 PNG，改样式后截图留档，不用手点安装包。
+- **品牌图**：欢迎/完成页侧边图（164×314）与页眉图（150×57）由应用图标生成（`desktop/build/windows/nsis/gen-wizard-bitmaps.ps1`），供残留的 MUI 卸载页等场景使用。
+- **干净卸载**：先 taskkill 掉 `fast-https-monitor.exe` / `fast-https-desktop.exe` / `fast-https.exe` 三个进程（服务占着 exe、日志与 pid 时删不干净），再回收桌面/开始菜单快捷方式（含用户后加的 `*.lnk`）、注册表卸载项、WebView2 配置目录 `%APPDATA%\fast-https-desktop.exe`，最后删程序目录（连同 `config` / `logs` / `state`）。Linux 全量包共用主包脚本：`preremove.sh` 停进程，`postremove.sh` 仅在 `purge` / `rpm -e` 时清数据，`/etc/fast-https` 只删空目录（用户的 `.bak` 备份保留）。
 
-这些语义由 `tests/packaging/desktop_nsi_test.go` 与 `postremove_test.go` 锁定。
+这些语义由 `tests/packaging/desktop_nsi_test.go` 与 `postremove_test.go` 锁定。`wails3 task windows:create:nsis:installer` 产出的桌面端独立安装器（`desktop/build/windows/nsis/project.nsi`）暂仍是品牌化 MUI 向导，后续可平移到同一套自绘向导。
 
 ## 自绘标题栏
 

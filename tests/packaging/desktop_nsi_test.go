@@ -86,6 +86,37 @@ func TestWindowsUninstallLeavesNoResidue(t *testing.T) {
 	}
 }
 
+// TestSetupUsesCustomWizard 锁住「自绘向导 + 静默引擎」的接线：
+// 交互模式由隐藏的向导宿主段弹 wizard.ps1（自绘 WPF 界面），向导点
+// 「安装」后以 /S 静默调起同一 exe 执行安装段（引擎模式）；卸载经
+// un.onInit 同样走 wizard.ps1 --uninstall。向导脚本缺失或接线断了，
+// 用户就会退回没有任何界面的裸安装。
+func TestSetupUsesCustomWizard(t *testing.T) {
+	nsi := readPkgFile(t, "build/installer/windows/fast-https.nsi")
+	for _, want := range []string{
+		`File "/oname=wizard.ps1" "wizard.ps1"`,       // 向导脚本随包提供（安装段装进 $INSTDIR 供卸载用）
+		`File "/oname=appicon.png"`,                   // 品牌图随向导提取
+		`--self "$EXEPATH"`,                           // 向导知道引擎在哪（自身）
+		`IfSilent wizard_done`,                        // /S 引擎模式跳过向导
+		`--uninstall --self "$INSTDIR\uninstall.exe"`, // 卸载走向导确认页
+		`powershell -NoProfile -STA`,                  // WPF 向导需要 STA
+	} {
+		if !strings.Contains(nsi, want) {
+			t.Errorf("fast-https.nsi 缺少自绘向导接线：%s", want)
+		}
+	}
+	wizard := readPkgFile(t, "build/installer/windows/wizard.ps1")
+	for _, want := range []string{
+		"[switch]$SelfTest", // 无头自检：XAML 与命名元素可加载
+		"$PreviewPng",       // 无头预览：调样式可截图
+		"'/S'",              // 静默引擎契约：安装/卸载都以 /S 调起自身
+	} {
+		if !strings.Contains(wizard, want) {
+			t.Errorf("wizard.ps1 缺少约定项：%s", want)
+		}
+	}
+}
+
 // TestWindowsWizardBranding 锁住安装向导的品牌定制：
 // 两个 Windows 安装器都挂同一套品牌位图（侧边图 + 页眉图，由应用图标用
 // gen-wizard-bitmaps.ps1 生成）；桌面端向导保留产品化文案（欢迎 / 完成 /

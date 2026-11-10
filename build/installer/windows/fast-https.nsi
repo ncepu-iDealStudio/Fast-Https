@@ -65,18 +65,29 @@ VIAddVersionKey "LegalCopyright" "GPL-2.0"
 !define MUI_HEADERIMAGE
 !define MUI_HEADERIMAGE_BITMAP "..\..\..\desktop\build\windows\nsis\wizard-head.bmp"
 
-!insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_DIRECTORY
-; 快捷方式与开始菜单由用户勾选，不强制创建
-!insertmacro MUI_PAGE_COMPONENTS
-!insertmacro MUI_PAGE_INSTFILES
-!insertmacro MUI_PAGE_FINISH
-
+; 安装流程不出 MUI 页面：交互模式由隐藏的向导宿主段弹自绘向导
+; （wizard.ps1，圆角卡片 + 品牌图 + 胶囊按钮），安装本体在 /S 静默
+; 模式下作为引擎执行。MUI 只保留卸载页与多语言文案。
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
+
+; ------------------------------------------------------------ 向导宿主
+; 交互模式：把界面交给自绘向导，向导点「安装」后静默调起本程序 /S
+; （引擎模式）完成安装；本实例随后退出，不再显示任何默认页面。
+; 静默模式（/S）：跳过本段，直接跑下面的安装段。
+
+Section "-wizard host" SEC_WIZARD
+  IfSilent wizard_done
+  SetOutPath "$PLUGINSDIR"
+  File "/oname=wizard.ps1" "wizard.ps1"
+  File "/oname=appicon.png" "..\..\..\desktop\build\appicon.png"
+  nsExec::ExecToLog 'powershell -NoProfile -STA -ExecutionPolicy Bypass -File "$PLUGINSDIR\wizard.ps1" --self "$EXEPATH" --icon "$PLUGINSDIR\appicon.png" --title "${APP_NAME}" --version "${APP_VERSION}"'
+  Quit
+wizard_done:
+SectionEnd
 
 ; ------------------------------------------------------------ 安装
 
@@ -108,6 +119,9 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   CreateDirectory "$INSTDIR\logs"
   CreateDirectory "$INSTDIR\config\cert"
   CreateDirectory "$INSTDIR\config\conf.d"
+
+  ; 自绘向导脚本装进安装目录：卸载时 un.onInit 用它弹自绘卸载确认
+  File "/oname=wizard.ps1" "wizard.ps1"
 
   ; 运行期要写 pid、日志、证书与配置备份，而 Program Files 默认对普通
   ; 用户只读：不授权的话 start 写不出 pid 文件，stop 就会当作「没在跑」
@@ -149,6 +163,18 @@ Section "添加到 Windows 开始菜单" SEC_STARTMENU
   CreateShortcut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\uninstall.exe"
 SectionEnd
 
+; ------------------------------------------------------------ 卸载向导
+; 交互卸载同样交给自绘向导（wizard.ps1 --uninstall 弹确认页，然后静默
+; 调起 uninstall.exe /S）；向导脚本不在时回落到下面的 MUI 卸载页。
+
+Function un.onInit
+  IfSilent un_done
+  IfFileExists "$INSTDIR\wizard.ps1" 0 un_done
+  nsExec::ExecToLog 'powershell -NoProfile -STA -ExecutionPolicy Bypass -File "$INSTDIR\wizard.ps1" --uninstall --self "$INSTDIR\uninstall.exe" --title "${APP_NAME}"'
+  Quit
+un_done:
+FunctionEnd
+
 ; ------------------------------------------------------------ 卸载
 
 Section "Uninstall"
@@ -173,9 +199,5 @@ Section "Uninstall"
 SectionEnd
 
 ; ------------------------------------------------------------ 描述
+; 安装流程由自绘向导（wizard.ps1）接管，组件页已移除，无组件描述可写。
 
-!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CORE} "程序本体、默认配置、默认站点与使用文档。"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} "在桌面创建图形入口，指向桌面管理端 fast-https-desktop.exe（没有它时退化为安装目录快捷方式），可取消。"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_STARTMENU} "在 Windows 开始菜单创建程序分组，可取消。"
-!insertmacro MUI_FUNCTION_DESCRIPTION_END

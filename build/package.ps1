@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   Build release artifacts: goreleaser archives and Linux packages (including the
   desktop deb/rpm/apk), Windows NSIS installers, and leave only the final
@@ -197,6 +197,8 @@ if (-not $NoInstaller) {
 
         $nsi = Join-Path $PSScriptRoot "installer\windows\fast-https.nsi"
         Ensure-Utf8Bom $nsi
+        # 自绘向导脚本：PowerShell 5.1 只认带 BOM 的 UTF-8
+        Ensure-Utf8Bom (Join-Path $PSScriptRoot "installer\windows\wizard.ps1")
 
         Write-Host "==> makensis $arch -> $(Split-Path -Leaf $outFile)"
         & $makensis `
