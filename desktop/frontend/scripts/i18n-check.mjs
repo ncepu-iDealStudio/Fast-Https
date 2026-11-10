@@ -117,7 +117,7 @@ for (const f of srcFiles) {
 const unused = zhKeys.filter((k) => !used.has(k));
 if (unused.length) notes.push(`未被代码引用的 key（通用词汇，留作备用）：${unused.join(', ')}`);
 
-// ---- E. 语言切换机制冒烟：setLang('en') + reload 后 t() 必须全量返回英文 ----
+// ---- E. 语言切换机制冒烟：setLang('en') 原地切换后 t() 全量返回英文 ----
 {
   const storeMap = new Map();
   globalThis.localStorage = {
@@ -125,17 +125,24 @@ if (unused.length) notes.push(`未被代码引用的 key（通用词汇，留作
     setItem: (k, v) => storeMap.set(k, String(v)),
     removeItem: (k) => storeMap.delete(k),
   };
-  let reloaded = false;
-  globalThis.window = { location: { reload: () => { reloaded = true; } } };
+  // setLang 是原地切换：更新 <html lang>、重刷静态文案、通知重绘回调
+  globalThis.document = {
+    documentElement: { lang: '' },
+    querySelectorAll: () => [],
+  };
   const i18n = await import('../src/i18n.js');
+  let changed = 0;
+  i18n.onLangChange(() => { changed++; });
   i18n.setLang('en');
-  if (!reloaded) problems.push('[E] setLang 没有触发整窗 reload');
+  if (changed !== 1) problems.push('[E] setLang 没有触发 onLangChange 回调（原地重渲染依赖它）');
+  if (globalThis.document.documentElement.lang !== 'en') problems.push('[E] setLang 后 <html lang> 未更新为 en');
   if (i18n.getLang() !== 'en') problems.push('[E] setLang 后 getLang() 不是 en');
   if (i18n.t('overview.start') !== en['overview.start']) problems.push('[E] en 下 t(overview.start) 未返回英文');
   // 全量 key 覆盖率：en 下不允许任何 key 回落到中文基准
   const fellBack = zhKeys.filter((k) => i18n.t(k) === zhCN[k] && en[k] !== zhCN[k]);
   if (fellBack.length) problems.push('[E] en 下仍回落中文的 key：' + fellBack.join(', '));
   i18n.setLang('zh-CN');
+  if (changed !== 2) problems.push('[E] 切回 zh-CN 时 onLangChange 应再触发一次');
   if (i18n.getLang() !== 'zh-CN' || i18n.t('overview.start') !== zhCN['overview.start']) {
     problems.push('[E] 切回 zh-CN 后 t() 未返回中文');
   }

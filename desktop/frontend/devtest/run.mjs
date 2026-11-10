@@ -96,6 +96,22 @@ try {
   await page.click('#accountBtn');
   await sleep(200);
   await shot('06-account-menu');
+  // 语言切换必须是原地重渲染：不整窗 reload（marker 存活），
+  // <html lang> 与界面文案都要切换
+  await page.evaluate(() => { window.__langMarker = 1; });
+  await page.click('[data-lang="en"]');
+  await sleep(300);
+  await shot('06b-lang-switch-en');
+  const noReload = await page.evaluate(() => window.__langMarker === 1);
+  const langAttr = await page.evaluate(() => document.documentElement.lang);
+  const navEn = await page.locator('[data-nav="sites"]').textContent();
+  check('语言原地切换不重载', noReload && langAttr === 'en' && /Sites/.test(navEn || ''),
+    `marker=${noReload} lang=${langAttr} nav=${String(navEn).trim()}`);
+  await page.click('#accountBtn');
+  await page.click('[data-lang="zh-CN"]');
+  await sleep(300);
+  await page.click('#accountBtn');
+  await sleep(200);
   await page.click('[data-menu="help"]');
   await sleep(400);
   await shot('07-help');

@@ -22,6 +22,10 @@ export const template = `<div class="dialog-mask" id="helpDialog" hidden>
 </div>`;
 
 function renderHelp() {
+  $('#helpTitle').textContent = t('help.title');
+  $('#helpNote').textContent = t('help.builtInNote');
+  $('#helpFull').textContent = t('help.full');
+  $('#helpClose').textContent = t('common.close');
   const sections = helpContent(getLang());
   $('#helpToc').innerHTML = sections.map((s) =>
     `<a class="help-toc-item" href="#help-${esc(s.id)}">${esc(s.title)}</a>`).join('');
@@ -37,10 +41,6 @@ export function openHelp() {
 export function initHelpDialog() {
   const mask = $('#helpDialog');
   if (!mask) return;
-  $('#helpTitle').textContent = t('help.title');
-  $('#helpNote').textContent = t('help.builtInNote');
-  $('#helpFull').textContent = t('help.full');
-  $('#helpClose').textContent = t('common.close');
   const close = () => { mask.hidden = true; };
   $('#helpClose').addEventListener('click', close);
   mask.addEventListener('click', (e) => { if (e.target === mask) close(); });

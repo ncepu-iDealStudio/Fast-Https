@@ -56,7 +56,7 @@
   | 最近操作时间线 | `operation list` / `operation get` |
 
 - **候选配置树**（`internal/configops`）：保存表单时把主配置（改过字段）与 `conf.d` 站点文件副本搭成候选树（复刻主程序 `siteops.CloneLiveTree`），再 `config apply --candidate --yes`；桌面端只准备候选，不直接改线上配置。
-- **多语言**（`src/i18n.js` + `src/locales/`）：界面文案全部走 `t('key')`（静态 HTML 挂 `data-i18n`，动态渲染调 `t()`），中英字典各 437 key 一一对应，`npm run i18n:check` 自查一致性与覆盖率；加一种语言只加一个字典文件 + 注册表一行，缺 key 回落中文。语言切换整窗重载。
+- **多语言**（`src/i18n.js` + `src/locales/`）：界面文案全部走 `t('key')`（静态 HTML 挂 `data-i18n`，动态渲染调 `t()`），中英字典各 437 key 一一对应，`npm run i18n:check` 自查一致性与覆盖率；加一种语言只加一个字典文件 + 注册表一行，缺 key 回落中文。切换语言**原地重渲染**（静态文案重刷 + 各模块用缓存数据重绘），不整窗重载、不闪屏。
 - **内嵌帮助**（`src/help-content.js` + `src/dialogs/help.js`）：初学者向帮助（上手、常见操作、平台差异、命令行备忘、FAQ）在应用内弹窗展示，中英双语；文中命令都在实机跑过，Windows 的 `start` 前台运行、`reload` 跨窗口失败等差异如实写明。
 - **前端点击测试台**（`frontend/devtest/`）：bindings 换成 mock 后用 Playwright（无头 Edge）遍历所有页面、弹窗与关键交互，逐屏截图并收集控制台错误，中英界面各跑一遍（`node run.mjs [en]`）。
 - **窗口与托盘**（`main.go`、`tray.go`、`service.go`）：`Frameless: true`，`WindowClosing` hook 默认取消关闭并隐藏；`appQuitting` 标记由弹窗「直接退出」或托盘「退出」置位后才放行真正的退出。

@@ -67,8 +67,11 @@ export function initAccountMenu() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 
   $$('[data-lang]').forEach((b) => b.addEventListener('click', () => {
-    // setLang 会写 localStorage 并整窗 reload，菜单不用手动收起
+    // setLang 原地切换（不整窗 reload）：静态文案与动态内容由回调重绘，
+    // 这里只需刷新打勾并收起菜单
     setLang(b.getAttribute('data-lang'));
+    paintLangChecks();
+    close();
   }));
 
   $$('[data-menu]').forEach((b) => b.addEventListener('click', async () => {

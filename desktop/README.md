@@ -171,7 +171,7 @@ scripts/
 
 ## 多语言
 
-界面文案全部走 `t('key')`（静态 HTML 挂 `data-i18n` 系列属性，动态渲染在函数里调 `t()`），字典在 `src/locales/`，中英各一份、key 一一对应，`npm run i18n:check` 自查一致性与覆盖率（已串进 `npm run build`）。切换语言在左下角「本机管理」→「语言」，写入 `localStorage` 后整窗重载。
+界面文案全部走 `t('key')`（静态 HTML 挂 `data-i18n` 系列属性，动态渲染在函数里调 `t()`），字典在 `src/locales/`，中英各一份、key 一一对应，`npm run i18n:check` 自查一致性与覆盖率（已串进 `npm run build`）。切换语言在左下角「本机管理」→「语言」，写入 `localStorage` 后**原地重渲染**（`applyStatic` 重刷静态文案 + `onLangChange` 回调让各模块用缓存数据重绘），不整窗重载、不闪屏。
 
 **加一种语言只加一个文件**：复制 `locales/zh-CN.js` 翻译成 `locales/ja.js`，在 `i18n.js` 的 `LANGS` 注册表加一行即可，业务代码零改动；缺 key 时回落中文再回落 key 原文。帮助文档内容（`help-content.js`）按语言分节数组，同样加一份即可。语言无关的内容（CLI 命令、JSON 字段、路径、mono 块）不进字典；Go 后端返回的数据文本由后端文案负责，前端不二次翻译。
 

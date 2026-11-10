@@ -39,6 +39,12 @@ function setStatusText() {
     : (logRows.length ? t('logs.statusOldest') : t('logs.empty'));
 }
 
+// rerenderLogs 在语言切换时用已有数据重绘当前页，不重新查询。
+export function rerenderLogs() {
+  renderLogRows();
+  setStatusText();
+}
+
 export async function loadLogs(reset) {
   if (logLoading) return;
   if (reset) {
