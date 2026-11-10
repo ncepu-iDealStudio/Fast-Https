@@ -59,8 +59,8 @@ $T = if ($zh) {
         optPath = '加入系统 PATH（可在任意终端直接运行 fast-https）'
         customize = '自定义安装 ▾'
         customizeOn = '收起 ▴'
-        githubLead = '开源项目，'
-        githubTail = '上有点赞、文档与源码 —— 去点个 Star 就是对作者最大的鼓励 ✦'
+        starLead = '如果 Fast-Https 帮到了你，请在仓库点个 Star——这对我们意义重大'
+        starBtn = '去点 Star ✦'
         doneTitle = '安装完成'
         doneSub = '已安装到'
         runApp = '运行 Fast-Https Desktop'
@@ -99,8 +99,8 @@ $T = if ($zh) {
         optPath = 'Add to system PATH (run fast-https from any terminal)'
         customize = 'Customize install ▾'
         customizeOn = 'Collapse ▴'
-        githubLead = 'Free & open source —'
-        githubTail = 'stars, docs and source code. A star means a lot to the author ✦'
+        starLead = 'If Fast-Https helps you, a star on the repo means a lot to us'
+        starBtn = 'Star it ✦'
         doneTitle = 'Installation complete'
         doneSub = 'Installed to'
         runApp = 'Run Fast-Https Desktop'
@@ -184,11 +184,31 @@ $xaml = @'
             <CheckBox x:Name="chkPath" Content="" FontSize="12" Foreground="#666C75" IsChecked="True" Cursor="Hand" HorizontalAlignment="Left"/>
           </StackPanel>
         </StackPanel>
-        <!-- 开源推荐语：替代用户协议/隐私政策 -->
+        <!-- 开源推荐：Star 引导（链接不露 URL，做成星星按钮） -->
         <StackPanel x:Name="rowGithub" HorizontalAlignment="Center" Margin="0,12,0,0">
-          <TextBlock FontSize="10.5" Foreground="#949AA3" HorizontalAlignment="Center" TextAlignment="Center"><Run x:Name="runGithubLead" Text=""/></TextBlock>
-          <TextBlock FontSize="10.5" HorizontalAlignment="Center" Margin="0,2,0,0"><Hyperlink x:Name="lnkGithub" Foreground="#5A626E" TextDecorations="Underline" Cursor="Hand"><Run x:Name="runGithubLink" Text="gitee.com/ncepu-bj/fast-https"/></Hyperlink></TextBlock>
-          <TextBlock FontSize="10.5" Foreground="#949AA3" HorizontalAlignment="Center" Margin="0,2,0,0"><Run x:Name="runGithubTail" Text=""/></TextBlock>
+          <TextBlock FontSize="10.5" Foreground="#949AA3" HorizontalAlignment="Center"><Run x:Name="runGithubLead" Text=""/></TextBlock>
+          <Button x:Name="btnStar" Width="190" Height="34" Cursor="Hand" HorizontalAlignment="Center" Margin="0,8,0,0"
+                  BorderThickness="0" Foreground="#FFFFFF" FontSize="12.5" FontWeight="SemiBold" Content="">
+            <Button.Background>
+              <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Color="#E8B33A" Offset="0"/><GradientStop Color="#D99A1F" Offset="1"/>
+              </LinearGradientBrush>
+            </Button.Background>
+            <Button.Template>
+              <ControlTemplate TargetType="Button">
+                <Border x:Name="bd" CornerRadius="17" Background="{TemplateBinding Background}">
+                  <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock Text="★" FontSize="13" Margin="0,0,6,0" Foreground="#FFF7DF"/>
+                    <ContentPresenter VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.88"/></Trigger>
+                  <Trigger Property="IsPressed" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.72"/></Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Button.Template>
+          </Button>
         </StackPanel>
       </StackPanel>
 
@@ -253,7 +273,7 @@ $btnPrimary = N 'btnPrimary'; $btnSecondary = N 'btnSecondary'
 $rowPath = N 'rowPath'; $txtInstallTo = N 'txtInstallTo'; $txtPath = N 'txtPath'; $btnBrowse = N 'btnBrowse'
 $rowAgree = N 'rowAgree'; $txtAgree = N 'txtAgree'
 $lnkCustomize = N 'lnkCustomize'; $runCustomize = N 'runCustomize'; $panelCustom = N 'panelCustom'
-$rowGithub = N 'rowGithub'; $runGithubLead = N 'runGithubLead'; $lnkGithub = N 'lnkGithub'; $runGithubLink = N 'runGithubLink'; $runGithubTail = N 'runGithubTail'
+$rowGithub = N 'rowGithub'; $runGithubLead = N 'runGithubLead'; $btnStar = N 'btnStar'
 $rowOptions = N 'rowOptions'; $chkDesktop = N 'chkDesktop'; $chkStartMenu = N 'chkStartMenu'; $chkPath = N 'chkPath'
 $txtPct = N 'txtPct'
 $txtPhase = N 'txtPhase'; $barWork = N 'barWork'
@@ -291,7 +311,8 @@ if ($PreviewPng) {
         $chkDesktop.Content = $T.optDesktop
         $chkStartMenu.Content = $T.optStartMenu
         $chkPath.Content = $T.optPath
-        $runGithubLead.Text = $T.githubLead; $runGithubTail.Text = $T.githubTail
+        $runGithubLead.Text = $T.starLead
+        $btnStar.Content = $T.starBtn
         if ($PreviewExpand) {
             $panelCustom.Visibility = 'Visible'
             $runCustomize.Text = $T.customizeOn
@@ -486,6 +507,50 @@ try {
 
 function Open-Link([string]$url) { Start-Process $url }
 
+# 多显示器支持：窗口居中「相对它当前所在的显示器」。
+# 之前用 SystemParameters.WorkArea 居中，那是主屏工作区——扩展屏上
+# 展开/收起改变窗口高度一居中就跳回笔记本主屏（用户实测踩到）。
+# 这里用 MonitorFromWindow 拿窗口所在屏，取该屏工作区居中；
+# WPF 单位与物理像素按当前 DPI 换算。
+Add-Type -Namespace Wizard -Name NativeDisplays -MemberDefinition @'
+[DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+[DllImport("user32.dll", CharSet = CharSet.Auto)] public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+[DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+[StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left, Top, Right, Bottom; }
+[StructLayout(LayoutKind.Sequential)] public struct MONITORINFO {
+  public int cbSize;
+  public RECT rcMonitor;
+  public RECT rcWork;
+  public uint dwFlags;
+}
+'@
+
+function Set-CenterToCurrentMonitor {
+    try {
+        # WindowInteropHelper 拿 Win32 句柄（窗口须已显示；未显示时跳过，
+        # 让 WindowStartupLocation=CenterScreen 处理首次定位）
+        $helper = New-Object System.Windows.Interop.WindowInteropHelper($window)
+        if ($helper.Handle -eq [IntPtr]::Zero) { return }
+        $MONITOR_DEFAULTTONEAREST = 2
+        $hMon = [Wizard.NativeDisplays]::MonitorFromWindow($helper.Handle, $MONITOR_DEFAULTTONEAREST)
+        if ($hMon -eq [IntPtr]::Zero) { return }
+        $mi = New-Object Wizard.NativeDisplays+MONITORINFO
+        $mi.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($mi)
+        if (-not [Wizard.NativeDisplays]::GetMonitorInfo($hMon, [ref]$mi)) { return }
+        # 该屏工作区的物理像素
+        $waW = $mi.rcWork.Right - $mi.rcWork.Left
+        $waH = $mi.rcWork.Bottom - $mi.rcWork.Top
+        # DPI 换算（Win10 1607+ 有 GetDpiForWindow；失败按 96 处理）
+        $dpi = [Wizard.NativeDisplays]::GetDpiForWindow($helper.Handle)
+        if ($dpi -eq 0) { $dpi = 96 }
+        $scale = $dpi / 96.0
+        $wpfW = $window.Width * $scale
+        $wpfH = $window.Height * $scale
+        $window.Left = $mi.rcWork.Left + (($waW - $wpfW) / 2) / $scale
+        $window.Top = $mi.rcWork.Top + (($waH - $wpfH) / 2) / $scale
+    } catch { }
+}
+
 # Initialize-UninstallScreen 卸载确认屏的文案与事件绑定。
 function Initialize-UninstallScreen {
     $txtTitle.Text = $T.unTitle
@@ -529,8 +594,8 @@ function Initialize-WelcomeScreen {
     $chkDesktop.Content = $T.optDesktop
     $chkStartMenu.Content = $T.optStartMenu
     $chkPath.Content = $T.optPath
-    $runGithubLead.Text = $T.githubLead
-    $runGithubTail.Text = $T.githubTail
+    $runGithubLead.Text = $T.starLead
+    $btnStar.Content = $T.starBtn
     # 默认收起：点「自定义安装」展开路径与选项（窗口随之伸缩）
     $script:customOpen = $false
     $panelCustom.Visibility = 'Collapsed'
@@ -539,12 +604,12 @@ function Initialize-WelcomeScreen {
         $script:customOpen = -not $script:customOpen
         $panelCustom.Visibility = if ($script:customOpen) { 'Visible' } else { 'Collapsed' }
         $runCustomize.Text = if ($script:customOpen) { $T.customizeOn } else { $T.customize }
-        # 展开时加高窗口（路径行 + 三行勾选），收起时还原；保持屏幕居中
+        # 展开时加高窗口（路径行 + 三行勾选），收起时还原；
+        # 居中相对窗口当前所在的显示器（多显示器下不许跳回主屏）
         $window.Height = if ($script:customOpen) { 585 } else { 420 }
-        $window.Left = ([System.Windows.SystemParameters]::WorkArea.Width - $window.Width) / 2 + [System.Windows.SystemParameters]::VirtualScreenLeft
-        $window.Top = ([System.Windows.SystemParameters]::WorkArea.Height - $window.Height) / 2 + [System.Windows.SystemParameters]::VirtualScreenTop
+        Set-CenterToCurrentMonitor
     })
-    $lnkGithub.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
+    $btnStar.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $btnBrowse.Add_Click({
         $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
         if ($dlg.ShowDialog() -eq 'OK') { $txtPath.Text = $dlg.SelectedPath }
@@ -595,7 +660,7 @@ if ($Uninstall) {
 # 元素存在 + 两种模式的事件绑定全跑一遍。曾发生过 TextBlock 绑 Click
 # 在运行时才崩（向导弹不出来、nsExec 报错退出），只有真实初始化才能暴露。
 if ($SelfTest) {
-    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','lnkCustomize','runCustomize','panelCustom','rowGithub','runGithubLead','lnkGithub','runGithubLink','runGithubTail','rowOptions','chkDesktop','chkStartMenu','chkPath','txtPhase','barWork','txtPct','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
+    $names = 'dragBar','btnClose','screenWelcome','screenWorking','screenDone','imgLogo','imgLogo2','txtTitle','txtTagline','txtBody','txtBody2','btnPrimary','btnSecondary','rowPath','txtInstallTo','txtPath','btnBrowse','lnkCustomize','runCustomize','panelCustom','rowGithub','runGithubLead','btnStar','rowOptions','chkDesktop','chkStartMenu','chkPath','txtPhase','barWork','txtPct','doneCircle','doneCheck','txtDoneTitle','txtDoneSub','btnRun','btnFinish'
     foreach ($n in $names) { if ($null -eq (N $n)) { Write-Error "selftest: missing element $n"; exit 1 } }
     if (-not $Self) { $script:Self = "selftest-fake.exe" }
     Initialize-WelcomeScreen      # 安装模式文案与事件绑定（崩溃在这里当场爆）
