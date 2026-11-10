@@ -509,6 +509,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0 |
 | `monitor status` | 只读 Monitor 的 `status.json`。文件不存在时 `status` 为 `not_installed`（退出码 0）；采集时间早于 30 秒为 `stale`。不连接 Monitor 进程，也不负责启停 |
 | `monitor events` | 只读 `events.jsonl`。`--since`、`--limit`（默认 100，上限 1000）、`--severity`（`info`、`warning`、`error`、`critical`）。坏行跳过并计数，事件文本只作为数据返回。有 `snapshot` 时 JSON 带回白名单摘要 |
+| `upstream drain <address>` / `upstream undrain <address>` | 把地址放进或移出摘除名单，必须 `--yes`。不改 `proxy_pass`。某个 location 因此没有剩余地址时退出码 6，名单不变 |
 | `agent status` | 只读 Agent 状态库。库不存在时 `status` 为 `not_running`（退出码 0）。不启动 Agent，不创建任务 |
 | `agent tasks` / `agent task get` / `agent approvals` | 只读任务、一条任务的诊断与计划、以及 `pending` 审批。审批原因会脱敏 |
 | `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点）。只写文件，提示 reload |

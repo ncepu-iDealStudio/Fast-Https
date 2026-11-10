@@ -4,7 +4,7 @@
 
 ## 功能
 
-HTTP/HTTPS 反向代理：转发到 `proxy_pass` 上游、请求头改写、上游连接池复用、响应缓存接入、chunked 响应解码、上游故障的 500/错误页。
+HTTP/HTTPS 反向代理：转发到 `proxy_pass` 上游、请求头改写、上游连接池复用、响应缓存接入、chunked 响应解码、上游故障的 500/错误页。`proxy_pass` 仍可以写单个字符串。写成字符串数组时按轮询选路，拨号失败或读写超时再试下一个地址，全部失败时仍是原来的错误页。不做权重、会话保持和主动探测。`upstream drain` 把地址放进摘除名单而不改 `proxy_pass`；某个 location 因此不再剩下地址时命令失败，名单和配置都不改。
 
 ## 使用
 
@@ -30,6 +30,6 @@ HTTP/HTTPS 反向代理：转发到 `proxy_pass` 上游、请求头改写、上�
 
 ## 已知限制
 
-- 上游为单地址，无负载均衡/健康检查/故障转移（见 [upstream-failover-plan.md](../develop/plans/upstream-failover-plan.md)）。
+- 多地址只做轮询，以及拨号失败或超时后的下一次尝试。没有权重、会话保持和主动探测。摘除名单不改 `proxy_pass`，计数里的 `healthy` 在该地址失败过一次后保持 false，直到进程重启。
 - HTTPS 上游 `InsecureSkipVerify: true`（不校验上游证书）。
 - 响应不做压缩（客户端接受压缩而上游未压时透传原文）。

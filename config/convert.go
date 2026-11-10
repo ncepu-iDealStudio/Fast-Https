@@ -112,12 +112,13 @@ func convertServers(js jsonServer) []Server {
 func convertPath(jl jsonPath) Path {
 	return Path{
 		PathName:       jl.URL,
-		PathType:       parsePathType(jl.Type, jl.ProxyPass),
+		PathType:       parsePathType(jl.Type, jl.ProxyPass.schemeSample()),
 		Root:           jl.Root,
 		Index:          jl.Index,
 		Rewrite:        jl.Rewrite,
 		Trys:           jl.Try,
-		ProxyData:      trimProxyPass(jl.ProxyPass),
+		ProxyData:      firstProxyPeer(jl.ProxyPass),
+		ProxyPeers:     proxyPeerHosts(jl.ProxyPass),
 		ProxySetHeader: jl.ProxySetHeader,
 		AppFireWall:    jl.AppFireWall,
 		ProxyCache:     jl.ProxyCache,
@@ -188,6 +189,25 @@ func parsePathType(typeStr, proxyPass string) uint16 {
 		}
 	}
 	return LOCAL
+}
+
+func firstProxyPeer(list proxyPassList) string {
+	hosts := proxyPeerHosts(list)
+	if len(hosts) == 0 {
+		return ""
+	}
+	return hosts[0]
+}
+
+func proxyPeerHosts(list proxyPassList) []string {
+	if len(list) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(list))
+	for _, item := range list {
+		out = append(out, trimProxyPass(strings.TrimSpace(item)))
+	}
+	return out
 }
 
 func trimProxyPass(proxyData string) string {

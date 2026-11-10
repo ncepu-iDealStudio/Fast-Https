@@ -93,6 +93,7 @@ type Path struct {
 	Rewrite        string
 	Trys           []Try
 	ProxyData      string
+	ProxyPeers     []string
 	ProxySetHeader []Header
 	AppFireWall    []string
 	ProxyCache     Cache

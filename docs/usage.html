@@ -466,6 +466,7 @@ fast-https site remove blog --yes</code></pre>
 <tr><td><code>diagnose</code></td><td>只读汇总健康检查。失败与不可用分开：<code>runtime</code> 读 <code>/runtime</code>（连不上为 warning）；<code>monitor</code> 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0</td></tr>
 <tr><td><code>monitor status</code></td><td>只读 Monitor 的 <code>status.json</code>。文件不存在时 <code>status</code> 为 <code>not_installed</code>（退出码 0）；采集时间早于 30 秒为 <code>stale</code>。不连接 Monitor 进程，也不负责启停</td></tr>
 <tr><td><code>monitor events</code></td><td>只读 <code>events.jsonl</code>。<code>--since</code>、<code>--limit</code>（默认 100，上限 1000）、<code>--severity</code>（<code>info</code>、<code>warning</code>、<code>error</code>、<code>critical</code>）。坏行跳过并计数，事件文本只作为数据返回。有 <code>snapshot</code> 时 JSON 带回白名单摘要</td></tr>
+<tr><td><code>upstream drain &lt;address&gt;</code> / <code>upstream undrain &lt;address&gt;</code></td><td>把地址放进或移出摘除名单，必须 <code>--yes</code>。不改 <code>proxy_pass</code>。某个 location 因此没有剩余地址时退出码 6，名单不变</td></tr>
 <tr><td><code>agent status</code></td><td>只读 Agent 状态库。库不存在时 <code>status</code> 为 <code>not_running</code>（退出码 0）。不启动 Agent，不创建任务</td></tr>
 <tr><td><code>agent tasks</code> / <code>agent task get</code> / <code>agent approvals</code></td><td>只读任务、一条任务的诊断与计划、以及 <code>pending</code> 审批。审批原因会脱敏</td></tr>
 <tr><td><code>site init [name]</code></td><td>在 <code>http.include</code> 目录下生成 <code>&lt;name&gt;.json</code>（交互向导或 <code>--listen/--server-name/--type/--proxy-pass/--tls</code>；<code>--listen</code> 可重复以生成多端口站点）。只写文件，提示 reload</td></tr>

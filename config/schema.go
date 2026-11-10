@@ -69,6 +69,59 @@ func (l *flexList) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+// proxyPassList 兼容 "proxy_pass": "http://10.0.0.1:8080" 与
+// "proxy_pass": ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]。
+// 单个字符串的配置与以前完全一样。
+type proxyPassList []string
+
+func (l *proxyPassList) UnmarshalJSON(b []byte) error {
+	trimmed := bytes.TrimSpace(b)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		*l = nil
+		return nil
+	}
+	if trimmed[0] == '[' {
+		var items []string
+		if err := json.Unmarshal(trimmed, &items); err != nil {
+			return err
+		}
+		*l = proxyPassList(items)
+		return nil
+	}
+	var one string
+	if err := json.Unmarshal(trimmed, &one); err != nil {
+		return err
+	}
+	if strings.TrimSpace(one) == "" {
+		*l = nil
+		return nil
+	}
+	*l = proxyPassList{one}
+	return nil
+}
+
+func (l proxyPassList) MarshalJSON() ([]byte, error) {
+	if len(l) == 1 {
+		return json.Marshal(l[0])
+	}
+	return json.Marshal([]string(l))
+}
+
+// First 返回唯一的上游字符串。多个地址时为空，避免把数组写成一个字符串。
+func (l proxyPassList) First() string {
+	if len(l) != 1 {
+		return ""
+	}
+	return l[0]
+}
+
+func (l proxyPassList) schemeSample() string {
+	if len(l) == 0 {
+		return ""
+	}
+	return l[0]
+}
+
 // MarshalJSON 单个监听按标量输出（纯端口写数字），既有配置与 site show 的
 // 写法保持不变；多个监听才写成数组。
 func (l flexList) MarshalJSON() ([]byte, error) {
@@ -96,7 +149,7 @@ type jsonPath struct {
 	Root           string        `json:"root"`
 	Index          []string      `json:"index"`
 	Rewrite        string        `json:"rewrite"`
-	ProxyPass      string        `json:"proxy_pass"`
+	ProxyPass      proxyPassList `json:"proxy_pass"`
 	ProxySetHeader []Header      `json:"proxy_set_header"`
 	AppFireWall    []string      `json:"appfirewall"`
 	ProxyCache     Cache         `json:"proxy_cache"`

@@ -45,8 +45,10 @@ type ListenCfg struct {
 	Trys       []Try
 
 	// 10 is dev mod
-	Type           uint16 // 0 1 2 3 4
-	ProxyAddr      string
+	Type      uint16 // 0 1 2 3 4
+	ProxyAddr string
+	// ProxyPeers 多于一个时按轮询选路。空切片表示只有 ProxyAddr。
+	ProxyPeers     []string
 	ProxySetHeader []config.Header
 	ProxyCache     config.Cache
 	AppFireWall    []string
@@ -289,36 +291,37 @@ func processListenData(lisInfos *[]*Listener) {
 					data.Trys = append(data.Trys, try)
 				}
 				// 多域名支持：server_name 允许空格分隔多个域名（nginx 风格）。
-			// ServerName 保留第一个域名（主域名），其余域名进 Aliases，
-			// processEachPort 会把所有域名都注册到 HostMap。
-			names := server.ServerNames()
-			if len(names) == 0 {
-				names = []string{""}
-			}
-			data.ServerName = names[0] + ":" + eachlisten.Port
-			for _, alias := range names[1:] {
-				data.Aliases = append(data.Aliases, alias+":"+eachlisten.Port)
-			}
-			data.Type = paths.PathType
-			data.ProxyAddr = paths.ProxyData
-			data.ProxySetHeader = paths.ProxySetHeader
-			data.AppFireWall = paths.AppFireWall
-			data.Limit = paths.Limit
-			data.Auth = paths.Auth
-			data.StaticRoot = paths.Root
-			data.StaticIndex = paths.Index
-			data.ErrorNotFound = paths.ErrorNotFound
-			data.ErrorProxy = paths.ErrorProxy
-			data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
-			// 多域名：其余域名的证书按 config/cert/<domain>.pem 兜底路径加载，
-			// ACME 每个域名分别申请一张证书，certPaths 也按此路径落盘。
-			for _, alias := range names[1:] {
-				data.ExtraCerts = append(data.ExtraCerts, SSLkv{
-					SslKey:   filepath.Join(config.CERT_DIR, alias) + ".pem",
-					SslValue: filepath.Join(config.CERT_DIR, alias) + "-key.pem",
-				})
-			}
-			data.Zip = paths.Zip
+				// ServerName 保留第一个域名（主域名），其余域名进 Aliases，
+				// processEachPort 会把所有域名都注册到 HostMap。
+				names := server.ServerNames()
+				if len(names) == 0 {
+					names = []string{""}
+				}
+				data.ServerName = names[0] + ":" + eachlisten.Port
+				for _, alias := range names[1:] {
+					data.Aliases = append(data.Aliases, alias+":"+eachlisten.Port)
+				}
+				data.Type = paths.PathType
+				data.ProxyAddr = paths.ProxyData
+				data.ProxyPeers = append([]string(nil), paths.ProxyPeers...)
+				data.ProxySetHeader = paths.ProxySetHeader
+				data.AppFireWall = paths.AppFireWall
+				data.Limit = paths.Limit
+				data.Auth = paths.Auth
+				data.StaticRoot = paths.Root
+				data.StaticIndex = paths.Index
+				data.ErrorNotFound = paths.ErrorNotFound
+				data.ErrorProxy = paths.ErrorProxy
+				data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
+				// 多域名：其余域名的证书按 config/cert/<domain>.pem 兜底路径加载，
+				// ACME 每个域名分别申请一张证书，certPaths 也按此路径落盘。
+				for _, alias := range names[1:] {
+					data.ExtraCerts = append(data.ExtraCerts, SSLkv{
+						SslKey:   filepath.Join(config.CERT_DIR, alias) + ".pem",
+						SslValue: filepath.Join(config.CERT_DIR, alias) + "-key.pem",
+					})
+				}
+				data.Zip = paths.Zip
 				data.ReWrite = paths.Rewrite
 				data.ProxyCache = paths.ProxyCache
 				data.AllowMethods = paths.AllowMethods

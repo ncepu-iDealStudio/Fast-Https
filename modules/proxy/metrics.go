@@ -81,6 +81,7 @@ type AddrStats struct {
 	DialFailTotal    uint64 `json:"dial_fail_total"`
 	SendTimeoutTotal uint64 `json:"send_timeout_total"`
 	ReadTimeoutTotal uint64 `json:"read_timeout_total"`
+	Healthy          bool   `json:"healthy"`
 }
 
 // Stats 是 /runtime 的 upstream 分段。没有代理流量时各字段为 0，那是真实的零。
@@ -118,6 +119,7 @@ func Snapshot() (Stats, bool) {
 				DialFailTotal:    counters[i].dial.Load(),
 				SendTimeoutTotal: counters[i].send.Load(),
 				ReadTimeoutTotal: counters[i].read.Load(),
+				Healthy:          counters[i].dial.Load()+counters[i].send.Load()+counters[i].read.Load() == 0,
 			})
 		}
 	}

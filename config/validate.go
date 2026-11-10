@@ -274,12 +274,27 @@ func validateServerWith(s *jsonServer, certBaseDir, rootBaseDir, where string, r
 				return fmt.Errorf("%s: location[%d].root is required for local type", where, i)
 			}
 		case "proxy":
-			pass := strings.TrimSpace(loc.ProxyPass)
-			if pass == "" {
+			if len(loc.ProxyPass) == 0 {
 				return fmt.Errorf("%s: location[%d].proxy_pass is required for proxy type", where, i)
 			}
-			if !strings.HasPrefix(pass, "http://") && !strings.HasPrefix(pass, "https://") {
-				return fmt.Errorf("%s: location[%d].proxy_pass must start with http:// or https://", where, i)
+			var scheme string
+			for j, pass := range loc.ProxyPass {
+				pass = strings.TrimSpace(pass)
+				if pass == "" {
+					return fmt.Errorf("%s: location[%d].proxy_pass[%d] is empty", where, i, j)
+				}
+				if !strings.HasPrefix(pass, "http://") && !strings.HasPrefix(pass, "https://") {
+					return fmt.Errorf("%s: location[%d].proxy_pass must start with http:// or https://", where, i)
+				}
+				this := "http"
+				if strings.HasPrefix(pass, "https://") {
+					this = "https"
+				}
+				if scheme == "" {
+					scheme = this
+				} else if scheme != this {
+					return fmt.Errorf("%s: location[%d].proxy_pass mixes http and https", where, i)
+				}
 			}
 		case "rewrite", "devmod":
 			// valid and no extra required fields for minimal validator

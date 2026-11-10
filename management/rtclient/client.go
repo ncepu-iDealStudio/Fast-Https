@@ -163,6 +163,7 @@ type UpstreamAddrInfo struct {
 	DialFailTotal    uint64 `json:"dial_fail_total"`
 	SendTimeoutTotal uint64 `json:"send_timeout_total"`
 	ReadTimeoutTotal uint64 `json:"read_timeout_total"`
+	Healthy          bool   `json:"healthy"`
 }
 
 // UptimeSeconds 由 started_at 推算。解析失败则省略。

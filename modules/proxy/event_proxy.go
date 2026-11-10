@@ -429,17 +429,62 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
  *************************************
  */
 func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
+	peers := activePeers(cfg)
+	if len(peers) <= 1 {
+		if len(peers) == 1 && cfg != nil {
+			one := *cfg
+			one.ProxyAddr = peers[0]
+			one.ProxyPeers = nil
+			proxyEventOne(&one, ev)
+			return
+		}
+		proxyEventOne(cfg, ev)
+		return
+	}
+	req := ev.RR.Req.ByteRow()
+	var last error
+	for _, addr := range rotatePeers(peers) {
+		one := *cfg
+		one.ProxyAddr = addr
+		one.ProxyPeers = nil
+		proxy, err := getProxy(ev, &ev.RR, &one)
+		if err != nil {
+			last = err
+			continue
+		}
+		if proxy.ProxyNeedCache || ev.Upgrade == "websocket" {
+			one := *cfg
+			one.ProxyAddr = addr
+			finishProxy(&one, proxy, req, ev)
+			return
+		}
+		err = proxy.exchange(req, ev)
+		if err == ProxyErrorSendToUpstreamTimeout || err == ProxyErrorReadFromUpstreamTimeout || err == ProxyErrorDialUpstream {
+			last = err
+			continue
+		}
+		if err != nil {
+			proxy.Close()
+			ev.RR.Res = response.DefaultServerError()
+			ev.WriteResponseClose(nil)
+			return
+		}
+		finishProxySuccess(proxy, ev)
+		return
+	}
+	if last == ProxyErrorSendToUpstreamTimeout || last == ProxyErrorReadFromUpstreamTimeout {
+		ev.Close()
+		ev.Reuse = false
+		return
+	}
+	ev.RR.Res = DialFailureResponse(cfg)
+	ev.WriteResponseClose(nil)
+}
+
+func proxyEventOne(cfg *listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req.ByteRow()
-
-	// if len(req_data) > 8192 {
-	// 	fmt.Println(string(req_data[:8192]))
-
-	// } else {
-	// 	fmt.Println(string(req_data[:]))
-	// }
 	proxy, err := getProxy(ev, &ev.RR, cfg)
-	if err != nil { // one type error `ProxyErrorDialUpstream`
-		// 这条 500 之前完全静默：上游没起来、DNS 不通、连接池耗尽时只能靠猜。
+	if err != nil {
 		upstream, path := "", ""
 		if cfg != nil {
 			upstream = cfg.ProxyAddr
@@ -453,14 +498,41 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 		ev.WriteResponseClose(nil)
 		return
 	}
+	finishProxy(cfg, proxy, req_data, ev)
+}
 
-	if proxy.ProxyNeedCache {
+func finishProxy(cfg *listener.ListenCfg, proxy *Proxy, req []byte, ev *core.Event) {
+	if proxy.ProxyNeedCache && cfg != nil {
 		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid,
 			cfg.ProxyCache.Path, cfg.ProxyCache.Methods, cfg.ProxyCache.MaxSize)
-		proxy.proxyNeedCache(proxyCache, req_data, ev)
-	} else {
-		proxy.proxyNoCache(req_data, ev)
+		proxy.proxyNeedCache(proxyCache, req, ev)
+		return
 	}
+	proxy.proxyNoCache(req, ev)
+}
+
+func finishProxySuccess(proxy *Proxy, ev *core.Event) {
+	if ev.RR.Req.IsKeepalive() && !proxy.ProxyNeedClose {
+		ev.WriteResponse(nil)
+		ev.Reuse = true
+	} else if ev.Upgrade == "websocket" {
+		ev.WriteResponse(nil)
+		ev.Reuse = true
+	} else {
+		ev.WriteResponseClose(nil)
+	}
+	if ev.Upgrade != "websocket" {
+		releaseProxy(proxy)
+	}
+}
+
+func (p *Proxy) exchange(req []byte, ev *core.Event) error {
+	_, err := p.getDataFromServer(ev, req)
+	if err != nil {
+		p.Close()
+		return err
+	}
+	return nil
 }
 
 func DialFailureResponse(cfg *listener.ListenCfg) *response.Response {

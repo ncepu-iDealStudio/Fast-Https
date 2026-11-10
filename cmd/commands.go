@@ -112,6 +112,11 @@ func commandList() []command {
 			description: t("管理 http.include 目录下的站点文件", "manage site files under http.include"),
 			register:    newSiteCmd,
 		},
+		{
+			name:        "upstream",
+			description: t("临时摘除或恢复一个上游地址", "drain or restore one upstream address"),
+			register:    newUpstreamCmd,
+		},
 	}
 }
 
