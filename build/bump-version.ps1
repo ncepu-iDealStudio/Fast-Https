@@ -59,9 +59,9 @@ $edits = @(
     @{ File = 'build/goreleaser.yaml'; Pattern = 'version_template: "\d+\.\d+\.\d+"'; Replacement = 'version_template: "' + $Version + '"' },
     @{ File = 'build/installer/windows/fast-https.nsi'; Pattern = '!define APP_VERSION "\d+\.\d+\.\d+"'; Replacement = '!define APP_VERSION "' + $Version + '"' },
     @{ File = 'build/installer/windows/fast-https.nsi'; Pattern = '!define APP_VERSION4 "\d+\.\d+\.\d+\.0"'; Replacement = '!define APP_VERSION4 "' + $version4 + '"' },
-    @{ File = 'desktop/state.go'; Pattern = 'desktopVersion = "\d+\.\d+\.\d+"'; Replacement = 'desktopVersion = "' + $Version + '"' },
+    @{ File = 'desktop/internal/view/state.go'; Pattern = 'desktopVersion = "\d+\.\d+\.\d+"'; Replacement = 'desktopVersion = "' + $Version + '"' },
     @{ File = 'desktop/build/config.yml'; Pattern = 'version: "\d+\.\d+\.\d+"'; Replacement = 'version: "' + $Version + '"' },
-    @{ File = 'desktop/build/linux/nfpm/nfpm.yaml'; Pattern = 'version: "\d+\.\d+\.\d+"'; Replacement = 'version: "' + $Version + '"' },
+    # Linux 桌面包已移除（桌面端只发布 Windows），不再有 desktop/build/linux/nfpm/nfpm.yaml
     @{ File = 'desktop/build/windows/nsis/project.nsi'; Pattern = '!define INFO_PRODUCTVERSION "\d+\.\d+\.\d+"'; Replacement = '!define INFO_PRODUCTVERSION "' + $Version + '"' },
     @{ File = 'desktop/build/windows/info.json'; Pattern = '"(file_version|product_version|FileVersion|ProductVersion)": "\d+\.\d+\.\d+"'; Replacement = '"$1": "' + $Version + '"'; Min = 4 },
     # 版本号只在侧边栏显示一次：顶部状态行与账户菜单不再重复
