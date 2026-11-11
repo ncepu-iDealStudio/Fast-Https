@@ -183,6 +183,12 @@ func DeleteSite(dir, id string) (string, error) {
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
 // 桌面端不改文件名：事务会处理校验、恢复点与 reload，和命令行语义一致。
+//
+// Windows 特殊处理：事务的 reload 阶段用 GenerateConsoleCtrlEvent 给服务
+// 进程发信号，而该 API 只能发给整个控制台进程组——服务会被打断（表现为
+// 点「禁用」后服务停了，操作记录停在 recovery_required / reloaded）。
+// 所以事务结束后复核服务状态，掉了就自动拉起来，让「禁用站点」不影响
+// 服务可用性。
 func SetSiteEnabled(dir, id string, enabled bool) (string, error) {
 	name := strings.TrimSpace(id)
 	name = strings.TrimSuffix(name, ".disabled")
@@ -198,7 +204,11 @@ func SetSiteEnabled(dir, id string, enabled bool) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return txnMessage(data, word, name), nil
+	msg := txnMessage(data, word, name)
+	if note := view.EnsureServerRunning(dir); note != "" {
+		msg += note
+	}
+	return msg, nil
 }
 
 // ReadSiteDetail 转交 site show：表单字段 + 只读信息（证书、首页、原文）。

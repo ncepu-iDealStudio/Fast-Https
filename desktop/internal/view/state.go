@@ -134,6 +134,36 @@ func RunServerCommand(dir string, args ...string) (string, error) {
 	return cli.Run(dir, args...)
 }
 
+// EnsureServerRunning 复核服务状态，掉了就自动拉起，返回给用户看的补充说明。
+//
+// 用在配置事务之后：Windows 上事务的 reload 阶段用 GenerateConsoleCtrlEvent
+// 给服务进程发信号，而该 API 只能发给整个控制台进程组，服务会被打断
+// （用户看到的现象是「点禁用站点，服务停了」）。事务本身成功了（配置已写入、
+// 恢复点已建），但服务需要重新拉起才继续可用。
+//
+// 服务本来就没运行、或拉起失败时都返回空串：不该把「本来就没开」说成故障。
+func EnsureServerRunning(dir string) string {
+	if running, _ := serverStillRunning(dir); running {
+		return ""
+	}
+	// 给事务的收尾留一点时间，避免误判正在重启中的服务
+	time.Sleep(600 * time.Millisecond)
+	if running, _ := serverStillRunning(dir); running {
+		return ""
+	}
+	if _, err := StartServer(dir); err != nil {
+		return "（服务未能自动恢复，请手动启动：配置已保存，不影响下次启动生效）"
+	}
+	// 等它真正起来再回报
+	for i := 0; i < 10; i++ {
+		time.Sleep(300 * time.Millisecond)
+		if running, _ := serverStillRunning(dir); running {
+			return "（配置已生效，服务已自动恢复）"
+		}
+	}
+	return "（配置已保存，服务正在启动中，稍后刷新状态）"
+}
+
 // StartServer 用 Start 而非 Run：start 子命令会派生后台进程，
 // 桌面端不能等它退出，但要 Wait 回收，避免留下僵尸进程。
 func StartServer(dir string) (string, error) {

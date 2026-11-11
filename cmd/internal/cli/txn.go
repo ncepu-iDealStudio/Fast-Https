@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -89,15 +90,24 @@ func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 				cp := snap
 				before = &cp
 			}
-			// Windows 上服务与 CLI 常常不在同一个控制台，Ctrl+Break /
-			// SIGINT 投递不过去（syscall.EWINDOWS = "not supported by
-			// windows"）。此时配置已经写好，不该因为发不出信号而回滚，
-			// 提示用户手动重载即可。
+			// Windows 上 GenerateConsoleCtrlEvent 只能发给整个控制台进程组，
+			// 无法定向投递 reload 信号：硬发会打断服务进程（甚至打断发起方），
+			// 用户看到的现象是「点禁用站点，服务停了」。
+			// 这里改为主动重启服务让新配置生效——配置已切换完成，重启是
+			// 唯一可靠的应用方式，比回滚或让服务停着都正确。
 			if err := svcctl.SignalReload(pid); err != nil {
 				if runtime.GOOS == "windows" {
 					fmt.Fprintln(os.Stderr,
-						"提示：Windows 上无法向其他控制台的进程发送 reload 信号，配置已写入；"+
-							"请在服务所在终端重启服务，或执行 fast-https reload")
+						"提示：Windows 上无法热重载，正在重启服务以应用新配置")
+					if restartErr := restartService(pidPath); restartErr != nil {
+						fmt.Fprintf(os.Stderr,
+							"提示：服务重启失败（%v），配置已写入，下次启动生效\n", restartErr)
+						return nil
+					}
+					// 重启后 pid 必然变化，健康检查不能再按「热重载」比对
+					// pid/started_at——那会误判成 recovery_required 并回滚。
+					// 清空 before 让它走 WaitBasic：只验证服务在跑、端口可连。
+					before = nil
 					return nil
 				}
 				return err
@@ -129,6 +139,47 @@ func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 			return err
 		}),
 	}
+}
+
+// restartService 停止并重新启动服务进程，让新配置生效（Windows 专用路径）。
+//
+// 用于替代热重载：Windows 无法定向投递 reload 信号，重启是唯一可靠的
+// 应用方式。通过子进程调用自身的 stop / start 子命令实现——不直接调
+// 父包的 Handler（会循环依赖），也复用了已有的停止/启动语义。
+func restartService(pidPath string) error {
+	self, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("取程序路径失败：%w", err)
+	}
+	dir := filepath.Dir(pidPath)
+
+	// 1. stop：等它真正退出，避免端口占用导致新进程起不来
+	stopCmd := exec.Command(self, "stop")
+	stopCmd.Dir = dir
+	_ = stopCmd.Run() // stop 在服务未运行时返回非零，这里不视为失败
+	for i := 0; i < 30; i++ {
+		if st, _, err := procctl.InspectProcess(pidPath); err != nil || st != procctl.ProcessRunning {
+			break
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+
+	// 2. start：派生后台进程，不等待它退出
+	startCmd := exec.Command(self, "start")
+	startCmd.Dir = dir
+	if err := startCmd.Start(); err != nil {
+		return fmt.Errorf("启动服务失败：%w", err)
+	}
+	go func() { _ = startCmd.Wait() }()
+
+	// 3. 确认新进程在跑（最多等 6 秒）
+	for i := 0; i < 20; i++ {
+		time.Sleep(300 * time.Millisecond)
+		if st, _, err := procctl.InspectProcess(pidPath); err == nil && st == procctl.ProcessRunning {
+			return nil
+		}
+	}
+	return fmt.Errorf("服务启动超时")
 }
 
 // RunTxn 是站点写命令的公共入口：读 --config、按 --timeout 建上下文、
