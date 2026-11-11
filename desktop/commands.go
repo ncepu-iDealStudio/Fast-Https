@@ -31,6 +31,13 @@ var textOnlyCommands = []string{
 // needsConfigArg 列出支持 --config 的命令前缀（这些命令要按主程序报出的
 // 配置路径找配置树，不能依赖 CLI 进程的 CWD——dev 模式下配置可能被放在
 // 任意目录，例如 desktop/bin/config）。
+//
+// 只收「--help 里确实声明了 --config」的命令。误加会让命令报
+// `unknown flag: --config` 并以退出码 2 失败（用户实测踩到）。已知不收的：
+//   - operation list / operation get：读状态目录下的操作记录
+//   - runtime status / runtime stats：直连 127.0.0.1:9088 读快照，与配置无关
+//
+// 新增条目前务必先跑 `<cli> <cmd> --help` 确认该 flag 存在。
 // 排除：旧纯文本命令、config path、acme show（不收 --config）、
 // acme setup（用 --config 但由前端显式传）、service/reload。
 var needsConfigArg = []string{
@@ -39,8 +46,7 @@ var needsConfigArg = []string{
 	"cert list", "cert check",
 	"monitor status", "monitor events",
 	"logs access", "logs error", "logs query",
-	"diagnose", "runtime status", "runtime stats",
-	"operation list", "operation get",
+	"diagnose",
 }
 
 func shouldAddConfig(args []string) bool {

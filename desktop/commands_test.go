@@ -34,6 +34,9 @@ func TestRunCommandRejectsEmpty(t *testing.T) {
 // TestShouldAddConfig 锁定「哪些命令自动补 --config」：
 // dev 模式下配置可能被放在任意目录（例如 desktop/bin/config），
 // 不能依赖 CLI 进程的 CWD 找 ./config/fast-https.json。
+//
+// 判断依据是「该命令的 --help 里有没有 --config」。误加会让命令报
+// `unknown flag: --config` 并以退出码 2 失败。
 func TestShouldAddConfig(t *testing.T) {
 	for _, args := range [][]string{
 		{"site", "list"},
@@ -42,9 +45,7 @@ func TestShouldAddConfig(t *testing.T) {
 		{"cert", "list"},
 		{"monitor", "status"},
 		{"logs", "query", "--kind", "access"},
-		{"runtime", "status"},
 		{"diagnose"},
-		{"operation", "list", "--limit", "20"},
 	} {
 		if !shouldAddConfig(args) {
 			t.Errorf("%v 应自动补 --config", args)
@@ -61,9 +62,15 @@ func TestShouldAddConfig(t *testing.T) {
 		{"acme", "show"},
 		{"acme", "setup", "--non-interactive", "--email", "a@b.c"},
 		{"service", "reload"},
+		// 操作记录读状态目录，不接受 --config（实测 unknown flag，exit 2）
+		{"operation", "list", "--limit", "8"},
+		{"operation", "get", "op_20261110_001"},
+		// 运行快照直连 127.0.0.1:9088，与配置文件无关（实测 unknown flag，exit 2）
+		{"runtime", "status"},
+		{"runtime", "stats"},
 	} {
 		if shouldAddConfig(args) {
-			t.Errorf("%v 不应自动补 --config", args)
+			t.Errorf("%v 不应自动补 --config（该命令不接受此 flag）", args)
 		}
 	}
 }
