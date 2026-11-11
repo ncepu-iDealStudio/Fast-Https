@@ -198,6 +198,39 @@ func TestTrayHasServiceActions(t *testing.T) {
 	}
 }
 
+// TestServiceResultTextIsHumanReadable 服务操作的结果文案必须是中文人话，
+// 不能把 CLI 的原始输出（zerolog JSON 行）直接回给界面。
+//
+// CLI 的 stop / start 会往 stdout 打 {"level":"info",...,"message":"..."}，
+// 早期实现直接把这段文本当结果 toast 出来，用户看到的就是一串 JSON。
+func TestServiceResultTextIsHumanReadable(t *testing.T) {
+	src := string(readPkgFileBytes(t, "desktop/internal/view/state.go"))
+
+	// StopServer 必须忽略 CLI 的原始 stdout，自己给出结果文案
+	if strings.Contains(src, "text, err := cli.Run(dir, \"stop\")") {
+		t.Error("StopServer 不应把 CLI 的原始输出当结果文案（会显示 zerolog JSON）")
+	}
+	for _, want := range []string{"服务已停止", "停止失败"} {
+		if !strings.Contains(src, want) {
+			t.Errorf("state.go 缺少服务停止的用户文案：%s", want)
+		}
+	}
+}
+
+// TestWindowsReloadSkipsHopelessAttempt Windows 上不存在可用的热重载，
+// Service 层应直接走重启，而不是先跑一趟注定失败的 service reload。
+func TestWindowsReloadSkipsHopelessAttempt(t *testing.T) {
+	src := string(readPkgFileBytes(t, "desktop/service.go"))
+	for _, want := range []string{
+		"runtime.GOOS == \"windows\"",
+		"restartForReload",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("service.go 缺少 Windows 重载直连重启的分支：%s", want)
+		}
+	}
+}
+
 // readPkgFileBytes 与 readPkgFile 相同但返回原始字节，供非文本断言。
 func readPkgFileBytes(t *testing.T, rel string) []byte {
 	t.Helper()

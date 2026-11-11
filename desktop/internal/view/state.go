@@ -214,9 +214,11 @@ func StartServer(dir string) (string, error) {
 //     此时按 exe 路径找进程强杀兜底——用户要的是「停」，不是一句「已停止」
 //     而站点仍可访问。
 func StopServer(dir string) (string, error) {
-	text, err := cli.Run(dir, "stop")
-	if err != nil {
-		return text, err
+	// CLI 的 stop 会往 stdout 打 zerolog 的 JSON 行（以及「not running」之类的
+	// 提示），不能直接当文案给用户看。这里只把它当成功/失败信号，结果文案
+	// 由下面按实际复核结果生成。
+	if _, err := cli.Run(dir, "stop"); err != nil {
+		return "", fmt.Errorf("停止失败：%v", err)
 	}
 	time.Sleep(1200 * time.Millisecond)
 	if running, ports := serverStillRunning(dir); running {
@@ -224,13 +226,13 @@ func StopServer(dir string) (string, error) {
 		if killed > 0 && killErr == nil {
 			time.Sleep(800 * time.Millisecond)
 			if still, _ := serverStillRunning(dir); !still {
-				return text + "（stop 未找到 pid，已按进程强停）", nil
+				return "服务已停止（stop 未找到 pid，已按进程强停）", nil
 			}
 		}
-		return text, fmt.Errorf("stop 未能停止服务（pid 文件错位），强杀也失败：%s；请手动结束 fast-https.exe 进程",
+		return "", fmt.Errorf("stop 未能停止服务（pid 文件错位），强杀也失败：%s；请手动结束 fast-https.exe 进程",
 			strings.Join(ports, " "))
 	}
-	return text, nil
+	return "服务已停止", nil
 }
 
 // ServerRunning 报告服务当前是否在运行（供 Service 层判断是否需要重载/重启）。
