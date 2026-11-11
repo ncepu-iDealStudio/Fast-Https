@@ -267,3 +267,27 @@
 .listen-chip.is-tls { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 30%, var(--line)); }
 .site-actions { display: flex; align-items: center; gap: 2px; }
 .site-empty { padding: 22px; text-align: center; color: var(--faint); font-size: 12px; }
+
+
+/* ---- 设置页路径控件 ---- */
+.path-single { display: flex; align-items: center; gap: 8px; }
+.path-single input { flex: 1 1 auto; min-width: 0; }
+.path-browse { flex: 0 0 auto; min-width: 34px; padding: 0 10px; }
+
+.path-list { display: flex; flex-direction: column; gap: 6px; }
+.path-row { display: flex; align-items: center; gap: 8px; }
+.path-row .path-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+}
+.path-del { flex: 0 0 auto; min-width: 30px; padding: 0 8px; color: var(--muted); }
+.path-del:hover { color: var(--danger); border-color: var(--danger); }
+.path-add { align-self: flex-start; margin-top: 2px; }

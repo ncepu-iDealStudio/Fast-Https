@@ -415,6 +415,8 @@ export const zhCN = {
   'settings.discardTitle': '放弃未保存的修改？',
   'settings.discardBody': '重新读取会用磁盘上的配置覆盖当前编辑内容，未保存的改动会丢失。',
   'settings.discardOk': '放弃并重新读取',
+  'settings.browse': '浏览…',
+  'settings.pathAdd': '+ 添加路径',
   'settings.formOn': '开启',
   'settings.formUnset': '（未设置）',
   'settings.formMissing': '未配置',

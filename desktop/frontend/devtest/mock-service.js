@@ -77,8 +77,9 @@ export const DesktopService = {
         { path: 'security.host_check', label: 'Host 校验', group: '安全', type: 'select', value: 'off', options: ['off', 'warn', 'enforce'], help: '' },
         { path: 'acme.enabled', label: '启用自动签发', group: 'ACME', type: 'bool', value: 'false', missing: true },
         { path: 'acme.email', label: 'ACME 邮箱', group: 'ACME', type: 'email', value: '', missing: true },
+        { path: 'acme.storage', label: 'ACME 缓存目录', group: 'ACME', type: 'text', value: './cert/acme', browse: 'dir' },
         { path: 'http.default_type', label: '默认 MIME 类型', group: 'HTTP', type: 'text', value: 'application/octet-stream' },
-        { path: 'http.include', label: 'include 目录 / 文件', group: 'HTTP', type: 'list', value: './conf.d' }
+        { path: 'http.include', label: 'include 目录 / 文件', group: 'HTTP', type: 'pathlist', value: './conf.d', browse: 'dir' }
       ]
     };
   },

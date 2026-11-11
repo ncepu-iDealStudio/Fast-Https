@@ -28,39 +28,51 @@ type ConfigForm = model.ConfigForm
 type fieldSpec struct {
 	path, label, group, typ, help string
 	options                       []string
+	// browse 表示这个字段是一个路径，界面要给「浏览…」按钮：
+	//   "dir"  → 选目录（include 目录、ACME 缓存目录）
+	//   "file" → 选文件（pid 文件、日志根等）
+	// 空表示普通值，不提供浏览。
+	browse string
 }
 
 // 字段名与 config/schema.go、config/config.go、config/acme.go 保持一致，
 // 包括历史拼写 http.blaklist。http.server[] 与 acme.cas 结构复杂，不进表单。
+//
+// 控件选择按字段的业务含义来，不要一律用文本框：
+//   - 枚举值（off/warn/enforce 这类）用下拉，避免用户手打错
+//   - 开关用勾选框
+//   - 多选（挑战方式、日志字段）用勾选组
+//   - 路径给浏览按钮（目录用 dir，文件用 file）
+//   - 只有真正自由文本（HSTS 策略、CSP、MIME 类型）才用输入框
 var configSpecs = []fieldSpec{
-	{"pid", "pid 文件路径", "基础", "text", "预留字段，通常留空", nil},
-	{"log_root", "日志根目录", "基础", "text", "预留字段，通常留空", nil},
+	{"pid", "pid 文件路径", "基础", "text", "预留字段，通常留空", nil, "file"},
+	{"log_root", "日志根目录", "基础", "text", "预留字段，通常留空", nil, "dir"},
 
-	{"security.host_check", "Host 校验", "安全", "select", "off 回落首个 server；warn 只记录；enforce 返回 421", []string{"off", "warn", "enforce"}},
-	{"security.headers.nosniff", "X-Content-Type-Options", "安全", "bool", "写入 nosniff 响应头", nil},
-	{"security.headers.hsts", "HSTS", "安全", "text", "留空关闭；例 max-age=31536000; includeSubDomains。误开会让 HTTP 站点被浏览器锁死", nil},
-	{"security.headers.x_frame_options", "X-Frame-Options", "安全", "select", "留空关闭", []string{"", "DENY", "SAMEORIGIN"}},
-	{"security.headers.referrer_policy", "Referrer-Policy", "安全", "select", "留空关闭", []string{"", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"}},
-	{"security.headers.content_security_policy", "Content-Security-Policy", "安全", "textarea", "留空关闭；策略较长时可分行写", nil},
+	{"security.host_check", "Host 校验", "安全", "select", "off 回落首个 server；warn 只记录；enforce 返回 421", []string{"off", "warn", "enforce"}, ""},
+	{"security.headers.nosniff", "X-Content-Type-Options", "安全", "bool", "写入 nosniff 响应头", nil, ""},
+	{"security.headers.hsts", "HSTS", "安全", "text", "留空关闭；例 max-age=31536000; includeSubDomains。误开会让 HTTP 站点被浏览器锁死", nil, ""},
+	{"security.headers.x_frame_options", "X-Frame-Options", "安全", "select", "留空关闭", []string{"", "DENY", "SAMEORIGIN"}, ""},
+	{"security.headers.referrer_policy", "Referrer-Policy", "安全", "select", "留空关闭", []string{"", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"}, ""},
+	{"security.headers.content_security_policy", "Content-Security-Policy", "安全", "textarea", "留空关闭；策略较长时可分行写", nil, ""},
 
-	{"waf.mode", "WAF 模式", "WAF", "select", "enforce 阻断 / monitor 只记录 / disabled 不启用", []string{"", "enforce", "monitor", "disabled"}},
+	{"waf.mode", "WAF 模式", "WAF", "select", "enforce 阻断 / monitor 只记录 / disabled 不启用", []string{"", "enforce", "monitor", "disabled"}, ""},
 
-	{"acme.enabled", "启用自动签发", "ACME", "bool", "关闭后走静态证书", nil},
-	{"acme.email", "ACME 邮箱", "ACME", "email", "用于注册 ACME 账户", nil},
-	{"acme.staging", "使用 staging 环境", "ACME", "bool", "测试时避免触发正式 CA 速率限制", nil},
-	{"acme.challenge", "挑战方式", "ACME", "multiselect", "至少选一个；不在列表里的自定义值会保留", []string{"http-01", "tls-alpn-01", "dns-01"}},
-	{"acme.renew_before_days", "提前续期天数", "ACME", "number", "0 表示用默认 30 天", nil},
-	{"acme.fallback_self_signed", "证书失败回落自签", "ACME", "bool", "默认回落；显式 false 则不回落", nil},
-	{"acme.storage", "ACME 缓存目录", "ACME", "text", "留空用默认路径", nil},
+	{"acme.enabled", "启用自动签发", "ACME", "bool", "关闭后走静态证书", nil, ""},
+	{"acme.email", "ACME 邮箱", "ACME", "email", "用于注册 ACME 账户", nil, ""},
+	{"acme.staging", "使用 staging 环境", "ACME", "bool", "测试时避免触发正式 CA 速率限制", nil, ""},
+	{"acme.challenge", "挑战方式", "ACME", "multiselect", "至少选一个；不在列表里的自定义值会保留", []string{"http-01", "tls-alpn-01", "dns-01"}, ""},
+	{"acme.renew_before_days", "提前续期天数", "ACME", "number", "0 表示用默认 30 天", nil, ""},
+	{"acme.fallback_self_signed", "证书失败回落自签", "ACME", "bool", "默认回落；显式 false 则不回落", nil, ""},
+	{"acme.storage", "ACME 缓存目录", "ACME", "text", "留空用默认路径", nil, "dir"},
 
-	{"http.include", "include 目录 / 文件", "HTTP", "list", "每行一个，站点文件通常放在 conf.d", nil},
-	{"http.default_type", "默认 MIME 类型", "HTTP", "text", "", nil},
-	{"http.servers_limit.max_header_size", "请求头上限（字节）", "HTTP", "number", "", nil},
-	{"http.servers_limit.max_body_size", "请求体上限（字节）", "HTTP", "number", "", nil},
-	{"http.servers_limit.limit", "限流 rate", "HTTP", "number", "0 表示不限", nil},
-	{"http.servers_limit.burst", "限流 burst", "HTTP", "number", "0 表示不限", nil},
-	{"http.blaklist", "黑名单", "HTTP", "list", "历史键名 blaklist，每行一个", nil},
-	{"http.log_format", "访问日志字段", "HTTP", "multiselect", "按需勾选，顺序即日志字段顺序", []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}},
+	{"http.include", "include 目录 / 文件", "HTTP", "pathlist", "每行一个；站点文件通常放在 conf.d", nil, "dir"},
+	{"http.default_type", "默认 MIME 类型", "HTTP", "text", "", nil, ""},
+	{"http.servers_limit.max_header_size", "请求头上限（字节）", "HTTP", "number", "", nil, ""},
+	{"http.servers_limit.max_body_size", "请求体上限（字节）", "HTTP", "number", "", nil, ""},
+	{"http.servers_limit.limit", "限流 rate", "HTTP", "number", "0 表示不限", nil, ""},
+	{"http.servers_limit.burst", "限流 burst", "HTTP", "number", "0 表示不限", nil, ""},
+	{"http.blaklist", "黑名单", "HTTP", "list", "历史键名 blaklist，每行一个", nil, ""},
+	{"http.log_format", "访问日志字段", "HTTP", "multiselect", "按需勾选，顺序即日志字段顺序", []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}, ""},
 }
 
 // engine（is_master / id / register_port / slave_*）是 schema 里为兼容存量配置
@@ -99,7 +111,7 @@ func ReadConfigForm(dir string) (ConfigForm, error) {
 	}
 	sort.Strings(form.Preserved)
 	for _, s := range configSpecs {
-		f := ConfigField{Path: s.path, Label: s.label, Group: s.group, Type: s.typ, Help: s.help, Options: s.options}
+		f := ConfigField{Path: s.path, Label: s.label, Group: s.group, Type: s.typ, Help: s.help, Options: s.options, Browse: s.browse}
 		if v, ok := lookupPath(root, s.path); ok {
 			f.Value = formatFieldValue(v, s.typ)
 		} else {

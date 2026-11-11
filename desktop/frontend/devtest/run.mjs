@@ -122,8 +122,10 @@ try {
   await page.click('#logMoreFilters');
   await page.click('[data-nav="certs"]');
   await sleep(300);
-  check('ACME 图形化表单', await page.locator('#acmeForm #acmeEmail').count() > 0 && await page.locator('#acmeSave').count() > 0);
-  await shot('09-acme-form');
+  // ACME 属于主配置的 acme 段，只在「设置」页的表单里改；
+  // 证书页不该再放一份表单（两处都能改会让人不知道以哪份为准）。
+  check('证书页不再有 ACME 表单', await page.locator('#acmeForm').count() === 0);
+  await shot('09-certs-no-acme');
 
   // 站点页：添加站点弹窗 + 协议/端口联动
   await page.click('[data-nav="sites"]');
@@ -216,6 +218,19 @@ try {
   await page.click('[data-menu="settings"]');
   await sleep(600);
   await shot('13-settings');
+  // 设置页表单要按字段语义给控件，而不是一律文本框：
+  // ACME 分组在设置页（证书页不再有）、路径字段带「浏览…」按钮、
+  // include 目录是路径列表（可增删）。
+  {
+    const acmeGroup = await page.locator('.config-group-title', { hasText: 'ACME' }).count();
+    const browseBtns = await page.locator('#configForm .path-browse').count();
+    const pathList = await page.locator('#configForm .path-list').count();
+    const selects = await page.locator('#configForm select').count();
+    check('设置页含 ACME 分组', acmeGroup > 0, `groups=${acmeGroup}`);
+    check('路径字段带浏览按钮', browseBtns > 0, `browse=${browseBtns}`);
+    check('include 是路径列表', pathList > 0, `pathList=${pathList}`);
+    check('枚举字段用下拉', selects > 0, `selects=${selects}`);
+  }
   await page.locator('.content').evaluate((el) => { el.scrollTop = el.scrollHeight; });
   await sleep(300);
   await shot('14-settings-versions');

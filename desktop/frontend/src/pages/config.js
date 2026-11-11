@@ -15,10 +15,22 @@ function setConfigStatus(text, kind) {
   el.className = 'config-status' + (kind ? ' ' + kind : '');
 }
 
+// renderConfigField 按字段的业务含义选控件，不要一律用文本框：
+//   select      枚举值 → 下拉（手打容易错）
+//   bool        开关 → 勾选框
+//   multiselect 多选（挑战方式、日志字段）→ 勾选组
+//   pathlist    路径列表（include 目录）→ 每行一个输入 + 浏览 + 删除，可追加
+//   browse 非空 单一路径 → 输入框 + 「浏览…」按钮（dir 选目录 / file 选文件）
+//   textarea    CSP 这类长策略 → 多行
+// 其余（HSTS 策略、MIME 类型等自由文本）才用普通输入框。
 function renderConfigField(f) {
   const id = 'cf-' + f.path.replace(/[^\w-]/g, '-');
   let v = f.value || '';
   let control;
+  const browseBtn = f.browse
+    ? `<button type="button" class="btn small path-browse" data-browse-for="${id}" data-browse-kind="${esc(f.browse)}" title="${esc(t('settings.browse'))}">…</button>`
+    : '';
+
   if (f.type === 'multiselect') {
     // 固定候选 + 配置里已有的自定义值，避免勾选时把自定义项丢掉
     const current = String(v).split('\n').map((x) => x.trim()).filter(Boolean);
@@ -32,10 +44,21 @@ function renderConfigField(f) {
   } else if (f.type === 'select') {
     const opts = (f.options || []).map((o) => `<option value="${esc(o)}" ${o === f.value ? 'selected' : ''}>${o === '' ? esc(t('settings.formUnset')) : esc(o)}</option>`).join('');
     control = `<select id="${id}" data-value="${f.path}">${opts}</select>`;
+  } else if (f.type === 'pathlist') {
+    // 路径列表：一行一个，可浏览、可删除、可追加。值仍是换行分隔的字符串，
+    // 与后端 list 类型的解析保持一致。
+    const rows = String(v).split('\n').map((x) => x.trim()).filter(Boolean);
+    if (!rows.length) rows.push('');
+    control = `<div class="path-list" id="${id}" data-value="${f.path}" data-pathlist="1" data-browse-kind="${esc(f.browse || 'dir')}">
+      ${rows.map((r) => pathRowHTML(r, f.browse)).join('')}
+      <button type="button" class="btn small path-add" data-add-for="${id}">${esc(t('settings.pathAdd'))}</button>
+    </div>`;
   } else if (f.type === 'list' || f.type === 'textarea') {
     control = `<textarea id="${id}" data-value="${f.path}" rows="3" spellcheck="false">${esc(v)}</textarea>`;
   } else if (f.type === 'email') {
     control = `<input id="${id}" type="email" data-value="${f.path}" value="${esc(v)}" placeholder="you@example.com" spellcheck="false"/>`;
+  } else if (f.browse) {
+    control = `<div class="path-single"><input id="${id}" type="text" data-value="${f.path}" value="${esc(v)}" spellcheck="false"/>${browseBtn}</div>`;
   } else {
     control = `<input id="${id}" type="${f.type === 'number' ? 'number' : 'text'}" data-value="${f.path}" value="${esc(v)}"/>`;
   }
@@ -43,6 +66,14 @@ function renderConfigField(f) {
     <label class="form-label" for="${id}">${esc(f.label)}${f.help ? `<small>${esc(f.help)}</small>` : ''}</label>
     <div class="form-control">${control}</div>
   </div>`;
+}
+
+// pathRowHTML 是路径列表里的一行：输入框 + 浏览 + 删除。
+function pathRowHTML(value, kind) {
+  const k = esc(kind || 'dir');
+  return `<div class="path-row"><input type="text" class="path-input" value="${esc(value)}" spellcheck="false"/>
+    <button type="button" class="btn small path-browse" data-browse-kind="${k}" title="${esc(t('settings.browse'))}">…</button>
+    <button type="button" class="btn small path-del" title="${esc(t('common.delete'))}">×</button></div>`;
 }
 
 function renderConfigForm(form) {
@@ -63,10 +94,17 @@ function renderConfigForm(form) {
   $$('#configForm [data-row]').forEach((row) => { state.configInitial[row.getAttribute('data-row')] = row.getAttribute('data-initial'); });
 }
 
-// 统一取一行表单的当前值：多选拼成换行串，布尔取勾选状态，其余取 value
+// 统一取一行表单的当前值：多选拼成换行串，布尔取勾选状态，
+// 路径列表把每行非空值拼成换行串，其余取 value
 function configRowValue(el) {
   if (el.hasAttribute('data-multi')) {
     return [...el.querySelectorAll('input:checked')].map((x) => x.value).join('\n');
+  }
+  if (el.hasAttribute('data-pathlist')) {
+    return [...el.querySelectorAll('.path-input')]
+      .map((x) => x.value.trim())
+      .filter(Boolean)
+      .join('\n');
   }
   if (el.type === 'checkbox') return String(el.checked);
   return el.value;
@@ -240,6 +278,60 @@ export function initConfigEditor() {
   if (!box) return;
   box.addEventListener('input', markConfigDirty);
   box.addEventListener('change', markConfigDirty);
+
+  // 路径字段的「浏览…」与路径列表的增删：表单是动态重建的，用事件委托。
+  box.addEventListener('click', async (e) => {
+    const tgt = e.target;
+    if (!tgt || !tgt.closest) return;
+
+    // 路径列表：追加一行
+    const add = tgt.closest('.path-add');
+    if (add) {
+      e.preventDefault();
+      const list = $('#' + add.getAttribute('data-add-for'));
+      if (list) {
+        list.insertAdjacentHTML('beforeend', pathRowHTML('', list.getAttribute('data-browse-kind')));
+        markConfigDirty();
+      }
+      return;
+    }
+
+    // 路径列表：删除一行（至少留一行，避免列表变成空的没法再加）
+    const del = tgt.closest('.path-del');
+    if (del) {
+      e.preventDefault();
+      const list = del.closest('.path-list');
+      const rows = list ? list.querySelectorAll('.path-row') : [];
+      if (rows.length > 1) del.closest('.path-row').remove();
+      else rows[0] && (rows[0].querySelector('.path-input').value = '');
+      markConfigDirty();
+      return;
+    }
+
+    // 浏览按钮：单路径字段改自己的 input，路径列表改同一行的 input
+    const browse = tgt.closest('.path-browse');
+    if (!browse) return;
+    e.preventDefault();
+    const kind = browse.getAttribute('data-browse-kind') || 'dir';
+    let input = null;
+    const forId = browse.getAttribute('data-browse-for');
+    if (forId) input = $('#' + forId);
+    else {
+      const row = browse.closest('.path-row');
+      input = row ? row.querySelector('.path-input') : null;
+    }
+    if (!input) return;
+    try {
+      const picked = await DesktopService.PickPath(kind);
+      if (picked) {
+        input.value = picked;
+        markConfigDirty();
+      }
+    } catch (err) {
+      toast(t('toast.openFailed', { msg: msgOf(err) }));
+    }
+  });
+
   $('#configReloadFile').addEventListener('click', () => loadConfig(true));
   $('#configValidate').addEventListener('click', validateConfig);
   $('#configVersionsRefresh').addEventListener('click', loadConfigVersions);

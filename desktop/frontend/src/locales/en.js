@@ -420,6 +420,8 @@ export const en = {
   'settings.discardTitle': 'Discard unsaved changes?',
   'settings.discardBody': 'Re-reading overwrites your edits with the config on disk; unsaved changes are lost.',
   'settings.discardOk': 'Discard & re-read',
+  'settings.browse': 'Browse…',
+  'settings.pathAdd': '+ Add path',
   'settings.formOn': 'On',
   'settings.formUnset': '(not set)',
   'settings.formMissing': 'not set',

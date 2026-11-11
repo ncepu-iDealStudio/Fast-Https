@@ -1,4 +1,4 @@
-# 19. 桌面管理端
+﻿# 19. 桌面管理端
 
 状态：✅ 已实现（Wails v3，1.6.0 起随发行版提供）
 
@@ -65,7 +65,6 @@
 ## 测试
 
 - `desktop/`：CLI 封套解析（`internal/cli`）、弹窗字段与 `site add/update` 参数翻译（`internal/siteops`）、表单字段解析与候选树搭建（`internal/configops`）、`site list` / `cert list` / `logs query` 数据映射（`internal/view`）、纯文本命令判定（`commands_test.go`）（`go test ./...`、`go vet ./...`）。
-- `tests/packaging/distro/desktop-deb.sh`：Ubuntu 24.04 容器里离线单包装 → 文件与二进制一致性 → 运行期资源 → `start` 监听 80/443 → 卸载清理，以及「已装独立主程序包再装桌面端包」的替换场景，实机 `ALL-PASS`。
 - 窗口交互、表单渲染与主题用 `frontend/devtest/` 的点击测试台遍历截图（中英双语界面）；Wails GUI 本身需要在桌面实机点一次。
 
 ## 已知限制

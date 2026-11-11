@@ -5,23 +5,22 @@ vars:
   BIN_DIR: "bin"
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
-  # 只支持 Windows / Linux；由 `wails3 build GOOS=...` 覆盖
-  GOOS: '{{.GOOS | default OS}}'
+  # 桌面端当前只发布 Windows（NSIS 安装包），Linux 桌面包不在计划内。
+  GOOS: '{{.GOOS | default "windows"}}'
 
 includes:
   common: ./build/Taskfile.yml
   windows: ./build/windows/Taskfile.yml
-  linux: ./build/linux/Taskfile.yml
 
 tasks:
   build:
-    desc: 构建应用（Windows / Linux）
+    desc: 构建应用（Windows）
     summary: 构建应用
     cmds:
       - task: "{{.GOOS}}:build"
 
   package:
-    desc: 打包（Windows NSIS / Linux deb）
+    desc: 打包（Windows NSIS）
     summary: 打包
     cmds:
       - task: "{{.GOOS}}:package"
@@ -37,4 +36,3 @@ tasks:
     summary: 开发模式
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
-

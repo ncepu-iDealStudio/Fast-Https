@@ -1,4 +1,4 @@
-// 入口：只做初始化编排。业务逻辑分散在 pages/ 与 dialogs/，
+﻿// 入口：只做初始化编排。业务逻辑分散在 pages/ 与 dialogs/，
 // 数据交互统一走 api.js，跨模块状态在 state.js。
 import './styles/index.css';
 import { DesktopService, msgOf } from './api.js';
@@ -14,7 +14,7 @@ import { renderEvents, initEventsCard, refreshOperations } from './ui/events.js'
 import { renderOverview } from './pages/overview.js';
 import { initConfigEditor, loadConfigVersions } from './pages/config.js';
 import { initLogPage, loadLogs, rerenderLogs } from './pages/logs.js';
-import { initPanels, refreshMatrixPanels, loadAcmeShow } from './pages/panels.js';
+import { initPanels, refreshMatrixPanels } from './pages/panels.js';
 import { initRuntimePage, refreshRuntimePage } from './pages/runtime.js';
 import { initOperationsPage, refreshOperationsPage } from './pages/operations.js';
 import { template as siteTemplate, initSiteDialog, initSiteLinks } from './dialogs/site.js';
@@ -62,7 +62,6 @@ function rerenderAll() {
   refreshDetails();
   refreshOperations();
   refreshMatrixPanels();
-  loadAcmeShow();
   if (state.configLoaded) loadConfigVersions();
   const help = $('#helpDialog');
   if (help && !help.hidden) openHelp();

@@ -232,7 +232,7 @@ export function initSiteDialog() {
       try {
         const msg = await DesktopService.SetSiteEnabled(id, enabled);
         toast(msg || t('toast.actionDone', { action: word }));
-        await refreshDetails();
+        await refreshDetails({ force: true });
         await refreshOverview();
         refreshOperations();
       } catch (err) {
@@ -267,7 +267,7 @@ export function initSiteDialog() {
     if (!ok) return;
     try {
       toast(await DesktopService.DeleteSite(id));
-      await refreshDetails();
+      await refreshDetails({ force: true });
       await refreshOverview();
       refreshOperations();
     } catch (err) {
@@ -308,7 +308,7 @@ export function initSiteDialog() {
         : await DesktopService.SaveSiteDetail(payload);
       close();
       toast(text);
-      await refreshDetails();
+      await refreshDetails({ force: true });
       await refreshOverview();
       refreshOperations();
     } catch (e) {

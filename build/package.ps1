@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Build release artifacts: goreleaser archives and Linux packages (including the
   desktop deb/rpm/apk), Windows NSIS installers, and leave only the final
@@ -87,10 +87,10 @@ function ConvertTo-Version4 {
 }
 
 function Prepare-Desktop {
-    # goreleaser 的 desktop-linux 构建会 //go:embed all:frontend/dist，
-    # nfpm 的 contents 又引用 build/linux/*.desktop，两者都必须在构建前就绪。
+    # 桌面端只发布 Windows（NSIS 安装包）：Linux 桌面包（deb/rpm/apk）不在计划内，
+    # 所以这里不再生成 .desktop 入口，goreleaser 也没有 desktop-linux 构建。
     $desktop = Join-Path $root "desktop"
-    if (-not (Test-Path (Join-Path $desktop "go.mod"))) { throw "desktop/ 不存在，无法构建桌面端包" }
+    if (-not (Test-Path (Join-Path $desktop "go.mod"))) { throw "desktop/ 不存在，无法构建桌面端" }
     if (-not (Get-Command wails3 -ErrorAction SilentlyContinue)) {
         throw "未找到 wails3；先 go install github.com/wailsapp/wails/v3/cmd/wails3@latest"
     }
@@ -142,14 +142,12 @@ function Prepare-Desktop {
             Remove-Item -LiteralPath (Join-Path $desktop "wails_windows_arm64.syso") -Force -ErrorAction SilentlyContinue
         }
 
-        Write-Host "==> desktop: generate .desktop"
-        & wails3 generate .desktop -name "fast-https-desktop" -exec "fast-https-desktop" -icon "fast-https-desktop" -outputfile (Join-Path $desktop "build\linux\fast-https-desktop.desktop") -categories "Network;System;Utility;"
-        if ($LASTEXITCODE -ne 0) { throw "generate .desktop failed (exit $LASTEXITCODE)" }
+        Write-Host "==> desktop: windows builds done"
     }
     finally { Pop-Location }
 }
 
-# 1. desktop 前端 & goreleaser（含 Linux 主程序与桌面端的 deb/rpm/apk）
+# 1. desktop 前端 & goreleaser（主程序的 Linux 服务端包；桌面端只出 Windows 安装包）
 if (-not $SkipBuild) {
     Prepare-Desktop
 

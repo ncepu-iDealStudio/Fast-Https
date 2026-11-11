@@ -112,11 +112,14 @@ type ConfigField struct {
 	Path    string   `json:"path"`
 	Label   string   `json:"label"`
 	Group   string   `json:"group"`
-	Type    string   `json:"type"` // text | number | bool | select | list
+	Type    string   `json:"type"` // text | number | bool | select | list | textarea | email | multiselect | pathlist
 	Value   string   `json:"value"`
 	Options []string `json:"options,omitempty"`
 	Help    string   `json:"help,omitempty"`
 	Missing bool     `json:"missing"`
+	// Browse 非空表示这是路径字段，界面要给「浏览…」按钮：
+	// "dir" 选目录、"file" 选文件。前端据此调用 PickPath。
+	Browse string `json:"browse,omitempty"`
 }
 
 // ConfigForm 是设置页的表单。字段值来自 config show（脱敏），

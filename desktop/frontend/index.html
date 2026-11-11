@@ -154,20 +154,6 @@
             <div class="section-label"><span data-i18n="certs.configured">已配置的证书</span><span class="label-right"><span class="section-count" id="certCount">0</span><button class="btn small" id="trustCABtn" data-i18n="certs.trust">信任本地 CA…</button></span></div>
             <div class="kv-table" id="certsTable"><div class="kv-row"><span class="k">—</span><span class="v" data-i18n="certs.loading">正在读取证书…</span></div></div>
           </section>
-
-          <section class="card">
-            <div class="card-head"><h3 data-i18n="acme.title">ACME 自动签发</h3><div class="card-head-actions"><span class="card-note" data-i18n="acme.note">配置证书自动申请与续期</span><button class="btn small" id="acmeRefresh" data-i18n="common.refresh">刷新</button></div></div>
-            <div id="acmeForm" class="acme-form">
-              <div class="acme-row"><label class="acme-label" for="acmeEnabled" data-i18n="acme.enabled">启用自动签发</label><div class="acme-control"><input type="checkbox" id="acmeEnabled"/></div></div>
-              <div class="acme-row"><label class="acme-label" for="acmeEmail" data-i18n="acme.email">账户邮箱</label><div class="acme-control"><input id="acmeEmail" type="email" placeholder="you@example.com"/></div></div>
-              <div class="acme-row"><label class="acme-label" for="acmeCA" data-i18n="acme.ca">证书机构</label><div class="acme-control"><select id="acmeCA"><option value="letsencrypt" data-i18n="acme.caLetsencrypt">Let's Encrypt（正式）</option><option value="staging" data-i18n="acme.caStaging">Let's Encrypt（测试 staging）</option><option value="zerossl" data-i18n="acme.caZerossl">ZeroSSL</option></select></div></div>
-              <div class="acme-row"><label class="acme-label" for="acmeChallenge" data-i18n="acme.challenge">验证方式</label><div class="acme-control"><select id="acmeChallenge"><option value="auto">auto</option><option value="http-01">http-01</option><option value="tls-alpn-01">tls-alpn-01</option><option value="dns-01">dns-01</option></select></div></div>
-              <div class="acme-row"><label class="acme-label" for="acmeRenew" data-i18n="acme.renewBefore">提前续期（天）</label><div class="acme-control"><input id="acmeRenew" type="number" min="1" value="30"/></div></div>
-              <div class="acme-row"><label class="acme-label" for="acmeStorage" data-i18n="acme.storage">缓存目录</label><div class="acme-control"><input id="acmeStorage" type="text" placeholder="./cert/acme"/></div></div>
-              <div class="acme-row"><label class="acme-label" for="acmeFallback" data-i18n="acme.fallback">失败回落自签</label><div class="acme-control"><input type="checkbox" id="acmeFallback" checked/></div></div>
-              <div class="acme-actions"><button class="btn primary" id="acmeSave" data-i18n="acme.save">保存设置</button><span id="acmeStatus" class="acme-status"></span></div>
-            </div>
-          </section>
         </div>
 
         <div class="pane" data-pane="logs" hidden>
