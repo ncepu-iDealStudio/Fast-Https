@@ -302,8 +302,12 @@ func firstToken(s string) string {
 	return f[0]
 }
 
-// siteRows 把 site list 的 data 映射成界面行：一个站点的每个监听一行，
-// 共享同一个 Id（= CLI 的站点名，文件名主干）。
+// siteRows 把 site list 的 data 映射成界面行：**一个站点文件一行**。
+//
+// 一个站点常同时监听多个端口（如 "80, 443 ssl h2"），它们属于同一个
+// 配置文件、同一个开关、同一次启停。之前按监听拆成多行，界面上看起来是
+// 「两个站点」，但两行的启停按钮操作的是同一个文件——点其中一个另一个也变，
+// 用户会以为禁用逻辑坏了。这里合并成一行，监听列表整体展示。
 func siteRows(data map[string]any) []Site {
 	var out []Site
 	for _, it := range cli.AsSlice(data["sites"]) {
@@ -314,24 +318,41 @@ func siteRows(data map[string]any) []Site {
 			name = id
 		}
 		listens := splitListen(cli.Str(r, "listen"))
-		if len(listens) == 0 {
-			listens = []string{""}
-		}
+		// 该站点是否任意一条监听带 ssl：TLS 站点按整体标记
+		tls := false
 		for _, l := range listens {
-			out = append(out, Site{
-				Id:         id,
-				Name:       name,
-				Port:       portOf(l),
-				Listen:     l,
-				TLS:        strings.Contains(l, "ssl"),
-				Source:     cli.Str(r, "file"),
-				Enabled:    cli.Bool(r, "enabled"),
-				CertStatus: cli.Str(r, "cert_status"),
-				Error:      cli.Str(r, "error"),
-			})
+			if strings.Contains(l, "ssl") {
+				tls = true
+				break
+			}
 		}
+		// Port 取第一条监听的端口（portOf 只认单条监听，不能喂合并串）
+		port := ""
+		if len(listens) > 0 {
+			port = portOf(listens[0])
+		}
+		out = append(out, Site{
+			Id:         id,
+			Name:       name,
+			Port:       port,
+			Listen:     joinPorts(listens),
+			Listens:    listens,
+			TLS:        tls,
+			Source:     cli.Str(r, "file"),
+			Enabled:    cli.Bool(r, "enabled"),
+			CertStatus: cli.Str(r, "cert_status"),
+			Error:      cli.Str(r, "error"),
+		})
 	}
 	return out
+}
+
+// joinPorts 把多条监听合并成给界面看的端口串："80, 443 ssl h2"。
+func joinPorts(listens []string) string {
+	if len(listens) == 0 {
+		return ""
+	}
+	return strings.Join(listens, ", ")
 }
 
 // ------------------------------------------------------------ 证书（cert list）

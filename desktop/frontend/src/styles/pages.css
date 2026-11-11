@@ -189,3 +189,81 @@
 .acme-status { font-size: 12px; color: var(--muted); }
 .acme-status.is-error { color: var(--danger); }
 .acme-status.is-ok { color: var(--ok); }
+
+
+/* ---- 站点页：一个站点文件一行 ---- */
+#sitesTable { display: flex; flex-direction: column; gap: 2px; }
+.site-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: background .12s ease, border-color .12s ease;
+}
+.site-row + .site-row { margin-top: 2px; }
+.site-row:hover { background: var(--surface); border-color: var(--line); }
+.site-row.is-disabled .site-link { color: var(--faint); }
+.site-row.is-disabled .listen-chip { opacity: .55; }
+
+.site-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.site-link {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
+}
+.site-link:hover { color: var(--accent); text-decoration: underline; }
+.site-link.is-off { color: var(--faint); }
+
+.site-state {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+.site-state.on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.site-state.off { color: var(--faint); }
+
+.site-file {
+  font: 11px/1.5 Consolas, "Courier New", monospace;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.site-side {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 0 0 auto;
+}
+.site-listens { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.listen-chip {
+  font: 11px/1.5 Consolas, "Courier New", monospace;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.listen-chip.is-tls { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 30%, var(--line)); }
+.site-actions { display: flex; align-items: center; gap: 2px; }
+.site-empty { padding: 22px; text-align: center; color: var(--faint); font-size: 12px; }

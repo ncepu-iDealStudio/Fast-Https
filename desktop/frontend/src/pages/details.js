@@ -1,11 +1,18 @@
 // 明细渲染：站点、证书、运行时路径，以及状态矩阵里的访问日志栏。
-// 站点行来自 ListSites()（model.Site：id/name/port/listen/tls/source/enabled/
-// error），行内按钮用 data-id（站点名，site 命令的位置参数）。证书的有效期
-// 与状态徽标只在证书页展示，站点页与矩阵只提示签发来源。
+// 站点行来自 ListSites()（model.Site：id/name/port/listen/listens/tls/source/
+// enabled/error），**一个站点文件一行**；行内按钮用 data-id（站点名，
+// site 命令的位置参数）。证书的有效期与状态徽标只在证书页展示，站点页与
+// 矩阵只提示签发来源。
 import { $, esc } from '../ui/dom.js';
 import { iconSVG } from '../ui/icons.js';
 import { t } from '../i18n.js';
 import { state } from '../state.js';
+
+// basename 取路径最后一段（站点配置文件显示成 localhost.json）。
+function basename(p) {
+  if (!p) return '';
+  return String(p).split(/[\\/]/).pop();
+}
 
 export function renderRows(target, rows) {
   $(target).innerHTML = rows.length
@@ -72,13 +79,31 @@ export function renderLogEntries(entries, target) {
   }).join('');
 }
 
-// 站点访问地址：默认端口省略，其他端口显式带上；name 是站点域名（server_name）
+// 站点访问地址：优先 https（站点带 ssl 时），端口按监听里对应协议的端口取。
+// 一个站点可能同时监听 80 和 443，这里挑最能代表它的那个：
+// 有 ssl 监听就用 443 那条，否则用第一条。
 export function siteURL(s) {
-  const scheme = s.tls ? 'https' : 'http';
-  const port = String(s.port || '').replace(/^:/, '');
+  const listens = Array.isArray(s.listens) && s.listens.length ? s.listens : [s.listen || ''];
+  let picked = listens[0] || '';
+  if (s.tls) {
+    const ssl = listens.find((l) => /ssl/i.test(l));
+    if (ssl) picked = ssl;
+  }
+  const scheme = /ssl/i.test(picked) ? 'https' : 'http';
+  const port = String(picked).trim().split(/\s+/)[0].replace(/^:/, '');
   const host = s.name || 'localhost';
   const isDefault = (scheme === 'https' && port === '443') || (scheme === 'http' && port === '80');
   return scheme + '://' + host + (port && !isDefault ? ':' + port : '') + '/';
+}
+
+// listenChips 把站点的每条监听渲染成一个小标签：80 / 443 ssl h2。
+function listenChips(s) {
+  const listens = Array.isArray(s.listens) && s.listens.length ? s.listens : (s.listen ? [s.listen] : []);
+  if (!listens.length) return '<span class="listen-chip">—</span>';
+  return listens.map((l) => {
+    const secure = /ssl/i.test(l);
+    return `<span class="listen-chip${secure ? ' is-tls' : ''}">${esc(l)}</span>`;
+  }).join('');
 }
 
 export function renderSites(sites, certs) {
@@ -87,7 +112,6 @@ export function renderSites(sites, certs) {
     ? sites.map((s) => {
         const url = siteURL(s);
         const off = state.lastOverview?.running ? '' : ' is-off';
-        // site list 的每行都是 conf.d 下的独立站点文件，全部可启停/删除
         const isOn = s.enabled !== false;
         const toggleBtn = '<button class="icon-btn site-toggle' + (isOn ? ' is-on' : ' is-off') + '"'
           + ' data-id="' + esc(s.id) + '"'
@@ -100,13 +124,25 @@ export function renderSites(sites, certs) {
           + '</button>';
         const detailBtn = '<button class="icon-btn site-more" data-id="' + esc(s.id) + '" title="' + esc(t('sites.detail')) + '">' + iconSVG('more') + '</button>';
         const err = s.error ? '<span class="row-err" title="' + esc(s.error) + '">' + esc(s.error) + '</span>' : '';
-        return `<div class="kv-row">`
-          + `<span class="k">${esc(s.port || '—')}</span>`
-          + `<span class="v"><a class="site-link${off}" href="#" data-url="${esc(url)}" title="${esc(url)}">${esc(url)}</a></span>`
-          + `<span class="n with-action"><span title="${esc(s.source || '')}">${esc(s.name || s.source || '')}</span>${err}${toggleBtn}${delBtn}${detailBtn}</span>`
+        // 一个站点文件一行：主行给访问地址与开关，下面一行列全部监听标签。
+        // 不再按监听拆成多行——那是同一个文件、同一个开关，拆开会让用户
+        // 以为有两个站点，且点其中一个另一个也跟着变。
+        const statePill = '<span class="site-state ' + (isOn ? 'on' : 'off') + '">'
+          + esc(isOn ? t('sites.stateOn') : t('sites.stateOff')) + '</span>';
+        return `<div class="site-row${isOn ? '' : ' is-disabled'}">`
+          + `<div class="site-main">`
+          + `<a class="site-link${off}" href="#" data-url="${esc(url)}" title="${esc(url)}">${esc(url)}</a>`
+          + statePill
+          + `<span class="site-file" title="${esc(s.source || '')}">${esc(basename(s.source) || s.id)}</span>`
+          + err
+          + `</div>`
+          + `<div class="site-side">`
+          + `<div class="site-listens">${listenChips(s)}</div>`
+          + `<div class="site-actions">${toggleBtn}${delBtn}${detailBtn}</div>`
+          + `</div>`
           + `</div>`;
       }).join('')
-    : `<div class="kv-row"><span class="k">—</span><span class="v">${esc(t('sites.empty'))}</span></div>`;
+    : `<div class="site-empty">${esc(t('sites.empty'))}</div>`;
   $('#matrixBody').innerHTML = sites.length
     ? sites.map((s) => {
         const c = certs.find((x) => x.domain === s.name);

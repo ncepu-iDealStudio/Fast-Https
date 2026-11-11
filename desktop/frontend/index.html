@@ -138,7 +138,7 @@
         <div class="pane" data-pane="sites" hidden>
           <section class="card">
             <div class="pane-notes">
-              <p class="lede" data-i18n-html="sites.lede">主配置与 <span class="mono">conf.d</span> 下的站点文件（http.server[] 与 http.include），按监听端口逐个展开。新站点写成 <span class="mono">conf.d/&lt;名称&gt;.json</span>；增删改与启停都走配置事务（校验、恢复点、reload、可回滚），提交后立即生效。</p>
+              <p class="lede" data-i18n-html="sites.lede">每个站点对应 <span class="mono">conf.d</span> 下的一个配置文件（如 <span class="mono">localhost.json</span>），一个站点可同时监听多个端口。增删改与启停都走配置事务（校验、恢复点、reload、可回滚），提交后立即生效。</p>
             </div>
             <div class="section-label"><span data-i18n="sites.configured">已配置的站点</span><span class="label-right"><span class="section-count" id="siteCountLabel">0</span><button class="btn small" id="addSiteBtn" data-i18n="sites.add">+ 添加站点</button></span></div>
             <div class="kv-table" id="sitesTable"><div class="kv-row"><span class="k">—</span><span class="v" data-i18n="sites.loading">正在读取站点…</span></div></div>

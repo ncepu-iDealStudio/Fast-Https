@@ -32,7 +32,12 @@ func TestPortOf(t *testing.T) {
 	}
 }
 
-func TestSiteRowsExpandListens(t *testing.T) {
+// TestSiteRowsOneRowPerSite 一个站点文件一行，不按监听拆行。
+//
+// 一个站点常同时监听多个端口（"80, 443 ssl h2"），那是同一个配置文件、
+// 同一个启停开关。按监听拆行会让用户以为有两个站点，且点其中一个另一个
+// 也跟着变（用户实测报过「站点列表显示异常」）。这里锁住合并语义。
+func TestSiteRowsOneRowPerSite(t *testing.T) {
 	data := map[string]any{
 		"sites": []any{
 			map[string]any{
@@ -55,28 +60,35 @@ func TestSiteRowsExpandListens(t *testing.T) {
 		},
 	}
 	rows := siteRows(data)
-	if len(rows) != 3 {
-		t.Fatalf("应拆出 3 行，得到 %d", len(rows))
+	if len(rows) != 2 {
+		t.Fatalf("一个站点文件应只出一行，期望 2 行，得到 %d", len(rows))
 	}
-	// 多监听拆行、共享 Id、Name 取第一个域名
-	if rows[0].Id != "blog" || rows[1].Id != "blog" {
-		t.Fatalf("拆行应共享 Id：%#v", rows[:2])
+	// 多端口站点：Listen 是合并串，Listens 是拆开的单条
+	if rows[0].Id != "blog" || rows[0].Name != "blog.example.com" {
+		t.Fatalf("首行映射错误：%#v", rows[0])
 	}
-	if rows[0].Name != "blog.example.com" {
-		t.Fatalf("Name 应取首个域名，得到 %q", rows[0].Name)
+	if rows[0].Listen != "80, 443 ssl h2" {
+		t.Fatalf("Listen 应为合并串，得到 %q", rows[0].Listen)
 	}
-	if rows[0].Port != ":80" || rows[0].TLS {
-		t.Fatalf("第一行应是 :80 非 TLS：%#v", rows[0])
+	if len(rows[0].Listens) != 2 || rows[0].Listens[0] != "80" || rows[0].Listens[1] != "443 ssl h2" {
+		t.Fatalf("Listens 应拆出两条监听，得到 %#v", rows[0].Listens)
 	}
-	if rows[1].Port != ":443" || !rows[1].TLS {
-		t.Fatalf("第二行应是 :443 TLS：%#v", rows[1])
+	// 只要任意一条监听带 ssl，整体按 TLS 站点标记
+	if !rows[0].TLS {
+		t.Fatalf("含 ssl 监听的站点应标记 TLS：%#v", rows[0])
+	}
+	if rows[0].Port != ":80" {
+		t.Fatalf("Port 取第一条监听的端口，得到 %q", rows[0].Port)
 	}
 	if rows[0].CertStatus != "valid" {
 		t.Fatalf("cert_status 未映射：%#v", rows[0])
 	}
 	// 停用与错误透出
-	if rows[2].Enabled || rows[2].Error != "parse failed" {
-		t.Fatalf("停用站点映射错误：%#v", rows[2])
+	if rows[1].Enabled || rows[1].Error != "parse failed" {
+		t.Fatalf("停用站点映射错误：%#v", rows[1])
+	}
+	if rows[1].TLS {
+		t.Fatalf("纯 8080 监听不应标记 TLS：%#v", rows[1])
 	}
 }
 

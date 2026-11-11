@@ -22,10 +22,11 @@ export const DesktopService = {
     };
   },
   async ListSites() {
+    // 一个站点文件一行：listen 是合并串，listens 是拆开的单条监听。
+    // 站点可同时监听 80 与 443，属于同一个文件、同一个启停开关。
     return [
-      { id: 'blog', name: 'blog.example.com', port: ':80', listen: '80', tls: false, source: 'C:\\demo\\config\\conf.d\\blog.json', enabled: true, certStatus: '', error: '' },
-      { id: 'blog', name: 'blog.example.com', port: ':443', listen: '443 ssl h2', tls: true, source: 'C:\\demo\\config\\conf.d\\blog.json', enabled: true, certStatus: 'valid', error: '' },
-      { id: 'api', name: 'api.example.com', port: ':8080', listen: '8080', tls: false, source: 'C:\\demo\\config\\conf.d\\api.json.disabled', enabled: false, certStatus: 'expiring', error: '' }
+      { id: 'blog', name: 'blog.example.com', port: ':80', listen: '80, 443 ssl h2', listens: ['80', '443 ssl h2'], tls: true, source: 'C:\\demo\\config\\conf.d\\blog.json', enabled: true, certStatus: 'valid', error: '' },
+      { id: 'api', name: 'api.example.com', port: ':8080', listen: '8080', listens: ['8080'], tls: false, source: 'C:\\demo\\config\\conf.d\\api.json.disabled', enabled: false, certStatus: 'expiring', error: '' }
     ];
   },
   async ListCerts() {

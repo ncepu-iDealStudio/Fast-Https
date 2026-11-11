@@ -1,4 +1,4 @@
-// English strings. Keys mirror locales/zh-CN.js; missing keys fall back to
+﻿// English strings. Keys mirror locales/zh-CN.js; missing keys fall back to
 // the Chinese baseline, so keep both files in sync when adding entries.
 export const en = {
   // ---- Common buttons and words ----
@@ -189,10 +189,12 @@ export const en = {
   'monitor.eventsFailed': 'Could not load events: {msg}',
 
   // ---- Sites page ----
-  'sites.lede': 'Site files under the main config and <span class="mono">conf.d</span> (http.server[] and http.include), expanded by listen port. New sites are written as <span class="mono">conf.d/&lt;name&gt;.json</span>; add, edit, delete and enable/disable all run as config transactions (validate, restore point, reload, rollback) and take effect immediately.',
+  'sites.lede': 'Each site is one config file under <span class="mono">conf.d</span> (for example <span class="mono">localhost.json</span>); a single site can listen on several ports at once (80 and 443). Add, edit, delete and enable/disable all run as config transactions (validate, restore point, reload, rollback) and take effect immediately.',
   'sites.configured': 'Configured sites',
   'sites.add': '+ Add site',
   'sites.loading': 'Loading sites…',
+  'sites.stateOn': 'Enabled',
+  'sites.stateOff': 'Disabled',
   'sites.empty': 'No sites',
   'sites.toggleOn': 'Disable site',
   'sites.toggleOff': 'Enable site',

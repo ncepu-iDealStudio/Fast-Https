@@ -74,9 +74,9 @@ try {
   if (stopped) {
     await page.click('[data-nav="sites"]');
     await sleep(500);
-    const rows = await page.locator('#sitesTable .kv-row').count();
+    const rows = await page.locator('#sitesTable .site-row').count();
     const siteLabel = await page.locator('#siteCountLabel').textContent();
-    check('服务停止时站点仍刷出', rows > 1 && Number(siteLabel) > 0,
+    check('服务停止时站点仍刷出', rows > 0 && Number(siteLabel) > 0,
       `rows=${rows} countLabel=${siteLabel}`);
     await shot('02-stopped-sites');
   }
@@ -86,6 +86,21 @@ try {
     await page.click(`[data-nav="${key}"]`);
     await sleep(500);
     await shot('02-nav-' + label);
+  }
+
+  // 站点页核心契约：一个站点文件只显示一行。
+  // 一个站点可同时监听 80 与 443（listen "80, 443 ssl h2"），那是同一个
+  // 配置文件、同一个启停开关。按监听拆行会让用户以为有两个站点，
+  // 且点其中一个另一个也跟着变——曾经就是这么错的。
+  await page.click('[data-nav="sites"]');
+  await sleep(400);
+  {
+    const rows = await page.locator('#sitesTable .site-row').count();
+    const label = Number(await page.locator('#siteCountLabel').textContent());
+    check('一个站点文件一行', rows === label, `rows=${rows} countLabel=${label}`);
+    // 多端口站点的监听标签都要展示出来（80 与 443 各一个 chip）
+    const chips = await page.locator('#sitesTable .site-row').first().locator('.listen-chip').count();
+    check('多端口站点监听完整展示', chips >= 2, `chips=${chips}`);
   }
 
   // 新增页面：运行快照、操作记录、日志实时、ACME 表单

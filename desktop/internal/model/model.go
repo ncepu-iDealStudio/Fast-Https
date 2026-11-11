@@ -37,18 +37,22 @@ type Overview struct {
 	Error           string       `json:"error"`
 }
 
-// Site 是站点页/矩阵页的一行：site list 的一个站点按监听拆行，
-// 同一站点的多条监听共享同一个 Id。
+// Site 是站点页/矩阵页的一行：**一个站点文件一行**。
+//
+// 一个站点常同时监听多个端口（如 "80, 443 ssl h2"），它们共享同一个
+// 配置文件与同一个启停开关。Listen 是合并后的完整监听串（展示用），
+// Listens 是拆开后的单条监听（矩阵页按端口列时用），Port 是其中第一个端口。
 type Site struct {
-	Id         string `json:"id"`
-	Name       string `json:"name"`
-	Port       string `json:"port"`
-	Listen     string `json:"listen"`
-	TLS        bool   `json:"tls"`
-	Source     string `json:"source"`
-	Enabled    bool   `json:"enabled"`
-	CertStatus string `json:"certStatus"`
-	Error      string `json:"error"`
+	Id         string   `json:"id"`
+	Name       string   `json:"name"`
+	Port       string   `json:"port"`
+	Listen     string   `json:"listen"`
+	Listens    []string `json:"listens"`
+	TLS        bool     `json:"tls"`
+	Source     string   `json:"source"`
+	Enabled    bool     `json:"enabled"`
+	CertStatus string   `json:"certStatus"`
+	Error      string   `json:"error"`
 }
 
 // Cert 是 cert list 的一行（按证书文件归并）。

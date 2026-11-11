@@ -1,4 +1,4 @@
-// 简体中文文案（基准语言）。key 用点号分组；新增 key 两份字典都要补，
+﻿// 简体中文文案（基准语言）。key 用点号分组；新增 key 两份字典都要补，
 // 英文缺 key 时会回落到这里的中文。
 export const zhCN = {
   // ---- 通用按钮与通用词 ----
@@ -184,10 +184,12 @@ export const zhCN = {
   'monitor.eventsFailed': '读取事件失败：{msg}',
 
   // ---- 站点页 ----
-  'sites.lede': '主配置与 <span class="mono">conf.d</span> 下的站点文件（http.server[] 与 http.include），按监听端口逐个展开。新站点写成 <span class="mono">conf.d/&lt;名称&gt;.json</span>；增删改与启停都走配置事务（校验、恢复点、reload、可回滚），提交后立即生效。',
+  'sites.lede': '每个站点对应 <span class="mono">conf.d</span> 下的一个配置文件（如 <span class="mono">localhost.json</span>），一个站点可同时监听多个端口（如 80 与 443）。增删改与启停都走配置事务（校验、恢复点、reload、可回滚），提交后立即生效。',
   'sites.configured': '已配置的站点',
   'sites.add': '+ 添加站点',
   'sites.loading': '正在读取站点…',
+  'sites.stateOn': '已启用',
+  'sites.stateOff': '已停用',
   'sites.empty': '没有站点',
   'sites.toggleOn': '停用站点',
   'sites.toggleOff': '启用站点',
