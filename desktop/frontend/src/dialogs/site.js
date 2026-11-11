@@ -1,32 +1,65 @@
 // 站点弹窗：添加与详情编辑共用一套表单，另含站点行的详情/删除/访问链接委托。
+// 表单按「怎么方便怎么填」设计：协议与端口用下拉/数字框选择，listen 与
+// proxy_pass 在下方联动生成（仍可手动微调，如给监听加 h2）；提交时翻译成
+// SiteInput（对应 site add / site update 的 flag），证书、首页与文件名由
+// 配置事务自动处理。
 import { DesktopService, msgOf } from '../api.js';
+import { t } from '../i18n.js';
 import { $, $$, esc, toast } from '../ui/dom.js';
+import { withLoading, withImmediateLoading } from '../ui/loading.js';
 import { state } from '../state.js';
 import { askConfirm } from './confirm.js';
 import { refreshOverview, refreshDetails } from '../refresh.js';
+import { setSiteEnabledUI } from '../pages/details.js';
+import { refreshOperations } from '../ui/events.js';
 
 export const template = `<div class="dialog-mask" id="siteDialog" hidden>
   <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="siteDialogTitle">
-    <h3 id="siteDialogTitle">添加站点</h3>
+    <h3 id="siteDialogTitle" data-i18n="dialog.site.titleAdd">添加站点</h3>
     <p class="dialog-source" id="siteSource" hidden></p>
     <div class="site-form">
-      <div class="form-row"><label class="form-label" for="siteName">域名 / IP<small>server_name；多个域名用空格分隔，如 example.com www.example.com</small></label><div class="form-control"><input id="siteName" type="text" placeholder="example.com www.example.com 或 192.168.1.10"/></div></div>
-      <div class="form-row"><label class="form-label" for="siteListen">监听<small>listen，逗号或换行分隔</small></label><div class="form-control"><input id="siteListen" type="text" placeholder="80 或 443 ssl h2"/></div></div>
-      <div class="form-row"><label class="form-label" for="siteType">类型</label><div class="form-control"><select id="siteType"><option value="local">静态站点（local）</option><option value="proxy">反向代理（proxy）</option></select></div></div>
-      <div class="form-row" id="siteRootRow"><label class="form-label" for="siteRoot">站点根目录<small>root，相对 config 目录</small></label><div class="form-control with-browse"><input id="siteRoot" type="text" placeholder="./httpdoc/root"/><button class="btn small" type="button" data-browse="dir" data-target="siteRoot">浏览…</button></div></div>
-      <div class="form-row" id="siteProxyRow" hidden><label class="form-label" for="siteProxy">反代地址<small>proxy_pass，需 http(s)://</small></label><div class="form-control"><input id="siteProxy" type="text" placeholder="http://127.0.0.1:9000"/></div></div>
-      <div class="form-row" id="siteIndexRow"><label class="form-label" for="siteIndex">首页<small>index，可留空</small></label><div class="form-control"><input id="siteIndex" type="text" placeholder="index.html index.htm"/></div></div>
-      <div class="form-row"><label class="form-label" for="siteCert">站点证书<small>ssl_certificate；由本地根 CA 签发，留空自动生成</small></label><div class="form-control with-browse"><input id="siteCert" type="text" placeholder="./cert/example.pem"/><button class="btn small" type="button" data-browse="file" data-target="siteCert">浏览…</button></div></div>
-      <div class="form-row"><label class="form-label" for="siteCertKey">证书私钥<small>ssl_certificate_key；与站点证书同时留空或同时填写</small></label><div class="form-control with-browse"><input id="siteCertKey" type="text" placeholder="./cert/example-key.pem"/><button class="btn small" type="button" data-browse="file" data-target="siteCertKey">浏览…</button></div></div>
-      <div class="form-row" id="siteFileNameRow"><label class="form-label" for="siteFileName">文件名<small>conf.d 下的 JSON 文件名，可留空</small></label><div class="form-control"><input id="siteFileName" type="text" placeholder="默认按域名生成"/></div></div>
+      <div class="form-row"><label class="form-label" for="siteName"><span data-i18n="dialog.site.name">域名 / IP</span><small data-i18n="dialog.site.nameHint">多个域名用空格分隔，如 example.com www.example.com</small></label><div class="form-control"><input id="siteName" type="text" placeholder="example.com 或 192.168.1.10" data-i18n-placeholder="dialog.site.namePh"/></div></div>
+      <div class="form-row"><label class="form-label"><span data-i18n="dialog.site.proto">协议与端口</span><small data-i18n="dialog.site.protoHint">选好协议和端口，监听会自动生成</small></label>
+        <div class="form-control">
+          <div class="inline-fields">
+            <select id="siteProto" aria-label="协议" data-i18n-aria="dialog.site.protoAria">
+              <option value="http" data-i18n="dialog.site.protoHttp">仅 HTTP</option>
+              <option value="https" data-i18n="dialog.site.protoHttps">仅 HTTPS</option>
+              <option value="both" data-i18n="dialog.site.protoBoth">HTTP + HTTPS</option>
+            </select>
+            <label class="mini-field"><span data-i18n="dialog.site.httpPort">HTTP 端口</span><input id="siteHttpPort" type="number" min="1" max="65535" value="80"/></label>
+            <label class="mini-field"><span data-i18n="dialog.site.httpsPort">HTTPS 端口</span><input id="siteHttpsPort" type="number" min="1" max="65535" value="443"/></label>
+          </div>
+          <input id="siteListen" type="text" placeholder="80 或 80, 443 ssl h2" data-i18n-placeholder="dialog.site.listenPh" aria-label="监听" data-i18n-aria="dialog.site.listenAria"/>
+          <small class="field-note" data-i18n="dialog.site.listenNote">listen：自动生成，可以再手动微调（例如把 443 ssl 改成 443 ssl h2）</small>
+        </div>
+      </div>
+      <div class="form-row"><label class="form-label" for="siteType" data-i18n="dialog.site.type">类型</label><div class="form-control"><select id="siteType"><option value="local" data-i18n="dialog.site.typeLocal">静态站点（本地文件）</option><option value="proxy" data-i18n="dialog.site.typeProxy">反向代理（转发给后端）</option></select></div></div>
+      <div class="form-row" id="siteRootRow"><label class="form-label" for="siteRoot"><span data-i18n="dialog.site.root">站点根目录</span><small data-i18n="dialog.site.rootHint">网页文件放在这里</small></label><div class="form-control with-browse"><input id="siteRoot" type="text" placeholder="./httpdoc/root"/><button class="btn small" type="button" data-browse="dir" data-target="siteRoot" data-i18n="dialog.site.browse">浏览…</button></div></div>
+      <div class="form-row" id="siteProxyRow" hidden><label class="form-label"><span data-i18n="dialog.site.proxy">反代地址</span><small data-i18n="dialog.site.proxyHint">后端服务的地址，协议在这里选</small></label>
+        <div class="form-control">
+          <div class="inline-fields">
+            <select id="siteProxyScheme" aria-label="反代协议" data-i18n-aria="dialog.site.proxySchemeAria">
+              <option value="http://">http://</option>
+              <option value="https://">https://</option>
+            </select>
+            <input id="siteProxy" type="text" placeholder="127.0.0.1:8080" aria-label="反代主机" data-i18n-aria="dialog.site.proxyHostAria"/>
+          </div>
+          <small class="field-note" data-i18n="dialog.site.proxyNote">proxy_pass：也可以直接粘贴完整地址（http:// 或 https:// 开头），协议会跟着识别</small>
+        </div>
+      </div>
     </div>
-    <p class="dialog-hint">多个域名用空格分隔（如 example.com www.example.com），它们共享同一组 location 和证书。用 IP、localhost 或别名访问时，默认的 <span class="mono">security.host_check=off</span> 会回落到该端口的站点；改成 <span class="mono">enforce</span> 才会严格校验 Host。</p>
-    <p class="dialog-hint">这里填的是<b>站点证书</b>，路径相对配置目录（如 <span class="mono">./cert/&lt;主域名&gt;.pem</span>），由 <span class="mono">ssl_certificate</span> 指向、TLS 握手时发给浏览器；<span class="mono">httpdoc/root/root.crt</span> 是<b>本地根 CA 证书</b>，负责签发这些站点证书，也是要导入系统信任库的那一张。两者都由服务首次启动时自动生成。</p>
+    <div class="detail-info" id="siteInfo" hidden>
+      <div class="section-label"><span data-i18n="dialog.site.readonly">只读信息</span></div>
+      <div class="kv-table" id="siteInfoRows"></div>
+      <details class="raw-details"><summary data-i18n="dialog.site.raw">原始 server 块（JSON）</summary><pre class="cmd-result" id="siteRaw"></pre></details>
+    </div>
+    <p class="dialog-hint" data-i18n-html="dialog.site.hint">多个域名共享同一组设置；用 IP、localhost 或别名访问时，默认的 <span class="mono">security.host_check=off</span> 会回落到该端口的站点。证书、首页与文件名由配置事务自动处理（HTTPS 站点证书默认 <span class="mono">./cert/&lt;域名&gt;.pem</span>，文件名即主域名）。</p>
     <p class="dialog-note" id="siteNote" hidden></p>
     <p class="dialog-error" id="siteError" hidden></p>
     <div class="dialog-actions">
-      <button class="btn" id="siteCancel">取消</button>
-      <button class="btn primary" id="siteSubmit">创建站点</button>
+      <button class="btn" id="siteCancel" data-i18n="common.cancel">取消</button>
+      <button class="btn primary" id="siteSubmit" data-i18n="dialog.site.create">创建站点</button>
     </div>
   </div>
 </div>`;
@@ -35,8 +68,59 @@ export const template = `<div class="dialog-mask" id="siteDialog" hidden>
 function syncSiteType() {
   const proxy = $('#siteType').value === 'proxy';
   $('#siteRootRow').hidden = proxy;
-  $('#siteIndexRow').hidden = proxy;
   $('#siteProxyRow').hidden = !proxy;
+}
+
+// composeListen 由协议与端口生成 listen 文本；用户之后仍可手动微调。
+function composeListen() {
+  const proto = $('#siteProto').value;
+  const hp = $('#siteHttpPort').value.trim() || '80';
+  const sp = $('#siteHttpsPort').value.trim() || '443';
+  const parts = [];
+  if (proto === 'http' || proto === 'both') parts.push(hp);
+  if (proto === 'https' || proto === 'both') parts.push(sp + ' ssl h2');
+  $('#siteListen').value = parts.join(', ');
+}
+
+// applyListenToControls 从 listen 文本反推协议与端口（详情回填用）。
+// 原文保留在输入框里（可能带 h2 等高级参数），改动上面的控件才会重新生成。
+function applyListenToControls(text) {
+  let httpPort = '', httpsPort = '';
+  for (const part of String(text || '').split(',')) {
+    const fields = part.trim().split(/\s+/).filter(Boolean);
+    if (!fields.length) continue;
+    const port = fields[0].replace(/^:/, '');
+    if (!/^\d+$/.test(port)) continue;
+    if (/\bssl\b/.test(part)) {
+      if (!httpsPort) httpsPort = port;
+    } else if (!httpPort) {
+      httpPort = port;
+    }
+  }
+  $('#siteHttpPort').value = httpPort || '80';
+  $('#siteHttpsPort').value = httpsPort || '443';
+  $('#siteProto').value = httpPort && httpsPort ? 'both' : (httpsPort ? 'https' : 'http');
+  $('#siteListen').value = text || '';
+}
+
+// composeProxyPass 拼 proxy_pass：输入框里已有完整地址就原样用，
+// 否则拼上选中的协议。
+function composeProxyPass() {
+  const body = $('#siteProxy').value.trim();
+  if (/^https?:\/\//i.test(body)) return body;
+  return body ? $('#siteProxyScheme').value + body : '';
+}
+
+// applyProxyToControls 从 proxy_pass 反推协议与主机（详情回填用）。
+function applyProxyToControls(pass) {
+  const m = String(pass || '').match(/^(https?):\/\/(.*)$/i);
+  if (m) {
+    $('#siteProxyScheme').value = m[1].toLowerCase() + '://';
+    $('#siteProxy').value = m[2];
+  } else {
+    $('#siteProxyScheme').value = 'http://';
+    $('#siteProxy').value = pass || '';
+  }
 }
 
 function setSiteFormEnabled(enabled) {
@@ -46,43 +130,64 @@ function setSiteFormEnabled(enabled) {
 }
 
 function resetSiteForm() {
-  ['siteName', 'siteListen', 'siteRoot', 'siteProxy', 'siteIndex', 'siteCert', 'siteCertKey', 'siteFileName']
-    .forEach((id) => { $('#' + id).value = ''; });
+  ['siteName', 'siteRoot', 'siteProxy'].forEach((id) => { $('#' + id).value = ''; });
   $('#siteType').value = 'local';
-  $('#siteFileNameRow').hidden = false;
+  $('#siteProto').value = 'http';
+  $('#siteHttpPort').value = '80';
+  $('#siteHttpsPort').value = '443';
+  $('#siteProxyScheme').value = 'http://';
+  composeListen();
   $('#siteSource').hidden = true;
   $('#siteSource').textContent = '';
+  $('#siteInfo').hidden = true;
+  $('#siteInfoRows').innerHTML = '';
+  $('#siteRaw').textContent = '';
   $('#siteNote').hidden = true;
   $('#siteError').hidden = true;
   setSiteFormEnabled(true);
   syncSiteType();
 }
 
-// 点站点行的「⋯」：读取该站点文件的字段与原文，不可编辑时只读展示原因
-async function openSiteDetail(source) {
+// 点站点行的「⋯」：ReadSiteDetail(id) 返回 model.SiteDetail。表单回填 site update
+// 的白名单字段；cert/certKey/index/source 只读展示，Raw 折叠展示 server 块。
+async function openSiteDetail(id) {
   state.siteMode = 'edit';
-  state.siteEditingSource = source;
+  state.siteEditingId = id;
+  state.siteEditingName = id;
   resetSiteForm();
   $('#siteDialog').hidden = false;
-  $('#siteDialogTitle').textContent = '站点详情';
-  $('#siteSubmit').textContent = '保存修改';
-  $('#siteFileNameRow').hidden = true;
+  $('#siteDialogTitle').textContent = t('dialog.site.titleDetail');
+  $('#siteSubmit').textContent = t('dialog.site.save');
   $('#siteSource').hidden = false;
-  $('#siteSource').textContent = source;
+  $('#siteSource').textContent = id;
   try {
-    const d = await DesktopService.ReadSiteDetail(source);
+    const d = await DesktopService.ReadSiteDetail(id);
+    state.siteEditingName = d.name || id;
+    $('#siteSource').textContent = d.source || id;
     $('#siteName').value = d.name || '';
-    $('#siteListen').value = d.listen || '';
+    applyListenToControls(d.listen || '');
     $('#siteType').value = d.type || 'local';
     $('#siteRoot').value = d.root || '';
-    $('#siteProxy').value = d.proxyPass || '';
-    $('#siteIndex').value = d.index || '';
-    $('#siteCert').value = d.cert || '';
-    $('#siteCertKey').value = d.certKey || '';
+    applyProxyToControls(d.proxyPass || '');
     syncSiteType();
+    // 只读信息：证书、私钥、首页与配置来源
+    $('#siteInfoRows').innerHTML = [
+      [t('dialog.site.cert'), d.cert],
+      [t('dialog.site.certKey'), d.certKey],
+      [t('dialog.site.index'), d.index],
+      [t('dialog.site.source'), d.source],
+      [t('dialog.site.path'), d.path]
+    ].filter((r) => r[1])
+      .map((r) => `<div class="kv-row"><span class="k">${esc(r[0])}</span><span class="v mono">${esc(r[1])}</span></div>`)
+      .join('') || `<div class="kv-row"><span class="k">—</span><span class="v">${esc(t('dialog.site.noExtra'))}</span></div>`;
+    $('#siteInfo').hidden = false;
+    // Raw 是 server 块 JSON 字符串：能解析就美化展示
+    let raw = d.raw || '';
+    try { raw = JSON.stringify(JSON.parse(raw), null, 2); } catch (e) { /* 原样展示 */ }
+    $('#siteRaw').textContent = raw || t('dialog.site.rawEmpty');
     if (!d.editable) {
       setSiteFormEnabled(false);
-      $('#siteNote').textContent = d.note || '该站点不可在这里编辑';
+      $('#siteNote').textContent = d.note || t('dialog.site.notEditable');
       $('#siteNote').hidden = false;
     }
   } catch (e) {
@@ -98,10 +203,11 @@ export function initSiteDialog() {
   const close = () => { mask.hidden = true; $('#siteError').hidden = true; };
   $('#addSiteBtn').addEventListener('click', () => {
     state.siteMode = 'add';
-    state.siteEditingSource = '';
+    state.siteEditingId = '';
+    state.siteEditingName = '';
     resetSiteForm();
-    $('#siteDialogTitle').textContent = '添加站点';
-    $('#siteSubmit').textContent = '创建站点';
+    $('#siteDialogTitle').textContent = t('dialog.site.titleAdd');
+    $('#siteSubmit').textContent = t('dialog.site.create');
     mask.hidden = false;
     $('#siteName').focus();
   });
@@ -110,70 +216,132 @@ export function initSiteDialog() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !mask.hidden) { e.preventDefault(); close(); }
   });
-  // 站点行是动态重建的，详情与删除按钮用事件委托
+  // 站点行是动态重建的，详情与删除按钮用事件委托（data-id = 站点名）
   document.addEventListener('click', async (e) => {
     const more = e.target.closest ? e.target.closest('.site-more') : null;
     if (more) {
       e.preventDefault();
-      openSiteDetail(more.getAttribute('data-source'));
+      openSiteDetail(more.getAttribute('data-id'));
+      return;
+    }
+    const toggle = e.target.closest ? e.target.closest('.site-toggle') : null;
+    if (toggle) {
+      e.preventDefault();
+      const id = toggle.getAttribute('data-id');
+      const enabled = toggle.getAttribute('data-enabled') === '1';
+      const word = t(enabled ? 'dialog.site.enable' : 'dialog.site.disable');
+      // 乐观更新：点击瞬间就把徽标与按钮颜色切过去，不等事务返回。
+      setSiteEnabledUI(id, enabled);
+      let failed = false;
+      // withLoading 只包「事务 + 数据刷新」，不包 UI 状态决定。
+      // 成功后保留乐观状态（refreshDetails 只做最终一致性校验，不再
+      // 决定颜色）；失败才回滚。
+      await withLoading({
+        button: toggle,
+        label: word,
+        fn: async () => {
+          const msg = await DesktopService.SetSiteEnabled(id, enabled);
+          toast(msg || t('toast.actionDone', { action: word }));
+          // Go 侧已在写操作后清掉 site list 缓存，这里必定拉到新状态
+          await refreshDetails({ force: true });
+          await refreshOverview();
+          refreshOperations();
+        }
+      }).catch((err) => {
+        failed = true;
+        // Go 侧已把 CLI 封套错误翻成人话；这里再按场景补一句可操作的建议
+        const raw = msgOf(err);
+        let hint = raw;
+        if (!enabled && /\u552f\u4e00|\u5168\u90e8\u505c\u7528|no server configured|no usable site/i.test(raw)) {
+          hint = t('friendly.siteOnlyOne');
+        } else if (/\u5df2\u7ecf\u662f\u542f\u7528|already enabled/i.test(raw)) {
+          hint = t('friendly.siteAlreadyOn');
+        } else if (/\u5df2\u7ecf\u662f\u505c\u7528|already disabled/i.test(raw)) {
+          hint = t('friendly.siteAlreadyOff');
+        } else if (/\u627e\u4e0d\u5230|not found/i.test(raw)) {
+          hint = t('friendly.siteNotFound');
+        } else if (/\u5185\u8054|inline/i.test(raw)) {
+          hint = t('friendly.siteInline');
+        }
+        toast(hint);
+      });
+      if (failed) {
+        // 事务失败：拉回真实状态，回滚乐观更新
+        await refreshDetails({ force: true });
+      } else {
+        // 事务成功：再次确保界面就是目标状态（防住任何中间刷新把颜色
+        // 改回去，例如后台 15 秒定时刷新恰好读到事务切换途中的旧文件）
+        setSiteEnabledUI(id, enabled);
+      }
       return;
     }
     const del = e.target.closest ? e.target.closest('.site-del') : null;
     if (!del) return;
     e.preventDefault();
-    const source = del.getAttribute('data-source');
-    const ok = await askConfirm('删除站点？',
-      '将删除 ' + source + '（保留 .bak 备份），需点「重载配置」才生效。',
-      '删除');
+    const id = del.getAttribute('data-id');
+    const name = del.getAttribute('data-name') || id;
+    const ok = await askConfirm(t('dialog.site.deleteTitle'),
+      t('dialog.site.deleteBody', { name }),
+      t('dialog.site.deleteOk'));
     if (!ok) return;
-    try {
-      toast(await DesktopService.DeleteSite(source));
-      await refreshDetails();
-      await refreshOverview();
-    } catch (err) {
-      toast('删除失败：' + msgOf(err));
-    }
+    await withLoading({
+      button: del,
+      label: t('common.delete'),
+      fn: async () => {
+        toast(await DesktopService.DeleteSite(id));
+        await refreshDetails({ force: true });
+        await refreshOverview();
+        refreshOperations();
+      }
+    }).catch((err) => {
+      toast(t('toast.actionFailed', { action: t('common.delete'), msg: msgOf(err) }));
+    });
   });
   $$('#siteDialog [data-browse]').forEach((b) => b.addEventListener('click', async () => {
     try {
       const p = await DesktopService.PickPath(b.getAttribute('data-browse'));
       if (p) $('#' + b.getAttribute('data-target')).value = p;
     } catch (e) {
-      $('#siteError').textContent = '选择失败：' + msgOf(e);
+      $('#siteError').textContent = t('dialog.site.pickFailed', { msg: msgOf(e) });
       $('#siteError').hidden = false;
     }
   }));
   $('#siteType').addEventListener('change', syncSiteType);
+  // 协议/端口改动重新生成 listen；反代协议与主机联动出 proxy_pass
+  ['siteProto', 'siteHttpPort', 'siteHttpsPort'].forEach((id) => {
+    $('#' + id).addEventListener('change', composeListen);
+    $('#' + id).addEventListener('input', composeListen);
+  });
   $('#siteSubmit').addEventListener('click', async () => {
     const btn = $('#siteSubmit');
-    btn.disabled = true;
     $('#siteError').hidden = true;
+    // SiteInput：id/name/listen/type/root/proxyPass；name 支持多域名（空格分隔）
     const payload = {
+      id: state.siteMode === 'edit' ? state.siteEditingId : '',
       name: $('#siteName').value,
       listen: $('#siteListen').value,
       type: $('#siteType').value,
       root: $('#siteRoot').value,
-      proxyPass: $('#siteProxy').value,
-      index: $('#siteIndex').value,
-      cert: $('#siteCert').value,
-      certKey: $('#siteCertKey').value,
-      fileName: state.siteMode === 'add' ? $('#siteFileName').value : '',
-      source: state.siteMode === 'edit' ? state.siteEditingSource : ''
+      proxyPass: composeProxyPass()
     };
-    try {
-      const text = state.siteMode === 'add'
-        ? await DesktopService.AddSite(payload)
-        : await DesktopService.SaveSiteDetail(payload);
-      close();
-      toast(text);
-      await refreshDetails();
-      await refreshOverview();
-    } catch (e) {
+    // 配置事务必然较慢，用立即加载（不走 140ms 延迟），按钮立刻变 spinner
+    await withImmediateLoading({
+      button: btn,
+      label: state.siteMode === 'add' ? t('dialog.site.titleAdd') : t('common.save'),
+      fn: async () => {
+        const text = state.siteMode === 'add'
+          ? await DesktopService.AddSite(payload)
+          : await DesktopService.SaveSiteDetail(payload);
+        close();
+        toast(text);
+        await refreshDetails({ force: true });
+        await refreshOverview();
+        refreshOperations();
+      }
+    }).catch((e) => {
       $('#siteError').textContent = msgOf(e);
       $('#siteError').hidden = false;
-    } finally {
-      btn.disabled = false;
-    }
+    });
   });
 }
 
@@ -186,7 +354,7 @@ export function initSiteLinks() {
     try {
       await DesktopService.OpenPath(a.getAttribute('data-url'));
     } catch (err) {
-      toast('打开链接失败：' + msgOf(err));
+      toast(t('dialog.site.openLinkFailed', { msg: msgOf(err) }));
     }
   });
 }

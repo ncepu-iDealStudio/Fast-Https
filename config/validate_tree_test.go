@@ -68,6 +68,38 @@ func TestTreeValidateReportsCandidateErrors(t *testing.T) {
 	}
 }
 
+func TestTreeWithOnlyDisabledSitesIsValid(t *testing.T) {
+	// 把唯一站点停用时，候选树里只剩 *.json.disabled。事务的
+	// ValidateConfigTree 不应报 "no server configured" 而让 site disable 失败。
+	dir := t.TempDir()
+	confd := filepath.Join(dir, "conf.d")
+	if err := os.MkdirAll(confd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(confd, "site.json.disabled"), []byte(goodCandidateSite), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "fast-https.json"), []byte(`{"http":{"include":["conf.d"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ValidateConfigTree(dir); err != nil {
+		t.Fatalf("只有停用站点的候选树应通过（证明配置过站点）：%v", err)
+	}
+
+	// 但「一个站点文件都没有」仍然要报错——别把语义放宽成永远通过。
+	empty := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(empty, "conf.d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(empty, "fast-https.json"), []byte(`{"http":{"include":["conf.d"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := ValidateConfigTree(empty)
+	if err == nil || !strings.Contains(err.Error(), "no server configured") {
+		t.Fatalf("空 conf.d 仍应报 no server configured，实际：%v", err)
+	}
+}
+
 func TestTreeMissingCert(t *testing.T) {
 	site := `{
   "listen": ["8443 ssl"],

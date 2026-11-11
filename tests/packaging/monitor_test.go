@@ -8,8 +8,10 @@ import (
 	"testing"
 )
 
-// goreleaserMonitors 是四条 nfpms 段（主程序包 + 三个桌面包）里都该出现的行数。
-const nfpmEntries = 4
+// goreleaserMonitors 是 nfpms 段里都该出现的行数。
+// 桌面端只发布 Windows（NSIS），Linux 桌面包 deb/rpm/apk 已移除，
+// 所以这里只剩主程序的服务端包一个 nfpm 段。
+const nfpmEntries = 1
 
 func readPkgFile(t *testing.T, rel string) string {
 	t.Helper()

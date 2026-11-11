@@ -14,3 +14,6 @@ frontend/bindings/
 build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 build/linux/*.desktop
 *.syso
+# 前端点击测试台的依赖与截图产物
+frontend/devtest/node_modules
+frontend/devtest/shots

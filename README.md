@@ -1,4 +1,4 @@
-<h1 align="center">Fast-Https</h1>
+﻿<h1 align="center">Fast-Https</h1>
 
 <p align="center"><strong>Go 编写的轻量级 Web 服务器与反向代理：单二进制、JSON 配置、HTTP/2 与自动 HTTPS。</strong><br />
 一份 JSON 描述监听端口与 location，覆盖常见的站点与反向代理场景。</p>
@@ -50,7 +50,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 | 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
 | 运维 | `start` / `stop` / `reload` / `status`；热重载不断开已有连接；`start` 与 `reload` 都先校验配置 |
 | 日志 | `logs/` 下 system、access、error、safe 四路 JSON 日志，每条带 `kind` 与 RFC3339 时间，重载后重新打开文件 |
-| 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；另附 Wails v3 桌面管理端（Windows 安装包 / Linux desktop deb） |
+| 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；另附 Wails v3 桌面管理端（Windows 安装包） |
 
 核心依赖（版本以 `go.mod` 为准，其余均为标准库）：
 

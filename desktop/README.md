@@ -23,6 +23,18 @@
 
 如果窗口里看不到最新改动，先确认只有一份 Vite 在 9245，关掉旧窗口再重跑 `wails3 dev`。加 `-port 9246` 可以换端口另起一个实例。
 
+## 前端点击测试台（devtest/）
+
+改完前端想快速过一遍交互而不想起 Wails 窗口时，用 `frontend/devtest/` 的点击测试台：它把 `DesktopService` 换成 mock（`mock-service.js`，字段与 `internal/model` 的契约一致），用 Playwright（无头 Edge）把所有页面、弹窗与关键交互点一遍，逐屏截图到 `devtest/shots/`，并收集控制台错误与关键断言（如协议/端口联动生成 listen）。
+
+```powershell
+cd desktop\frontend\devtest
+npm install          # 只装 playwright，浏览器用本机 Edge，不下载
+node run.mjs         # 遍历 + 截图 + 断言，末尾打印通过汇总
+```
+
+`vite.config.mjs` 会劫持 `bindings/fast-https-desktop` 的导入指向 mock，所以跑的是真实前端代码。改了 DTO 契约（`internal/model`）要同步 `mock-service.js` 的样例数据。
+
 ## 构建
 
 ```powershell
@@ -52,6 +64,18 @@ go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/fast-h
 
 `build/` 已按范围清理：只保留 `appicon.png`、`config.yml`、共通与平台 Taskfile、Windows 图标/NSIS 脚本、Linux nfpm 与 `.desktop` 生成任务。iOS / Android / macOS 打包资产、MSIX、AppImage、RPM/Arch、server mode、Docker 交叉编译与模板占位配置都已删除，Taskfile 的 includes 与任务也同步精简。
 
+## 安装向导与卸载（Windows）
+
+**向导是完全自绘的现代界面，NSIS 只当安装引擎**（引擎 = `build/installer/windows/fast-https.nsi` 的安装段，安装逻辑一行不动）：
+
+- **架构**：双击 `fast-https-<ver>-windows-<arch>-setup.exe` → 隐藏的向导宿主段弹出 `wizard.ps1`（PowerShell 5.1 + WPF 自绘，零额外依赖：圆角卡片、品牌图、胶囊按钮、自定义进度页）→ 点「安装」后向导以 `/S /D=<目录>` 静默调起同一个 exe（引擎模式）→ 向导显示完成页（可直接「运行 Fast-Https Desktop」）。`/S` 手动使用时同一 exe 就是静默引擎。卸载同理：`uninstall.exe`（交互）→ 向导弹自绘卸载确认（明确列出清理范围）→ 静默卸载。
+- **中英双语**：向导文案按系统语言切换。
+- **调样式工具**：`wizard.ps1 -SelfTest` 无头自检（XAML 与命名元素可加载）；`-PreviewPng x.png [-PreviewScreen welcome|working|done|error] [-Uninstall]` 把界面无头渲染成 PNG，改样式后截图留档，不用手点安装包。
+- **品牌图**：欢迎/完成页侧边图（164×314）与页眉图（150×57）由应用图标生成（`desktop/build/windows/nsis/gen-wizard-bitmaps.ps1`），供残留的 MUI 卸载页等场景使用。
+- **干净卸载**：先 taskkill 掉 `fast-https-monitor.exe` / `fast-https-desktop.exe` / `fast-https.exe` 三个进程（服务占着 exe、日志与 pid 时删不干净），再回收桌面/开始菜单快捷方式（含用户后加的 `*.lnk`）、注册表卸载项、WebView2 配置目录 `%APPDATA%\fast-https-desktop.exe`，最后删程序目录（连同 `config` / `logs` / `state`）。Linux 全量包共用主包脚本：`preremove.sh` 停进程，`postremove.sh` 仅在 `purge` / `rpm -e` 时清数据，`/etc/fast-https` 只删空目录（用户的 `.bak` 备份保留）。
+
+这些语义由 `tests/packaging/desktop_nsi_test.go` 与 `postremove_test.go` 锁定。`wails3 task windows:create:nsis:installer` 产出的桌面端独立安装器（`desktop/build/windows/nsis/project.nsi`）暂仍是品牌化 MUI 向导，后续可平移到同一套自绘向导。
+
 ## 自绘标题栏
 
 窗口用 `Frameless: true`，没有系统标题栏（图标、标题文字与系统按钮那条都不显示）。顶部通栏通过 `--wails-draggable: drag` 承担窗口拖拽，右侧三个自绘按钮按系统原生比例做成 46px 宽、撑满通栏高度、直角，图标是统一线宽的 SVG；分别调用 Go 侧 `MinimiseWindow` / `ToggleMaximiseWindow`。点「关闭」不直接隐藏，而是弹出询问框：
@@ -66,55 +90,62 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 `build/windows/icon.ico` 与 `build/appicon.png` 都来自项目原有应用图标（原 `starting.ico`，副本已内置在 `build/` 下）：前者是原 ICO（32/48/256 三帧），供 Windows 托盘、`.syso` 窗口资源与 NSIS 安装包使用；后者是从同一个 ICO 里提取出的 256×256 PNG 帧，供 Linux 托盘与 deb 的 `hicolor` 图标。前端 logo 用 `frontend/public/appicon.png`（内容相同的副本，走 `/appicon.png`，保证 `wails3 dev` 与生产构建都能加载）。换图标时这三处一起替换，不需要再跑图标生成任务。
 
-## 数据从哪来（进程外读取）
+## 数据从哪来（转交 CLI）
 
-桌面端不接管服务进程、不给主程序加 API、不监听新端口。
+桌面端是 CLI 的图形前端：**所有状态读取与管理动作都转交同目录的主程序** `fast-https <cmd> --json`，由主程序的配置事务负责校验、恢复点、reload 与回滚，桌面端与命令行看到的永远是同一套语义。点击站点页刷出站点列表，本质就是执行 `site list`。
 
-| 数据 | 来源 |
+| 界面动作 | CLI 命令 |
 | --- | --- |
-| 运行时路径 | 主程序 `fast-https config path --json`（归档 / deb / rpm / apk 布局不同，由主程序按编译期基址算好） |
-| 站点 | 主配置 `http.server[]` + `http.include` 目录下递归收集的 `*.json`，支持 JSONC 注释与尾逗号 |
-| TLS 判定 | `listen` 里是否含 `ssl`（与主程序 `config/validate.go` 一致） |
-| 证书 | 读 `ssl_certificate` 指向的 PEM，用 `crypto/x509` 取签发者与到期时间 |
-| pid | pid 文件是 `{"pid":1234}`，不是纯数字 |
-| 运行状态 | 对配置里声明的端口做回环 TCP 探测（避开 Windows / Unix 进程判活的差异） |
-| 配置是否未重载 | 启发式：配置文件比 pid 文件新 |
-| 日志 | `access.log` / `error.log` / `system.log` 尾部，只读不跟随写入句柄 |
-| 操作 | 转交主程序 `start / stop / reload / status`，桌面端不自己管理进程 |
+| 站点页列表 / 状态矩阵 | `site list`（站点按监听拆行展示） |
+| 站点详情弹窗 | `site show` |
+| 添加 / 编辑 / 删除 / 启停站点 | `site add` / `site update` / `site delete` / `site enable` / `site disable` |
+| 设置页表单读取 / 保存 | `config show`（脱敏）/ `config apply`（候选配置树 + 事务） |
+| 设置页校验 / 版本 / 对比 / 回滚 | `config validate` / `config versions` / `config diff` / `config rollback` |
+| 运行概况 / 状态栏 / 启停重载 | `service status` / `start` / `stop` / `service reload` / `status` |
+| 运行快照卡片 | `runtime status` / `runtime stats` |
+| 健康检查弹窗 | `diagnose` |
+| Monitor 卡片 | `monitor status` / `monitor events` |
+| 证书列表 / 检查 / ACME 设置 | `cert list` / `cert check` / `acme show` |
+| 日志页 / 矩阵访问日志栏 | `logs query` / `logs access` |
+| 最近操作时间线 | `operation list` / `operation get` |
 
-**已知边界**：设置页只做 JSON/JSONC 语法校验，不判断配置语义；权威校验由主程序 `reload` 负责。配置 schema 若在主项目变更，这里需要同步 `state.go` 的字段。
+命令的 `data` JSON 形状见 [docs/cli/cli-json-shapes.md](../docs/cli/cli-json-shapes.md)；`internal/cli` 解析封套，`internal/model` 做界面视图模型（例如合并 listen 拆行），不复制命令结构体。运行期路径仍由 `config path --json` 提供（归档 / deb / rpm / apk 布局由主程序按编译期基址算好，桌面端不拼路径）。本地保留的文件读取只有两处：搭建候选配置树（保存表单时）与文件元数据（大小/修改时间）。
+
+**已知边界**：设置页只做 JSON/JSONC 语法校验，不判断配置语义；权威校验由 `config apply` 事务负责。桌面端需要同目录有主程序 `fast-https`（开发态可退回 PATH）。站点列表是 `site list` 的口径：只列 `http.include` 目录下的站点文件，主配置内联站点在设置页里看。
 
 ## 站点页：添加站点
 
-站点页右上角「添加站点」弹出表单，字段有 `server_name`、`listen`（逗号或换行分隔，支持 `80` 与 `443 ssl h2` 混写）、类型（`local` 静态 / `proxy` 反代）、`root` 或 `proxy_pass`、可选的 `index`、`ssl_certificate` / `ssl_certificate_key` 与文件名。
+站点页右上角「添加站点」弹出表单，字段与 `site add` 的 flag 一一对应：`server_name`、`listen`（逗号或换行分隔，支持 `80` 与 `443 ssl h2` 混写）、类型（`local` 静态 / `proxy` 反代）、`root` 或 `proxy_pass`。证书路径、首页（index）与文件名不在命令契约里，由配置事务自动处理：TLS 站点证书默认写 `./cert/<主域名>.pem`（即 `init.CertInit` 生成的本地证书），文件名即主域名。`listen` 里带 `ssl` 即启用 TLS。
 
-`server_name` 支持**空格分隔多个域名**（nginx 风格），可以是域名、`localhost` 或本机 IP（如 `192.168.1.10`）；运行时把每个名称都注册到 `HostMap`，按 `server_name:端口` 匹配 Host，自签证书 SAN 与 ACME 申请覆盖全部名称。用 IP 或别名访问时，默认的 `security.host_check=off` 会回落到该端口的站点；改成 `enforce` 才严格校验 Host。
+`server_name` 支持**空格分隔多个域名**（nginx 风格），可以是域名、`localhost` 或本机 IP（如 `192.168.1.10`）；运行时把每个名称都注册到 `HostMap`，按 `server_name:端口` 匹配 Host，自签证书 SAN 与 ACME 申请覆盖全部名称。用 IP 或别名访问时，默认的 `security.host_check=off` 会回落到该端口的站点；改成 `enforce` 才严格校验 Host。多域名创建会执行两条命令：`site add`（主域名即文件名）+ `site update --server-name`（补全全部域名）。
 
-「站点根目录」「证书路径」「私钥路径」右侧有「浏览…」按钮，调 Wails 的原生文件/目录选择框（`PickPath`）：目录用于 root，文件用于证书与私钥（过滤 PEM/CRT/CER）；选中的绝对路径若在 `config` 内会转成 `./cert/x.pem` 这类相对写法，否则保留绝对路径。取消选择不会改动输入框。
-
-`listen` 带 `ssl` 且证书路径与私钥路径同时留空时，站点文件会自动写成 `./cert/<主域名>.pem` 与 `./cert/<主域名>-key.pem`，正好是主程序 `init.CertInit` 生成的本地证书；只填其中一个会被拒绝，纯 HTTP 站点不会带出证书字段。
+「站点根目录」右侧有「浏览…」按钮，调 Wails 的原生目录选择框（`PickPath`）；选中的绝对路径若在 `config` 内会转成 `./xxx` 相对写法，否则保留绝对路径。取消选择不会改动输入框。
 
 这里填的是**站点证书**（由本地根 CA 签发，TLS 握手时发给浏览器，配置里 `ssl_certificate` 指向它）；`httpdoc/root/root.crt` 是**本地根 CA 证书**，负责签发站点证书、放在站点根目录供下载，也是导入系统信任库要用的那一张。两者都由 `CertInit` 首次启动时生成。
 
-新站点写成 `conf.d/<名称>.json`（文件名默认按域名生成，非 ASCII 会回落到 `site`），**不改主配置、不覆盖已有文件**。Go 侧 `AddSite` 会先校验：端口合法、同名站点不能重复占用同一端口（不同域名共用端口是合法的虚拟主机）、`local` 必须有 root、`proxy_pass` 必须带 http(s) scheme、文件名不能路径穿越、同名文件直接拒绝。写入是同目录临时文件 + rename。创建后需要点「重载配置」才生效。
+增删改与启停全部走 `site` 命令的配置事务（校验、恢复点、切换、reload、失败自动回滚），提交后**立即生效，无需手动点「重载配置」**；结果里带操作 ID 与配置版本号，在概览页「最近操作」里可查。详情编辑（行尾 `⋯`）对应 `site show` 读取与 `site update` 的白名单字段（server_name / listen / root / proxy_pass），证书与原始 JSON 只读展示；主配置 `http.server[]` 内联的站点不在列表里，需到设置页修改。
 
 ## 日志页：筛选与滚动分页
 
-日志页按 JSON 结构做查询（`QueryLogs`）：可切 `access` / `error` / `system`，按级别、状态码前缀（2xx…5xx）、关键词（匹配原始行，路径/消息/Host 都能搜）与起止时间筛选。结果**由新到旧**，每页 30 条，滚到列表底部自动加载更早的一页，也有「加载更多」按钮兜底；切换日志类型、改筛选或点「刷新」会重置分页。
+日志页转交 `logs query`（`QueryLogs`）：可切 `access` / `error` / `system` / `safe` 四路（`--kind`），按白名单字段筛选——级别（`--level`）、状态码（`--status`，支持 `500` / `4xx` / `400-499`）、Host（`--domain`）、方法（`--method`）、路径前缀（`--path-prefix`）、拒绝原因（`--reason`）与起止时间（`--since` / `--until`，接受时长 `1h` 或 RFC3339，纯日期自动补全）。结果**由新到旧**，每页 30 条，滚到列表底部自动加载更早的一页，也有「加载更多」按钮兜底；切换日志类型、改筛选或点「刷新」会重置分页。
 
-Go 侧用 64KB 块从文件末尾倒着读，不把大 `access.log` 整文件读进内存；每行解析成 `LogEntry`（`time` / `level` / `kind` / `message` / `method` / `path` / `status` / `size` / `host` 等），非 JSON 行保留原文。测试在 `desktop/log_query_test.go`：分页、组合筛选、时间范围、跨块读取与非法类型。
+`logs query` **没有 offset 分页**：「加载更早」把上一页最早一条的时间当下一页的 `--until` 游标（`LogPage.NextUntil`），与游标同刻的记录自动剔重。每条记录是白名单字段（`LogEntry`：time / level / kind / message / method / path / status / size / host / remote_addr），**不含原始行**（悬浮提示展示记录的紧凑 JSON），message / path 由主程序脱敏并截断。矩阵页的访问日志栏走 `logs access` 尾部。
 
 本地根 CA 证书路径由主程序 `config path --json` 的 `root_crt` 提供，桌面端不拼接数据目录、不写死安装布局。
 
 ## 设置页：主配置表单
 
-设置页**按字段编辑** `fast-https config path --json` 给出的主配置文件（通常是 `config/fast-https.json`）：分组表单覆盖 `security` / `waf` / `acme` / `http` / 基础等标量字段，枚举用下拉、布尔用勾选、数组用多行输入。字段清单在 `desktop/config_editor.go` 维护，前端通用渲染，新增字段只改 Go 一侧。`engine`（集群占位）当前没有模块读取、项目也未启用集群，不放进表单；配置里若仍带该段会原样保留。
+设置页**按字段编辑**主配置（通常是 `config/fast-https.json`）：分组表单覆盖 `security` / `waf` / `acme` / `http` / 基础等标量字段，枚举用下拉、布尔用勾选、数组用多行输入。字段清单在 `desktop/internal/configops/editor.go` 维护（纯 UI 元数据），字段值来自 `config show`（敏感值由主程序脱敏）。`engine`（集群占位）当前没有模块读取、项目也未启用集群，不放进表单；配置里若仍带该段会原样保留。
 
-保存只提交**被改动的字段**，合并回原始 JSON 后写回；未纳入表单的 `http.server[]`、`acme.cas` 与未知顶层键原样保留。保存会重新格式化文件（JSONC 注释会丢失），原文件完整备份为 `fast-https.json.bak`，再用临时文件原子替换。配置语义仍由主程序 `reload` 校验，保存后需点「重载配置」。主程序不在同目录时会显示读取失败并禁用表单。
+保存只提交**被改动的字段**（脱敏值不触碰就不会被写回）：先搭一棵候选配置树（主配置副本 + `conf.d` 站点文件副本，复刻主程序 `siteops.CloneLiveTree`），再转交 `config apply --candidate --yes` 的配置事务——校验、生成差异、保存恢复点、切换文件、reload、失败自动回滚。保存即生效，**无需手动点「重载配置」**，结果里带操作 ID、配置版本号与恢复点。未纳入表单的 `http.server[]`、`acme.cas` 与未知顶层键原样保留。配置语义由 `config apply` 校验。
 
-## 证书页：信任本地 CA 引导
+「校验配置」按钮转交 `config validate`；「配置版本」卡片转交 `config versions`，每行可「对比」（`config diff --candidate <版本>`）或「回滚」（`config rollback --version <版本> --yes`，是一次新的事务操作，可再次回滚）。「运行时路径」只读展示 `config path` 的输出。主程序不在同目录时会显示读取失败并禁用表单。
 
-证书页右上角「信任本地 CA…」弹出引导：显示 `root.crt` 的实际路径与是否已生成、风险提示、按平台给出的分步说明和可直接复制的导入命令（Windows `certutil`、Linux `update-ca-certificates`、macOS `security add-trusted-cert`）。另有「打开证书目录」与「尝试自动导入」两个按钮。
+## 证书页：证书清单、检查与信任本地 CA
+
+证书页的数据来自 `cert list`（按证书文件归并，给出发签者、到期时间、剩余天数与 `valid/expiring/expired/missing` 状态徽标）；行内「检查」按钮转交 `cert check`，弹窗展示存在性、有效期、域名覆盖、密钥配对四项结果；「ACME 设置」卡片展示 `acme show` 的文本输出。
+
+右上角「信任本地 CA…」弹出引导：显示 `root.crt` 的实际路径与是否已生成、风险提示、按平台给出的分步说明和可直接复制的导入命令（Windows `certutil`、Linux `update-ca-certificates`、macOS `security add-trusted-cert`）。另有「打开证书目录」与「尝试自动导入」两个按钮。
 
 弹窗会标明当前平台（Windows / Linux / macOS），证书与私钥路径都由主程序 `config path --json` 动态给出，命令与确认方式按平台生成，通用说明用平台中性措辞。桌面端不会擅自改系统信任库：自动导入前会再弹一次确认，明确说明「本机所有 HTTPS 站点都会信任由这个 CA 签发的证书」，确认后才发起提权（Windows 走 UAC 的 `Start-Process -Verb RunAs`，Linux 走 `pkexec`，macOS 只给手动命令）。提权失败或工具缺失时，弹窗会把系统输出带回来并提示改用复制的命令手动执行。相关 Go 代码在 `cert_trust.go`，路径推导与各平台命令由 `cert_trust_test.go` 覆盖。
 
@@ -124,29 +155,44 @@ Go 侧用 64KB 块从文件末尾倒着读，不把大 `access.log` 整文件读
 
 ```
 src/
-  main.js           入口：注入弹窗模板 → 各模块 init → 导航/动作/日志/窗口绑定 → 定时刷新
+  main.js           入口：initI18n → 注入弹窗模板 → 各模块 init → 导航/动作/日志/窗口绑定 → 定时刷新
   api.js            DesktopService 统一出口 + msgOf 错误提取
-  state.js          跨模块共享状态（当前日志、最近概览、配置脏标记等）
+  i18n.js           多语言机制：t() / applyStatic() / LANGS 注册表 / setLang()
+  locales/          zh-CN.js、en.js 两份字典（437 key，一一对应）；加语言 = 加一份字典 + 注册表一行
+  help-content.js   帮助文档内容（中英双语分节，命令输出实测）
+  state.js          跨模块共享状态（当前日志、日志游标、配置脏标记等）
   theme.js          亮暗主题与五档中性色
-  router.js         工作区切换与按需加载
+  router.js         工作区切换与按需加载（设置页拉配置版本、矩阵页刷新面板、证书页拉 ACME）
   refresh.js        概览 2s / 明细 15s 拉取编排
   actions.js        data-action 按钮统一入口
-  account-menu.js   左下角账户菜单
+  account-menu.js   左下角账户菜单（外观、语言、设置、托盘、帮助）
   ui/dom.js         $ / $$ / bind / esc / toast / localStorage
-  ui/events.js      概览「最近事件」时间线
-  pages/            overview / details / config / logs 四个页面模块
-  dialogs/          close / confirm / site / trust 四个弹窗（各导出 template + init）
-  styles/app.css    样式（变量、骨架、组件、页面）
+  ui/icons.js       统一线性图标集（24×24 描边 SVG，一处维护；静态页挂 data-ic，动态渲染调 iconSVG）
+  ui/events.js      概览「最近事件」：操作记录（operation list/get）+ 本机动态时间线
+  pages/            overview / details / config / logs / panels 五个页面模块
+                    （panels.js = 运行快照、Monitor、ACME 三块卡片，手动刷新）
+  dialogs/          close / confirm / site / trust / diagnose / certcheck / help 七个弹窗
+  styles/           base / layout / components / pages（变量、骨架、组件、页面）
+scripts/
+  i18n-check.mjs    字典一致性 / key 覆盖 / 裸中文 / 语言切换冒烟自查（npm run i18n:check）
 ```
 
 弹窗与账户菜单的 HTML 不再写在根 `index.html` 里，而是由各自模块导出 `template`，入口在挂载时注入 `body` 末尾；事件绑定与业务逻辑仍留在对应模块。这样单文件不会随功能增加而膨胀，改某个页面或弹窗只需看一个文件。
 
+普通页面的数据走 `DesktopService` 的专用方法（映射成对应 CLI 命令）；补充面板（运行快照、Monitor、操作记录、健康检查、证书检查、ACME、配置版本/差异/回滚）直接走 `RunCommand(args)` 通用转交，按命令渲染 CLI 的 data 原样 JSON，桌面端不再为每个命令定义一份结构体。
+
+## 多语言
+
+界面文案全部走 `t('key')`（静态 HTML 挂 `data-i18n` 系列属性，动态渲染在函数里调 `t()`），字典在 `src/locales/`，中英各一份、key 一一对应，`npm run i18n:check` 自查一致性与覆盖率（已串进 `npm run build`）。切换语言在左下角「本机管理」→「语言」，写入 `localStorage` 后**原地重渲染**（`applyStatic` 重刷静态文案 + `onLangChange` 回调让各模块用缓存数据重绘），不整窗重载、不闪屏。
+
+**加一种语言只加一个文件**：复制 `locales/zh-CN.js` 翻译成 `locales/ja.js`，在 `i18n.js` 的 `LANGS` 注册表加一行即可，业务代码零改动；缺 key 时回落中文再回落 key 原文。帮助文档内容（`help-content.js`）按语言分节数组，同样加一份即可。语言无关的内容（CLI 命令、JSON 字段、路径、mono 块）不进字典；Go 后端返回的数据文本由后端文案负责，前端不二次翻译。
+
 ## 主题
 
-左下角「本机管理」点击弹出账户菜单，里面包含：亮色／暗色、五档中性色（石墨、暖灰、松绿、赭石、靛灰，默认亮色 + 石墨）、设置页、隐藏到后台托盘、帮助文档。主题选择保存在本机 `localStorage`。
+左下角「本机管理」点击弹出账户菜单，里面包含：亮色／暗色、五档中性色（石墨、暖灰、松绿、赭石、靛灰，默认亮色 + 石墨）、语言（简体中文 / English，可扩展）、设置页、隐藏到后台托盘、帮助文档。主题与语言偏好都保存在本机 `localStorage`。
 
-「帮助文档」打开发行包里的 `docs/usage.html`（开发时 exe 在 `desktop/bin/`，会回退到仓库根）。顶部工具按钮与左侧「设置」导航项已移除，统一从这个菜单进入。
+「帮助文档」在**应用内弹窗**展示（左目录 + 右正文，中英双语，内容在 `src/help-content.js`，命令输出都是实测过的），不再跳浏览器；弹窗底部的「完整命令参考…」才用系统浏览器打开发行包里的 `docs/usage.html`。顶部工具按钮与左侧「设置」导航项已移除，统一从本机管理菜单进入。
 
-「启动／停止服务」与「重载配置」在概览页「运行概况」卡片右上；底部状态栏固定在窗口下沿，只放运行状态、pid、监听探测结果、刷新时间与两个图标按钮。版本号只在侧边栏显示一次，不在状态栏或账户菜单里重复。站点／证书／日志页不再重复页面标题，说明文字直接铺在卡片里；窗口不显示页面大标题，内容直接从顶部铺满。站点页可删除 `conf.d` 下的独立站点文件（保留 `.bak` 备份，重载后生效），主配置内联站点不可删。
+「启动／停止服务」与「重载配置」（`service reload` 受控重载）在概览页「运行概况」卡片右上；底部状态栏固定在窗口下沿，只放运行状态、pid、监听探测结果、刷新时间与两个图标按钮。版本号只在侧边栏显示一次，不在状态栏或账户菜单里重复。站点／证书／日志页不再重复页面标题，说明文字直接铺在卡片里；窗口不显示页面大标题，内容直接从顶部铺满。站点页的启停、删除与编辑都走 `site` 命令的配置事务（可回滚、自动 reload），主配置内联站点不在列表里。
 
 **选中／激活态一律用中性色**：亮色是淡淡的灰，暗色是略亮的灰。正常、告警、危险三种语义色独立，不随主题变化。

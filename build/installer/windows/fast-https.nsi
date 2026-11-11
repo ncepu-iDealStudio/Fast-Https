@@ -42,10 +42,18 @@ Name "${APP_NAME} ${APP_VERSION} (${APP_ARCH})"
 OutFile "${OUT_FILE}"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
 InstallDirRegKey HKLM "Software\${APP_NAME}" "InstallDir"
-RequestExecutionLevel admin
+; 按需提权：本进程以普通用户启动（双击即可，不弹 UAC），自绘向导负责
+; 界面；点「安装」后向导用 RunAs 重新拉起本程序 /S（那时才弹一次 UAC）
+; 执行真正的安装段。静默模式（/S）由调用方保证管理员身份。
+; 注意：RequestExecutionLevel admin 会让双击立即弹 UAC，用户取消就
+; exit 2 什么都没有——曾表现为「安装包打完装不上」。
+RequestExecutionLevel user
 SetCompressor /SOLID lzma
-ShowInstDetails show
-ShowUninstDetails show
+; 引擎界面彻底不可见：交互模式的界面 100% 由自绘向导负责（Section 宿主
+; 拉起 wizard.ps1 后 Quit），nsExec 的 ExecToLog 输出进 DetailView，而
+; DetailView 在 nevershow 下不会创建窗口；静默模式本来就无窗口。
+ShowInstDetails nevershow
+ShowUninstDetails nevershow
 
 VIProductVersion "${APP_VERSION4}"
 VIAddVersionKey "ProductName" "${APP_NAME}"
@@ -59,20 +67,65 @@ VIAddVersionKey "LegalCopyright" "GPL-2.0"
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !define MUI_UNFINISHPAGE_NOAUTOCLOSE
 
-!insertmacro MUI_PAGE_WELCOME
-!insertmacro MUI_PAGE_DIRECTORY
-; 快捷方式与开始菜单由用户勾选，不强制创建
-!insertmacro MUI_PAGE_COMPONENTS
-!insertmacro MUI_PAGE_INSTFILES
-!insertmacro MUI_PAGE_FINISH
+; ---- 定制向导：品牌图与桌面端安装向导同一套（由应用图标生成，见
+; desktop/build/windows/nsis/gen-wizard-bitmaps.ps1）----
+!define MUI_WELCOMEFINISHPAGE_BITMAP "..\..\..\desktop\build\windows\nsis\wizard-side.bmp"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "..\..\..\desktop\build\windows\nsis\wizard-head.bmp"
 
+; 安装流程不出 MUI 页面：交互模式由隐藏的向导宿主段弹自绘向导
+; （wizard.ps1，圆角卡片 + 品牌图 + 胶囊按钮），安装本体在 /S 静默
+; 模式下作为引擎执行。MUI 只保留卸载页与多语言文案。
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 
 !insertmacro MUI_LANGUAGE "SimpChinese"
 !insertmacro MUI_LANGUAGE "English"
 
+; ------------------------------------------------------------ 向导宿主
+; 交互模式在 .onInit 里把界面交给自绘向导后退出：用 Exec（ShellExecute，
+; 不等待、不进 job 对象）拉起向导，主进程 Quit 不会连带杀掉它——曾用
+; Section+nsExec 方案，引擎「正在安装」窗口（#32770）会与自绘向导同屏；
+; 曾用 .onInit+nsExec 方案，nsExec 等待子进程且子进程随主进程退出被杀，
+; 向导弹不出来。Exec+Quit 是两个问题的合解。静默模式（/S）直接走安装段。
+
+Function .onInit
+  IfSilent oninit_done
+  SetOutPath "$PLUGINSDIR"
+  File "/oname=wizard.ps1" "wizard.ps1"
+  File "/oname=appicon.png" "..\..\..\desktop\build\appicon.png"
+  ; Exec 走 ShellExecute 会给 powershell 分配一个控制台窗口（用户看到
+  ; 一个 cmd 黑窗）。改走 cmd /c start /min：仍以 ShellExecute 拉起、
+  ; 不等待、不进 job，但窗口最小化到任务栏；配合 wizard.ps1 自身的
+  ; -WindowStyle Hidden，任务栏条目也会很快消失，全程无可见窗口。
+  Exec 'cmd /c start "" /min powershell -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "$PLUGINSDIR\wizard.ps1" --self "$EXEPATH" --icon "$PLUGINSDIR\appicon.png" --title "${APP_NAME}" --version "${APP_VERSION}"'
+  Quit
+oninit_done:
+FunctionEnd
+
+; ------------------------------------------------------------ 向导宿主（已并入 .onInit）
+; 历史方案留档：Section+nsExec（引擎窗口同屏）、.onInit+nsExec（子进程被
+; job 连杀）。现行为：上方 .onInit + Exec。
+
+Section "-wizard host" SEC_WIZARD
+  ; 静默模式不会走到这里（.onInit 的 IfSilent 分支直通安装段）；
+  ; 交互模式已在 .onInit 里 Quit。保留空段以防 MUI 依赖 Section 存在。
+SectionEnd
+
 ; ------------------------------------------------------------ 安装
+
+; 快捷方式开关：默认 1（创建）。自绘向导按用户勾选传 /DSC_DESKTOP=0/1
+; 与 /DSC_STARTMENU=0/1；/S 静默用默认值。
+!ifndef SC_DESKTOP
+  !define SC_DESKTOP "1"
+!endif
+!ifndef SC_STARTMENU
+  !define SC_STARTMENU "1"
+!endif
+; PATH 开关：默认 1（加入系统 PATH）。向导按勾选传 /DSC_PATH=0 关闭。
+!ifndef SC_PATH
+  !define SC_PATH "1"
+!endif
 
 Section "Fast-Https 核心文件（必选）" SEC_CORE
   SectionIn RO
@@ -103,6 +156,9 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   CreateDirectory "$INSTDIR\config\cert"
   CreateDirectory "$INSTDIR\config\conf.d"
 
+  ; 自绘向导脚本装进安装目录：卸载时 un.onInit 用它弹自绘卸载确认
+  File "/oname=wizard.ps1" "wizard.ps1"
+
   ; 运行期要写 pid、日志、证书与配置备份，而 Program Files 默认对普通
   ; 用户只读：不授权的话 start 写不出 pid 文件，stop 就会当作「没在跑」
   ; 直接成功（表现为「点了停止但服务还在访问」），日志与首证也写不进去。
@@ -113,6 +169,41 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
 
   WriteRegStr HKLM "Software\${APP_NAME}" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "Software\${APP_NAME}" "Version" "${APP_VERSION}"
+  ; 快捷方式开关由自绘向导传入（/DSC_DESKTOP=1 /DSC_STARTMENU=1），缺省都建；
+  ; 记进注册表，卸载只回收实际创建过的快捷方式。
+  WriteRegStr HKLM "Software\${APP_NAME}" "ShortcutDesktop" "${SC_DESKTOP}"
+  WriteRegStr HKLM "Software\${APP_NAME}" "ShortcutStartMenu" "${SC_STARTMENU}"
+  WriteRegStr HKLM "Software\${APP_NAME}" "AddToPath" "${SC_PATH}"
+
+  ; 可选：把安装目录加进系统 PATH（管理员身份下写 HKLM 环境 + 广播
+  ; WM_SETTINGCHANGE，新开终端立即可用；幂等）。由引擎调 wizard.ps1
+  ; 的无头模式执行，勾选状态与快捷方式同源（/DSC_PATH=0 关闭）。
+  ${If} ${SC_PATH} != "0"
+    nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$INSTDIR\wizard.ps1" -PathMode add -Dir "$INSTDIR"'
+  ${EndIf}
+
+  ${If} ${SC_DESKTOP} == "0"
+    ; 用户取消桌面快捷方式：清掉升级残留的旧图标
+    Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
+    Delete "$DESKTOP\Fast-Https 安装目录.lnk"
+  ${EndIf}
+  ${If} ${SC_DESKTOP} != "0"
+    ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
+      CreateShortcut "$DESKTOP\Fast-Https 桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
+    ${Else}
+      CreateShortcut "$DESKTOP\Fast-Https 安装目录.lnk" "$INSTDIR"
+    ${EndIf}
+  ${EndIf}
+
+  ${If} ${SC_STARTMENU} != "0"
+    CreateDirectory "$SMPROGRAMS\${APP_NAME}"
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\使用文档.lnk" "$INSTDIR\docs\usage.html"
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\安装目录.lnk" "$INSTDIR"
+    ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
+      CreateShortcut "$SMPROGRAMS\${APP_NAME}\桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
+    ${EndIf}
+    CreateShortcut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\uninstall.exe"
+  ${EndIf}
 
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME} ${APP_VERSION} (${APP_ARCH})"
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${APP_VERSION}"
@@ -125,23 +216,18 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
 SectionEnd
 
-Section "创建桌面快捷方式" SEC_DESKTOP
-  ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
-    CreateShortcut "$DESKTOP\Fast-Https 桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
-  ${Else}
-    CreateShortcut "$DESKTOP\Fast-Https 安装目录.lnk" "$INSTDIR"
-  ${EndIf}
-SectionEnd
+; ------------------------------------------------------------ 卸载向导
+; 交互卸载同样交给自绘向导（wizard.ps1 --uninstall 弹确认页，然后静默
+; 调起 uninstall.exe /S）；向导脚本不在时回落到下面的 MUI 卸载页。
 
-Section "添加到 Windows 开始菜单" SEC_STARTMENU
-  CreateDirectory "$SMPROGRAMS\${APP_NAME}"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\使用文档.lnk" "$INSTDIR\docs\usage.html"
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\安装目录.lnk" "$INSTDIR"
-  ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
-    CreateShortcut "$SMPROGRAMS\${APP_NAME}\桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
-  ${EndIf}
-  CreateShortcut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\uninstall.exe"
-SectionEnd
+Function un.onInit
+  IfSilent un_done
+  IfFileExists "$INSTDIR\wizard.ps1" 0 un_done
+  ; 与 .onInit 同理：start /min + -WindowStyle Hidden，全程无可见控制台
+  Exec 'cmd /c start "" /min powershell -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "$INSTDIR\wizard.ps1" --uninstall --self "$INSTDIR\uninstall.exe" --title "${APP_NAME}"'
+  Quit
+un_done:
+FunctionEnd
 
 ; ------------------------------------------------------------ 卸载
 
@@ -151,7 +237,25 @@ Section "Uninstall"
   nsExec::ExecToLog 'taskkill /F /IM ${DESKTOP_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${APP_EXE}'
 
+  ; PATH 清理用的向导脚本从插件目录提取（$INSTDIR 马上要被删）。
+  ; 卸载引擎已提权（uninstall.exe 以管理员运行），写 HKLM 环境成立。
+  SetOutPath "$PLUGINSDIR"
+  File "/oname=wizard.ps1" "wizard.ps1"
+
+  ; 从系统 PATH 移除安装目录（安装时若勾选了加入 PATH）。幂等：不在
+  ; PATH 里时原样返回。走 wizard.ps1 的无头模式，与安装时同一段代码。
+  nsExec::ExecToLog 'powershell -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\wizard.ps1" -PathMode remove -Dir "$INSTDIR"'
+  Pop $R1
+
   DeleteRegKey HKLM "${UNINST_KEY}"
+
+  ; 只回收实际创建过的快捷方式（按安装时写进注册表的开关），
+  ; 再通配兜底一次，开始菜单整组删除
+  ReadRegStr $R1 HKLM "Software\${APP_NAME}" "ShortcutDesktop"
+  ${If} $R1 != "0"
+    Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
+    Delete "$DESKTOP\Fast-Https 安装目录.lnk"
+  ${EndIf}
   DeleteRegKey HKLM "Software\${APP_NAME}"
 
   Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
@@ -159,13 +263,14 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\${APP_NAME}\*.lnk"
   RMDir "$SMPROGRAMS\${APP_NAME}"
 
+  ; 桌面端的 WebView2 配置目录（主题偏好、localStorage、缓存）也清掉：
+  ; 不删的话卸载完 %APPDATA%\fast-https-desktop.exe 还会留着
+  RMDir /r "$AppData\${DESKTOP_EXE}"
+
   RMDir /r "$INSTDIR"
 SectionEnd
 
 ; ------------------------------------------------------------ 描述
+; 安装流程由自绘向导（wizard.ps1）接管，组件页已移除，无组件描述可写。
 
-!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_CORE} "程序本体、默认配置、默认站点与使用文档。"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} "在桌面创建图形入口，指向桌面管理端 fast-https-desktop.exe（没有它时退化为安装目录快捷方式），可取消。"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_STARTMENU} "在 Windows 开始菜单创建程序分组，可取消。"
-!insertmacro MUI_FUNCTION_DESCRIPTION_END
+

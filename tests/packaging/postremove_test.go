@@ -47,6 +47,18 @@ func TestPostremovePurgesOnlyOnExplicitRemoval(t *testing.T) {
 			t.Errorf("%s 的删除语句出现在 case 之前，升级时也会执行", target)
 		}
 	}
+
+	// /etc/fast-https 只允许 rmdir（删空目录）：fast-https.json.bak 等备份
+	// 文件不是包生成的，rm -rf 整目录会把它们连带删掉，属于越界清用户数据。
+	if !strings.Contains(code, "rmdir /etc/fast-https 2>/dev/null || true") {
+		t.Error("postremove.sh 的 purge 分支应只用 rmdir 删除 /etc/fast-https（删空目录）")
+	}
+	for _, line := range strings.Split(code, "\n") {
+		l := strings.TrimSpace(line)
+		if l == "rm -rf /etc/fast-https" || strings.HasPrefix(l, "rm -rf /etc/fast-https ") {
+			t.Error("postremove.sh 不允许 rm -rf /etc/fast-https（会删掉用户备份等包外内容）")
+		}
+	}
 }
 
 // stripComments 去掉整行注释，避免注释里提到的路径被当成实际清理动作。

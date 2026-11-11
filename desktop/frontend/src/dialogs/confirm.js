@@ -1,13 +1,14 @@
 // 应用内确认框：原生 confirm 在 dev 模式下会把标题显示成 wails.localhost:9245。
+import { t } from '../i18n.js';
 import { $ } from '../ui/dom.js';
 
 export const template = `<div class="dialog-mask" id="confirmDialog" hidden>
   <div class="dialog dialog-sm" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
-    <h3 id="confirmTitle">确认操作</h3>
+    <h3 id="confirmTitle" data-i18n="dialog.confirm.title">确认操作</h3>
     <p id="confirmBody">—</p>
     <div class="dialog-actions">
-      <button class="btn" id="confirmCancel">取消</button>
-      <button class="btn primary" id="confirmOk">确定</button>
+      <button class="btn" id="confirmCancel" data-i18n="common.cancel">取消</button>
+      <button class="btn primary" id="confirmOk" data-i18n="common.ok">确定</button>
     </div>
   </div>
 </div>`;
@@ -19,7 +20,7 @@ export function askConfirm(title, body, okText) {
   if (!mask) return Promise.resolve(false);
   $('#confirmTitle').textContent = title;
   $('#confirmBody').textContent = body;
-  $('#confirmOk').textContent = okText || '确定';
+  $('#confirmOk').textContent = okText || t('common.ok');
   mask.hidden = false;
   $('#confirmOk').focus();
   return new Promise((resolve) => { confirmResolve = resolve; });

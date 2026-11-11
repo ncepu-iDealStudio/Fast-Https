@@ -117,7 +117,14 @@ func validateConfigAt(configPath string, opts validateOpts) ([]string, error) {
 	}
 	// 站点允许只写在 include 目录里，主配置不出现 http.server；
 	// 但整体一个站点都没有就等于没配服务。
-	if serverCount+len(includeServers) == 0 {
+	// 停用文件（*.json.disabled）也是「配置过站点」的证据：把最后一个
+	// 站点停用时，候选树里只剩 .json.disabled，此时不应报
+	// "no server configured" 而让 site disable 事务失败。
+	configured := serverCount + len(includeServers)
+	if configured == 0 && len(disabledSiteFiles(root.HTTP.Include, opts)) > 0 {
+		configured = 1
+	}
+	if configured == 0 {
 		return nil, errors.New("no server configured: add http.server or a server file under http.include")
 	}
 
@@ -210,6 +217,49 @@ func includeFiles(includes []string, baseDir, treeRoot string, fallbacks ...stri
 		}
 	}
 	return files, nil
+}
+
+// disabledSiteFiles 列出 http.include 目录下的停用站点文件（*.json.disabled）。
+// 它们不参与运行、不做 server 校验，但能证明「配置树里配置过站点」——
+// 把唯一站点停用时，候选树里没有 .json 了，靠它避免 "no server configured"。
+func disabledSiteFiles(includes []string, opts validateOpts) []string {
+	var out []string
+	for _, includePath := range includes {
+		if strings.TrimSpace(includePath) == "" {
+			continue
+		}
+		fullPath := absPathIn(opts.includeBase, includePath)
+		if opts.treeRoot != "" {
+			if err := withinRoot(opts.treeRoot, fullPath); err != nil {
+				continue
+			}
+		}
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			continue
+		}
+		if !info.IsDir() {
+			if strings.HasSuffix(strings.ToLower(fullPath), ".json.disabled") {
+				out = append(out, fullPath)
+			}
+			continue
+		}
+		_ = filepath.Walk(fullPath, func(path string, fi os.FileInfo, walkErr error) error {
+			if walkErr != nil || fi.IsDir() {
+				return nil
+			}
+			if opts.treeRoot != "" {
+				if err := withinRoot(opts.treeRoot, path); err != nil {
+					return nil
+				}
+			}
+			if strings.HasSuffix(strings.ToLower(path), ".json.disabled") {
+				out = append(out, path)
+			}
+			return nil
+		})
+	}
+	return out
 }
 
 // validateServer 校验一个 server 块（主配置数组元素或 include 文件）。

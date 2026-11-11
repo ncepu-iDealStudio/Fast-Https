@@ -8,25 +8,15 @@
 .nav-item { height: 38px; flex: 0 0 38px; margin: 0 10px 2px; width: calc(100% - 20px); display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .nav-item:hover { background: var(--surface); }
 .nav-item.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-.ico { width: 14px; height: 14px; flex: 0 0 14px; position: relative; opacity: .75; }
-.ico::before, .ico::after { content: ""; position: absolute; }
-.ico.i-dash::before { left: 0; right: 0; top: 6px; border-top: 1.5px solid currentColor; }
-.ico.i-grid::before { inset: 0; border: 1.5px solid currentColor; }
-.ico.i-grid::after { left: 6px; top: 0; bottom: 0; border-left: 1.5px solid currentColor; }
-.ico.i-file::before { inset: 0; border: 1.5px solid currentColor; }
-.ico.i-file::after { left: 3px; right: 3px; top: 5px; border-top: 1.5px solid currentColor; }
-.ico.i-shield::before { inset: 0; border: 1.5px solid currentColor; border-radius: 0 0 7px 7px; }
-.ico.i-lines::before { left: 0; right: 0; top: 3px; border-top: 1.5px solid currentColor; box-shadow: 0 4px 0 currentColor, 0 8px 0 currentColor; }
-.ico.i-gear::before { inset: 1px; border: 1.5px solid currentColor; border-radius: 50%; }
-.ico.i-gear::after { inset: 5px; border: 1.5px solid currentColor; border-radius: 50%; }
-.ico.i-plus::before { left: 0; right: 0; top: 6px; border-top: 1.5px solid currentColor; }
-.ico.i-plus::after { top: 0; bottom: 0; left: 6px; border-left: 1.5px solid currentColor; }
+/* 统一图标：24×24 线性 SVG（src/ui/icons.js），描边与颜色跟随文字 */
+.ic { width: 15px; height: 15px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; opacity: .85; vertical-align: -2px; }
+.acct-caret { width: 12px; height: 12px; opacity: .6; }
 .side-foot-wrap { margin-top: auto; flex: 0 0 52px; }
 .side-foot { width: 100%; height: 52px; border: 0; border-top: 1px solid var(--line); background: var(--bg); color: var(--text); display: flex; align-items: center; gap: 9px; padding: 0 14px; font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
 .side-foot:hover, .side-foot[aria-expanded="true"] { background: var(--surface); }
 .acct-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct-caret { margin-left: 2px; color: var(--faint); font-size: 11px; }
-.avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); border: 1px solid var(--line-strong); display: grid; place-items:center; font-size: 10px; color: var(--accent); font-weight: 700; }
+.avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--accent-soft); border: 1px solid var(--line-strong); display: grid; place-items:center; font-size: 10px; color: var(--accent); font-weight: 600; }
 .side-foot .ver { margin-left: auto; font-size: 11px; color: var(--faint); }
 
 /* 工作区 */

@@ -45,9 +45,15 @@ body {
   overflow: hidden;
   background: var(--surface);
   color: var(--text);
-  font: 14px/1.5 "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  /* 柔和字体栈：优先系统可变字体与中文界面字体，字重轻、行距松、字距微开 */
+  font: 400 13.5px/1.7 "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  letter-spacing: .012em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
 }
+h1, h2, h3, h4, b, strong, .m-value { font-weight: 600; letter-spacing: 0; }
+.mono, .cmd-result, .log-row, .log-head { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* 滚动条弱化：透明轨道 + 与背景接近的滑块，hover 才加深 */
 ::-webkit-scrollbar { width: 8px; height: 8px; }

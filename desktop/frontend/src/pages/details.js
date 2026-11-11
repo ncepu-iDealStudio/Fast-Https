@@ -1,11 +1,23 @@
 // 明细渲染：站点、证书、运行时路径，以及状态矩阵里的访问日志栏。
-import { $, esc } from '../ui/dom.js';
+// 站点行来自 ListSites()（model.Site：id/name/port/listen/listens/tls/source/
+// enabled/error），**一个站点文件一行**；行内按钮用 data-id（站点名，
+// site 命令的位置参数）。证书的有效期与状态徽标只在证书页展示，站点页与
+// 矩阵只提示签发来源。
+import { $, $$, esc } from '../ui/dom.js';
+import { iconSVG } from '../ui/icons.js';
+import { t } from '../i18n.js';
 import { state } from '../state.js';
+
+// basename 取路径最后一段（站点配置文件显示成 localhost.json）。
+function basename(p) {
+  if (!p) return '';
+  return String(p).split(/[\\/]/).pop();
+}
 
 export function renderRows(target, rows) {
   $(target).innerHTML = rows.length
     ? rows.map((r) => `<div class="kv-row"><span class="k">${esc(r.k)}</span><span class="v">${esc(r.v)}</span><span class="n">${esc(r.n || '')}</span></div>`).join('')
-    : '<div class="kv-row"><span class="k">—</span><span class="v">没有可显示的数据</span></div>';
+    : `<div class="kv-row"><span class="k">—</span><span class="v">${esc(t('common.none'))}</span></div>`;
 }
 
 function formatAccessSize(n) {
@@ -15,51 +27,114 @@ function formatAccessSize(n) {
   return (n / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
-// access.log 每行是结构化 JSON；矩阵里只取时间/方法/路径/状态/大小，
-// 不再把原始 JSON 整串折行塞进窄栏。非 JSON 行退化成截断文本。
-function parseAccessLine(line) {
-  let o;
-  try { o = JSON.parse(line); } catch (e) { return null; }
-  if (!o || typeof o !== 'object') return null;
-  const t = String(o.time || '');
-  const m = t.match(/T(\d{2}:\d{2}:\d{2})/);
-  return {
-    time: m ? m[1] : (t.slice(0, 8) || '—'),
-    method: String(o.method || '—'),
-    path: String(o.path || '—'),
-    status: o.status != null ? String(o.status) : '—',
-    size: o.size != null ? formatAccessSize(Number(o.size)) : '—'
-  };
+// model.LogEntry.Size 是字符串：纯数字按字节格式化，否则原样显示
+function sizeText(size) {
+  const s = String(size ?? '').trim();
+  if (!s) return '—';
+  return /^\d+$/.test(s) ? formatAccessSize(Number(s)) : s;
 }
 
-export function renderLogs(lines, target, kind) {
+function timeHHMMSS(time) {
+  const m = String(time || '').match(/T(\d{2}:\d{2}:\d{2})/);
+  return m ? m[1] : (String(time || '').slice(0, 8) || '—');
+}
+
+// 证书状态徽标：valid 绿 / expiring 橙 / expired、missing 红 / 其余中性
+const CERT_STATUS = {
+  valid: ['ok', 'certs.stValid'],
+  expiring: ['warn', 'certs.stExpiring'],
+  expired: ['err', 'certs.stExpired'],
+  not_yet_valid: ['off', 'certs.stNotYetValid'],
+  missing: ['err', 'certs.stMissing'],
+  unreadable: ['err', 'certs.stUnreadable'],
+  unknown: ['off', 'certs.stUnknown']
+};
+
+export function certBadge(status) {
+  const st = String(status || '');
+  if (!st) return '';
+  const [cls, key] = CERT_STATUS[st] || ['off', ''];
+  return `<span class="st-badge st-${cls}" title="${esc(st)}">${esc(key ? t(key) : st)}</span>`;
+}
+
+// 状态矩阵「访问日志」栏：TailLog('access', n) 现在返回 model.LogEntry[]，
+// 不再解析 JSON 行；tooltip 用 raw（记录的紧凑 JSON）。
+export function renderLogEntries(entries, target) {
   const el = $(target);
-  if (!lines || lines.length === 0) {
-    el.innerHTML = kind === 'rail' ? '<div class="log-empty">日志为空或文件不存在</div>' : '<tr><td colspan="3">日志为空或文件不存在</td></tr>';
+  if (!el) return;
+  if (!entries || entries.length === 0) {
+    el.innerHTML = `<div class="log-empty">${esc(t('matrix.accessEmpty'))}</div>`;
     return;
   }
-  if (kind === 'rail') {
-    el.innerHTML = lines.slice(0, 8).map((line) => {
-      const a = parseAccessLine(line);
-      if (!a) {
-        return `<div class="access-row"><span class="a-time">—</span><span class="a-method">—</span><span class="a-path" title="${esc(line)}">${esc(line.slice(0, 90))}</span><span class="a-status">—</span><span class="a-size">—</span></div>`;
-      }
-      const code = Number(a.status);
-      const cls = code >= 400 ? 'err' : (code >= 300 ? 'warn' : (Number.isFinite(code) ? 'ok' : ''));
-      return `<div class="access-row"><span class="a-time">${esc(a.time)}</span><span class="a-method">${esc(a.method)}</span><span class="a-path" title="${esc(a.path)}">${esc(a.path)}</span><span class="a-status ${cls}">${esc(a.status)}</span><span class="a-size">${esc(a.size)}</span></div>`;
-    }).join('');
-    return;
-  }
-  el.innerHTML = lines.map((l) => `<tr><td colspan="3" class="mono">${esc(l)}</td></tr>`).join('');
+  el.innerHTML = entries.slice(0, 8).map((e) => {
+    const status = String(e.status ?? '') || '—';
+    const code = Number(status);
+    const cls = code >= 400 ? 'err' : (code >= 300 ? 'warn' : (Number.isFinite(code) ? 'ok' : ''));
+    return `<div class="access-row" title="${esc(e.raw || '')}">`
+      + `<span class="a-time">${esc(timeHHMMSS(e.time))}</span>`
+      + `<span class="a-method">${esc(e.method || '—')}</span>`
+      + `<span class="a-path" title="${esc(e.path || e.message || '')}">${esc(e.path || e.message || '—')}</span>`
+      + `<span class="a-status ${cls}">${esc(status)}</span>`
+      + `<span class="a-size">${esc(sizeText(e.size))}</span></div>`;
+  }).join('');
 }
 
-// 站点访问地址：默认端口省略，其他端口显式带上；server_name 可能是域名或本机 IP。
+// 站点访问地址：优先 https（站点带 ssl 时），端口按监听里对应协议的端口取。
+// 一个站点可能同时监听 80 和 443，这里挑最能代表它的那个：
+// 有 ssl 监听就用 443 那条，否则用第一条。
 export function siteURL(s) {
-  const scheme = s.tls ? 'https' : 'http';
-  const port = String(s.port || '').replace(/^:/, '');
+  const listens = Array.isArray(s.listens) && s.listens.length ? s.listens : [s.listen || ''];
+  let picked = listens[0] || '';
+  if (s.tls) {
+    const ssl = listens.find((l) => /ssl/i.test(l));
+    if (ssl) picked = ssl;
+  }
+  const scheme = /ssl/i.test(picked) ? 'https' : 'http';
+  const port = String(picked).trim().split(/\s+/)[0].replace(/^:/, '');
   const host = s.name || 'localhost';
   const isDefault = (scheme === 'https' && port === '443') || (scheme === 'http' && port === '80');
   return scheme + '://' + host + (port && !isDefault ? ':' + port : '') + '/';
+}
+
+// listenChips 把站点的每条监听渲染成一个小标签：80 / 443 ssl h2。
+function listenChips(s) {
+  const listens = Array.isArray(s.listens) && s.listens.length ? s.listens : (s.listen ? [s.listen] : []);
+  if (!listens.length) return '<span class="listen-chip">—</span>';
+  return listens.map((l) => {
+    const secure = /ssl/i.test(l);
+    return `<span class="listen-chip${secure ? ' is-tls' : ''}">${esc(l)}</span>`;
+  }).join('');
+}
+
+// setSiteEnabledUI 乐观更新某一行的启停外观，不等后端返回。
+//
+// 配置事务要几百毫秒到一秒，等它回来再变颜色会让用户觉得「点了没反应」。
+// 这里在点击瞬间就把状态徽标、按钮颜色、行样式切过去；事务失败时由调用方
+// 调 refreshDetails 拉回真实状态。返回是否找到了对应行。
+export function setSiteEnabledUI(id, enabled) {
+  // CSS.escape 在旧 WebView 里可能缺失，退回手动遍历查找
+  let row = null;
+  if (typeof CSS !== 'undefined' && CSS.escape) {
+    row = $(`.site-row[data-site-id="${CSS.escape(String(id))}"]`);
+  }
+  if (!row) {
+    $$('.site-row').forEach((r) => { if (r.getAttribute('data-site-id') === String(id)) row = r; });
+  }
+  if (!row) return false;
+  row.classList.toggle('is-disabled', !enabled);
+  const pill = row.querySelector('.site-state');
+  if (pill) {
+    pill.className = 'site-state ' + (enabled ? 'on' : 'off');
+    pill.textContent = enabled ? t('sites.stateOn') : t('sites.stateOff');
+  }
+  const toggle = row.querySelector('.site-toggle');
+  if (toggle) {
+    toggle.classList.toggle('is-on', enabled);
+    toggle.classList.toggle('is-off', !enabled);
+    toggle.setAttribute('data-enabled', enabled ? '0' : '1');
+    toggle.setAttribute('title', enabled ? t('sites.toggleOn') : t('sites.toggleOff'));
+  }
+  return true;
 }
 
 export function renderSites(sites, certs) {
@@ -68,26 +143,47 @@ export function renderSites(sites, certs) {
     ? sites.map((s) => {
         const url = siteURL(s);
         const off = state.lastOverview?.running ? '' : ' is-off';
-        // 只有 conf.d 下的站点文件可删；主配置内联站点没有独立文件。
-        // 归一化反斜杠：Windows 下 Source 可能是 conf.d\x.json 的形式。
-        const rel = String(s.source || '').replace(/\\/g, '/');
-        const delBtn = rel.startsWith('conf.d/')
-          ? '<button class="icon-btn site-del" data-source="' + esc(s.source) + '" title="删除站点">'
-            + '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.6 4.4h10.8M6.3 4.4V2.8h3.4v1.6M3.9 4.4l.5 8.1c.04.6.55 1.1 1.16 1.1h4.88c.61 0 1.12-.5 1.16-1.1l.5-8.1M6.6 7.2v3.8M9.4 7.2v3.8"/></svg>'
-            + '</button>'
-          : '';
-        return `<div class="kv-row"><span class="k">${esc(s.port || '—')}</span><span class="v"><a class="site-link${off}" href="#" data-url="${esc(url)}" title="${esc(url)}">${esc(url)}</a></span><span class="n with-action"><span>${esc(s.source || '')}</span>${delBtn}<button class="icon-btn site-more" data-source="${esc(s.source || '')}" title="查看详情">⋯</button></span></div>`;
+        const isOn = s.enabled !== false;
+        const toggleBtn = '<button class="icon-btn site-toggle' + (isOn ? ' is-on' : ' is-off') + '"'
+          + ' data-id="' + esc(s.id) + '"'
+          + ' data-enabled="' + (isOn ? '0' : '1') + '"'
+          + ' title="' + esc(isOn ? t('sites.toggleOn') : t('sites.toggleOff')) + '">'
+          + iconSVG('power')
+          + '</button>';
+        const delBtn = '<button class="icon-btn site-del" data-id="' + esc(s.id) + '" data-name="' + esc(s.name) + '" title="' + esc(t('sites.del')) + '">'
+          + iconSVG('trash')
+          + '</button>';
+        const detailBtn = '<button class="icon-btn site-more" data-id="' + esc(s.id) + '" title="' + esc(t('sites.detail')) + '">' + iconSVG('more') + '</button>';
+        const err = s.error ? '<span class="row-err" title="' + esc(s.error) + '">' + esc(s.error) + '</span>' : '';
+        // 一个站点文件一行：主行给访问地址与开关，下面一行列全部监听标签。
+        // 不再按监听拆成多行——那是同一个文件、同一个开关，拆开会让用户
+        // 以为有两个站点，且点其中一个另一个也跟着变。
+        const statePill = '<span class="site-state ' + (isOn ? 'on' : 'off') + '">'
+          + esc(isOn ? t('sites.stateOn') : t('sites.stateOff')) + '</span>';
+        return `<div class="site-row${isOn ? '' : ' is-disabled'}" data-site-id="${esc(s.id)}">`
+          + `<div class="site-main">`
+          + `<a class="site-link${off}" href="#" data-url="${esc(url)}" title="${esc(url)}">${esc(url)}</a>`
+          + statePill
+          + `<span class="site-file" title="${esc(s.source || '')}">${esc(basename(s.source) || s.id)}</span>`
+          + err
+          + `</div>`
+          + `<div class="site-side">`
+          + `<div class="site-listens">${listenChips(s)}</div>`
+          + `<div class="site-actions">${toggleBtn}${delBtn}${detailBtn}</div>`
+          + `</div>`
+          + `</div>`;
       }).join('')
-    : '<div class="kv-row"><span class="k">—</span><span class="v">没有站点</span></div>';
+    : `<div class="site-empty">${esc(t('sites.empty'))}</div>`;
   $('#matrixBody').innerHTML = sites.length
     ? sites.map((s) => {
         const c = certs.find((x) => x.domain === s.name);
-        let dot = 'off', text = '未运行';
+        let dot = 'off', text = t('matrix.legendOff');
         if (state.lastOverview?.running) {
-          if (c?.local || c?.selfSigned) { dot = 'warn'; text = '本地证书'; }
-          else { dot = 'ok'; text = '正常'; }
+          if (c?.local || c?.selfSigned) { dot = 'warn'; text = t('matrix.localCert'); }
+          else { dot = 'ok'; text = t('matrix.legendOk'); }
         }
-        const issuer = c ? (c.local ? '本地 CA 自动签发' : (c.issuer || '—')) : '—';
+        // 证书列只提示签发来源（详情与有效期在证书页看），不放有效/到期徽标
+        const issuer = c ? (c.local ? t('certs.local') : (c.issuer || '—')) : '—';
         return `<tr>
           <td title="${esc(s.name)}">${esc(s.name)}</td>
           <td class="mono">${esc(s.port || '—')}</td>
@@ -96,30 +192,39 @@ export function renderSites(sites, certs) {
           <td class="state-cell"><span class="matrix-state"><i class="dot ${dot}"></i>${text}</span></td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="5">没有站点</td></tr>';
+    : `<tr><td colspan="5">${esc(t('sites.empty'))}</td></tr>`;
 }
 
 export function renderCerts(certs) {
-  renderRows('#certsTable', certs.map((c) => ({
-    k: c.domain,
-    v: [
-      c.subject || c.domain,
-      c.local ? '本地 CA 自动签发' : (c.issuer || '—'),
-      c.notAfter || '—',
-      c.daysLeft > 0 ? '剩 ' + c.daysLeft + ' 天' : '已过期',
-      c.names || ''
-    ].filter(Boolean).join('　·　'),
-    n: c.local ? '本地生成' : (c.selfSigned ? '自签' : '已签发')
-  })));
+  $('#certsTable').innerHTML = certs.length
+    ? certs.map((c) => {
+        const detail = [
+          c.subject || c.domain,
+          c.local ? t('certs.local') : (c.issuer || '—'),
+          c.notAfter || '—',
+          c.daysLeft > 0 ? t('certs.daysLeft', { days: c.daysLeft }) : (c.status === 'expired' ? t('certs.stExpired') : ''),
+          c.names || '',
+          c.note || ''
+        ].filter(Boolean).join('　·　');
+        return `<div class="kv-row">`
+          + `<span class="k">${esc(c.domain)}</span>`
+          + `<span class="v">${esc(detail)}</span>`
+          + `<span class="n with-action">${certBadge(c.status) || esc(c.local ? t('certs.localGenerated') : (c.selfSigned ? t('certs.selfSigned') : t('certs.issued')))}`
+          + `<button class="icon-btn cert-check" data-domain="${esc(c.domain)}" title="${esc(t('certs.check'))}">`
+          + iconSVG('search')
+          + `</button></span></div>`;
+      }).join('')
+    : `<div class="kv-row"><span class="k">—</span><span class="v">${esc(t('certs.empty'))}</span></div>`;
   $('#metricCerts').textContent = certs.length;
   $('#certCount').textContent = certs.length;
 }
 
 export function renderPaths(p) {
   renderRows('#pathsTable', [
-    { k: '主配置', v: p.config, n: 'config' },
-    { k: '证书目录', v: p.cert, n: 'cert' },
-    { k: '日志目录', v: p.log, n: 'log' },
-    { k: 'pid 文件', v: p.pid, n: 'pid' }
+    { k: t('paths.config'), v: p.config, n: 'config' },
+    { k: t('paths.cert'), v: p.cert, n: 'cert' },
+    { k: t('paths.log'), v: p.log, n: 'log' },
+    { k: t('paths.pid'), v: p.pid, n: 'pid' },
+    { k: t('paths.state'), v: p.state, n: 'state' }
   ]);
 }

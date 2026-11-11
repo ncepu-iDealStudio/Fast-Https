@@ -4,20 +4,20 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <link rel="icon" href="data:,"/>
-    <title>Fast-Https · 本机管理端</title>
+    <title data-i18n="app.title">Fast-Https · 本机管理端</title>
 </head>
 <body>
 <div class="window">
   <header class="topbar">
-    <div class="brand"><img class="mark" src="/appicon.png" alt="Fast-Https 应用图标"/><b>fast-https</b><small>DESKTOP</small></div>
+    <div class="brand"><img class="mark" src="/appicon.png" alt="fast-https"/><b>fast-https</b><small>DESKTOP</small></div>
     <div class="win-controls">
-      <button class="win-btn" data-window="minimise" aria-label="最小化" title="最小化">
+      <button class="win-btn" data-window="minimise" data-i18n-aria="win.minimise" data-i18n-title="win.minimise" aria-label="最小化" title="最小化">
         <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M1 5h8"/></svg>
       </button>
-      <button class="win-btn" data-window="maximise" aria-label="最大化或还原" title="最大化／还原">
+      <button class="win-btn" data-window="maximise" data-i18n-aria="win.maximise" data-i18n-title="win.maximise" aria-label="最大化或还原" title="最大化／还原">
         <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1.7" y="1.7" width="6.6" height="6.6"/></svg>
       </button>
-      <button class="win-btn close" data-window="hide" aria-label="关闭" title="关闭">
+      <button class="win-btn close" data-window="hide" data-i18n-aria="common.close" data-i18n-title="common.close" aria-label="关闭" title="关闭">
         <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.2 2.2l5.6 5.6M7.8 2.2l-5.6 5.6"/></svg>
       </button>
     </div>
@@ -25,16 +25,18 @@
 
   <div class="app">
     <aside class="sidebar">
-      <button class="side-cta" data-action="open-config-dir"><span class="ico i-plus"></span>打开配置目录</button>
-      <div class="group"><span>工作实例</span></div>
-      <button class="nav-item on" data-nav="overview" data-title="本机实例"><span class="ico i-dash"></span>概览</button>
-      <button class="nav-item" data-nav="matrix" data-title="状态矩阵"><span class="ico i-grid"></span>状态矩阵</button>
-      <button class="nav-item" data-nav="sites" data-title="站点"><span class="ico i-file"></span>站点</button>
-      <button class="nav-item" data-nav="certs" data-title="证书"><span class="ico i-shield"></span>证书</button>
-      <button class="nav-item" data-nav="logs" data-title="日志"><span class="ico i-lines"></span>日志</button>
+      <button class="side-cta" data-action="open-config-dir"><span class="ico" data-ic="folder"></span><span data-i18n="nav.openConfigDir">打开配置目录</span></button>
+      <div class="group"><span data-i18n="nav.group">工作实例</span></div>
+      <button class="nav-item on" data-nav="overview" title="本机实例" data-i18n-title="nav.overviewTip"><span class="ico" data-ic="pulse"></span><span data-i18n="nav.overview">概览</span></button>
+      <button class="nav-item" data-nav="matrix" title="状态矩阵" data-i18n-title="nav.matrixTip"><span class="ico" data-ic="grid"></span><span data-i18n="nav.matrix">状态矩阵</span></button>
+      <button class="nav-item" data-nav="sites" title="站点" data-i18n-title="nav.sitesTip"><span class="ico" data-ic="globe"></span><span data-i18n="nav.sites">站点</span></button>
+      <button class="nav-item" data-nav="certs" title="证书" data-i18n-title="nav.certsTip"><span class="ico" data-ic="shield"></span><span data-i18n="nav.certs">证书</span></button>
+      <button class="nav-item" data-nav="logs" title="日志" data-i18n-title="nav.logsTip"><span class="ico" data-ic="logs"></span><span data-i18n="nav.logs">日志</span></button>
+      <button class="nav-item" data-nav="runtime" title="运行快照" data-i18n-title="nav.runtimeTip"><span class="ico" data-ic="pulse"></span><span data-i18n="nav.runtime">运行快照</span></button>
+      <button class="nav-item" data-nav="operations" title="操作记录" data-i18n-title="nav.operationsTip"><span class="ico" data-ic="grid"></span><span data-i18n="nav.operations">操作记录</span></button>
       <div class="side-foot-wrap">
         <button class="side-foot" id="accountBtn" aria-haspopup="menu" aria-expanded="false">
-          <span class="avatar">F</span><span class="acct-name">本机管理</span><span class="ver" data-bind="version">1.7.0</span><span class="acct-caret">⌃</span>
+          <span class="avatar">F</span><span class="acct-name" data-i18n="nav.account">本机管理</span><span class="ver" data-bind="version">1.7.0</span><span class="acct-caret" data-ic="chevronUp"></span>
         </button>
       </div>
     </aside>
@@ -43,36 +45,43 @@
       <div class="content">
         <div class="pane" data-pane="overview">
           <section class="card overview-card">
-            <div class="card-head"><h3>运行概况</h3><div class="card-head-actions"><span class="card-note">本机实例 · 实时状态</span><button class="btn primary" id="primaryAction" data-action="start"><span class="glyph">▶</span><span id="primaryLabel">启动服务</span></button><button class="btn" data-action="reload"><span class="glyph">↻</span>重载配置</button></div></div>
+            <div class="card-head"><h3 data-i18n="overview.title">运行概况</h3><div class="card-head-actions"><span class="card-note" data-i18n="overview.note">本机实例 · 实时状态</span><button class="btn primary" id="primaryAction" data-action="start"><span class="glyph" data-ic="play"></span><span id="primaryLabel" data-i18n="overview.start">启动服务</span></button><button class="btn" data-action="reload"><span class="glyph" data-ic="reload"></span><span data-i18n="overview.reload">重载配置</span></button></div></div>
             <div class="metrics">
-              <div class="metric"><span class="m-label">服务状态</span><strong class="m-value" id="metricRunning">—</strong><span class="m-sub" data-bind="statusText">—</span></div>
-              <div class="metric"><span class="m-label">监听端口</span><strong class="m-value" id="metricPorts">0</strong><span class="m-sub" data-bind="portCount">—</span></div>
-              <div class="metric"><span class="m-label">站点</span><strong class="m-value" id="metricSites">0</strong><span class="m-sub" data-bind="siteText">—</span></div>
-              <div class="metric"><span class="m-label">证书</span><strong class="m-value" id="metricCerts">0</strong><span class="m-sub" data-bind="certText">—</span></div>
+              <div class="metric"><span class="m-label" data-i18n="overview.metricStatus">服务状态</span><strong class="m-value" id="metricRunning">—</strong><span class="m-sub" data-bind="statusText">—</span></div>
+              <div class="metric"><span class="m-label" data-i18n="overview.metricPorts">监听端口</span><strong class="m-value" id="metricPorts">0</strong><span class="m-sub" data-bind="portCount">—</span></div>
+              <div class="metric"><span class="m-label" data-i18n="overview.metricSites">站点</span><strong class="m-value" id="metricSites">0</strong><span class="m-sub" data-bind="siteText">—</span></div>
+              <div class="metric"><span class="m-label" data-i18n="overview.metricCerts">证书</span><strong class="m-value" id="metricCerts">0</strong><span class="m-sub" data-bind="certText">—</span></div>
             </div>
             <div class="card-foot">
-              <div class="config-line"><span class="k">配置状态</span><span id="configState">—</span><span class="muted" data-bind="checkedAt">—</span></div>
-              <div class="foot-actions"><button class="text-btn" data-action="open-config">打开配置</button><button class="text-btn" data-action="open-config-dir">配置目录</button></div>
+              <div class="config-line"><span class="k" data-i18n="overview.configState">配置状态</span><span id="configState">—</span><span class="muted" data-bind="checkedAt">—</span></div>
+              <div class="foot-actions"><button class="text-btn" id="diagnoseBtn" data-i18n="overview.diagnose">健康检查</button><button class="text-btn" data-action="open-config" data-i18n="overview.openConfig">打开配置</button><button class="text-btn" data-action="open-config-dir" data-i18n="overview.configDir">配置目录</button></div>
             </div>
           </section>
 
           <section class="alert-strip" id="overviewError" hidden>
             <span class="alert-icon">!</span>
-            <div><strong id="alertTitle">配置文件读取失败</strong><p id="alertBody"></p></div>
+            <div><strong id="alertTitle" data-i18n="overview.errorTitle">配置文件读取失败</strong><p id="alertBody"></p></div>
           </section>
 
           <div class="two-col">
             <section class="card quick-card">
-              <div class="card-head"><h3>常用操作</h3><span class="card-note">快速管理本机实例</span></div>
+              <div class="card-head"><h3 data-i18n="overview.quickTitle">常用操作</h3><span class="card-note" data-i18n="overview.quickNote">快速管理本机实例</span></div>
               <div class="quick-grid">
-                <button class="quick" data-goto="sites"><span class="quick-ico ico i-grid"></span><b>管理站点</b><small>新增、编辑与管理代理</small></button>
-                <button class="quick" data-goto="certs"><span class="quick-ico ico i-shield"></span><b>管理证书</b><small>查看有效期与 TLS 证书</small></button>
-                <button class="quick" data-goto="logs"><span class="quick-ico ico i-lines"></span><b>查看日志</b><small>排查请求与运行问题</small></button>
+                <button class="quick" data-goto="sites"><span class="quick-ico" data-ic="globe"></span><b data-i18n="overview.quickSites">管理站点</b><small data-i18n="overview.quickSitesSub">新增、编辑与管理代理</small></button>
+                <button class="quick" data-goto="certs"><span class="quick-ico" data-ic="shield"></span><b data-i18n="overview.quickCerts">管理证书</b><small data-i18n="overview.quickCertsSub">查看有效期与 TLS 证书</small></button>
+                <button class="quick" data-goto="logs"><span class="quick-ico" data-ic="logs"></span><b data-i18n="overview.quickLogs">查看日志</b><small data-i18n="overview.quickLogsSub">排查请求与运行问题</small></button>
               </div>
             </section>
             <section class="card events-card">
-              <div class="card-head"><h3>最近事件</h3><span class="card-note">最近 24 小时</span></div>
-              <ul class="timeline" id="eventList"><li class="empty">正在读取本机状态…</li></ul>
+              <div class="card-head"><h3 data-i18n="overview.eventsTitle">最近事件</h3>
+                <div class="log-tabs">
+                  <button class="btn small on" data-event-tab="ops" data-i18n="overview.eventsOps">操作记录</button>
+                  <button class="btn small" data-event-tab="local" data-i18n="overview.eventsLocal">本机动态</button>
+                </div>
+              </div>
+              <ul class="timeline" id="opList"><li class="empty" data-i18n="overview.eventsReading">正在读取操作记录…</li></ul>
+              <pre class="cmd-result" id="opDetail" hidden></pre>
+              <ul class="timeline" id="eventList" hidden><li class="empty" data-i18n="events.empty">暂无事件</li></ul>
             </section>
           </div>
         </div>
@@ -82,35 +91,46 @@
             <div class="matrix-status">
               <div class="ms-left">
                 <span class="ms-lamp" id="matrixLamp"></span>
-                <div><strong id="matrixState">读取中</strong><small id="matrixSub">回环端口探测</small></div>
+                <div><strong id="matrixState" data-i18n="matrix.reading">读取中</strong><small id="matrixSub" data-i18n="matrix.probing">回环端口探测</small></div>
               </div>
               <div class="ms-metrics">
                 <div><span>pid</span><b data-bind="pidNum">—</b></div>
-                <div><span>监听端口</span><b data-bind="ports">—</b></div>
-                <div><span>站点</span><b data-bind="siteCount">0</b></div>
-                <div><span>刷新</span><b>2s</b></div>
+                <div><span data-i18n="matrix.msPorts">监听端口</span><b data-bind="ports">—</b></div>
+                <div><span data-i18n="matrix.msSites">站点</span><b data-bind="siteCount">0</b></div>
+                <div><span data-i18n="matrix.msRefresh">刷新</span><b>2s</b></div>
               </div>
             </div>
           </section>
 
           <div class="matrix-grid">
             <section class="card">
-              <div class="card-head"><h3>站点矩阵</h3><span class="card-note">PORTS / CERTS / RELOAD</span></div>
+              <div class="card-head"><h3 data-i18n="matrix.title">站点矩阵</h3><span class="card-note">PORTS / CERTS / RELOAD</span></div>
               <table class="matrix">
-                <thead><tr><th>站点</th><th>端口</th><th>协议</th><th>证书</th><th class="state-cell">状态</th></tr></thead>
-                <tbody id="matrixBody"><tr><td colspan="5">正在读取站点…</td></tr></tbody>
+                <thead><tr><th data-i18n="matrix.headSite">站点</th><th data-i18n="matrix.headPort">端口</th><th data-i18n="matrix.headProtocol">协议</th><th data-i18n="matrix.headCert">证书</th><th class="state-cell" data-i18n="matrix.headState">状态</th></tr></thead>
+                <tbody id="matrixBody"><tr><td colspan="5" data-i18n="matrix.loadingSites">正在读取站点…</td></tr></tbody>
               </table>
               <div class="matrix-legend">
-                <span><i class="dot ok"></i>正常</span>
-                <span><i class="dot warn"></i>自签证书</span>
-                <span><i class="dot off"></i>未运行</span>
+                <span><i class="dot ok"></i><span data-i18n="matrix.legendOk">正常</span></span>
+                <span><i class="dot warn"></i><span data-i18n="matrix.legendWarn">自签证书</span></span>
+                <span><i class="dot off"></i><span data-i18n="matrix.legendOff">未运行</span></span>
               </div>
             </section>
 
             <section class="card">
-              <div class="card-head"><h3>访问日志</h3><span class="card-note">ACCESS / TAIL · 最近 8 条</span></div>
-              <div class="access-head"><span>时间</span><span>方法</span><span>路径</span><span>状态</span><span>大小</span></div>
-              <div id="matrixLogs" class="access-list"><div class="log-empty">正在读取…</div></div>
+              <div class="card-head"><h3 data-i18n="matrix.accessTitle">访问日志</h3><span class="card-note" data-i18n="matrix.accessNote">ACCESS / TAIL · 最近 8 条</span></div>
+              <div class="access-head"><span data-i18n="matrix.headTime">时间</span><span data-i18n="matrix.headMethod">方法</span><span data-i18n="matrix.headPath">路径</span><span data-i18n="matrix.headStatus">状态</span><span data-i18n="matrix.headSize">大小</span></div>
+              <div id="matrixLogs" class="access-list"><div class="log-empty" data-i18n="matrix.accessLoading">正在读取…</div></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h3 data-i18n="matrix.runtimeTitle">运行快照</h3><div class="card-head-actions"><span class="card-note">RUNTIME / STATUS · STATS</span><button class="btn small" id="runtimeRefresh" data-i18n="common.refresh">刷新</button></div></div>
+              <div class="kv-table" id="runtimeBody"><div class="kv-row"><span class="k">—</span><span class="v" data-i18n="common.notRead">尚未读取</span></div></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h3>Monitor</h3><div class="card-head-actions"><span class="card-note">MONITOR / EVENTS</span><button class="btn small" id="monitorRefresh" data-i18n="common.refresh">刷新</button></div></div>
+              <div class="kv-table" id="monitorBody"><div class="kv-row"><span class="k">—</span><span class="v" data-i18n="common.notRead">尚未读取</span></div></div>
+              <ul class="timeline" id="monitorEvents"><li class="empty" data-i18n="events.empty">暂无事件</li></ul>
             </section>
           </div>
         </div>
@@ -118,85 +138,126 @@
         <div class="pane" data-pane="sites" hidden>
           <section class="card">
             <div class="pane-notes">
-              <p class="lede">主配置与 <span class="mono">conf.d</span> 下的站点文件（http.server[] 与 http.include），按监听端口逐个展开。新站点写成 <span class="mono">conf.d/&lt;名称&gt;.json</span>，创建后需点「重载配置」。</p>
+              <p class="lede" data-i18n-html="sites.lede">每个站点对应 <span class="mono">conf.d</span> 下的一个配置文件（如 <span class="mono">localhost.json</span>），一个站点可同时监听多个端口。增删改与启停都走配置事务（校验、恢复点、reload、可回滚），提交后立即生效。</p>
             </div>
-            <div class="section-label"><span>已配置的站点</span><span class="label-right"><span class="section-count" id="siteCountLabel">0</span><button class="btn small" id="addSiteBtn">+ 添加站点</button></span></div>
-            <div class="kv-table" id="sitesTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取站点…</span></div></div>
+            <div class="section-label"><span data-i18n="sites.configured">已配置的站点</span><span class="label-right"><span class="section-count" id="siteCountLabel">0</span><button class="btn small" id="addSiteBtn" data-i18n="sites.add">+ 添加站点</button></span></div>
+            <div class="kv-table" id="sitesTable"><div class="kv-row"><span class="k">—</span><span class="v" data-i18n="sites.loading">正在读取站点…</span></div></div>
           </section>
         </div>
 
         <div class="pane" data-pane="certs" hidden>
           <section class="card">
             <div class="cert-notes">
-              <p class="lede">读取 PEM · crypto/x509：主题、签发者与到期时间直接读证书文件，到期天数按本机时间计算；标记「本地生成」的证书由本机根 CA（<span class="mono">root.crt</span>）自动签发。</p>
-              <p class="setting-note">本地 CA 不在系统／浏览器的信任库里，所以访问 <span class="mono">https://localhost</span> 仍会提示「不安全」——这是自签 CA 的正常现象，不是证书损坏。下方「信任本地 CA…」可一步步导入；对外服务请改用 ACME 或正式证书。证书与根 CA 只在文件缺失时生成，已经生成的旧证书不会被覆盖。</p>
+              <p class="lede" data-i18n-html="certs.lede">读取 PEM · crypto/x509：主题、签发者与到期时间直接读证书文件，到期天数按本机时间计算；标记「本地生成」的证书由本机根 CA（<span class="mono">root.crt</span>）自动签发。</p>
+              <p class="setting-note" data-i18n-html="certs.note">本地 CA 不在系统／浏览器的信任库里，所以访问 <span class="mono">https://localhost</span> 仍会提示「不安全」——这是自签 CA 的正常现象，不是证书损坏。下方「信任本地 CA…」可一步步导入；对外服务请改用 ACME 或正式证书。证书与根 CA 只在文件缺失时生成，已经生成的旧证书不会被覆盖。</p>
             </div>
-            <div class="section-label"><span>已配置的证书</span><span class="label-right"><span class="section-count" id="certCount">0</span><button class="btn small" id="trustCABtn">信任本地 CA…</button></span></div>
-            <div class="kv-table" id="certsTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取证书…</span></div></div>
+            <div class="section-label"><span data-i18n="certs.configured">已配置的证书</span><span class="label-right"><span class="section-count" id="certCount">0</span><button class="btn small" id="trustCABtn" data-i18n="certs.trust">信任本地 CA…</button></span></div>
+            <div class="kv-table" id="certsTable"><div class="kv-row"><span class="k">—</span><span class="v" data-i18n="certs.loading">正在读取证书…</span></div></div>
           </section>
         </div>
 
         <div class="pane" data-pane="logs" hidden>
           <section class="card">
             <div class="pane-notes">
-              <p class="lede">JSON 结构化 · 只读；可切换日志类型，按级别、状态码、关键词与时间筛选，滚动加载更早记录。</p>
+              <p class="lede" data-i18n="logs.lede">JSON 结构化 · 只读；切换日志类型，按级别与状态快速筛选，实时拉取最新记录，滚动加载更早记录。</p>
             </div>
             <div class="log-switch">
               <div class="log-tabs">
                 <button class="btn small on" data-log="access">access</button>
                 <button class="btn small" data-log="error">error</button>
                 <button class="btn small" data-log="system">system</button>
+                <button class="btn small" data-log="safe">safe</button>
               </div>
-              <button class="btn small" id="logRefresh">刷新</button>
+              <div class="log-switch-actions">
+                <label class="switch-label" title="每 2 秒拉取最新日志"><input type="checkbox" id="logLive" checked/><span data-i18n="logs.autoRefresh">实时</span></label>
+                <button class="btn small" id="logRefresh" data-i18n="logs.refresh">刷新</button>
+              </div>
             </div>
-            <div class="log-filters">
-              <select id="logLevel" aria-label="级别">
-                <option value="">全部级别</option>
-                <option value="debug">debug</option>
-                <option value="info">info</option>
-                <option value="warn">warn</option>
-                <option value="error">error</option>
-              </select>
-              <select id="logStatus" aria-label="状态码">
-                <option value="">全部状态</option>
-                <option value="2">2xx</option>
-                <option value="3">3xx</option>
-                <option value="4">4xx</option>
-                <option value="5">5xx</option>
-              </select>
-              <input id="logSearch" type="text" placeholder="关键词：路径 / 消息 / Host…"/>
-              <input id="logSince" type="text" placeholder="起：2026-11-07"/>
-              <input id="logUntil" type="text" placeholder="止：2026-11-08"/>
-              <button class="btn small" id="logApply">应用筛选</button>
-              <button class="btn small" id="logReset">重置</button>
+            <div class="log-filters-primary">
+              <label class="filter-field"><span data-i18n="logs.level">级别</span>
+                <select id="logLevel"><option value="" data-i18n="logs.levelAll">全部</option><option value="info">info</option><option value="warn">warn</option><option value="error">error</option><option value="debug">debug</option></select>
+              </label>
+              <label class="filter-field"><span data-i18n="logs.status">状态码</span>
+                <select id="logStatus" aria-label="状态码" data-i18n-aria="logs.statusAria">
+                  <option value="" data-i18n="logs.statusAll">全部状态</option>
+                  <option value="2xx">2xx</option><option value="3xx">3xx</option><option value="4xx">4xx</option><option value="5xx">5xx</option>
+                </select>
+              </label>
+              <button class="btn small" id="logApply" data-i18n="logs.apply">应用筛选</button>
+              <button class="btn small" id="logReset" data-i18n="logs.reset">重置</button>
+              <button class="btn small ghost" id="logMoreFilters" data-i18n="logs.moreFilters">更多筛选 ▾</button>
             </div>
-            <div class="log-list" id="logList"><div class="log-empty">正在读取日志…</div></div>
-            <div class="log-footer"><span id="logStatusText">—</span><button class="btn small" id="logMore" hidden>加载更多</button></div>
+            <div class="log-filters-advanced" id="logAdvanced" hidden>
+              <label class="filter-field"><span data-i18n="logs.host">Host</span><input id="logHost" type="text" placeholder="blog.example.com" data-i18n-placeholder="logs.hostPh"/></label>
+              <label class="filter-field"><span data-i18n="logs.method">方法</span><input id="logMethod" type="text" placeholder="GET" data-i18n-placeholder="logs.methodPh"/></label>
+              <label class="filter-field"><span data-i18n="logs.pathPrefix">路径前缀</span><input id="logPathPrefix" type="text" placeholder="/api" data-i18n-placeholder="logs.pathPh"/></label>
+              <label class="filter-field"><span data-i18n="logs.reason">原因</span><input id="logReason" type="text" placeholder="blacklist" data-i18n-placeholder="logs.reasonPh"/></label>
+              <label class="filter-field"><span data-i18n="logs.since">起始</span><input id="logSince" type="text" placeholder="1h / RFC3339" data-i18n-placeholder="logs.sincePh"/></label>
+              <label class="filter-field"><span data-i18n="logs.until">截止</span><input id="logUntil" type="text" placeholder="10m / RFC3339" data-i18n-placeholder="logs.untilPh"/></label>
+            </div>
+            <div class="log-table">
+              <div class="log-head">
+                <span data-i18n="logs.colTime">时间</span><span data-i18n="logs.colLevel">级别</span>
+                <span data-i18n="logs.colMethod">方法</span><span data-i18n="logs.colPath">路径</span>
+                <span data-i18n="logs.colStatus">状态</span><span data-i18n="logs.colSize">大小</span>
+                <span data-i18n="logs.colHost">Host</span><span data-i18n="logs.colRemote">来源</span>
+                <span data-i18n="logs.colReason">原因</span>
+              </div>
+              <div class="log-list" id="logList"><div class="log-empty" data-i18n="logs.loading">正在读取日志…</div></div>
+            </div>
+            <div class="log-footer"><span id="logStatusText">—</span><button class="btn small" id="logMore" hidden data-i18n="logs.more">加载更早</button></div>
           </section>
         </div>
 
-        <div class="pane" data-pane="settings" hidden>
-          <section class="card config-card">
-            <div class="card-head"><h3>主配置</h3><span class="card-note">按字段编辑 fast-https.json</span></div>
-            <div class="config-path">
-              <span class="mono" id="configPath">正在读取路径…</span>
-              <span class="config-meta" id="configMeta"></span>
-              <button class="text-btn" data-action="open-config-dir">打开目录</button>
+        <div class="pane" data-pane="runtime" hidden>
+          <section class="card">
+            <div class="card-head"><h3 data-i18n="runtime.pageTitle">运行快照</h3><div class="card-head-actions"><span class="card-note" data-i18n="runtime.pageNote">服务进程内的实时状态与累计统计</span><label class="switch-label"><input type="checkbox" id="runtimeLive" checked/><span data-i18n="runtime.autoRefresh">自动刷新（2 秒）</span></label><button class="btn small" id="rtPageRefresh" data-i18n="runtime.refresh">刷新</button></div></div>
+            <div class="runtime-grid" id="rtPageBody"><div class="runtime-empty" data-i18n="runtime.loading">正在读取运行快照…</div></div>
+            <div class="runtime-foot" id="rtPageFoot"></div>
+          </section>
+        </div>
+
+        <div class="pane" data-pane="operations" hidden>
+          <section class="card">
+            <div class="card-head"><h3 data-i18n="ops.pageTitle">操作记录</h3><div class="card-head-actions"><span class="card-note" data-i18n="ops.pageNote">配置事务的每次提交、回滚与重载</span><select id="opsStatusFilter"><option value="" data-i18n="ops.filterAll">全部状态</option><option value="succeeded">succeeded</option><option value="failed">failed</option><option value="running">running</option></select><button class="btn small" id="opsRefresh" data-i18n="ops.refresh">刷新</button></div></div>
+            <div class="ops-table">
+              <div class="ops-head"><span data-i18n="ops.colTime">时间</span><span data-i18n="ops.colCommand">命令</span><span data-i18n="ops.colStatus">状态</span><span data-i18n="ops.colId">操作 ID</span><span data-i18n="ops.colVersion">版本</span><span data-i18n="ops.colRestore">恢复点</span></div>
+              <div class="ops-list" id="opsList"><div class="runtime-empty" data-i18n="ops.empty">暂无操作记录。</div></div>
             </div>
-            <div id="configForm" class="config-form"><p class="config-empty">正在读取主配置…</p></div>
+            <div class="ops-detail" id="opsDetail" hidden></div>
+          </section>
+        </div>
+
+<div class="pane" data-pane="settings" hidden>
+          <section class="card config-card">
+            <div class="card-head"><h3 data-i18n="settings.configTitle">主配置</h3><span class="card-note" data-i18n="settings.configNote">按字段编辑 fast-https.json</span></div>
+            <div class="config-path">
+              <span class="mono" id="configPath" data-i18n="settings.readingPath">正在读取路径…</span>
+              <span class="config-meta" id="configMeta"></span>
+              <button class="text-btn" data-action="open-config-dir" data-i18n="settings.openDir">打开目录</button>
+            </div>
+            <div id="configForm" class="config-form"><p class="config-empty" data-i18n="settings.readingConfig">正在读取主配置…</p></div>
             <div class="config-toolbar">
-              <button class="btn" id="configReloadFile">重新读取</button>
-              <button class="btn primary" id="configSave" disabled>保存更改</button>
-              <button class="btn" data-action="reload">重载配置</button>
+              <button class="btn" id="configReloadFile" data-i18n="settings.reloadFile">重新读取</button>
+              <button class="btn" id="configValidate" data-i18n="settings.validate">校验配置</button>
+              <button class="btn primary" id="configSave" disabled data-i18n="settings.saveChanges">保存更改</button>
+              <button class="btn" data-action="reload" data-i18n="overview.reload">重载配置</button>
               <span class="config-status" id="configStatus">—</span>
             </div>
-            <p class="setting-note">只提交被改动的字段；未列出的字段（<span class="mono">http.server[]</span>、<span class="mono">acme.cas</span> 等）与未知键原样保留。保存会重新格式化文件、JSONC 注释会丢失，原文件完整备份为 <span class="mono">fast-https.json.bak</span>；配置语义仍由主程序 <span class="mono">reload</span> 校验，保存后请点「重载配置」。</p>
+            <p class="setting-note" data-i18n-html="settings.note">只提交被改动的字段；未列出的字段（<span class="mono">http.server[]</span>、<span class="mono">acme.cas</span> 等）与未知键原样保留。保存会把改动写成候选配置并走 <span class="mono">config apply</span> 事务：校验、建恢复点、切换文件、自动 reload，失败自动回滚到恢复点，提交后立即生效，无需手动重载。</p>
           </section>
 
           <section class="card">
-            <div class="card-head"><h3>运行时路径</h3><span class="card-note">由主程序提供</span></div>
-            <div class="kv-table" id="pathsTable"><div class="kv-row"><span class="k">—</span><span class="v">正在读取路径…</span></div></div>
-            <p class="setting-note">外观与主题在左下角「本机管理」菜单里调整；关闭窗口会隐藏到后台托盘，托盘菜单「退出」才会结束程序。</p>
+            <div class="card-head"><h3 data-i18n="settings.versionsTitle">配置版本</h3><div class="card-head-actions"><span class="card-note" data-i18n="settings.versionsNote">config versions · 快照与回滚</span><button class="btn small" id="configVersionsRefresh" data-i18n="common.refresh">刷新</button></div></div>
+            <p class="setting-note warn-text" id="configDriftNote" hidden data-i18n="settings.driftNote">磁盘配置与所有版本快照不一致（手工改过文件）</p>
+            <div class="kv-table" id="configVersions"><div class="kv-row"><span class="k">—</span><span class="v" data-i18n="common.notRead">尚未读取</span></div></div>
+            <div class="diff-box" id="configDiffBox" hidden></div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><h3 data-i18n="settings.pathsTitle">运行时路径</h3><span class="card-note" data-i18n="settings.pathsNote">由主程序提供</span></div>
+            <div class="kv-table" id="pathsTable"><div class="kv-row"><span class="k">—</span><span class="v" data-i18n="settings.readingPath">正在读取路径…</span></div></div>
+            <p class="setting-note" data-i18n="settings.pathsHint">外观与主题在左下角「本机管理」菜单里调整；关闭窗口会隐藏到后台托盘，托盘菜单「退出」才会结束程序。</p>
           </section>
         </div>
       </div>
@@ -204,15 +265,15 @@
       <footer class="workspace-foot">
         <div class="foot-status">
           <span class="dot" id="runDot"></span>
-          <strong data-bind="running">读取中</strong>
+          <strong data-bind="running" data-i18n="common.loading">读取中</strong>
           <span class="sep">·</span><span data-bind="pid">pid —</span>
           <span class="sep">·</span><span data-bind="statusText">—</span>
-          <span class="sep">·</span><span data-bind="uptime">状态每 2 秒刷新</span>
+          <span class="sep">·</span><span data-bind="uptime" data-i18n="status.refreshing">状态每 2 秒刷新</span>
         </div>
         <div class="foot-actions">
           <span data-bind="checkedAt">—</span>
-          <button class="btn-icon" id="footStart" data-action="start" title="启动服务">▶</button>
-          <button class="btn-icon" data-action="reload" title="重载配置">↻</button>
+          <button class="btn-icon" id="footStart" data-action="start" title="启动服务" data-i18n-title="overview.start"><span data-ic="play"></span></button>
+          <button class="btn-icon" data-action="reload" title="重载配置" data-i18n-title="overview.reload"><span data-ic="reload"></span></button>
         </div>
       </footer>
     </main>

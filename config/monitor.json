@@ -1,0 +1,12 @@
+{
+  "interval": "5s",
+  "timeout": "1s",
+  "snapshot_url": "http://127.0.0.1:9088/runtime",
+  "dir": "logs/monitor",
+  "pid_file": "fast-https.pid",
+  "cooldown": "5m",
+  "five_xx_ratio": 0.05,
+  "five_xx_min_requests": 20,
+  "port_probe": true,
+  "stuck_hint": true
+}

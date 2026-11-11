@@ -87,10 +87,10 @@ function ConvertTo-Version4 {
 }
 
 function Prepare-Desktop {
-    # goreleaser 的 desktop-linux 构建会 //go:embed all:frontend/dist，
-    # nfpm 的 contents 又引用 build/linux/*.desktop，两者都必须在构建前就绪。
+    # 桌面端只发布 Windows（NSIS 安装包）：Linux 桌面包（deb/rpm/apk）不在计划内，
+    # 所以这里不再生成 .desktop 入口，goreleaser 也没有 desktop-linux 构建。
     $desktop = Join-Path $root "desktop"
-    if (-not (Test-Path (Join-Path $desktop "go.mod"))) { throw "desktop/ 不存在，无法构建桌面端包" }
+    if (-not (Test-Path (Join-Path $desktop "go.mod"))) { throw "desktop/ 不存在，无法构建桌面端" }
     if (-not (Get-Command wails3 -ErrorAction SilentlyContinue)) {
         throw "未找到 wails3；先 go install github.com/wailsapp/wails/v3/cmd/wails3@latest"
     }
@@ -106,15 +106,23 @@ function Prepare-Desktop {
 
     Push-Location $desktop
     try {
+        # wails3/task 把普通进度日志写到 stderr；在 EAP=Stop 下用 2>&1
+        # 重定向会被包装成 NativeCommandError 直接终止脚本（外部命令
+        # stderr 与 Stop 的经典冲突）。这里用临时放宽的子作用域执行，
+        # 只在真实非零退出码时才报错。
+        $prevEap = $ErrorActionPreference
+        $ErrorActionPreference = "Continue"
+
         Write-Host "==> desktop: generate bindings"
         & wails3 generate bindings -clean=true -time-type=Date
-        if ($LASTEXITCODE -ne 0) { throw "wails3 generate bindings failed (exit $LASTEXITCODE)" }
+        if ($LASTEXITCODE -ne 0) { $ErrorActionPreference = $prevEap; throw "wails3 generate bindings failed (exit $LASTEXITCODE)" }
 
         # Windows 桌面端 exe 是安装包里的图形入口：wails3 build 会顺带构建前端
         # （dist 供 goreleaser 的 Linux 构建 embed）并生成 .syso（图标 + 版本信息）。
         Write-Host "==> desktop: windows amd64 build"
         & wails3 build
-        if ($LASTEXITCODE -ne 0) { throw "wails3 build failed (exit $LASTEXITCODE)" }
+        if ($LASTEXITCODE -ne 0) { $ErrorActionPreference = $prevEap; throw "wails3 build failed (exit $LASTEXITCODE)" }
+        $ErrorActionPreference = $prevEap
 
         # arm64 安装包需要对应架构的 exe。Windows 后端不依赖 CGO，可直接交叉编译。
         Write-Host "==> desktop: windows arm64 build"
@@ -134,14 +142,12 @@ function Prepare-Desktop {
             Remove-Item -LiteralPath (Join-Path $desktop "wails_windows_arm64.syso") -Force -ErrorAction SilentlyContinue
         }
 
-        Write-Host "==> desktop: generate .desktop"
-        & wails3 generate .desktop -name "fast-https-desktop" -exec "fast-https-desktop" -icon "fast-https-desktop" -outputfile (Join-Path $desktop "build\linux\fast-https-desktop.desktop") -categories "Network;System;Utility;"
-        if ($LASTEXITCODE -ne 0) { throw "generate .desktop failed (exit $LASTEXITCODE)" }
+        Write-Host "==> desktop: windows builds done"
     }
     finally { Pop-Location }
 }
 
-# 1. desktop 前端 & goreleaser（含 Linux 主程序与桌面端的 deb/rpm/apk）
+# 1. desktop 前端 & goreleaser（主程序的 Linux 服务端包；桌面端只出 Windows 安装包）
 if (-not $SkipBuild) {
     Prepare-Desktop
 
@@ -150,7 +156,11 @@ if (-not $SkipBuild) {
     # 本地打包不发布：-Publish 才真正上传，需要 GITHUB_TOKEN
     if (-not $Publish) { $grArgs += "--skip=publish" }
     Write-Host "==> goreleaser $($grArgs -join ' ')"
+    # 同 Prepare-Desktop：goreleaser 的进度日志走 stderr，放宽 Stop 语义
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     & goreleaser @grArgs
+    $ErrorActionPreference = $prevEap
     if ($LASTEXITCODE -ne 0) { throw "goreleaser failed (exit $LASTEXITCODE)" }
 }
 
@@ -197,6 +207,8 @@ if (-not $NoInstaller) {
 
         $nsi = Join-Path $PSScriptRoot "installer\windows\fast-https.nsi"
         Ensure-Utf8Bom $nsi
+        # 自绘向导脚本：PowerShell 5.1 只认带 BOM 的 UTF-8
+        Ensure-Utf8Bom (Join-Path $PSScriptRoot "installer\windows\wizard.ps1")
 
         Write-Host "==> makensis $arch -> $(Split-Path -Leaf $outFile)"
         & $makensis `
