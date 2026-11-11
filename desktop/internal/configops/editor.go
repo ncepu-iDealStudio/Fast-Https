@@ -87,7 +87,7 @@ func ReadConfigForm(dir string) (ConfigForm, error) {
 		form.Writable = true
 	}
 
-	data, _, err := cli.RunJSON[any](dir, append([]string{"config", "show"}, view.ConfigArg(paths)...)...)
+	data, _, err := cli.RunJSON[any](dir, "config", "show")
 	if err != nil {
 		return form, err
 	}
@@ -148,7 +148,7 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 	}
 	defer func() { _ = os.RemoveAll(cand) }()
 
-	data, _, err := cli.RunJSON[any](dir, append([]string{"config", "apply", "--candidate", cand, "--yes"}, view.ConfigArg(paths)...)...)
+	data, _, err := cli.RunJSON[any](dir, "config", "apply", "--candidate", cand, "--yes")
 	if err != nil {
 		return "", err
 	}

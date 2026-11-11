@@ -145,24 +145,28 @@ func TestNormalizeBound(t *testing.T) {
 }
 
 func TestLogsQueryArgs(t *testing.T) {
-	paths := RuntimePaths{Config: "/etc/fast-https/fast-https.json"}
 	args := strings.Join(logsQueryArgs(LogQuery{
 		Kind: "error", Limit: 30, Level: "warn", Status: "4xx",
 		Host: "blog.example.com", Method: "GET", PathPrefix: "/api", Reason: "blacklist",
 		Since: "1h", Until: "2026-11-08",
-	}, paths), " ")
+	}), " ")
 	for _, want := range []string{
 		"logs query --kind error --limit 30",
 		"--level warn", "--status 4xx", "--domain blog.example.com",
 		"--method GET", "--path-prefix /api", "--reason blacklist",
-		"--since 1h", "--config /etc/fast-https/fast-https.json",
+		"--since 1h",
 	} {
 		if !strings.Contains(args, want) {
 			t.Errorf("参数缺少 %q：%s", want, args)
 		}
 	}
+	// 不得注入 --config：不同命令支持的 flag 不同，统一加参数会让
+	// operation list / runtime status 这类命令 unknown flag 退出码 2。
+	if strings.Contains(args, "--config") {
+		t.Errorf("不应注入 --config：%s", args)
+	}
 	// 分页游标收窄 until
-	withCursor := strings.Join(logsQueryArgs(LogQuery{Until: "2026-11-08", Cursor: "2026-01-02T03:04:05"}, paths), " ")
+	withCursor := strings.Join(logsQueryArgs(LogQuery{Until: "2026-11-08", Cursor: "2026-01-02T03:04:05"}), " ")
 	if !strings.Contains(withCursor, "--until 2026-01-02T03:04:05") {
 		t.Errorf("游标应覆盖筛选 until：%s", withCursor)
 	}
@@ -170,7 +174,7 @@ func TestLogsQueryArgs(t *testing.T) {
 		t.Errorf("游标模式不应再带筛选 until：%s", withCursor)
 	}
 	// 缺省 kind 与 limit
-	def := strings.Join(logsQueryArgs(LogQuery{}, paths), " ")
+	def := strings.Join(logsQueryArgs(LogQuery{}), " ")
 	if !strings.Contains(def, "--kind access --limit 30") {
 		t.Errorf("缺省参数错误：%s", def)
 	}

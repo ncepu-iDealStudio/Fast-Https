@@ -133,15 +133,11 @@ func planAdd(in SiteInput) ([][]string, error) {
 	return plan, nil
 }
 
-// runSite 统一执行站点 CLI：补 --config（配置树路径由主程序给出，不依赖
-// CWD），失败时把封套错误翻译成人话（cli.FriendlyError）。
+// runSite 统一执行站点 CLI：原样转交 args（不注入任何额外参数——不同命令
+// 支持的 flag 各不相同，统一加参数会让命令报 unknown flag），失败时把
+// 封套错误翻译成人话（cli.FriendlyError）。
 func runSite(dir string, args ...string) (any, error) {
-	paths := view.ResolvePaths(dir)
-	full := append([]string{}, args...)
-	if paths.Config != "" {
-		full = append(full, "--config", paths.Config)
-	}
-	data, _, err := cli.RunJSON[any](dir, full...)
+	data, _, err := cli.RunJSON[any](dir, args...)
 	if err != nil {
 		return nil, fmt.Errorf("%s", cli.FriendlyError(err, strings.Join(args, " ")))
 	}

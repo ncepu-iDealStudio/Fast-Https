@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"fast-https-desktop/internal/cli"
-	"fast-https-desktop/internal/view"
 )
 
 // CommandResult 是一次 CLI 转交的结果。
@@ -28,54 +27,18 @@ var textOnlyCommands = []string{
 	"config path", "acme show",
 }
 
-// needsConfigArg 列出支持 --config 的命令前缀（这些命令要按主程序报出的
-// 配置路径找配置树，不能依赖 CLI 进程的 CWD——dev 模式下配置可能被放在
-// 任意目录，例如 desktop/bin/config）。
-//
-// 只收「--help 里确实声明了 --config」的命令。误加会让命令报
-// `unknown flag: --config` 并以退出码 2 失败（用户实测踩到）。已知不收的：
-//   - operation list / operation get：读状态目录下的操作记录
-//   - runtime status / runtime stats：直连 127.0.0.1:9088 读快照，与配置无关
-//
-// 新增条目前务必先跑 `<cli> <cmd> --help` 确认该 flag 存在。
-// 排除：旧纯文本命令、config path、acme show（不收 --config）、
-// acme setup（用 --config 但由前端显式传）、service/reload。
-var needsConfigArg = []string{
-	"site list", "site show", "site add", "site update", "site delete", "site enable", "site disable",
-	"config show", "config validate", "config versions", "config diff", "config apply", "config rollback",
-	"cert list", "cert check",
-	"monitor status", "monitor events",
-	"logs access", "logs error", "logs query",
-	"diagnose",
-}
-
-func shouldAddConfig(args []string) bool {
-	if len(args) == 0 {
-		return false
-	}
-	// 已显式带 --config 就不再补（尊重调用方）
-	for _, a := range args {
-		if strings.HasPrefix(a, "--config") {
-			return false
-		}
-	}
-	head := strings.Join(args, " ")
-	for _, p := range needsConfigArg {
-		if head == p || strings.HasPrefix(head, p+" ") {
-			return true
-		}
-	}
-	return false
-}
-
 // RunCommand 转交一条 CLI 命令，供界面里的补充面板使用
 // （运行快照、Monitor、操作记录、健康检查、证书检查、ACME、配置版本等）。
 //
-// args 由前端拼好（命令名 + 位置参数 + flag），这里只做基本的空白清理、
-// 自动补 --config、结果封套转换；不做白名单校验——命令本身就是 CLI 的
-// 公开命令树，越权的部分（写操作）由 CLI 自己的 --yes / 配置事务把关。
-// 失败时把封套错误翻译成人话（cli.FriendlyError），界面不再显示英文
-// 错误码或 Go 技术细节。
+// args 由前端拼好（命令名 + 位置参数 + flag），这里只做基本的空白清理
+// 与结果封套转换，**不注入任何额外参数**——不同命令支持的 flag 各不相同
+// （operation list 就没有 --config），统一加参数会让命令报
+// `unknown flag` 并以退出码 2 失败。配置路径由 CLI 按自己的默认值解析，
+// 桌面端的工作目录已经指向程序目录，两者一致。
+//
+// 不做白名单校验——命令本身就是 CLI 的公开命令树，越权的部分（写操作）
+// 由 CLI 自己的 --yes / 配置事务把关。失败时把封套错误翻译成人话
+// （cli.FriendlyError），界面不再显示英文错误码或 Go 技术细节。
 func (s *DesktopService) RunCommand(args []string) (CommandResult, error) {
 	clean := make([]string, 0, len(args))
 	for _, a := range args {
@@ -87,12 +50,6 @@ func (s *DesktopService) RunCommand(args []string) (CommandResult, error) {
 		return CommandResult{}, fmt.Errorf("命令为空")
 	}
 	name := strings.Join(clean, " ")
-
-	if shouldAddConfig(clean) {
-		if p := view.ResolvePaths(s.baseDir).Config; p != "" {
-			clean = append(clean, "--config", p)
-		}
-	}
 
 	if isTextOnly(clean) {
 		text, err := cli.Run(s.baseDir, clean...)

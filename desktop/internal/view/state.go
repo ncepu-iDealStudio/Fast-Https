@@ -126,14 +126,6 @@ func resolvePaths(dir string) RuntimePaths {
 	}
 }
 
-// ConfigArg 是带 --config 的公共参数：路径由主程序报出，命令都按它找配置树。
-func ConfigArg(paths RuntimePaths) []string {
-	if paths.Config == "" {
-		return nil
-	}
-	return []string{"--config", paths.Config}
-}
-
 // ------------------------------------------------------------ 服务操作
 
 // RunServerCommand 把纯文本命令（status / version / start / stop / reload）
@@ -190,8 +182,7 @@ func StopServer(dir string) (string, error) {
 
 // serverStillRunning 用 service status 判断服务是否仍在监听，返回结论与端口串。
 func serverStillRunning(dir string) (bool, []string) {
-	paths := ResolvePaths(dir)
-	data, _, err := cli.RunJSON[any](dir, append([]string{"service", "status"}, ConfigArg(paths)...)...)
+	data, _, err := cli.RunJSON[any](dir, "service", "status")
 	if err != nil {
 		return false, nil
 	}
@@ -243,7 +234,7 @@ func ListSites(dir string) ([]Site, error) {
 func runSiteList(dir string) (any, error) {
 	paths := ResolvePaths(dir)
 	return cached("site.list:"+paths.Config, 5*time.Second, func() (any, error) {
-		data, _, err := cli.RunJSON[any](dir, append([]string{"site", "list"}, ConfigArg(paths)...)...)
+		data, _, err := cli.RunJSON[any](dir, "site", "list")
 		return data, err
 	})
 }
@@ -327,7 +318,7 @@ func ListCerts(dir string) ([]Cert, error) {
 func runCertList(dir string) (any, error) {
 	paths := ResolvePaths(dir)
 	return cached("cert.list:"+paths.Config, 15*time.Second, func() (any, error) {
-		data, _, err := cli.RunJSON[any](dir, append([]string{"cert", "list"}, ConfigArg(paths)...)...)
+		data, _, err := cli.RunJSON[any](dir, "cert", "list")
 		return data, err
 	})
 }
@@ -387,7 +378,7 @@ func CollectOverview(dir string) Overview {
 	// service status：只读查询，服务没在跑也成功（status=stopped）。
 	// 拿不到时只把状态标成 unknown，不当成「读取失败」——站点、证书、
 	// 路径都是纯磁盘数据，服务没启动完全不影响它们刷出来。
-	if data, _, err := cli.RunJSON[any](dir, append([]string{"service", "status"}, ConfigArg(paths)...)...); err == nil {
+	if data, _, err := cli.RunJSON[any](dir, "service", "status"); err == nil {
 		m := cli.AsMap(data)
 		ov.Status = cli.Str(m, "status")
 		ov.Running = ov.Status == "running" || ov.Status == "degraded"
@@ -443,7 +434,7 @@ func CollectOverview(dir string) Overview {
 func runConfigShow(dir string) (any, error) {
 	paths := ResolvePaths(dir)
 	return cached("config.show:"+paths.Config, 10*time.Second, func() (any, error) {
-		data, _, err := cli.RunJSON[any](dir, append([]string{"config", "show"}, ConfigArg(paths)...)...)
+		data, _, err := cli.RunJSON[any](dir, "config", "show")
 		return data, err
 	})
 }
@@ -468,7 +459,7 @@ func normalizeBound(s string, until bool) string {
 
 // logsQueryArgs 把查询条件翻译成 logs query 的参数。游标来自已展示的
 // 记录，天然比筛选的 until 更早，有游标时直接以其收窄。
-func logsQueryArgs(q LogQuery, paths RuntimePaths) []string {
+func logsQueryArgs(q LogQuery) []string {
 	kind := q.Kind
 	if kind == "" {
 		kind = "access"
@@ -495,14 +486,13 @@ func logsQueryArgs(q LogQuery, paths RuntimePaths) []string {
 		until = q.Cursor
 	}
 	addFlag("--until", until)
-	return append(args, ConfigArg(paths)...)
+	return args
 }
 
 // QueryLogs 转交 logs query。logs query 没有 offset 分页：「加载更早」把
 // 上一页最早一条的时间当下一页的游标（LogPage.NextUntil）。
 func QueryLogs(dir string, q LogQuery) (LogPage, error) {
-	paths := ResolvePaths(dir)
-	data, _, err := cli.RunJSON[any](dir, logsQueryArgs(q, paths)...)
+	data, _, err := cli.RunJSON[any](dir, logsQueryArgs(q)...)
 	if err != nil {
 		return LogPage{}, err
 	}
@@ -571,12 +561,10 @@ func TailLog(dir, name string, n int) ([]LogEntry, error) {
 	if n <= 0 || n > 200 {
 		n = 20
 	}
-	paths := ResolvePaths(dir)
 	args := []string{"logs", name, "--limit", strconv.Itoa(n)}
 	if name == "system" || name == "safe" {
 		args = []string{"logs", "query", "--kind", name, "--limit", strconv.Itoa(n)}
 	}
-	args = append(args, ConfigArg(paths)...)
 	data, _, err := cli.RunJSON[any](dir, args...)
 	if err != nil {
 		return nil, err
