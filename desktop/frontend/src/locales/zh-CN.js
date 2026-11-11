@@ -11,6 +11,7 @@ export const zhCN = {
   'common.retry': '重试',
   'common.loading': '读取中…',
   'common.none': '没有可显示的数据',
+  'common.working': '处理中…',
   'common.language': '语言',
   'common.unknownError': '未知错误',
   'common.readFailed': '读取失败：{msg}',

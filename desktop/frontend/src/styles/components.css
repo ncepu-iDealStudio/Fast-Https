@@ -174,7 +174,7 @@ h4:first-of-type { margin-top: 0; }
 .menu-swatch i { width: 16px; height: 16px; border-radius: 50%; display: block; border: 1px solid rgba(0,0,0,.14); }
 .menu-swatch[aria-checked="true"] { border-color: var(--accent); }
 .menu-sep { height: 1px; background: var(--line); margin: 6px 0; }
-.toast { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 40; padding: 11px 18px; max-width: 70%; border-radius: 6px; font-size: 13px; background: var(--text); color: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.2); overflow-wrap: anywhere; }
+.toast { position: absolute; left: 50%; bottom: 26px; z-index: 40; padding: 11px 18px; max-width: 70%; border-radius: 6px; font-size: 13px; background: var(--text); color: var(--bg); box-shadow: 0 8px 24px rgba(0,0,0,.2); overflow-wrap: anywhere; }
 
 /* 站点启停：开启态保持中性，停用态用灰化 + 斜杠图标提示 */
 .icon-btn.site-toggle.is-on { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); background: color-mix(in srgb, var(--ok) 10%, transparent); }
@@ -217,3 +217,71 @@ h4:first-of-type { margin-top: 0; }
 .diag-overall-text.st-warn { color: var(--warn); }
 .diag-overall-text.st-err { color: var(--danger); }
 .diag-overall-text.st-off { color: var(--faint); }
+
+
+/* ---- 加载态：延迟出现，避免快操作一惊一乍 ---- */
+/* 全局顶部进度条：慢操作时给一条细线，让用户知道程序在动 */
+.global-progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  width: 0;
+  z-index: 90;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  pointer-events: none;
+  opacity: 0;
+  transition: width .3s cubic-bezier(.4, 0, .2, 1), opacity .25s ease;
+}
+.global-progress.is-active {
+  width: 82%;
+  opacity: .9;
+  animation: progress-pulse 1.4s ease-in-out infinite;
+}
+.global-progress.is-done {
+  width: 100%;
+  opacity: 0;
+  transition: width .35s ease, opacity .4s ease .1s;
+}
+@keyframes progress-pulse {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: 1; }
+}
+
+/* 按钮里的旋转图标 */
+.spinner {
+  width: 14px; height: 14px;
+  display: inline-block;
+  vertical-align: -2px;
+  animation: spin .8s linear infinite;
+}
+.btn .spinner { margin-right: 7px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 加载中的按钮：透明度与光标都柔和过渡，不瞬间变灰 */
+.btn, .icon-btn, .btn-icon, .btn.small {
+  transition: background .16s ease, border-color .16s ease, color .16s ease,
+              opacity .16s ease, filter .16s ease, transform .12s ease;
+}
+.btn:active, .icon-btn:active, .btn-icon:active { transform: scale(.97); }
+.btn.is-loading, .icon-btn.is-loading, .btn-icon.is-loading {
+  opacity: .72;
+  cursor: progress;
+}
+.btn.is-loading { display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn.is-loading, .btn-icon.is-loading { color: var(--accent); }
+
+/* 面板/卡片内容更新时的淡入，避免数据替换显得生硬 */
+@keyframes soft-in {
+  from { opacity: .35; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+.soft-in { animation: soft-in .22s ease-out; }
+
+/* toast 出现/消失也加过渡，不再是硬弹出 */
+.toast {
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition: opacity .22s ease, transform .22s ease;
+}
+.toast.is-visible { opacity: 1; transform: translate(-50%, 0); }

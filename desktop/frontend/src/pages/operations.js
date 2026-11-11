@@ -3,6 +3,7 @@
 import { DesktopService, msgOf } from '../api.js';
 import { t } from '../i18n.js';
 import { $, esc } from '../ui/dom.js';
+import { withLoading } from '../ui/loading.js';
 
 let busy = false;
 let ops = [];
@@ -91,7 +92,8 @@ async function openDetail(id) {
 }
 
 export function initOperationsPage() {
-  $('#opsRefresh')?.addEventListener('click', refreshOperationsPage);
+  const refreshBtn = $('#opsRefresh');
+  if (refreshBtn) refreshBtn.addEventListener('click', (e) => withLoading({ button: e.currentTarget, fn: refreshOperationsPage }));
   $('#opsStatusFilter')?.addEventListener('change', render);
   $('#opsList')?.addEventListener('click', (e) => {
     const row = e.target.closest ? e.target.closest('.ops-row') : null;

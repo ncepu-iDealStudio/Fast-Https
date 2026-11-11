@@ -6,6 +6,7 @@
 import { DesktopService, msgOf } from '../api.js';
 import { t } from '../i18n.js';
 import { $, $$, esc, toast } from '../ui/dom.js';
+import { withLoading, withImmediateLoading } from '../ui/loading.js';
 import { state } from '../state.js';
 import { askConfirm } from './confirm.js';
 import { refreshOverview, refreshDetails } from '../refresh.js';
@@ -228,14 +229,19 @@ export function initSiteDialog() {
       const id = toggle.getAttribute('data-id');
       const enabled = toggle.getAttribute('data-enabled') === '1';
       const word = t(enabled ? 'dialog.site.enable' : 'dialog.site.disable');
-      toggle.disabled = true;
-      try {
-        const msg = await DesktopService.SetSiteEnabled(id, enabled);
-        toast(msg || t('toast.actionDone', { action: word }));
-        await refreshDetails({ force: true });
-        await refreshOverview();
-        refreshOperations();
-      } catch (err) {
+      // withLoading 会禁用按钮并显示 spinner，结束后自动还原；
+      // 不再手动 toggle.disabled = true/false。
+      await withLoading({
+        button: toggle,
+        label: word,
+        fn: async () => {
+          const msg = await DesktopService.SetSiteEnabled(id, enabled);
+          toast(msg || t('toast.actionDone', { action: word }));
+          await refreshDetails({ force: true });
+          await refreshOverview();
+          refreshOperations();
+        }
+      }).catch((err) => {
         // Go 侧已把 CLI 封套错误翻成人话；这里再按场景补一句可操作的建议
         const raw = msgOf(err);
         let hint = raw;
@@ -251,9 +257,7 @@ export function initSiteDialog() {
           hint = t('friendly.siteInline');
         }
         toast(hint);
-      } finally {
-        toggle.disabled = false;
-      }
+      });
       return;
     }
     const del = e.target.closest ? e.target.closest('.site-del') : null;
@@ -265,14 +269,18 @@ export function initSiteDialog() {
       t('dialog.site.deleteBody', { name }),
       t('dialog.site.deleteOk'));
     if (!ok) return;
-    try {
-      toast(await DesktopService.DeleteSite(id));
-      await refreshDetails({ force: true });
-      await refreshOverview();
-      refreshOperations();
-    } catch (err) {
+    await withLoading({
+      button: del,
+      label: t('common.delete'),
+      fn: async () => {
+        toast(await DesktopService.DeleteSite(id));
+        await refreshDetails({ force: true });
+        await refreshOverview();
+        refreshOperations();
+      }
+    }).catch((err) => {
       toast(t('toast.actionFailed', { action: t('common.delete'), msg: msgOf(err) }));
-    }
+    });
   });
   $$('#siteDialog [data-browse]').forEach((b) => b.addEventListener('click', async () => {
     try {
@@ -291,7 +299,6 @@ export function initSiteDialog() {
   });
   $('#siteSubmit').addEventListener('click', async () => {
     const btn = $('#siteSubmit');
-    btn.disabled = true;
     $('#siteError').hidden = true;
     // SiteInput：id/name/listen/type/root/proxyPass；name 支持多域名（空格分隔）
     const payload = {
@@ -302,21 +309,24 @@ export function initSiteDialog() {
       root: $('#siteRoot').value,
       proxyPass: composeProxyPass()
     };
-    try {
-      const text = state.siteMode === 'add'
-        ? await DesktopService.AddSite(payload)
-        : await DesktopService.SaveSiteDetail(payload);
-      close();
-      toast(text);
-      await refreshDetails({ force: true });
-      await refreshOverview();
-      refreshOperations();
-    } catch (e) {
+    // 配置事务必然较慢，用立即加载（不走 140ms 延迟），按钮立刻变 spinner
+    await withImmediateLoading({
+      button: btn,
+      label: state.siteMode === 'add' ? t('dialog.site.titleAdd') : t('common.save'),
+      fn: async () => {
+        const text = state.siteMode === 'add'
+          ? await DesktopService.AddSite(payload)
+          : await DesktopService.SaveSiteDetail(payload);
+        close();
+        toast(text);
+        await refreshDetails({ force: true });
+        await refreshOverview();
+        refreshOperations();
+      }
+    }).catch((e) => {
       $('#siteError').textContent = msgOf(e);
       $('#siteError').hidden = false;
-    } finally {
-      btn.disabled = false;
-    }
+    });
   });
 }
 

@@ -6,6 +6,7 @@ import { t } from '../i18n.js';
 import { $, $$, esc, toast } from '../ui/dom.js';
 import { state } from '../state.js';
 import { askConfirm } from '../dialogs/confirm.js';
+import { withImmediateLoading } from '../ui/loading.js';
 import { refreshOverview } from '../refresh.js';
 import { refreshOperations } from '../ui/events.js';
 
@@ -350,28 +351,31 @@ export function initConfigEditor() {
     const n = Object.keys(values).length;
     if (!n) { setConfigStatus(t('settings.statusNoChanges')); return; }
     const btn = $('#configSave');
-    btn.disabled = true;
     setConfigStatus(t('settings.statusSaving'));
-    try {
-      // 后端返回的文案已含操作 id 与版本号，事务自动 reload
-      const text = await DesktopService.SaveConfigForm(values);
-      state.configDirty = false;
-      $$('#configForm [data-row]').forEach((row) => {
-        const el = row.querySelector('[data-value]');
-        if (!el) return;
-        const v = configRowValue(el);
-        row.setAttribute('data-initial', v);
-        state.configInitial[row.getAttribute('data-row')] = v;
-      });
-      setConfigStatus(t('settings.statusSaved', { n }), 'ok');
-      toast(text);
-      await refreshOverview();
-      await loadConfigVersions();
-      refreshOperations();
-    } catch (e) {
-      btn.disabled = false;
+    // 配置事务较慢，立即显示按钮加载态
+    await withImmediateLoading({
+      button: btn,
+      label: t('common.save'),
+      fn: async () => {
+        // 后端返回的文案已含操作 id 与版本号，事务自动 reload
+        const text = await DesktopService.SaveConfigForm(values);
+        state.configDirty = false;
+        $$('#configForm [data-row]').forEach((row) => {
+          const el = row.querySelector('[data-value]');
+          if (!el) return;
+          const v = configRowValue(el);
+          row.setAttribute('data-initial', v);
+          state.configInitial[row.getAttribute('data-row')] = v;
+        });
+        setConfigStatus(t('settings.statusSaved', { n }), 'ok');
+        toast(text);
+        await refreshOverview();
+        await loadConfigVersions();
+        refreshOperations();
+      }
+    }).catch((e) => {
       setConfigStatus(t('settings.statusSaveFailed', { msg: msgOf(e) }), 'err');
       toast(t('settings.statusSaveFailed', { msg: msgOf(e) }));
-    }
+    });
   });
 }

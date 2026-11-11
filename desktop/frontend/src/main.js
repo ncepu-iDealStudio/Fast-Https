@@ -1,4 +1,4 @@
-﻿// 入口：只做初始化编排。业务逻辑分散在 pages/ 与 dialogs/，
+// 入口：只做初始化编排。业务逻辑分散在 pages/ 与 dialogs/，
 // 数据交互统一走 api.js，跨模块状态在 state.js。
 import './styles/index.css';
 import { DesktopService, msgOf } from './api.js';
@@ -94,7 +94,7 @@ function init() {
 
   $$('[data-nav]').forEach((n) => n.addEventListener('click', () => activate(n.getAttribute('data-nav'))));
   $$('[data-goto]').forEach((b) => b.addEventListener('click', () => activate(b.getAttribute('data-goto'))));
-  $$('[data-action]').forEach((b) => b.addEventListener('click', () => doAction(b.getAttribute('data-action'))));
+  $$('[data-action]').forEach((b) => b.addEventListener('click', (e) => doAction(b.getAttribute('data-action'), e.currentTarget)));
   $$('[data-log]').forEach((b) => b.addEventListener('click', () => {
     state.currentLog = b.getAttribute('data-log');
     $$('[data-log]').forEach((x) => x.classList.toggle('on', x === b));

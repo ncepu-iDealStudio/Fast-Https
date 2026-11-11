@@ -1,4 +1,4 @@
-﻿// 状态矩阵新增卡片与证书页 ACME 面板：全部走 RunCommand 转交 CLI，
+// 状态矩阵新增卡片与证书页 ACME 面板：全部走 RunCommand 转交 CLI，
 // 各自管理刷新（进入页面或点「刷新」），不进定时轮询。
 // 运行快照 = runtime status + runtime stats（§5.1/§5.2）；
 // Monitor = monitor status + monitor events（§5.4/§5.5）；
@@ -6,6 +6,7 @@
 import { DesktopService, msgOf } from '../api.js';
 import { t } from '../i18n.js';
 import { $, esc } from '../ui/dom.js';
+import { withLoading } from '../ui/loading.js';
 
 let runtimeBusy = false;
 let monitorBusy = false;
@@ -151,7 +152,7 @@ export function refreshMatrixPanels() {
 // 不再重复放一份 ACME 表单——两处都能改会让人不知道以哪份为准。
 export function initPanels() {
   const rt = $('#runtimeRefresh');
-  if (rt) rt.addEventListener('click', refreshRuntimePanel);
+  if (rt) rt.addEventListener('click', (e) => withLoading({ button: e.currentTarget, fn: refreshRuntimePanel }));
   const mon = $('#monitorRefresh');
-  if (mon) mon.addEventListener('click', refreshMonitorPanel);
+  if (mon) mon.addEventListener('click', (e) => withLoading({ button: e.currentTarget, fn: refreshMonitorPanel }));
 }

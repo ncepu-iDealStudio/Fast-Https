@@ -58,6 +58,70 @@ try {
   await shot('01-overview');
   check('概览渲染', await page.locator('#metricRunning').count() > 0);
 
+  // 加载态：慢操作时按钮要出现 spinner 并禁用，结束后必须还原。
+  // 用 page.evaluate 直接调 withLoading 模块，配合一个 300ms 的慢 fn，
+  // 观察按钮在延迟窗口后的状态与结束后的还原。
+  {
+    const result = await page.evaluate(async () => {
+      const mod = await import('/src/ui/loading.js');
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.textContent = '启动服务';
+      document.body.appendChild(btn);
+      const original = btn.textContent;
+      let during = null;
+      const p = mod.withLoading({
+        button: btn,
+        label: '处理中…',
+        fn: () => new Promise((r) => setTimeout(r, 300))
+      });
+      // 等超过 SHOW_DELAY(140ms) 但还没结束
+      await new Promise((r) => setTimeout(r, 190));
+      during = {
+        loading: btn.classList.contains('is-loading'),
+        disabled: btn.disabled,
+        hasSpinner: !!btn.querySelector('.spinner'),
+        bar: document.querySelector('.global-progress')?.classList.contains('is-active') || false
+      };
+      await p;
+      const after = {
+        loading: btn.classList.contains('is-loading'),
+        disabled: btn.disabled,
+        text: btn.textContent,
+        restored: btn.textContent === original
+      };
+      btn.remove();
+      return { during, after };
+    });
+    check('慢操作显示加载态',
+      result.during.loading && result.during.disabled && result.during.hasSpinner && result.during.bar,
+      JSON.stringify(result.during));
+    check('加载结束后按钮还原',
+      !result.after.loading && !result.after.disabled && result.after.restored,
+      JSON.stringify(result.after));
+
+    // 快操作（< 140ms）不该出现加载态——否则每点一下都抖一下，反而更僵
+    const fast = await page.evaluate(async () => {
+      const mod = await import('/src/ui/loading.js');
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.textContent = '快操作';
+      document.body.appendChild(btn);
+      let seenLoading = false;
+      const p = mod.withLoading({
+        button: btn,
+        fn: () => new Promise((r) => setTimeout(r, 30))
+      });
+      // 在 fn 执行期间轮询，看是否出现过 is-loading
+      const poll = setInterval(() => { if (btn.classList.contains('is-loading')) seenLoading = true; }, 10);
+      await p;
+      clearInterval(poll);
+      btn.remove();
+      return seenLoading;
+    });
+    check('快操作不闪加载态', fast === false, `seenLoading=${fast}`);
+  }
+
   // 全局体检：DOM 里不允许出现重复 id。$('#x') 只拿第一个，重复 id 会让
   // 后出现的那个元素永远拿不到数据（运行快照页就踩过：旧面板与新页面同 id，
   // 新页面一直是 loading 占位）。这类 bug 界面看起来"没报错"，极难发现。

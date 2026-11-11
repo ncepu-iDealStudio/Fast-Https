@@ -4,6 +4,7 @@
 import { DesktopService, msgOf } from '../api.js';
 import { t } from '../i18n.js';
 import { $, esc } from '../ui/dom.js';
+import { withLoading } from '../ui/loading.js';
 
 let busy = false;
 let timer = null;
@@ -117,7 +118,8 @@ function setLive(on) {
 }
 
 export function initRuntimePage() {
-  $('#rtPageRefresh')?.addEventListener('click', refreshRuntimePage);
+  const btn = $('#rtPageRefresh');
+  if (btn) btn.addEventListener('click', (e) => withLoading({ button: e.currentTarget, fn: refreshRuntimePage }));
   const live = $('#runtimeLive');
   live?.addEventListener('change', (e) => setLive(e.target.checked));
   setLive(!!live?.checked);

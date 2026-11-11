@@ -11,6 +11,7 @@ export const en = {
   'common.retry': 'Retry',
   'common.loading': 'Loading…',
   'common.none': 'Nothing to show',
+  'common.working': 'Working…',
   'common.language': 'Language',
   'common.unknownError': 'Unknown error',
   'common.readFailed': 'Read failed: {msg}',

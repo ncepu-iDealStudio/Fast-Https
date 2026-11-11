@@ -4,6 +4,7 @@
 import { DesktopService, msgOf } from '../api.js';
 import { t } from '../i18n.js';
 import { $, esc } from '../ui/dom.js';
+import { withLoading } from '../ui/loading.js';
 import { state } from '../state.js';
 
 const LOG_PAGE = 30;
@@ -173,14 +174,21 @@ function collectLogFilters() {
 const FILTER_IDS = ['logLevel', 'logStatus', 'logHost', 'logMethod', 'logPathPrefix', 'logReason', 'logSince', 'logUntil'];
 
 export function initLogPage() {
-  $('#logApply').addEventListener('click', () => { collectLogFilters(); loadLogs(true); });
-  $('#logReset').addEventListener('click', () => {
-    FILTER_IDS.forEach((id) => { const el = $('#' + id); if (el) el.value = ''; });
-    collectLogFilters();
-    loadLogs(true);
-  });
-  $('#logRefresh').addEventListener('click', () => loadLogs(true));
-  $('#logMore').addEventListener('click', () => loadLogs(false));
+  // 手动操作才加按钮加载态；实时轮询（liveTick）刻意不加，否则每 2 秒闪一下
+  $('#logApply').addEventListener('click', (e) => withLoading({
+    button: e.currentTarget,
+    fn: async () => { collectLogFilters(); await loadLogs(true); }
+  }));
+  $('#logReset').addEventListener('click', (e) => withLoading({
+    button: e.currentTarget,
+    fn: async () => {
+      FILTER_IDS.forEach((id) => { const el = $('#' + id); if (el) el.value = ''; });
+      collectLogFilters();
+      await loadLogs(true);
+    }
+  }));
+  $('#logRefresh').addEventListener('click', (e) => withLoading({ button: e.currentTarget, fn: () => loadLogs(true) }));
+  $('#logMore').addEventListener('click', (e) => withLoading({ button: e.currentTarget, fn: () => loadLogs(false) }));
   $('#logMoreFilters').addEventListener('click', () => {
     const box = $('#logAdvanced');
     box.hidden = !box.hidden;
