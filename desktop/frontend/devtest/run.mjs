@@ -15,7 +15,8 @@ mkdirSync(shots, { recursive: true });
 const lang = process.argv[2] === 'en' ? 'en' : 'zh-CN';
 const suffix = lang === 'en' ? '-en' : '';
 const stopped = process.argv.includes('stopped');
-const query = stopped ? '?stopped=1' : '';
+const stalecache = process.argv.includes('stalecache');
+const query = stopped ? '?stopped=1' : (stalecache ? '?stalecache=1' : '');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

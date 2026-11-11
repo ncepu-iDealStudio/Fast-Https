@@ -5,6 +5,11 @@
 // （日志文件可能还不存在），但 ListSites / ListCerts / Paths 照常返回——
 // 用来验证磁盘数据不依赖服务进程、明细页不会整片留白。
 const STOPPED = typeof location !== 'undefined' && /[?&]stopped=1/.test(location.search);
+// ?stalecache=1 模拟「Go 侧 site list 缓存没失效」的旧行为：
+// 写操作完成后，紧接着的一次 ListSites 仍返回事务前的旧状态。
+// 前端必须靠乐观更新 + 成功后兜底顶住，不能等这一拍才变色。
+const STALE_CACHE = typeof location !== 'undefined' && /[?&]stalecache=1/.test(location.search);
+let staleOnce = false;
 const SITE_DATA = [
   { id: 'blog', name: 'blog.example.com', port: ':80', listen: '80, 443 ssl h2', listens: ['80', '443 ssl h2'], tls: true, source: 'C:\\demo\\config\\conf.d\\blog.json', enabled: true, certStatus: 'valid', error: '' },
   { id: 'api', name: 'api.example.com', port: ':8080', listen: '8080', listens: ['8080'], tls: false, source: 'C:\\demo\\config\\conf.d\\api.json.disabled', enabled: false, certStatus: 'expiring', error: '' }
@@ -29,7 +34,13 @@ export const DesktopService = {
   async ListSites() {
     // 一个站点文件一行：listen 是合并串，listens 是拆开的单条监听。
     // 站点可同时监听 80 与 443，属于同一个文件、同一个启停开关。
-    return SITE_DATA.map((s) => ({ ...s, listens: [...s.listens] }));
+    const data = SITE_DATA.map((s) => ({ ...s, listens: [...s.listens] }));
+    if (STALE_CACHE && staleOnce) {
+      staleOnce = false;
+      // 故意把第一个站点还原成事务前的状态，模拟读到了旧缓存
+      return data.map((s, i) => i === 0 ? { ...s, enabled: true } : s);
+    }
+    return data;
   },
   async ListCerts() {
     return [{
@@ -76,6 +87,7 @@ export const DesktopService = {
     await new Promise((r) => setTimeout(r, 600));
     const s = SITE_DATA.find((x) => x.id === id);
     if (s) s.enabled = enabled;
+    if (STALE_CACHE) staleOnce = true; // 让紧接着的一次 ListSites 返回旧值
     return '已' + (enabled ? '启用' : '停用') + '站点 ' + id + '（操作 op_004，配置版本 v017）。配置已通过事务提交。';
   },
   async ReadConfigForm() {

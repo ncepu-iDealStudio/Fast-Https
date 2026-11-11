@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"time"
 
 	"fast-https-desktop/internal/cli"
 
@@ -98,26 +100,49 @@ func (s *DesktopService) SaveConfigForm(values map[string]string) (string, error
 
 // ------------------------------------------------------------ 站点页
 
-func (s *DesktopService) AddSite(in model.SiteInput) (string, error) {
-	return siteops.AddSite(s.baseDir, in)
-}
-
 func (s *DesktopService) ReadSiteDetail(id string) (model.SiteDetail, error) {
 	return siteops.ReadSiteDetail(s.baseDir, id)
 }
 
+// invalidateAfterSiteWrite 站点写操作后清掉 site list 缓存。
+// 不清的话 refreshDetails 会读到 5 秒内的旧缓存，把刚更新的状态回滚。
+func (s *DesktopService) invalidateAfterSiteWrite() {
+	view.InvalidateSiteCache()
+}
+
+func (s *DesktopService) AddSite(in model.SiteInput) (string, error) {
+	msg, err := siteops.AddSite(s.baseDir, in)
+	if err == nil {
+		s.invalidateAfterSiteWrite()
+	}
+	return msg, err
+}
+
 func (s *DesktopService) SaveSiteDetail(in model.SiteInput) (string, error) {
-	return siteops.SaveSiteDetail(s.baseDir, in)
+	msg, err := siteops.SaveSiteDetail(s.baseDir, in)
+	if err == nil {
+		s.invalidateAfterSiteWrite()
+	}
+	return msg, err
 }
 
 func (s *DesktopService) DeleteSite(id string) (string, error) {
-	return siteops.DeleteSite(s.baseDir, id)
+	msg, err := siteops.DeleteSite(s.baseDir, id)
+	if err == nil {
+		s.invalidateAfterSiteWrite()
+	}
+	return msg, err
 }
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
 // 桌面端不改文件名：事务会处理校验、恢复点与 reload，和命令行语义一致。
+// 成功后立刻让站点列表缓存失效，保证紧接着的刷新拿到的是新状态。
 func (s *DesktopService) SetSiteEnabled(id string, enabled bool) (string, error) {
-	return siteops.SetSiteEnabled(s.baseDir, id, enabled)
+	msg, err := siteops.SetSiteEnabled(s.baseDir, id, enabled)
+	if err == nil {
+		s.invalidateAfterSiteWrite()
+	}
+	return msg, err
 }
 
 // ------------------------------------------------------------ 本机状态与操作
@@ -150,24 +175,34 @@ func (s *DesktopService) StopServer() (string, error) {
 	return view.StopServer(s.baseDir)
 }
 
-// ReloadServer 转交 service reload（受控重载：校验、operation 记录、
-// reload 后验证）。服务没在跑时给出可读提示而不是报错吓人。
-// Windows 上热重载信号（CTRL_BREAK）到不了别的控制台，service reload 基本
-// 都会失败；此时自动改走「停止 + 启动」的重启，让新配置真正生效。
+// ReloadServer 让新配置生效。
+//
+// Windows 上不存在可用的热重载：GenerateConsoleCtrlEvent 只能发给整个
+// 控制台进程组，定向发给服务会连带打断发起方（桌面端自己）。所以
+// service reload 在 Windows 必然失败，每次都先跑一趟再回退只会让用户
+// 看到一次无谓的失败提示、并多花一个超时周期。
+//
+// 这里改为：Windows 直接走「停止 + 启动」，其它平台仍用 service reload
+// （受控重载：校验、operation 记录、reload 后验证）。
 func (s *DesktopService) ReloadServer() (string, error) {
+	// 服务没在跑就不用重载，给可读提示而不是报错
+	if !view.ServerRunning(s.baseDir) {
+		return "服务未运行，无需重载；配置会在下次启动时生效", nil
+	}
+
+	if runtime.GOOS == "windows" {
+		return s.restartForReload()
+	}
+
 	data, _, err := cli.RunJSON[any](s.baseDir, "service", "reload")
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "not running") {
 			return "服务未运行，无需重载；配置会在下次启动时生效", nil
 		}
-		if strings.Contains(msg, "not supported by windows") {
-			if _, stopErr := view.StopServer(s.baseDir); stopErr == nil {
-				if _, startErr := view.StartServer(s.baseDir); startErr == nil {
-					return "Windows 上没有跨窗口的热重载信号，已自动重启服务，新配置已生效", nil
-				}
-			}
-			return "", fmt.Errorf("重载失败，重启服务也未成功：%s", msg)
+		// 其它平台也可能因为拿不到信号而失败，同样回退到重启
+		if strings.Contains(msg, "not supported") {
+			return s.restartForReload()
 		}
 		return "", err
 	}
@@ -180,6 +215,22 @@ func (s *DesktopService) ReloadServer() (string, error) {
 		msg += "（操作 " + id + "）"
 	}
 	return msg, nil
+}
+
+// restartForReload 用「停止 + 启动」应用新配置，等新进程真正就绪再返回。
+// 这是 Windows 上唯一可靠的配置生效方式。
+func (s *DesktopService) restartForReload() (string, error) {
+	if _, stopErr := view.StopServer(s.baseDir); stopErr != nil {
+		return "", fmt.Errorf("重载失败：停止服务时出错（%v）", stopErr)
+	}
+	if _, startErr := view.StartServer(s.baseDir); startErr != nil {
+		return "", fmt.Errorf("重载失败：服务已停止但启动失败（%v），请手动启动", startErr)
+	}
+	// 等端口真正可连，避免界面刷新时读到「启动中」的中间态
+	if view.WaitServerRunning(s.baseDir, 8*time.Second) {
+		return "已重启服务，新配置已生效", nil
+	}
+	return "服务正在启动，配置将在就绪后生效", nil
 }
 
 func (s *DesktopService) ServerStatus() (string, error) {

@@ -90,6 +90,22 @@ func cached(key string, ttl time.Duration, fn func() (any, error)) (any, error) 
 	return data, err
 }
 
+// InvalidateSiteCache 让站点列表缓存立刻失效。
+//
+// 站点写操作（启停/增删改）完成后必须调用：site list 有 5 秒 TTL，
+// 不失效的话，紧接着的 refreshDetails 会拿到缓存里的旧数据，把界面
+// 刚乐观更新的新状态「回滚」成旧状态——用户看到的现象是：点停用后
+// 要等几秒才变红。写操作后直接清缓存，下一次读取必定重新拉 CLI。
+func InvalidateSiteCache() {
+	cacheMu.Lock()
+	for k := range cmdCache {
+		if strings.HasPrefix(k, "site.list:") {
+			delete(cmdCache, k)
+		}
+	}
+	cacheMu.Unlock()
+}
+
 // ------------------------------------------------------------ 运行期路径
 
 // ResolvePaths 优先让主程序自己报路径（归档 / deb / rpm / apk 布局不同），
@@ -164,8 +180,14 @@ func EnsureServerRunning(dir string) string {
 	return "（配置已保存，服务正在启动中，稍后刷新状态）"
 }
 
-// StartServer 用 Start 而非 Run：start 子命令会派生后台进程，
-// 桌面端不能等它退出，但要 Wait 回收，避免留下僵尸进程。
+// StartServer 启动服务进程。
+//
+// Windows 上 `fast-https start` 是前台阻塞的服务进程本身（主程序在
+// Windows 不做 daemonize），所以桌面端必须把它彻底分离出去：
+//   - 用 CREATE_NEW_PROCESS_GROUP + CREATE_NO_WINDOW 让它独立于桌面端的
+//     控制台与作业对象，否则桌面端一退出（或关窗到托盘后被回收）服务会
+//     被连带终止，表现为「重启/重载经常失败、状态飘」。
+//   - 不继承标准输入输出，避免管道被父进程关掉时子进程收到断管错误。
 func StartServer(dir string) (string, error) {
 	exe := ServerBinary(dir)
 	if _, err := os.Stat(exe); err != nil {
@@ -175,6 +197,7 @@ func StartServer(dir string) (string, error) {
 	}
 	cmd := exec.Command(exe, "start")
 	cmd.Dir = dir
+	setDetached(cmd)
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("启动失败：%w", err)
 	}
@@ -208,6 +231,25 @@ func StopServer(dir string) (string, error) {
 			strings.Join(ports, " "))
 	}
 	return text, nil
+}
+
+// ServerRunning 报告服务当前是否在运行（供 Service 层判断是否需要重载/重启）。
+func ServerRunning(dir string) bool {
+	running, _ := serverStillRunning(dir)
+	return running
+}
+
+// WaitServerRunning 轮询等服务起来，超时返回 false。
+// 重启类操作后用它确认端口真的可连，避免界面刷新时读到「启动中」的中间态。
+func WaitServerRunning(dir string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if running, _ := serverStillRunning(dir); running {
+			return true
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return false
 }
 
 // serverStillRunning 用 service status 判断服务是否仍在监听，返回结论与端口串。

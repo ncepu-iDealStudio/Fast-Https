@@ -3,7 +3,56 @@ package view
 import (
 	"strings"
 	"testing"
+	"time"
 )
+
+// TestInvalidateSiteCache 写操作后必须能清掉站点列表缓存。
+//
+// site list 有 5 秒 TTL；不清缓存的话，站点启停完成后紧接着的刷新会
+// 读到旧数据，把界面刚更新的状态「回滚」——用户看到的现象是点停用
+// 后要等几秒才变红。这条断言锁住失效逻辑，且不误伤其它缓存键。
+func TestInvalidateSiteCache(t *testing.T) {
+	cacheMu.Lock()
+	cmdCache = map[string]cacheEntry{}
+	cmdCache["site.list:/x/config"] = cacheEntry{data: "old"}
+	cmdCache["cert.list:/x/config"] = cacheEntry{data: "cert"}
+	cmdCache["paths:/x"] = cacheEntry{data: "paths"}
+	cacheMu.Unlock()
+
+	InvalidateSiteCache()
+
+	cacheMu.Lock()
+	defer cacheMu.Unlock()
+	if _, ok := cmdCache["site.list:/x/config"]; ok {
+		t.Error("site.list 缓存未被清除")
+	}
+	if _, ok := cmdCache["cert.list:/x/config"]; !ok {
+		t.Error("误删了 cert.list 缓存")
+	}
+	if _, ok := cmdCache["paths:/x"]; !ok {
+		t.Error("误删了 paths 缓存")
+	}
+}
+
+// TestCachedReturnsFreshValueAfterInvalidation 失效后下一次读取必须重新调用 fn。
+func TestCachedReturnsFreshValueAfterInvalidation(t *testing.T) {
+	cacheMu.Lock()
+	cmdCache = map[string]cacheEntry{}
+	cacheMu.Unlock()
+
+	calls := 0
+	fn := func() (any, error) { calls++; return "v" + string(rune('0'+calls)), nil }
+	if v, _ := cached("site.list:/y", 5*time.Second, fn); v != "v1" {
+		t.Fatalf("第一次读取 = %v", v)
+	}
+	if v, _ := cached("site.list:/y", 5*time.Second, fn); v != "v1" {
+		t.Fatalf("缓存内应命中旧值，得到 %v", v)
+	}
+	InvalidateSiteCache()
+	if v, _ := cached("site.list:/y", 5*time.Second, fn); v != "v2" {
+		t.Fatalf("失效后应重新拉取，得到 %v", v)
+	}
+}
 
 // CLI data → 界面视图模型的映射是本包的核心逻辑，逐项锁住。
 

@@ -231,25 +231,24 @@ export function initSiteDialog() {
       const enabled = toggle.getAttribute('data-enabled') === '1';
       const word = t(enabled ? 'dialog.site.enable' : 'dialog.site.disable');
       // 乐观更新：点击瞬间就把徽标与按钮颜色切过去，不等事务返回。
-      // 之前要等几百毫秒甚至切页面才变，用户会以为「点了没反应」。
       setSiteEnabledUI(id, enabled);
-      // withLoading 会禁用按钮并显示 spinner，结束后自动还原；
-      // 不再手动 toggle.disabled = true/false。
+      let failed = false;
+      // withLoading 只包「事务 + 数据刷新」，不包 UI 状态决定。
+      // 成功后保留乐观状态（refreshDetails 只做最终一致性校验，不再
+      // 决定颜色）；失败才回滚。
       await withLoading({
         button: toggle,
         label: word,
         fn: async () => {
           const msg = await DesktopService.SetSiteEnabled(id, enabled);
           toast(msg || t('toast.actionDone', { action: word }));
-          // 拉回真实状态（会重建表格，旧按钮被替换；loading 的还原
-          // 因 isConnected 检测会自动跳过，不会覆盖新状态）
+          // Go 侧已在写操作后清掉 site list 缓存，这里必定拉到新状态
           await refreshDetails({ force: true });
           await refreshOverview();
           refreshOperations();
         }
-      }).catch(async (err) => {
-        // 事务失败：把乐观更新回滚成真实状态
-        await refreshDetails({ force: true });
+      }).catch((err) => {
+        failed = true;
         // Go 侧已把 CLI 封套错误翻成人话；这里再按场景补一句可操作的建议
         const raw = msgOf(err);
         let hint = raw;
@@ -266,6 +265,14 @@ export function initSiteDialog() {
         }
         toast(hint);
       });
+      if (failed) {
+        // 事务失败：拉回真实状态，回滚乐观更新
+        await refreshDetails({ force: true });
+      } else {
+        // 事务成功：再次确保界面就是目标状态（防住任何中间刷新把颜色
+        // 改回去，例如后台 15 秒定时刷新恰好读到事务切换途中的旧文件）
+        setSiteEnabledUI(id, enabled);
+      }
       return;
     }
     const del = e.target.closest ? e.target.closest('.site-del') : null;
