@@ -5,6 +5,11 @@
 // （日志文件可能还不存在），但 ListSites / ListCerts / Paths 照常返回——
 // 用来验证磁盘数据不依赖服务进程、明细页不会整片留白。
 const STOPPED = typeof location !== 'undefined' && /[?&]stopped=1/.test(location.search);
+const SITE_DATA = [
+  { id: 'blog', name: 'blog.example.com', port: ':80', listen: '80, 443 ssl h2', listens: ['80', '443 ssl h2'], tls: true, source: 'C:\\demo\\config\\conf.d\\blog.json', enabled: true, certStatus: 'valid', error: '' },
+  { id: 'api', name: 'api.example.com', port: ':8080', listen: '8080', listens: ['8080'], tls: false, source: 'C:\\demo\\config\\conf.d\\api.json.disabled', enabled: false, certStatus: 'expiring', error: '' }
+];
+
 export const DesktopService = {
   async GetOverview() {
     return {
@@ -24,10 +29,7 @@ export const DesktopService = {
   async ListSites() {
     // 一个站点文件一行：listen 是合并串，listens 是拆开的单条监听。
     // 站点可同时监听 80 与 443，属于同一个文件、同一个启停开关。
-    return [
-      { id: 'blog', name: 'blog.example.com', port: ':80', listen: '80, 443 ssl h2', listens: ['80', '443 ssl h2'], tls: true, source: 'C:\\demo\\config\\conf.d\\blog.json', enabled: true, certStatus: 'valid', error: '' },
-      { id: 'api', name: 'api.example.com', port: ':8080', listen: '8080', listens: ['8080'], tls: false, source: 'C:\\demo\\config\\conf.d\\api.json.disabled', enabled: false, certStatus: 'expiring', error: '' }
-    ];
+    return SITE_DATA.map((s) => ({ ...s, listens: [...s.listens] }));
   },
   async ListCerts() {
     return [{
@@ -68,7 +70,14 @@ export const DesktopService = {
   async AddSite() { return '已创建站点 blog.example.com（操作 op_001，配置版本 v014）。配置已通过事务提交。'; },
   async SaveSiteDetail() { return '已更新站点 blog（操作 op_002，配置版本 v015）。配置已通过事务提交。'; },
   async DeleteSite() { return '已删除站点 api（操作 op_003，配置版本 v016）。配置已通过事务提交。'; },
-  async SetSiteEnabled() { return '已停用站点 api（操作 op_004，配置版本 v017）。配置已通过事务提交。'; },
+  async SetSiteEnabled(id, enabled) {
+    // 模拟配置事务的真实延迟：用来验证「点击瞬间就变色」的乐观更新。
+    // 若等这个 Promise 才改 UI，用户就会觉得点了没反应。
+    await new Promise((r) => setTimeout(r, 600));
+    const s = SITE_DATA.find((x) => x.id === id);
+    if (s) s.enabled = enabled;
+    return '已' + (enabled ? '启用' : '停用') + '站点 ' + id + '（操作 op_004，配置版本 v017）。配置已通过事务提交。';
+  },
   async ReadConfigForm() {
     return {
       path: 'C:\\demo\\config\\fast-https.json', size: 2048, modified: '2026-11-10 02:00:00', writable: true,

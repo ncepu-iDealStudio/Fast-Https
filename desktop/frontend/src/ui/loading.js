@@ -69,6 +69,11 @@ function setButtonBusy(btn, label) {
     btn.setAttribute('aria-busy', 'true');
   }
   return () => {
+    // 若按钮已被重渲染替换（不在文档里了），绝不能把保存的旧 HTML
+    // 写回去——那会覆盖刚渲染出的新状态。站点启停就踩过：事务成功后
+    // refreshDetails 重建了表格，这里的还原又把旧的按钮内容塞回去，
+    // 用户得切走再切回来才看到新颜色。
+    if (!btn.isConnected) return;
     btn.innerHTML = originalHTML;
     btn.disabled = originalDisabled;
     btn.classList.remove('is-loading');

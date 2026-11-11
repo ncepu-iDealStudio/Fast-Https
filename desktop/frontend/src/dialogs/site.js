@@ -10,6 +10,7 @@ import { withLoading, withImmediateLoading } from '../ui/loading.js';
 import { state } from '../state.js';
 import { askConfirm } from './confirm.js';
 import { refreshOverview, refreshDetails } from '../refresh.js';
+import { setSiteEnabledUI } from '../pages/details.js';
 import { refreshOperations } from '../ui/events.js';
 
 export const template = `<div class="dialog-mask" id="siteDialog" hidden>
@@ -229,6 +230,9 @@ export function initSiteDialog() {
       const id = toggle.getAttribute('data-id');
       const enabled = toggle.getAttribute('data-enabled') === '1';
       const word = t(enabled ? 'dialog.site.enable' : 'dialog.site.disable');
+      // 乐观更新：点击瞬间就把徽标与按钮颜色切过去，不等事务返回。
+      // 之前要等几百毫秒甚至切页面才变，用户会以为「点了没反应」。
+      setSiteEnabledUI(id, enabled);
       // withLoading 会禁用按钮并显示 spinner，结束后自动还原；
       // 不再手动 toggle.disabled = true/false。
       await withLoading({
@@ -237,11 +241,15 @@ export function initSiteDialog() {
         fn: async () => {
           const msg = await DesktopService.SetSiteEnabled(id, enabled);
           toast(msg || t('toast.actionDone', { action: word }));
+          // 拉回真实状态（会重建表格，旧按钮被替换；loading 的还原
+          // 因 isConnected 检测会自动跳过，不会覆盖新状态）
           await refreshDetails({ force: true });
           await refreshOverview();
           refreshOperations();
         }
-      }).catch((err) => {
+      }).catch(async (err) => {
+        // 事务失败：把乐观更新回滚成真实状态
+        await refreshDetails({ force: true });
         // Go 侧已把 CLI 封套错误翻成人话；这里再按场景补一句可操作的建议
         const raw = msgOf(err);
         let hint = raw;

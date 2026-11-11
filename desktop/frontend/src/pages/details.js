@@ -3,7 +3,7 @@
 // enabled/error），**一个站点文件一行**；行内按钮用 data-id（站点名，
 // site 命令的位置参数）。证书的有效期与状态徽标只在证书页展示，站点页与
 // 矩阵只提示签发来源。
-import { $, esc } from '../ui/dom.js';
+import { $, $$, esc } from '../ui/dom.js';
 import { iconSVG } from '../ui/icons.js';
 import { t } from '../i18n.js';
 import { state } from '../state.js';
@@ -106,6 +106,37 @@ function listenChips(s) {
   }).join('');
 }
 
+// setSiteEnabledUI 乐观更新某一行的启停外观，不等后端返回。
+//
+// 配置事务要几百毫秒到一秒，等它回来再变颜色会让用户觉得「点了没反应」。
+// 这里在点击瞬间就把状态徽标、按钮颜色、行样式切过去；事务失败时由调用方
+// 调 refreshDetails 拉回真实状态。返回是否找到了对应行。
+export function setSiteEnabledUI(id, enabled) {
+  // CSS.escape 在旧 WebView 里可能缺失，退回手动遍历查找
+  let row = null;
+  if (typeof CSS !== 'undefined' && CSS.escape) {
+    row = $(`.site-row[data-site-id="${CSS.escape(String(id))}"]`);
+  }
+  if (!row) {
+    $$('.site-row').forEach((r) => { if (r.getAttribute('data-site-id') === String(id)) row = r; });
+  }
+  if (!row) return false;
+  row.classList.toggle('is-disabled', !enabled);
+  const pill = row.querySelector('.site-state');
+  if (pill) {
+    pill.className = 'site-state ' + (enabled ? 'on' : 'off');
+    pill.textContent = enabled ? t('sites.stateOn') : t('sites.stateOff');
+  }
+  const toggle = row.querySelector('.site-toggle');
+  if (toggle) {
+    toggle.classList.toggle('is-on', enabled);
+    toggle.classList.toggle('is-off', !enabled);
+    toggle.setAttribute('data-enabled', enabled ? '0' : '1');
+    toggle.setAttribute('title', enabled ? t('sites.toggleOn') : t('sites.toggleOff'));
+  }
+  return true;
+}
+
 export function renderSites(sites, certs) {
   $('#siteCountLabel').textContent = sites.length;
   $('#sitesTable').innerHTML = sites.length
@@ -129,7 +160,7 @@ export function renderSites(sites, certs) {
         // 以为有两个站点，且点其中一个另一个也跟着变。
         const statePill = '<span class="site-state ' + (isOn ? 'on' : 'off') + '">'
           + esc(isOn ? t('sites.stateOn') : t('sites.stateOff')) + '</span>';
-        return `<div class="site-row${isOn ? '' : ' is-disabled'}">`
+        return `<div class="site-row${isOn ? '' : ' is-disabled'}" data-site-id="${esc(s.id)}">`
           + `<div class="site-main">`
           + `<a class="site-link${off}" href="#" data-url="${esc(url)}" title="${esc(url)}">${esc(url)}</a>`
           + statePill

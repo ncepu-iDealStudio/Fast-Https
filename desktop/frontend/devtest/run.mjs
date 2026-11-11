@@ -165,6 +165,28 @@ try {
     // 多端口站点的监听标签都要展示出来（80 与 443 各一个 chip）
     const chips = await page.locator('#sitesTable .site-row').first().locator('.listen-chip').count();
     check('多端口站点监听完整展示', chips >= 2, `chips=${chips}`);
+
+    // 即时反馈：点击开关后颜色必须立刻变，不切页面、不等事务。
+    // mock 的 SetSiteEnabled 故意延迟 600ms，所以这里只等 80ms 就检查——
+    // 若实现是「等后端回来再刷新」，此刻必然还是旧颜色。
+    const firstRow = page.locator('#sitesTable .site-row').first();
+    const pill = firstRow.locator('.site-state');
+    const before = (await pill.getAttribute('class')) || '';
+    const beforeText = (await pill.textContent()) || '';
+    await firstRow.locator('.site-toggle').click();
+    await sleep(80); // 远小于 mock 的 600ms 事务延迟
+    const during = (await page.locator('#sitesTable .site-row').first().locator('.site-state').getAttribute('class')) || '';
+    const duringText = (await page.locator('#sitesTable .site-row').first().locator('.site-state').textContent()) || '';
+    check('点击后状态立即变化', during !== before && duringText !== beforeText,
+      `before="${before}" during="${during}"`);
+    // 再等事务完成 + 强制刷新，颜色应保持（不能被 loading 的旧 HTML 还原覆盖）
+    await sleep(900);
+    const after = (await page.locator('#sitesTable .site-row').first().locator('.site-state').getAttribute('class')) || '';
+    check('事务完成后状态不被还原覆盖', after === during,
+      `during="${during}" after="${after}"`);
+    // 还原现场：再点回去，避免影响后续断言
+    await page.locator('#sitesTable .site-row').first().locator('.site-toggle').click();
+    await sleep(900);
   }
 
   // 新增页面：运行快照、操作记录、日志实时、ACME 表单
