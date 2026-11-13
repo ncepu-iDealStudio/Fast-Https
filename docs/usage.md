@@ -51,10 +51,12 @@ man fast-https
 ### 容器
 
 ```bash
-docker build -f build/docker/alpine.Dockerfile -t fast-https:1.7.0 .
+docker build -f build/docker/alpine.Dockerfile -t fast-https:latest .
+docker run --rm -p 80:80 -p 443:443 fast-https:latest
+docker save -o dist/fast-https-latest-dockerImage.tar fast-https:latest
 ```
 
-镜像基于 Alpine，暴露 80 与 443。二进制带 `-tags=rpm` 编译，运行资源按 FHS 落在 `/etc/fast-https`（配置、证书）、`/usr/share/fast-https`（站点）、`/var/log/fast-https`（日志）、`/run/fast-https`（pid）与 `/var/lib/fast-https`（状态），与 deb / rpm / apk 安装后的效果一致；`FASTHTTPS_FOREGROUND=1` 让 `fast-https start` 保持前台运行，工作目录为 `/usr/share/fast-https`。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 `listen`。
+镜像基于 Alpine，暴露 80 与 443。二进制带 `-tags=rpm` 编译，运行资源按 FHS 落在 `/etc/fast-https`（配置、证书）、`/usr/share/fast-https`（站点）、`/var/log/fast-https`（日志）、`/run/fast-https`（pid）与 `/var/lib/fast-https`（状态），与 deb / rpm / apk 安装后的效果一致；`FASTHTTPS_FOREGROUND=1` 让 `fast-https start` 保持前台运行，工作目录为 `/usr/share/fast-https`。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 `listen`。第三条命令把镜像导出成 tar 包放在 `dist/` 下，便于离线分发；`dist/` 已被 `.dockerignore` 与 `.gitignore` 排除，不会污染构建上下文或版本库。
 
 只提供 Alpine 一份镜像：三个发行版包用的是同一份 `CGO_ENABLED=0` 静态二进制，换基础镜像没有兼容收益，只会多出几份需要同步维护的 COPY 清单。deb / rpm / apk 的真实安装验证由 `sh tests/packaging/distro/run.sh all` 在 ubuntu / almalinux / alpine 容器里实装完成。
 

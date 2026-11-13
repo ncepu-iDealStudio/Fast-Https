@@ -87,8 +87,10 @@ man fast-https</code></pre>
 <p>随包默认配置同时监听 80 与 <code>443 ssl h2</code>，装完 <code>systemctl enable --now fast-https</code> 就能提供 HTTP 与 HTTPS 站点。443 的证书不需要预置文件：首次 <code>start</code> 会用本地 CA 生成 <code>/etc/fast-https/cert/&lt;server_name&gt;.pem</code>；在那之前 <code>reload</code> 的预检会报 <code>ssl_certificate not found</code>，先跑一次 <code>start</code> 即可。<code>/etc/fast-https/</code>、<code>/var/log/fast-https/</code> 归 root 所有，手工执行 <code>start</code> / <code>reload</code> 要用 <code>sudo</code>，普通用户会因为写不了日志而失败。运行期路径由编译期基址决定，可以从任意工作目录执行 <code>fast-https</code>；外部控制面若要知道实际路径，用 <code>fast-https config path --json</code> 读取，不要自己判断装法。</p>
 <p>从 1.5.0 或更早的包升级时，安装脚本会把 <code>/usr/share/fast-https/config/</code> 下已有的配置与证书复制到 <code>/etc/fast-https/</code>（目标已存在则跳过，旧文件保留不动），确认无误后可手工删除旧目录。</p>
 <h3 id="sec-6">容器</h3>
-<pre><code class="language-bash">docker build -f build/docker/alpine.Dockerfile -t fast-https:1.7.0 .</code></pre>
-<p>镜像基于 Alpine，暴露 80 与 443。二进制带 <code>-tags=rpm</code> 编译，运行资源按 FHS 落在 <code>/etc/fast-https</code>（配置、证书）、<code>/usr/share/fast-https</code>（站点）、<code>/var/log/fast-https</code>（日志）、<code>/run/fast-https</code>（pid）与 <code>/var/lib/fast-https</code>（状态），与 deb / rpm / apk 安装后的效果一致；<code>FASTHTTPS_FOREGROUND=1</code> 让 <code>fast-https start</code> 保持前台运行，工作目录为 <code>/usr/share/fast-https</code>。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 <code>listen</code>。</p>
+<pre><code class="language-bash">docker build -f build/docker/alpine.Dockerfile -t fast-https:latest .
+docker run --rm -p 80:80 -p 443:443 fast-https:latest
+docker save -o dist/fast-https-latest-dockerImage.tar fast-https:latest</code></pre>
+<p>镜像基于 Alpine，暴露 80 与 443。二进制带 <code>-tags=rpm</code> 编译，运行资源按 FHS 落在 <code>/etc/fast-https</code>（配置、证书）、<code>/usr/share/fast-https</code>（站点）、<code>/var/log/fast-https</code>（日志）、<code>/run/fast-https</code>（pid）与 <code>/var/lib/fast-https</code>（状态），与 deb / rpm / apk 安装后的效果一致；<code>FASTHTTPS_FOREGROUND=1</code> 让 <code>fast-https start</code> 保持前台运行，工作目录为 <code>/usr/share/fast-https</code>。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 <code>listen</code>。第三条命令把镜像导出成 tar 包放在 <code>dist/</code> 下，便于离线分发；<code>dist/</code> 已被 <code>.dockerignore</code> 与 <code>.gitignore</code> 排除，不会污染构建上下文或版本库。</p>
 <p>只提供 Alpine 一份镜像：三个发行版包用的是同一份 <code>CGO_ENABLED=0</code> 静态二进制，换基础镜像没有兼容收益，只会多出几份需要同步维护的 COPY 清单。deb / rpm / apk 的真实安装验证由 <code>sh tests/packaging/distro/run.sh all</code> 在 ubuntu / almalinux / alpine 容器里实装完成。</p>
 <h2 id="sec-7">3. 目录布局</h2>
 <pre><code class="language-text">fast-https                  主程序

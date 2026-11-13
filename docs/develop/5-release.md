@@ -99,7 +99,7 @@ go run ./tools/docgen
 
 `/var/log/fast-https` 在包里用 `type: dir` 声明（配 `.keep` 占位），`/run/fast-https` 不写进包——rpm 不接受包内 `/run` 内容，改由 systemd 的 `RuntimeDirectory=` 与 postinstall 脚本创建，程序写 pid 前也会自建父目录。细节与后续阶段见 [plans/fhs-layout-plan.md](plans/fhs-layout-plan.md)。
 
-归档（tar.gz / Docker / Windows）布局不受影响，始终相对工作目录（`./config`、`./logs`、`./httpdoc`），由 `!rpm` 构建的基址常量保证。两种布局由同一个二进制通过 build tag 区分，不做运行时判断。
+tar.gz 归档与 Windows 包布局不受影响，始终相对工作目录（`./config`、`./logs`、`./httpdoc`），由 `!rpm` 构建的基址常量保证。Docker 镜像（`build/docker/alpine.Dockerfile`）自这次迁移后也带 `-tags=rpm`，按 FHS 落位，与 deb/rpm/apk 一致。两种布局由同一个二进制通过 build tag 区分，不做运行时判断。
 
 外部控制面读取运行期路径用 `fast-https config path --json`，输出 `config` / `cert` / `log` / `pid` 四个绝对路径。
 

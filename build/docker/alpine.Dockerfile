@@ -4,8 +4,9 @@
 # （./config、./logs），而 -tags=rpm 才会把资源定位到 /etc/fast-https、
 # /usr/share/fast-https、/var/log/fast-https 等 FHS 路径。
 #
-# 构建：docker build -f build/docker/alpine.Dockerfile -t fast-https:alpine .
-# 运行：docker run --rm -p 80:80 -p 443:443 fast-https:alpine
+# 构建：docker build -f build/docker/alpine.Dockerfile -t fast-https:latest .
+# 运行：docker run --rm -p 80:80 -p 443:443 fast-https:latest
+# 导出: docker save -o dist/fast-https-latest-dockerImage.tar fast-https:latest
 
 # ---------------------------------------------------------------- 构建阶段
 FROM golang:1.27-alpine AS builder
