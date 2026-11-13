@@ -1,0 +1,2 @@
+/* 视图层聚合：每个 pane 一个文件，逐页迁移时在这里补 @import。 */
+@import './overview.css';

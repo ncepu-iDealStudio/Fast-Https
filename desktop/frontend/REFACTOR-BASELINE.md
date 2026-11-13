@@ -95,11 +95,29 @@ bindings 由 `wails3 generate bindings` 生成到 `frontend/bindings/`。
 - 视觉方向：亮色「文档式运行报告」/ 暗色「深石墨值班台」，中性色导航，无侧边色块
 - 新增 `tokens.css` 收敛散落的字号（11/12/12.5/13px）与间距（6/8/10/14px）
 
-## 六、迁移策略
+## 六、迁移策略（已更新：骨架阶段完成）
 
-1. **保留 `src/` 原样**，新建 `src-vue/` 并行开发；Vite 入口先指向 `src-vue/`，
-   `src/` 作为随时可回退的参照。
-2. 按 pane 逐个迁移，每迁一个就用 devtest 等价断言验证该页功能。
-3. Go 侧与 `frontend/bindings/` 完全不动。
-4. 全部勾完、且新旧两套 devtest 都绿之后，才删除 `src/`。
-5. 期间 `develop` 保持可用；本分支合入前不影响任何已发布行为。
+1. **目录替换已完成**：新 Vue 3 前端已整体转正为 `src/`，`index.html`
+   指向 `/src/main.ts`；旧 vanilla 前端另存为 `src-legacy/`、
+   旧入口另存 `index-legacy.html`，作为逐页迁移时的功能参照。
+2. 项目结构按约定分层：`components/{ui,common,layout}`、`composables/`、
+   `i18n/{index,config}.ts + locales/{zh-CN,en-US}.ts`、`services/api/`、
+   `stores/`、`views/`、`types/`、`utils/`、`assets/styles/{components,layout,views}/`。
+   **不设 `api/` 目录**（Go 调用统一在 `services/api/`）。
+3. 样式全部集中在 `assets/styles/` 三层，组件 `.vue` 内不写 `<style>`。
+4. 按 pane 逐个迁移，每迁一个补 Vitest / Playwright 等价断言。
+5. Go 侧与 `frontend/bindings/` 完全不动；`develop` 保持可用。
+
+### 骨架阶段已验证
+
+- `npm run typecheck`（vue-tsc）零错误
+- `npm run i18n:check`：两份字典各 **554 键**，与基线一致（去重保留末次定义，
+  与旧 JS 运行时行为等价，零文案丢失）
+- `npm run build` 通过：产物 `dist/index.html`，JS 223 KB / gzip 78 KB，
+  2158 modules（确认为 Vue 应用，非旧 vanilla 入口）
+
+### 待办
+
+- 逐页迁移 7 个 pane 与 7 个弹窗（见第二、三节），每完成一项勾掉
+- 迁移完成后删除 `src-legacy/` 与 `index-legacy.html`
+- 用新的组件测试替代 `devtest/run.mjs`（见 devtest/README.md）

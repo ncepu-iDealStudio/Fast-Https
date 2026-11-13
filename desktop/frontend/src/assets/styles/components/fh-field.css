@@ -1,0 +1,13 @@
+/* FhField.vue —— 统一表单行的 grid，从 SFC 的 <style scoped> 抽出。
+   所有弹窗共用这一份列宽与间距，避免控件对不齐。 */
+.fh-field {
+  display: grid;
+  grid-template-columns: var(--field-w) minmax(0, 1fr);
+  gap: var(--field-row-gap);
+  padding: var(--sp-1) 0;
+  align-items: start;
+}
+.fh-field__label { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; }
+.fh-field__title { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+.fh-field__hint { font-size: var(--fs-xs); line-height: 1.6; color: var(--faint); }
+.fh-field__control { min-width: 0; }

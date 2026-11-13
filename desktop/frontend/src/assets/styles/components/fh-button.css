@@ -1,0 +1,25 @@
+/* FhButton.vue —— 从 SFC 的 <style scoped> 抽出的全部规则，一条不漏。 */
+.fh-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--sp-2); height: var(--control-h); padding: 0 var(--sp-4);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  background: var(--panel); color: var(--text);
+  font-size: var(--fs-md); font-weight: 500; white-space: nowrap;
+  transition: background .15s, border-color .15s;
+}
+.fh-btn:hover:not(:disabled) { background: var(--accent-soft); }
+.fh-btn:disabled { opacity: .55; cursor: not-allowed; }
+.fh-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.fh-btn--primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+.fh-btn--danger { color: var(--danger); border-color: var(--danger); }
+.fh-btn--ghost { border-color: transparent; background: transparent; }
+.fh-btn--small { height: 26px; padding: 0 var(--sp-3); font-size: var(--fs-sm); }
+.fh-btn__spinner {
+  width: 12px; height: 12px; border: 2px solid currentColor;
+  border-right-color: transparent; border-radius: 50%;
+  animation: fh-spin .7s linear infinite;
+}
+@keyframes fh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .fh-btn__spinner { animation: none; }
+}

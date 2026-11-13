@@ -1,0 +1,24 @@
+/* FhDialog.vue —— Reka UI headless 原语的外观层，从 SFC 的 <style scoped> 抽出。 */
+.fh-dialog__overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(16, 20, 28, .34);
+}
+.fh-dialog {
+  position: fixed; z-index: 61; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100vw - 48px); max-height: 86vh; overflow-y: auto;
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  background: var(--bg); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 48px rgba(16, 20, 28, .22);
+}
+.fh-dialog__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.fh-dialog__title { margin: 0; font-size: var(--fs-lg); font-weight: 600; }
+.fh-dialog__close {
+  display: inline-flex; padding: 4px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted);
+}
+.fh-dialog__close:hover { background: var(--accent-soft); color: var(--text); }
+.fh-dialog__desc { margin: var(--sp-2) 0 0; font-size: var(--fs-md); color: var(--muted); line-height: 1.7; }
+.fh-dialog__body { margin-top: var(--sp-4); }
+.fh-dialog__footer { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-5); }

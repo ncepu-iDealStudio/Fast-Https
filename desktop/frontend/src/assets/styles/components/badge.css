@@ -1,0 +1,4 @@
+/* 状态徽标 —— 从 App.vue 的 <style scoped> 抽出，属于通用组件层。 */
+.badge { font-size: var(--fs-xs); padding: 2px var(--sp-2); border-radius: 999px; }
+.badge--ok { color: var(--ok); background: var(--accent-soft); }
+.badge--off { color: var(--faint); background: var(--accent-soft); }

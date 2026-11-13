@@ -1,6 +1,8 @@
 // 入口：只做初始化编排。业务逻辑分散在 pages/ 与 dialogs/，
 // 数据交互统一走 api.js，跨模块状态在 state.js。
-import './styles/index.css';
+// 样式已迁到 src/assets/styles/（components / layout / views 三层）。
+// 本文件仅作迁移参照，不参与构建。
+import '../src/assets/styles/index.css';
 import { DesktopService, msgOf } from './api.js';
 import { initI18n, onLangChange, t } from './i18n.js';
 import { state } from './state.js';

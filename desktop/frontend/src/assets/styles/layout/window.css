@@ -1,0 +1,39 @@
+/* 窗口骨架与导航：Frameless 顶栏 + 侧边导航 + 主区。
+   从 App.vue 的 <style scoped> 抽出，作用域改为全局类名（见 README.md）。 */
+
+.window { height: 100%; display: flex; flex-direction: column; background: var(--surface); }
+
+.topbar {
+  height: 40px; flex: 0 0 40px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--sp-3); background: var(--panel); border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+}
+.brand { display: flex; align-items: baseline; gap: var(--sp-2); }
+.brand .mark { width: 20px; height: 20px; align-self: center; }
+.brand b { font-size: var(--fs-lg); }
+.brand small { font-size: 10px; letter-spacing: .12em; color: var(--faint); }
+
+.win-controls { display: flex; gap: 2px; -webkit-app-region: no-drag; }
+.win-btn {
+  width: 30px; height: 28px; display: grid; place-items: center;
+  border: none; background: transparent; color: var(--muted); border-radius: var(--radius-sm);
+}
+.win-btn svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.2; }
+.win-btn:hover { background: var(--accent-soft); color: var(--text); }
+.win-btn.close:hover { background: var(--danger); color: #fff; }
+
+.app { flex: 1; display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 0; }
+.sidebar { padding: var(--sp-3); border-right: 1px solid var(--line); overflow-y: auto; }
+.group { padding: var(--sp-2) var(--sp-2); font-size: var(--fs-xs); color: var(--faint); }
+.nav-item {
+  width: 100%; display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2); margin-bottom: 2px; border: none; border-radius: var(--radius-md);
+  background: transparent; color: var(--muted); font-size: var(--fs-md); text-align: left;
+}
+.nav-item:hover { background: var(--accent-soft); color: var(--text); }
+.nav-item.on { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+.main__head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5) var(--sp-3); }
+.main__head h1 { margin: 0; font-size: var(--fs-xl); font-weight: 600; }
+.main__body { flex: 1; padding: 0 var(--sp-5) var(--sp-5); overflow-y: auto; }
