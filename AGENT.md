@@ -10,11 +10,11 @@ Fast-Https 是 Go 写的 web server 与反向代理，自带 ACME 证书签发�
 
 ### 1. 打包相关文件必须是 LF 行尾
 
-`build/` 下的 shell 脚本、`build/spec`、`build/Dockerfile*` 会被 dpkg/rpm 直接 `exec`。CRLF 会让 shebang 变成 `#!/bin/sh\r`，内核去找名为 `/bin/sh\r` 的解释器，报 `ENOENT`——表现是**装得上、卸载不掉**，且错误信息说"无法执行 prerm：没有那个文件或目录"，而文件明明在。
+`build/packaging/` 下的 shell 脚本会被 dpkg/rpm 直接 `exec`；`build/docker/*.Dockerfile` 则要求 LF，因为 CRLF 会让 Dockerfile 的续行与 `RUN` 被 `\r` 破坏。CRLF 的 shebang 会变成 `#!/bin/sh\r`，内核去找名为 `/bin/sh\r` 的解释器，报 `ENOENT`——表现是**装得上、卸载不掉**，且错误信息说"无法执行 prerm：没有那个文件或目录"，而文件明明在。
 
 Windows 上 `core.autocrlf=true` 会自动把工作区转成 CRLF，所以：
 
-- `.gitattributes` 已声明 `*.sh text eol=lf`、`build/spec`、`build/Dockerfile`、`build/docker/*`
+- `.gitattributes` 已声明 `*.sh text eol=lf`、`build/spec`、`build/docker/*`
 - `go test ./tests/packaging` 会扫所有会进包的文件，发现 `\r` 就失败
 - 新增打包脚本后，确认规则覆盖到它
 

@@ -17,7 +17,6 @@ build/**   linguist-detectable=false
 *.sh                text eol=lf
 *.service           text eol=lf
 build/spec          text eol=lf
-build/Dockerfile    text eol=lf
 build/docker/*      text eol=lf
 # logrotate 配置没有扩展名，不显式声明就会被 core.autocrlf 转成 CRLF；
 # 路径行带上 \r 后匹配不到 /var/log/fast-https/*.log，轮转静默失效。

@@ -101,7 +101,7 @@
 | 产物/环境 | 当前入口与构建方式 |
 | --- | --- |
 | 主服务器本地构建 | 仓库根 package：`go build .`；主入口文件为 `fast-https.go` |
-| Docker | `build/Dockerfile` 使用 Go 1.27 Alpine，在 `/app` 执行 `go build -o fast-https .`；运行镜像复制配置、MIME 和默认静态文件 |
+| Docker | `build/docker/alpine.Dockerfile` 使用 `golang:1.27-alpine` 多阶段构建，以 `-tags=rpm` 编译主程序与 Monitor；运行镜像按 FHS 安装到 `/etc/fast-https`、`/usr/share/fast-https`、`/var/log/fast-https` 等，与 deb/rpm/apk 一致 |
 | GoReleaser | `build/goreleaser.yaml` 的主程序 `main` 为 `./fast-https.go`，构建 Linux/Darwin amd64/arm64 和 Windows amd64 |
 | 桌面端 | 独立 module `./desktop`，由 Wails v3 构建 |
 | RPM | `build/spec` 文件执行 `go build -tags=rpm .`，按 FHS 安装：配置到 `%{_sysconfdir}/fast-https`、站点到 `%{_datadir}/fast-https`、日志目录 `%{_localstatedir}/log/fast-https` |

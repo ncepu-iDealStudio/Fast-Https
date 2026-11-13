@@ -51,12 +51,12 @@ man fast-https
 ### 容器
 
 ```bash
-docker build -f build/Dockerfile -t fast-https .
-docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
-docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .
+docker build -f build/docker/alpine.Dockerfile -t fast-https:1.7.0 .
 ```
 
-镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 80 与 443，与随包默认配置一致。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 `listen`。
+镜像基于 Alpine，暴露 80 与 443。二进制带 `-tags=rpm` 编译，运行资源按 FHS 落在 `/etc/fast-https`（配置、证书）、`/usr/share/fast-https`（站点）、`/var/log/fast-https`（日志）、`/run/fast-https`（pid）与 `/var/lib/fast-https`（状态），与 deb / rpm / apk 安装后的效果一致；`FASTHTTPS_FOREGROUND=1` 让 `fast-https start` 保持前台运行，工作目录为 `/usr/share/fast-https`。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 `listen`。
+
+只提供 Alpine 一份镜像：三个发行版包用的是同一份 `CGO_ENABLED=0` 静态二进制，换基础镜像没有兼容收益，只会多出几份需要同步维护的 COPY 清单。deb / rpm / apk 的真实安装验证由 `sh tests/packaging/distro/run.sh all` 在 ubuntu / almalinux / alpine 容器里实装完成。
 
 ## 3. 目录布局
 

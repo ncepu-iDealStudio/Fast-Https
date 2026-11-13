@@ -158,7 +158,7 @@ repo-out/
 
 ## Docker
 
-`build/Dockerfile`（`golang:1.27-alpine` 多阶段）；运行时挂载 config/ 与 httpdoc/。
+`build/docker/alpine.Dockerfile`（`golang:1.27-alpine` 多阶段构建，主程序与 Monitor 都带 `-tags=rpm`）；运行镜像按 FHS 落位，与 deb/rpm/apk 安装效果一致，配置挂 `/etc/fast-https`、站点挂 `/usr/share/fast-https`、日志挂 `/var/log/fast-https`。构建命令见 `docs/usage.md`「容器」一节。发行版包的真实安装验证走 `sh tests/packaging/distro/run.sh all`。
 
 ## 发布前清单
 

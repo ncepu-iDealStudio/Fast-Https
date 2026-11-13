@@ -37,7 +37,7 @@
   Windows 开发机 `core.autocrlf=true`，工作区所有文本文件都是 CRLF（`git ls-files --eol` 显示大量 `i/lf w/crlf`）。仓库当时没有任何 eol 规则，于是 CRLF 一路进了包。`postinstall.sh` 恰好刚被重写过（LF），所以只有它正常执行，问题的迷惑性也来自这里——装了包能看到 postinstall 的输出，却卸载不掉。
 
 - 修复：
-  - `.gitattributes` 增加 `*.sh text eol=lf`、`build/spec`、`build/Dockerfile`、`build/docker/*`
+  - `.gitattributes` 增加 `*.sh text eol=lf`、`build/spec`、`build/docker/*`（当时还列了 `build/Dockerfile`，该文件后来已删除）
   - `preremove.sh`、`postremove.sh`、`postinstall.sh`、`build/spec`、两个 Dockerfile 重新检出为 LF
   - 三个维护脚本头部加注释，写明为什么必须 LF
   - 已装坏包的机器：从新 deb 里 `dpkg-deb --ctrl-tarfile | tar -x` 取出正确脚本覆盖 `/var/lib/dpkg/info/fast-https.{prerm,postrm}`，再 `dpkg --purge`
