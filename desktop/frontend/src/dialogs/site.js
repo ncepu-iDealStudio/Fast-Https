@@ -167,8 +167,10 @@ function setAuthPassHint(hasStoredPass) {
 }
 
 // resetSiteAdvanced 收起并清空高级配置（添加模式、以及每次打开详情前）。
+// 新建模式也要显示：site add 本身不收这些字段，但后端会在建好之后补一条
+// site update 写进去，用户不该因为「先建站点」就配不了压缩和缓存。
 function resetSiteAdvanced() {
-  $('#siteAdvanced').hidden = true;
+  $('#siteAdvanced').hidden = false;
   $('#siteAdvanced').open = false;
   $('#siteZipGzip').checked = false;
   $('#siteZipBr').checked = false;
@@ -205,8 +207,9 @@ function fillSiteAdvanced(d) {
   $('#siteAdvanced').hidden = false;
 }
 
-// advancedFields 汇总高级配置的提交字段，只在编辑模式进 payload。
+// advancedFields 汇总高级配置的提交字段，新建与编辑都带。
 // 数字框空着按 0 处理；密码留空 / 仍是 *** 都原样提交，交给 Go 侧判断不改。
+// 全是默认值时后端视为「没填高级配置」，新建不会多跑一次 site update。
 function advancedFields() {
   const zip = [];
   if ($('#siteZipGzip').checked) zip.push('gzip');
@@ -434,8 +437,9 @@ export function initSiteDialog() {
       root: $('#siteRoot').value,
       proxyPass: composeProxyPass()
     };
-    // 高级配置只在编辑模式提交：site add 不支持这些 flag
-    if (editing) Object.assign(payload, advancedFields());
+    // 高级配置两种模式都提交：编辑走 site update；新建时后端在 site add
+    // 成功后补一条 site update 把这些字段写进去。
+    Object.assign(payload, advancedFields());
     // 配置事务必然较慢，用立即加载（不走 140ms 延迟），按钮立刻变 spinner
     await withImmediateLoading({
       button: btn,

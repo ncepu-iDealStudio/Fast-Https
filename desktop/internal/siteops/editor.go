@@ -124,12 +124,19 @@ func planAdd(in SiteInput) ([][]string, error) {
 	}
 	add = append(add, "--yes")
 	plan := [][]string{add}
+
+	// site add 不接受 zip / limit / auth / cache，所以建好之后补一条
+	// site update 把它们写进去。与上面多域名补全是同一套路：先创建，
+	// 再用受控更新补齐；中途失败会明确告诉用户站点已建成。
+	var extra []string
 	if len(p.names) > 1 {
-		plan = append(plan, []string{
-			"site", "update", p.names[0],
-			"--server-name", strings.Join(p.names, " "),
-			"--yes",
-		})
+		extra = append(extra, "--server-name", strings.Join(p.names, " "))
+	}
+	if hasAdvanced(in) {
+		extra = append(extra, advancedArgs(in)...)
+	}
+	if len(extra) > 0 {
+		plan = append(plan, append([]string{"site", "update", p.names[0]}, append(extra, "--yes")...))
 	}
 	return plan, nil
 }
@@ -337,26 +344,13 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 	changed := false
 
 	if !sameStringSet(cur.Zip, in.Zip) {
-		if len(in.Zip) == 0 {
-			args = append(args, "--zip=")
-		} else {
-			for _, z := range in.Zip {
-				args = append(args, "--zip", z)
-			}
-		}
+		args = append(args, zipArgs(in.Zip)...)
 		changed = true
 	}
 
-	limitSame := cur.LimitRate == in.LimitRate && cur.LimitBurst == in.LimitBurst &&
-		cur.LimitMem == in.LimitMem && cur.LimitNodelay == in.LimitNodelay
-	if !limitSame {
-		args = append(args,
-			"--limit-rate", strconv.Itoa(in.LimitRate),
-			"--limit-burst", strconv.Itoa(in.LimitBurst),
-			"--limit-mem", strconv.Itoa(in.LimitMem))
-		if in.LimitNodelay {
-			args = append(args, "--limit-nodelay")
-		}
+	if cur.LimitRate != in.LimitRate || cur.LimitBurst != in.LimitBurst ||
+		cur.LimitMem != in.LimitMem || cur.LimitNodelay != in.LimitNodelay {
+		args = append(args, limitArgs(in)...)
 		changed = true
 	}
 
@@ -365,26 +359,83 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 		changed = true
 	}
 
-	cacheSame := cur.CachePath == in.CachePath && sameStringSet(cur.CacheValid, in.CacheValid) &&
-		cur.CacheMaxSize == in.CacheMaxSize
-	if !cacheSame {
-		if strings.TrimSpace(in.CachePath) == "" {
-			args = append(args, "--cache-path=")
-		} else {
-			args = append(args, "--cache-path", in.CachePath)
-			for _, v := range in.CacheValid {
-				if s := strings.TrimSpace(v); s != "" {
-					args = append(args, "--cache-valid", s)
-				}
-			}
-			if in.CacheMaxSize > 0 {
-				args = append(args, "--cache-max-size", strconv.Itoa(in.CacheMaxSize))
-			}
-		}
+	if cur.CachePath != in.CachePath || !sameStringSet(cur.CacheValid, in.CacheValid) ||
+		cur.CacheMaxSize != in.CacheMaxSize {
+		args = append(args, cacheArgs(in)...)
 		changed = true
 	}
 
 	return args, changed
+}
+
+// advancedArgs 把高级配置**全部**翻成参数，不做「和当前值比」的过滤。
+//
+// 新建站点要用它：site add 不接受这四个字段，只能在建好之后补一条
+// site update；那时没有「当前详情」可比，传什么就该写什么。
+func advancedArgs(in SiteInput) []string {
+	var args []string
+	args = append(args, zipArgs(in.Zip)...)
+	args = append(args, limitArgs(in)...)
+	args = append(args, authArgs(in)...)
+	args = append(args, cacheArgs(in)...)
+	return args
+}
+
+// hasAdvanced 报告用户是否在弹窗里填过任何高级配置。
+// 新建站点据此决定要不要追加那条 site update。
+func hasAdvanced(in SiteInput) bool {
+	return len(in.Zip) > 0 || in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
+		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CachePath) != ""
+}
+
+// zipArgs 生成响应压缩参数。空列表用 --zip= 表示清除，
+// 因为 CLI 只认「显式给了空值」为删除、没给为不改。
+func zipArgs(zip []string) []string {
+	var args []string
+	if len(zip) == 0 {
+		return []string{"--zip="}
+	}
+	for _, z := range zip {
+		if s := strings.TrimSpace(z); s != "" {
+			args = append(args, "--zip", s)
+		}
+	}
+	if len(args) == 0 {
+		return []string{"--zip="}
+	}
+	return args
+}
+
+// limitArgs 生成限流参数。三个数字全为 0 且没开 nodelay 时，
+// 仍显式写 0，让 CLI 删掉整个 limit 键而不是留一个全零对象。
+func limitArgs(in SiteInput) []string {
+	args := []string{
+		"--limit-rate", strconv.Itoa(in.LimitRate),
+		"--limit-burst", strconv.Itoa(in.LimitBurst),
+		"--limit-mem", strconv.Itoa(in.LimitMem),
+	}
+	if in.LimitNodelay {
+		args = append(args, "--limit-nodelay")
+	}
+	return args
+}
+
+// cacheArgs 生成反向代理缓存参数。目录留空表示清除整块 proxy_cache。
+func cacheArgs(in SiteInput) []string {
+	path := strings.TrimSpace(in.CachePath)
+	if path == "" {
+		return []string{"--cache-path="}
+	}
+	args := []string{"--cache-path", path}
+	for _, v := range in.CacheValid {
+		if s := strings.TrimSpace(v); s != "" {
+			args = append(args, "--cache-valid", s)
+		}
+	}
+	if in.CacheMaxSize > 0 {
+		args = append(args, "--cache-max-size", strconv.Itoa(in.CacheMaxSize))
+	}
+	return args
 }
 
 // planAuth 处理 Basic 认证：关掉时清空四个值，开着时只在密码真的变了才传
@@ -403,14 +454,23 @@ func planAuth(cur SiteDetail, in SiteInput) ([]string, bool) {
 	if same {
 		return nil, false
 	}
+	return authArgs(in), true
+}
+
+// authArgs 生成 Basic 认证参数，不做「和当前值比」的过滤（新建站点用）。
+func authArgs(in SiteInput) []string {
+	if !in.AuthOn {
+		return []string{"--auth-type="}
+	}
 	args := []string{"--auth-type", "basic", "--auth-user", in.AuthUser}
-	if !keepPass {
+	pass := strings.TrimSpace(in.AuthPass)
+	if pass != "" && pass != "***" {
 		args = append(args, "--auth-pass", pass)
 	}
 	if realm := strings.TrimSpace(in.AuthRealm); realm != "" {
 		args = append(args, "--auth-realm", realm)
 	}
-	return args, true
+	return args
 }
 
 // sameStringSet 按集合比较两个字符串切片，忽略顺序与首尾空白。

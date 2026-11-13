@@ -219,12 +219,26 @@ try {
   await page.click('#addSiteBtn');
   await sleep(300);
   await shot('03-site-add');
-  // 高级配置只用于编辑已有站点：site add 不接受这些 flag
-  const addAdvancedHidden = await page.evaluate(() => {
+  // 高级配置在新建模式同样可用：site add 不收这些字段，但后端会在建好
+  // 之后补一条 site update，所以弹窗里必须让用户填得到。
+  const addAdvancedVisible = await page.evaluate(() => {
     const box = document.getElementById('siteAdvanced');
-    return !box || box.hidden;
+    return !!box && !box.hidden;
   });
-  check('新增模式不显示高级配置', addAdvancedHidden);
+  check('新增模式显示高级配置', addAdvancedVisible);
+  // 展开看四项是否都在（压缩 / 限流 / 认证 / 缓存）
+  await page.evaluate(() => { document.getElementById('siteAdvanced').open = true; });
+  await sleep(200);
+  const addAdvFields = await page.evaluate(() => ({
+    zip: !!document.getElementById('siteZipGzip'),
+    limit: !!document.getElementById('siteLimitRate'),
+    auth: !!document.getElementById('siteAuthOn'),
+    cache: !!document.getElementById('siteCachePath')
+  }));
+  check('新增模式高级配置四项齐全',
+    addAdvFields.zip && addAdvFields.limit && addAdvFields.auth && addAdvFields.cache,
+    JSON.stringify(addAdvFields));
+  await shot('03b-site-add-advanced');
   await page.selectOption('#siteProto', 'both');
   await sleep(150);
   const listen = await page.inputValue('#siteListen');
