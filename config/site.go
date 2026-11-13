@@ -21,15 +21,24 @@ func IsTreeConfigFile(name string) bool {
 
 // 站点文件（config/conf.d/<name>.json）与 http.server[] 的元素同构，
 // 合并后就是主配置里的一个 server 块。这里只暴露 CLI 需要编辑的子集：
-// 没列出的字段（rewrite、try、proxy_cache…）由用户手写，读写时原样保留。
+// 没列出的字段（rewrite、try、error_page、appfirewall…）由用户手写，
+// 读写时原样保留。
 
 // SiteLocation 是站点文件里一个 location 的可编辑子集。
+//
+// Zip / Limit / Auth / Cache 用指针表示「本次不改」：nil 表示这个字段不参与
+// 差异比对，文件里的原值原样保留。这样 site update 只改用户点名的字段，
+// 不会把没动过的高级配置写成零值。
 type SiteLocation struct {
-	URL       string   `json:"url"`
-	Type      string   `json:"type"`
-	Root      string   `json:"root,omitempty"`
-	Index     []string `json:"index,omitempty"`
-	ProxyPass string   `json:"proxy_pass,omitempty"`
+	URL       string      `json:"url"`
+	Type      string      `json:"type"`
+	Root      string      `json:"root,omitempty"`
+	Index     []string    `json:"index,omitempty"`
+	ProxyPass string      `json:"proxy_pass,omitempty"`
+	Zip       *[]string   `json:"zip,omitempty"`
+	Limit     *PathLimit  `json:"limit,omitempty"`
+	Auth      *PathAuth   `json:"auth,omitempty"`
+	Cache     *Cache      `json:"proxy_cache,omitempty"`
 }
 
 // SiteInput 是生成 conf.d/<name>.json 的输入。

@@ -109,7 +109,7 @@ h4:first-of-type { margin-top: 0; }
 .form-label small { display: block; font-size: 11px; color: var(--faint); margin-top: 2px; line-height: 1.5; }
 /* 「未配置」角标走 CSS 变量：文案由 main.js 用 i18n 字典注入，新增语言不用改这里 */
 .form-row.missing .form-label::after { content: var(--i18n-missing, "未配置"); margin-left: 6px; font-size: 10px; color: var(--warn); }
-.form-control input[type="text"], .form-control input[type="number"], .form-control input[type="email"], .form-control select, .form-control textarea { width: 100%; max-width: 560px; height: 34px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
+.form-control input[type="text"], .form-control input[type="number"], .form-control input[type="email"], .form-control input[type="password"], .form-control select, .form-control textarea { width: 100%; max-width: 560px; height: 34px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; font-size: 13px; }
 .form-control textarea { height: auto; min-height: 62px; padding: 8px 10px; resize: vertical; font: 12px/1.6 Consolas, "Courier New", monospace; }
 .form-control input:focus, .form-control select:focus, .form-control textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* 自绘勾选框：浏览器默认的白底方块在暗色主题下很突兀 */
@@ -208,6 +208,22 @@ h4:first-of-type { margin-top: 0; }
 .raw-details summary { cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; }
 .raw-details summary:hover { color: var(--text); }
 .raw-details .cmd-result { margin-top: 8px; max-height: 220px; }
+/* 站点弹窗的「高级配置」折叠区：和原始 server 块用同一套 details 样式，
+   里面再嵌表单行，所以把上边距与说明文字单独收一下 */
+.site-advanced { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.site-advanced summary { font-size: 12px; font-weight: 600; color: var(--text); }
+.site-advanced > .site-advanced-note { margin: 6px 0 8px; }
+/* 高级配置里的数字框跟协议端口那些一样收窄；这里必须带 .site-advanced 才
+   压得过下面 .form-control input[type="number"] 的 max-width: 180px。
+   72px 是为了让「速率 / 突发 / 内存」三个小字段排在同一行。 */
+.site-advanced .mini-field input[type="number"] { width: 72px; max-width: 72px; }
+.site-advanced .mini-field input[type="text"],
+.site-advanced .mini-field input[type="password"] { max-width: 150px; }
+/* 缓存目录输入框 + 浏览按钮：与 .form-control.with-browse 视觉一致，
+   但这里不用 .form-control（内层还有一组 inline-fields） */
+.browse-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.browse-row input { flex: 1; min-width: 0; }
+.browse-row .btn { flex: 0 0 auto; white-space: nowrap; }
 
 /* 健康检查 / 证书检查弹窗：总体结论大字 */
 .diag-overall { display: flex; align-items: baseline; gap: 12px; margin: 4px 0 16px; }

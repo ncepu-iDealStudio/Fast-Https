@@ -219,6 +219,12 @@ try {
   await page.click('#addSiteBtn');
   await sleep(300);
   await shot('03-site-add');
+  // 高级配置只用于编辑已有站点：site add 不接受这些 flag
+  const addAdvancedHidden = await page.evaluate(() => {
+    const box = document.getElementById('siteAdvanced');
+    return !box || box.hidden;
+  });
+  check('新增模式不显示高级配置', addAdvancedHidden);
   await page.selectOption('#siteProto', 'both');
   await sleep(150);
   const listen = await page.inputValue('#siteListen');
@@ -242,6 +248,21 @@ try {
   await shot('05-site-detail');
   const rawVisible = await page.locator('#siteRaw').count() > 0;
   check('详情只读区渲染', rawVisible);
+  // 高级配置：编辑模式显示且默认折叠；auth 未启用时三个输入框禁用
+  const adv = await page.evaluate(() => {
+    const box = document.getElementById('siteAdvanced');
+    return {
+      present: !!box,
+      hidden: box ? box.hidden : true,
+      open: box ? box.open : false,
+      authUserDisabled: document.getElementById('siteAuthUser').disabled
+    };
+  });
+  check('高级配置在编辑模式可见且默认折叠', adv.present && !adv.hidden && !adv.open);
+  check('认证未启用时用户名禁用', adv.authUserDisabled);
+  await page.evaluate(() => { document.getElementById('siteAdvanced').open = true; });
+  await sleep(200);
+  await shot('05b-site-advanced');
   await page.keyboard.press('Escape');
 
   // 帮助弹窗（应用内）
