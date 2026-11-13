@@ -1,7 +1,7 @@
 # 样式组织结构
 
 所有样式集中在这里，**组件 `.vue` 文件里不写 `<style>`**（包括 scoped）。
-`src/main.js` 与 `src-vue/main.ts` 都只 import `assets/styles/index.css` 这一个入口。
+`src/main.ts` 只 import `assets/styles/index.css` 这一个入口。
 
 ```
 assets/styles/

@@ -7,7 +7,7 @@
 
 ## 基线状态（迁移前实测）
 
-- devtest：`node devtest/run.mjs` → **32/32 通过**
+- devtest：`node devtest/run.mjs` → **32/32 通过**（该脚本已随旧代码删除，仅作基线记录）
 - i18n：`node scripts/i18n-check.mjs` → 两份字典一致、**554 键**，代码引用 **513 键**
 - 构建：`npm run build` → JS 178.87 kB / gzip 54.58 kB，CSS 36.65 kB
 - Go 侧：`go test ./...`（desktop 模块）全绿
@@ -97,9 +97,10 @@ bindings 由 `wails3 generate bindings` 生成到 `frontend/bindings/`。
 
 ## 六、迁移策略（已更新：骨架阶段完成）
 
-1. **目录替换已完成**：新 Vue 3 前端已整体转正为 `src/`，`index.html`
-   指向 `/src/main.ts`；旧 vanilla 前端另存为 `src-legacy/`、
-   旧入口另存 `index-legacy.html`，作为逐页迁移时的功能参照。
+1. **目录替换与旧代码清理已完成**：新 Vue 3 前端已转正为 `src/`，
+   `index.html` 指向 `/src/main.ts`；旧 vanilla 前端（`src-legacy/`、
+   `index-legacy.html`）与旧 devtest 脚本已全部删除，代码仅在
+   git 历史中可查。功能参照改用本文件的功能清单。
 2. 项目结构按约定分层：`components/{ui,common,layout}`、`composables/`、
    `i18n/{index,config}.ts + locales/{zh-CN,en-US}.ts`、`services/api/`、
    `stores/`、`views/`、`types/`、`utils/`、`assets/styles/{components,layout,views}/`。
@@ -119,5 +120,4 @@ bindings 由 `wails3 generate bindings` 生成到 `frontend/bindings/`。
 ### 待办
 
 - 逐页迁移 7 个 pane 与 7 个弹窗（见第二、三节），每完成一项勾掉
-- 迁移完成后删除 `src-legacy/` 与 `index-legacy.html`
-- 用新的组件测试替代 `devtest/run.mjs`（见 devtest/README.md）
+- 用 Vitest / Playwright 重建回归断言（见 devtest/README.md）

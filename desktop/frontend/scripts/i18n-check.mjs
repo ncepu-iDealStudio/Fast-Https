@@ -4,8 +4,8 @@
 //   A. zh-CN.ts 与 en-US.ts 的 key 集合完全一致，且都有非空值；
 //   B. src/ 的 .vue / .ts 里用到的 key（t('…') / translate('…') / 常量表）
 //      两份字典都存在。
-// 旧版针对 data-i18n 与裸中文的 C/D 检查随 vanilla 前端一起退役（在
-// src-legacy/ 里仍可查），Vue 版靠 vue-i18n 的 fallback 与 TypeScript 保证。
+// 旧版针对 data-i18n 与裸中文的 C/D 检查随 vanilla 前端一起退役，
+// Vue 版靠 vue-i18n 的 fallback 与 TypeScript 保证。
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';

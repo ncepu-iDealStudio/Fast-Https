@@ -3,7 +3,6 @@ import vue from '@vitejs/plugin-vue';
 import { fileURLToPath, URL } from 'node:url';
 
 // Vue 3 前端（src/）配置。Wails 从 URL "/" 加载，产物是 dist/index.html。
-// 旧 vanilla 前端保留在 src-legacy/ 作为迁移参照，不参与构建。
 export default defineConfig({
   plugins: [vue()],
   resolve: {

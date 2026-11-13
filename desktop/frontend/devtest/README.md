@@ -1,20 +1,19 @@
 # 前端回归测试
 
-## 当前状态（Vue 3 重构中）
+## 当前状态
 
-`run.mjs` 是 **vanilla 前端时代**的浏览器回归：32 条断言全部按旧 DOM
-（`#siteAdvanced`、`[data-nav]`、`.site-more`、`/src/ui/loading.js`）定位。
-Vue 3 前端的 DOM 与交互模型已完全不同，这套脚本**暂时无法运行**，
-保留在这里作为「功能清单」的可执行参照（对应 REFACTOR-BASELINE.md）。
+vanilla 前端时代的 `run.mjs`（32 条浏览器断言）已随旧代码一起删除：
+它按旧 DOM（`#siteAdvanced`、`[data-nav]`、`.site-more`）与
+`/src/ui/loading.js` 定位，与 Vue 3 的 DOM 不兼容，无法继续运行。
 
-旧前端源码在 `src-legacy/`，旧的 `index.html` 在 `index-legacy.html`。
-如果要复跑旧断言，把这两者恢复、并把 `devtest/vite.config.mjs` 的
-`root` 指回旧入口即可。
+功能清单保存在 [REFACTOR-BASELINE.md](../REFACTOR-BASELINE.md)，
+逐页迁移时按该清单补等价断言。
 
-## 迁移后的等价覆盖
+## 迁移后的等价覆盖（待建）
 
-逐页迁移时，为每个 pane 补 Vitest 组件测试（`@vue/test-utils`）与
-Playwright 截图，确保 REFACTOR-BASELINE.md 的每个勾选项都有对应断言。
+- `vitest` + `@vue/test-utils`：组件级测试，覆盖各 pane 与弹窗的交互
+- `playwright`：关键路径截图与端到端（启动、站点增删改、配置保存）
+- 每完成一个 pane，在 REFACTOR-BASELINE.md 勾掉对应项并补测试
 
 ## 当前可跑的守卫
 
