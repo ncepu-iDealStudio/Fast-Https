@@ -38,6 +38,9 @@ type AddInput struct {
 }
 
 // UpdateInput 是 site update 的白名单字段。未设置的指针表示不改。
+//
+// Zip / Limit / Auth / Cache 作用于站点的第一个 location（主 location）。
+// 它们用指针表达三态：nil 不改；指向零值表示清除该配置；指向有值则写入。
 type UpdateInput struct {
 	Name       string
 	Listens    *[]string
@@ -45,6 +48,10 @@ type UpdateInput struct {
 	Root       *string
 	ProxyPass  *string
 	TLS        *bool
+	Zip        *[]string
+	Limit      *config.PathLimit
+	Auth       *config.PathAuth
+	Cache      *config.Cache
 	Banned     []string
 }
 
@@ -312,6 +319,9 @@ func Update(dirs []string, liveMain string, in UpdateInput) (string, error) {
 				}
 			}
 		}
+		if err := applyAdvanced(cur, in); err != nil {
+			return err
+		}
 		fillCerts(cur)
 		return nil
 	})
@@ -319,6 +329,86 @@ func Update(dirs []string, liveMain string, in UpdateInput) (string, error) {
 		return "", asInvalid(err)
 	}
 	return path, nil
+}
+
+// applyAdvanced 把 --zip / --limit-* / --auth-* / --cache-* 落到主 location 上。
+//
+// 密码特殊处理：GUI 读到的是脱敏值 "***"，用户没改密码时前端原样回传，
+// 这里遇到空串或 "***" 就保留文件里的原密码，避免把真实口令写成星号。
+func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
+	if in.Zip == nil && in.Limit == nil && in.Auth == nil && in.Cache == nil {
+		return nil
+	}
+	loc := primaryLoc(cur)
+
+	if in.Zip != nil {
+		zip := make([]string, 0, len(*in.Zip))
+		for _, raw := range *in.Zip {
+			v := strings.ToLower(strings.TrimSpace(raw))
+			if v != "gzip" && v != "br" {
+				return fmt.Errorf("%w: --zip accepts only gzip or br, got %q", ErrUsage, raw)
+			}
+			zip = append(zip, v)
+		}
+		loc.Zip = &zip
+	}
+
+	if in.Limit != nil {
+		v := *in.Limit
+		if v.Size < 0 || v.Rate < 0 || v.Burst < 0 {
+			return fmt.Errorf("%w: --limit-* must not be negative", ErrUsage)
+		}
+		loc.Limit = &v
+	}
+
+	if in.Auth != nil {
+		v := *in.Auth
+		v.AuthType = strings.TrimSpace(v.AuthType)
+		v.User = strings.TrimSpace(v.User)
+		v.Realm = strings.TrimSpace(v.Realm)
+		if v.AuthType == "" && v.User == "" && v.Pswd == "" && v.Realm == "" {
+			loc.Auth = &config.PathAuth{} // 全空 = 关闭认证，补丁会删掉 auth 键
+		} else {
+			if v.AuthType == "" {
+				v.AuthType = "basic"
+			}
+			if v.AuthType != "basic" {
+				return fmt.Errorf("%w: --auth-type only supports basic, got %q", ErrUsage, v.AuthType)
+			}
+			if v.User == "" {
+				return fmt.Errorf("%w: --auth-user is required when enabling auth", ErrUsage)
+			}
+			// 空串或脱敏值表示"沿用原密码"
+			if keepPassword(v.Pswd) {
+				if loc.Auth == nil || loc.Auth.Pswd == "" {
+					return fmt.Errorf("%w: --auth-pass is required when enabling auth for the first time", ErrUsage)
+				}
+				v.Pswd = loc.Auth.Pswd
+			}
+			loc.Auth = &v
+		}
+	}
+
+	if in.Cache != nil {
+		v := *in.Cache
+		v.Path = strings.TrimSpace(v.Path)
+		if v.Path == "" && len(v.Valid) == 0 && v.MaxSize == 0 {
+			loc.Cache = &config.Cache{} // 全空 = 关闭缓存
+		} else {
+			if v.Path == "" {
+				return fmt.Errorf("%w: --cache-path is required when enabling proxy cache", ErrUsage)
+			}
+			loc.Cache = &v
+		}
+	}
+
+	return nil
+}
+
+// keepPassword 报告前端回传的口令是否代表"不修改"：空串或脱敏值都算。
+func keepPassword(pswd string) bool {
+	trimmed := strings.TrimSpace(pswd)
+	return trimmed == "" || trimmed == "***"
 }
 
 func asInvalid(err error) error {

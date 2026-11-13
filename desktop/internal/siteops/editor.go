@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -123,12 +124,19 @@ func planAdd(in SiteInput) ([][]string, error) {
 	}
 	add = append(add, "--yes")
 	plan := [][]string{add}
+
+	// site add 不接受 zip / limit / auth / cache，所以建好之后补一条
+	// site update 把它们写进去。与上面多域名补全是同一套路：先创建，
+	// 再用受控更新补齐；中途失败会明确告诉用户站点已建成。
+	var extra []string
 	if len(p.names) > 1 {
-		plan = append(plan, []string{
-			"site", "update", p.names[0],
-			"--server-name", strings.Join(p.names, " "),
-			"--yes",
-		})
+		extra = append(extra, "--server-name", strings.Join(p.names, " "))
+	}
+	if hasAdvanced(in) {
+		extra = append(extra, advancedArgs(in)...)
+	}
+	if len(extra) > 0 {
+		plan = append(plan, append([]string{"site", "update", p.names[0]}, append(extra, "--yes")...))
 	}
 	return plan, nil
 }
@@ -245,6 +253,7 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 			d.Root = cli.Str(loc, "root")
 			d.ProxyPass = cli.Str(loc, "proxy_pass")
 			d.Index = strings.Join(cli.Strs(loc, "index"), " ")
+			fillAdvanced(&d, loc)
 		}
 	}
 	if d.Type == "" {
@@ -255,6 +264,32 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 		d.Note = "该站点内联在主配置 http.server[] 里，请到设置页的主配置表单里修改"
 	}
 	return d, nil
+}
+
+// fillAdvanced 把 site show 的 location 高级配置填进详情。
+// auth.pswd 已被 site show 脱敏成 ***，原样保留：前端留空即不改密码。
+func fillAdvanced(d *SiteDetail, loc map[string]any) {
+	d.Zip = cli.Strs(loc, "zip")
+
+	if limit := cli.AsMap(loc["limit"]); limit != nil {
+		d.LimitRate = cli.Int(limit, "rate")
+		d.LimitBurst = cli.Int(limit, "burst")
+		d.LimitMem = cli.Int(limit, "mem")
+		d.LimitNodelay = cli.Bool(limit, "nodelay")
+	}
+
+	if auth := cli.AsMap(loc["auth"]); auth != nil {
+		d.AuthOn = cli.Str(auth, "type") != "" || cli.Str(auth, "user") != ""
+		d.AuthUser = cli.Str(auth, "user")
+		d.AuthPass = cli.Str(auth, "pswd")
+		d.AuthRealm = cli.Str(auth, "realm")
+	}
+
+	if cache := cli.AsMap(loc["proxy_cache"]); cache != nil {
+		d.CachePath = cli.Str(cache, "path")
+		d.CacheValid = cli.Strs(cache, "valid")
+		d.CacheMaxSize = cli.Int(cache, "max_size")
+	}
 }
 
 // planUpdate 比较弹窗当前值与 site show 的原值，翻译成 site update 的参数。
@@ -288,11 +323,178 @@ func planUpdate(id string, cur SiteDetail, in SiteInput) ([]string, error) {
 		args = append(args, "--root", p.root)
 		changed = true
 	}
+	if advArgs, advChanged := planAdvanced(cur, in); advChanged {
+		args = append(args, advArgs...)
+		changed = true
+	}
 	if !changed {
 		return nil, fmt.Errorf("没有需要保存的改动")
 	}
 	args = append(args, "--yes")
 	return args, nil
+}
+
+// planAdvanced 把弹窗的高级配置翻译成 --zip / --limit-* / --auth-* / --cache-*。
+//
+// 只在真的有变化时才产出参数：没动过的块完全不出现在命令行里，CLI 那边的
+// 指针就是 nil，配置文件里对应键原样保留。密码按「留空或 *** 视为不改」
+// 处理，避免把脱敏值当成新口令写回去。
+func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
+	var args []string
+	changed := false
+
+	if !sameStringSet(cur.Zip, in.Zip) {
+		args = append(args, zipArgs(in.Zip)...)
+		changed = true
+	}
+
+	if cur.LimitRate != in.LimitRate || cur.LimitBurst != in.LimitBurst ||
+		cur.LimitMem != in.LimitMem || cur.LimitNodelay != in.LimitNodelay {
+		args = append(args, limitArgs(in)...)
+		changed = true
+	}
+
+	if authArgs, authChanged := planAuth(cur, in); authChanged {
+		args = append(args, authArgs...)
+		changed = true
+	}
+
+	if cur.CachePath != in.CachePath || !sameStringSet(cur.CacheValid, in.CacheValid) ||
+		cur.CacheMaxSize != in.CacheMaxSize {
+		args = append(args, cacheArgs(in)...)
+		changed = true
+	}
+
+	return args, changed
+}
+
+// advancedArgs 把高级配置**全部**翻成参数，不做「和当前值比」的过滤。
+//
+// 新建站点要用它：site add 不接受这四个字段，只能在建好之后补一条
+// site update；那时没有「当前详情」可比，传什么就该写什么。
+func advancedArgs(in SiteInput) []string {
+	var args []string
+	args = append(args, zipArgs(in.Zip)...)
+	args = append(args, limitArgs(in)...)
+	args = append(args, authArgs(in)...)
+	args = append(args, cacheArgs(in)...)
+	return args
+}
+
+// hasAdvanced 报告用户是否在弹窗里填过任何高级配置。
+// 新建站点据此决定要不要追加那条 site update。
+func hasAdvanced(in SiteInput) bool {
+	return len(in.Zip) > 0 || in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
+		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CachePath) != ""
+}
+
+// zipArgs 生成响应压缩参数。空列表用 --zip= 表示清除，
+// 因为 CLI 只认「显式给了空值」为删除、没给为不改。
+func zipArgs(zip []string) []string {
+	var args []string
+	if len(zip) == 0 {
+		return []string{"--zip="}
+	}
+	for _, z := range zip {
+		if s := strings.TrimSpace(z); s != "" {
+			args = append(args, "--zip", s)
+		}
+	}
+	if len(args) == 0 {
+		return []string{"--zip="}
+	}
+	return args
+}
+
+// limitArgs 生成限流参数。三个数字全为 0 且没开 nodelay 时，
+// 仍显式写 0，让 CLI 删掉整个 limit 键而不是留一个全零对象。
+func limitArgs(in SiteInput) []string {
+	args := []string{
+		"--limit-rate", strconv.Itoa(in.LimitRate),
+		"--limit-burst", strconv.Itoa(in.LimitBurst),
+		"--limit-mem", strconv.Itoa(in.LimitMem),
+	}
+	if in.LimitNodelay {
+		args = append(args, "--limit-nodelay")
+	}
+	return args
+}
+
+// cacheArgs 生成反向代理缓存参数。目录留空表示清除整块 proxy_cache。
+func cacheArgs(in SiteInput) []string {
+	path := strings.TrimSpace(in.CachePath)
+	if path == "" {
+		return []string{"--cache-path="}
+	}
+	args := []string{"--cache-path", path}
+	for _, v := range in.CacheValid {
+		if s := strings.TrimSpace(v); s != "" {
+			args = append(args, "--cache-valid", s)
+		}
+	}
+	if in.CacheMaxSize > 0 {
+		args = append(args, "--cache-max-size", strconv.Itoa(in.CacheMaxSize))
+	}
+	return args
+}
+
+// planAuth 处理 Basic 认证：关掉时清空四个值，开着时只在密码真的变了才传
+// --auth-pass——留空或 *** 都不传，CLI 侧沿用文件里的原口令。
+func planAuth(cur SiteDetail, in SiteInput) ([]string, bool) {
+	if !in.AuthOn {
+		if !cur.AuthOn {
+			return nil, false
+		}
+		return []string{"--auth-type="}, true
+	}
+	pass := strings.TrimSpace(in.AuthPass)
+	keepPass := pass == "" || pass == "***"
+	same := cur.AuthOn && cur.AuthUser == in.AuthUser &&
+		strings.TrimSpace(cur.AuthRealm) == strings.TrimSpace(in.AuthRealm) && keepPass
+	if same {
+		return nil, false
+	}
+	return authArgs(in), true
+}
+
+// authArgs 生成 Basic 认证参数，不做「和当前值比」的过滤（新建站点用）。
+func authArgs(in SiteInput) []string {
+	if !in.AuthOn {
+		return []string{"--auth-type="}
+	}
+	args := []string{"--auth-type", "basic", "--auth-user", in.AuthUser}
+	pass := strings.TrimSpace(in.AuthPass)
+	if pass != "" && pass != "***" {
+		args = append(args, "--auth-pass", pass)
+	}
+	if realm := strings.TrimSpace(in.AuthRealm); realm != "" {
+		args = append(args, "--auth-realm", realm)
+	}
+	return args
+}
+
+// sameStringSet 按集合比较两个字符串切片，忽略顺序与首尾空白。
+func sameStringSet(a, b []string) bool {
+	clean := func(in []string) []string {
+		out := make([]string, 0, len(in))
+		for _, raw := range in {
+			if v := strings.ToLower(strings.TrimSpace(raw)); v != "" {
+				out = append(out, v)
+			}
+		}
+		sort.Strings(out)
+		return out
+	}
+	ca, cb := clean(a), clean(b)
+	if len(ca) != len(cb) {
+		return false
+	}
+	for i := range ca {
+		if ca[i] != cb[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // SaveSiteDetail 受控更新站点的白名单字段（server_name / listen / root /

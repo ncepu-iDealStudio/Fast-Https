@@ -49,6 +49,14 @@ export const template = `<div class="dialog-mask" id="siteDialog" hidden>
         </div>
       </div>
     </div>
+    <details class="raw-details site-advanced" id="siteAdvanced" hidden>
+      <summary data-i18n="dialog.site.advanced">高级配置</summary>
+      <small class="field-note site-advanced-note" data-i18n="dialog.site.advancedHint">只作用于站点的主 location；留空或 0 表示该块不配置，保存后会清除对应配置。</small>
+      <div class="form-row"><label class="form-label"><span data-i18n="dialog.site.zip">响应压缩</span><small data-i18n="dialog.site.zipHint">勾选后按 Accept-Encoding 协商压缩，都不勾表示不压缩</small></label><div class="form-control"><div class="choice-group"><label class="choice"><input id="siteZipGzip" type="checkbox"/><span data-i18n="dialog.site.zipGzip">gzip</span></label><label class="choice"><input id="siteZipBr" type="checkbox"/><span data-i18n="dialog.site.zipBr">brotli（br）</span></label></div></div></div>
+      <div class="form-row"><label class="form-label"><span data-i18n="dialog.site.limit">限流</span><small data-i18n="dialog.site.limitHint">速率、突发与内存都为 0 时不启用限流</small></label><div class="form-control"><div class="inline-fields"><label class="mini-field"><span data-i18n="dialog.site.limitRate">速率</span><input id="siteLimitRate" type="number" min="0" step="1" value="0"/></label><label class="mini-field"><span data-i18n="dialog.site.limitBurst">突发</span><input id="siteLimitBurst" type="number" min="0" step="1" value="0"/></label><label class="mini-field"><span data-i18n="dialog.site.limitMem">内存</span><input id="siteLimitMem" type="number" min="0" step="1" value="0"/></label></div><label class="form-check"><input id="siteLimitNodelay" type="checkbox"/><span data-i18n="dialog.site.limitNodelay">nodelay（超限直接拒绝，不排队）</span></label></div></div>
+      <div class="form-row"><label class="form-label"><span data-i18n="dialog.site.auth">Basic 认证</span><small data-i18n="dialog.site.authHint">取消勾选会清除整组认证配置</small></label><div class="form-control"><label class="form-check"><input id="siteAuthOn" type="checkbox"/><span data-i18n="dialog.site.authOn">启用 Basic 认证</span></label><div class="inline-fields"><label class="mini-field"><span data-i18n="dialog.site.authUser">用户名</span><input id="siteAuthUser" type="text" autocomplete="off" spellcheck="false"/></label><label class="mini-field"><span data-i18n="dialog.site.authPass">密码</span><input id="siteAuthPass" type="password" autocomplete="new-password"/></label><label class="mini-field"><span data-i18n="dialog.site.authRealm">认证域</span><input id="siteAuthRealm" type="text" autocomplete="off" data-i18n-placeholder="dialog.site.authRealmPh"/></label></div></div></div>
+      <div class="form-row"><label class="form-label"><span data-i18n="dialog.site.cache">反向代理缓存</span><small data-i18n="dialog.site.cacheHint">缓存目录留空表示不启用缓存</small></label><div class="form-control"><div class="browse-row"><input id="siteCachePath" type="text" placeholder="./cache"/><button class="btn small" type="button" data-browse="dir" data-target="siteCachePath" data-i18n="dialog.site.browse">浏览…</button></div><div class="inline-fields"><label class="mini-field"><span data-i18n="dialog.site.cacheValid">有效期</span><input id="siteCacheValid" type="text" data-i18n-placeholder="dialog.site.cacheValidPh"/></label><label class="mini-field"><span data-i18n="dialog.site.cacheMaxSize">容量上限</span><input id="siteCacheMaxSize" type="number" min="0" step="1" value="0"/></label></div><small class="field-note" data-i18n="dialog.site.cacheNote">valid 逗号分隔（如 10s, 1m），max_size 单位是字节，0 表示不限制</small></div></div>
+    </details>
     <div class="detail-info" id="siteInfo" hidden>
       <div class="section-label"><span data-i18n="dialog.site.readonly">只读信息</span></div>
       <div class="kv-table" id="siteInfoRows"></div>
@@ -129,6 +137,104 @@ function setSiteFormEnabled(enabled) {
   $('#siteSubmit').hidden = !enabled;
 }
 
+// ---- 高级配置（响应压缩 / 限流 / Basic 认证 / 反向代理缓存） ----
+// 只对站点的主 location 生效，且 site add 不支持这些字段，所以整块只在
+// 编辑模式出现：openSiteDetail 展开、resetSiteForm 收起并清空。
+// 密码框永远不写回脱敏值 ***：留空（或原样输入 ***）都表示「不修改」。
+
+// syncAuthFields 跟着「启用 Basic 认证」勾选框启停三个输入框。
+function syncAuthFields() {
+  const on = $('#siteAuthOn').checked;
+  ['siteAuthUser', 'siteAuthPass', 'siteAuthRealm'].forEach((id) => { $('#' + id).disabled = !on; });
+  // 关掉认证即清空整组配置，留着旧口令只会让人以为还在用
+  if (!on) {
+    $('#siteAuthUser').value = '';
+    $('#siteAuthPass').value = '';
+    $('#siteAuthRealm').value = '';
+  }
+  setAuthPassHint('');
+}
+
+// setAuthPassHint 用 placeholder 提示密码现状：已配置过就说「留空表示不修改」。
+// 同时把 data-i18n-placeholder 改成对应的 key，语言切换时 applyStatic 才不会
+// 又把它刷回默认文案。
+function setAuthPassHint(hasStoredPass) {
+  const el = $('#siteAuthPass');
+  const key = hasStoredPass ? 'dialog.site.authPassPh' : 'dialog.site.authPassEmptyPh';
+  el.value = '';
+  el.setAttribute('data-i18n-placeholder', key);
+  el.setAttribute('placeholder', t(key));
+}
+
+// resetSiteAdvanced 收起并清空高级配置（添加模式、以及每次打开详情前）。
+// 新建模式也要显示：site add 本身不收这些字段，但后端会在建好之后补一条
+// site update 写进去，用户不该因为「先建站点」就配不了压缩和缓存。
+function resetSiteAdvanced() {
+  $('#siteAdvanced').hidden = false;
+  $('#siteAdvanced').open = false;
+  $('#siteZipGzip').checked = false;
+  $('#siteZipBr').checked = false;
+  ['siteLimitRate', 'siteLimitBurst', 'siteLimitMem', 'siteCacheMaxSize'].forEach((id) => { $('#' + id).value = '0'; });
+  $('#siteLimitNodelay').checked = false;
+  $('#siteAuthOn').checked = false;
+  ['siteCachePath', 'siteCacheValid'].forEach((id) => { $('#' + id).value = ''; });
+  syncAuthFields();
+}
+
+// fillSiteAdvanced 回填 ReadSiteDetail 的高级配置字段。全部走 ?? / Array.isArray
+// 兜底：老版本后端不返回这些字段时弹窗照常可用。
+function fillSiteAdvanced(d) {
+  const zip = (Array.isArray(d.zip) ? d.zip : []).map((z) => String(z).toLowerCase());
+  $('#siteZipGzip').checked = zip.includes('gzip');
+  $('#siteZipBr').checked = zip.includes('br') || zip.includes('brotli');
+
+  $('#siteLimitRate').value = String(d.limitRate ?? 0);
+  $('#siteLimitBurst').value = String(d.limitBurst ?? 0);
+  $('#siteLimitMem').value = String(d.limitMem ?? 0);
+  $('#siteLimitNodelay').checked = !!d.limitNodelay;
+
+  $('#siteAuthOn').checked = !!d.authOn;
+  $('#siteAuthUser').value = d.authUser || '';
+  $('#siteAuthRealm').value = d.authRealm || '';
+  // 先把输入框按勾选状态启停，再单独设置密码提示（syncAuthFields 会清空密码框）
+  syncAuthFields();
+  setAuthPassHint(!!d.authOn && !!d.authPass);
+
+  $('#siteCachePath').value = d.cachePath || '';
+  $('#siteCacheValid').value = (Array.isArray(d.cacheValid) ? d.cacheValid : []).join(', ');
+  $('#siteCacheMaxSize').value = String(d.cacheMaxSize ?? 0);
+
+  $('#siteAdvanced').hidden = false;
+}
+
+// advancedFields 汇总高级配置的提交字段，新建与编辑都带。
+// 数字框空着按 0 处理；密码留空 / 仍是 *** 都原样提交，交给 Go 侧判断不改。
+// 全是默认值时后端视为「没填高级配置」，新建不会多跑一次 site update。
+function advancedFields() {
+  const zip = [];
+  if ($('#siteZipGzip').checked) zip.push('gzip');
+  if ($('#siteZipBr').checked) zip.push('br');
+  const num = (id) => {
+    const n = parseInt($('#' + id).value, 10);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  const authOn = $('#siteAuthOn').checked;
+  return {
+    zip,
+    limitRate: num('siteLimitRate'),
+    limitBurst: num('siteLimitBurst'),
+    limitMem: num('siteLimitMem'),
+    limitNodelay: $('#siteLimitNodelay').checked,
+    authOn,
+    authUser: authOn ? $('#siteAuthUser').value.trim() : '',
+    authPass: authOn ? $('#siteAuthPass').value : '',
+    authRealm: authOn ? $('#siteAuthRealm').value.trim() : '',
+    cachePath: $('#siteCachePath').value.trim(),
+    cacheValid: $('#siteCacheValid').value.split(',').map((s) => s.trim()).filter(Boolean),
+    cacheMaxSize: num('siteCacheMaxSize')
+  };
+}
+
 function resetSiteForm() {
   ['siteName', 'siteRoot', 'siteProxy'].forEach((id) => { $('#' + id).value = ''; });
   $('#siteType').value = 'local';
@@ -145,6 +251,9 @@ function resetSiteForm() {
   $('#siteNote').hidden = true;
   $('#siteError').hidden = true;
   setSiteFormEnabled(true);
+  // 高级配置放在 setSiteFormEnabled 之后：auth 三个输入框要按勾选状态重新
+  // 关掉，而 setSiteFormEnabled(true) 会无条件把所有 input 打开。
+  resetSiteAdvanced();
   syncSiteType();
 }
 
@@ -170,6 +279,7 @@ async function openSiteDetail(id) {
     $('#siteRoot').value = d.root || '';
     applyProxyToControls(d.proxyPass || '');
     syncSiteType();
+    fillSiteAdvanced(d);
     // 只读信息：证书、私钥、首页与配置来源
     $('#siteInfoRows').innerHTML = [
       [t('dialog.site.cert'), d.cert],
@@ -312,26 +422,32 @@ export function initSiteDialog() {
     $('#' + id).addEventListener('change', composeListen);
     $('#' + id).addEventListener('input', composeListen);
   });
+  // 勾选/取消「启用 Basic 认证」时联动三个输入框的可用状态
+  $('#siteAuthOn').addEventListener('change', syncAuthFields);
   $('#siteSubmit').addEventListener('click', async () => {
     const btn = $('#siteSubmit');
     $('#siteError').hidden = true;
+    const editing = state.siteMode === 'edit';
     // SiteInput：id/name/listen/type/root/proxyPass；name 支持多域名（空格分隔）
     const payload = {
-      id: state.siteMode === 'edit' ? state.siteEditingId : '',
+      id: editing ? state.siteEditingId : '',
       name: $('#siteName').value,
       listen: $('#siteListen').value,
       type: $('#siteType').value,
       root: $('#siteRoot').value,
       proxyPass: composeProxyPass()
     };
+    // 高级配置两种模式都提交：编辑走 site update；新建时后端在 site add
+    // 成功后补一条 site update 把这些字段写进去。
+    Object.assign(payload, advancedFields());
     // 配置事务必然较慢，用立即加载（不走 140ms 延迟），按钮立刻变 spinner
     await withImmediateLoading({
       button: btn,
-      label: state.siteMode === 'add' ? t('dialog.site.titleAdd') : t('common.save'),
+      label: editing ? t('common.save') : t('dialog.site.titleAdd'),
       fn: async () => {
-        const text = state.siteMode === 'add'
-          ? await DesktopService.AddSite(payload)
-          : await DesktopService.SaveSiteDetail(payload);
+        const text = editing
+          ? await DesktopService.SaveSiteDetail(payload)
+          : await DesktopService.AddSite(payload);
         close();
         toast(text);
         await refreshDetails({ force: true });

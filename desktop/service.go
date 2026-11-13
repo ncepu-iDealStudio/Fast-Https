@@ -167,12 +167,15 @@ func (s *DesktopService) Paths() (model.RuntimePaths, error) {
 	return view.ResolvePaths(s.baseDir), nil
 }
 
+// StartServer 启动服务，并顺带把独立的 Monitor 进程拉起来。
+// Monitor 只负责采集本机动态，起不来不该阻止开站，所以它失败只忽略。
 func (s *DesktopService) StartServer() (string, error) {
-	return view.StartServer(s.baseDir)
+	return view.StartServerWithMonitor(s.baseDir)
 }
 
+// StopServer 停服务并一并停掉 Monitor，避免残留进程继续写事件。
 func (s *DesktopService) StopServer() (string, error) {
-	return view.StopServer(s.baseDir)
+	return view.StopServerWithMonitor(s.baseDir)
 }
 
 // ReloadServer 让新配置生效。
@@ -220,7 +223,7 @@ func (s *DesktopService) ReloadServer() (string, error) {
 // restartForReload 用「停止 + 启动」应用新配置，等新进程真正就绪再返回。
 // 这是 Windows 上唯一可靠的配置生效方式。
 func (s *DesktopService) restartForReload() (string, error) {
-	if _, stopErr := view.StopServer(s.baseDir); stopErr != nil {
+	if _, stopErr := view.StopServerWithMonitor(s.baseDir); stopErr != nil {
 		return "", fmt.Errorf("重载失败：停止服务时出错（%v）", stopErr)
 	}
 	if _, startErr := view.StartServer(s.baseDir); startErr != nil {
@@ -228,6 +231,13 @@ func (s *DesktopService) restartForReload() (string, error) {
 	}
 	// 等端口真正可连，避免界面刷新时读到「启动中」的中间态
 	if view.WaitServerRunning(s.baseDir, 8*time.Second) {
+		// 服务已就绪，把 Monitor 重新拉起来
+		if view.MonitorInstalled(s.baseDir) {
+			if err := view.StartMonitor(s.baseDir); err != nil {
+				return "已重启服务，新配置已生效；Monitor 未能启动", nil
+			}
+			view.WaitMonitorRunning(s.baseDir, 6*time.Second)
+		}
 		return "已重启服务，新配置已生效", nil
 	}
 	return "服务正在启动，配置将在就绪后生效", nil

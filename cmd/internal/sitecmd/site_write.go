@@ -37,8 +37,15 @@ func addSiteWriteCommands(root *cobra.Command) {
 		Use:   "update <name>",
 		Short: cli.T("受控更新站点的白名单字段", "update allow-listed fields of a site through the config transaction"),
 		Long: cli.T(
-			"只允许 --listen、--server-name、--root、--proxy-pass、--tls。不接受任意 JSON 合并。内联在主配置 http.server[] 里的站点返回 NOT_SUPPORTED。",
-			"Only --listen, --server-name, --root, --proxy-pass and --tls are accepted. Arbitrary JSON merge is rejected.\n"+
+			"只改 flag 点名的字段：--listen、--server-name、--root、--proxy-pass、--tls，"+
+				"以及主 location 上的高级配置 --zip、--limit-*、--auth-*、--cache-*。"+
+				"没写的字段（含未知键与注释）原样保留，不接受任意 JSON 合并。"+
+				"关闭某项：--zip= 清空压缩，--auth-type= 关闭认证，--cache-path= 关闭缓存。"+
+				"--auth-pass 留空或传 *** 表示沿用原口令。内联在主配置 http.server[] 里的站点返回 NOT_SUPPORTED。",
+			"Only the named flags change: --listen, --server-name, --root, --proxy-pass, --tls,\n"+
+				"plus main-location advanced options --zip, --limit-*, --auth-*, --cache-*.\n"+
+				"Everything else, including unknown keys and comments, is preserved; arbitrary JSON merge is rejected.\n"+
+				"Disable with --zip=, --auth-type= or --cache-path=. An empty or *** --auth-pass keeps the current password.\n"+
 				"Sites inline in the main config http.server[] return NOT_SUPPORTED."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
@@ -49,6 +56,18 @@ func addSiteWriteCommands(root *cobra.Command) {
 	upd.Flags().String("root", "", cli.T("新的文档根目录", "new document root"))
 	upd.Flags().String("proxy-pass", "", cli.T("新的反代上游", "new proxy upstream"))
 	upd.Flags().Bool("tls", false, cli.T("启用 TLS", "enable TLS"))
+	upd.Flags().StringSlice("zip", nil, cli.T("响应压缩编码，可重复：gzip / br；传空表示关闭", "response compression: gzip / br, repeatable; empty disables"))
+	upd.Flags().Int("limit-rate", -1, cli.T("限流 rate（每秒请求数），0 表示不限", "rate limit (requests per second); 0 disables"))
+	upd.Flags().Int("limit-burst", -1, cli.T("限流 burst（突发桶大小）", "rate limit burst bucket size"))
+	upd.Flags().Int("limit-mem", -1, cli.T("限流 mem（连接缓冲大小）", "rate limit connection buffer size"))
+	upd.Flags().Bool("limit-nodelay", false, cli.T("限流 nodelay：不排队直接拒绝", "rate limit nodelay: reject instead of queueing"))
+	upd.Flags().String("auth-type", "", cli.T("认证类型，目前只支持 basic；留空表示关闭认证", "auth type, only basic is supported; empty disables auth"))
+	upd.Flags().String("auth-user", "", cli.T("Basic 认证用户名", "basic auth user name"))
+	upd.Flags().String("auth-pass", "", cli.T("Basic 认证口令；留空或 *** 表示沿用原口令", "basic auth password; empty or *** keeps the current one"))
+	upd.Flags().String("auth-realm", "", cli.T("Basic 认证 realm，留空用站点名", "basic auth realm; defaults to the site name"))
+	upd.Flags().String("cache-path", "", cli.T("代理缓存目录；留空表示关闭缓存", "proxy cache directory; empty disables caching"))
+	upd.Flags().StringSlice("cache-valid", nil, cli.T("代理缓存有效期，可重复，如 10s / 1m", "proxy cache TTL values, repeatable, e.g. 10s / 1m"))
+	upd.Flags().Int("cache-max-size", -1, cli.T("代理缓存最大字节数", "proxy cache maximum size in bytes"))
 
 	del := &cobra.Command{
 		Use:          "delete <name>",
@@ -199,8 +218,28 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 		in.TLS = &v
 		changed = true
 	}
+	if cmd.Flags().Changed("zip") {
+		v, _ := cmd.Flags().GetStringSlice("zip")
+		if len(v) == 1 && strings.TrimSpace(v[0]) == "" {
+			v = nil // --zip "" 表示显式关闭压缩
+		}
+		in.Zip = &v
+		changed = true
+	}
+	if limit, ok := readLimitFlags(cmd); ok {
+		in.Limit = limit
+		changed = true
+	}
+	if auth, ok := readAuthFlags(cmd); ok {
+		in.Auth = auth
+		changed = true
+	}
+	if cache, ok := readCacheFlags(cmd); ok {
+		in.Cache = cache
+		changed = true
+	}
 	if !changed {
-		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls"))
+		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --zip, --limit-*, --auth-*, --cache-*"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	return cli.RunTxn(cmd, "site.update", "site update "+in.Name, map[string]string{"name": in.Name}, dry, func(_ string, dirs []string) error {
@@ -224,6 +263,61 @@ func RunDelete(cmd *cobra.Command, args []string) error {
 
 func RunDisable(cmd *cobra.Command, args []string) error {
 	return RunEnablement(cmd, args, false)
+}
+
+// readLimitFlags 组装 --limit-*：任一个被显式指定就参与写入。
+// 未指定的项保持 0，与「清除限流」等价——CLI 无法区分"没写"和"写 0"，
+// 所以只要用户点了任一 limit flag，就当作整块 limit 的新值。
+func readLimitFlags(cmd *cobra.Command) (*config.PathLimit, bool) {
+	f := cmd.Flags()
+	if !f.Changed("limit-rate") && !f.Changed("limit-burst") &&
+		!f.Changed("limit-mem") && !f.Changed("limit-nodelay") {
+		return nil, false
+	}
+	limit := &config.PathLimit{}
+	if f.Changed("limit-rate") {
+		limit.Rate, _ = f.GetInt("limit-rate")
+	}
+	if f.Changed("limit-burst") {
+		limit.Burst, _ = f.GetInt("limit-burst")
+	}
+	if f.Changed("limit-mem") {
+		limit.Size, _ = f.GetInt("limit-mem")
+	}
+	if f.Changed("limit-nodelay") {
+		limit.Nodelay, _ = f.GetBool("limit-nodelay")
+	}
+	return limit, true
+}
+
+// readAuthFlags 组装 --auth-*。四个 flag 全空等于关闭认证（补丁删掉 auth 键）。
+func readAuthFlags(cmd *cobra.Command) (*config.PathAuth, bool) {
+	f := cmd.Flags()
+	if !f.Changed("auth-type") && !f.Changed("auth-user") &&
+		!f.Changed("auth-pass") && !f.Changed("auth-realm") {
+		return nil, false
+	}
+	auth := &config.PathAuth{}
+	auth.AuthType, _ = f.GetString("auth-type")
+	auth.User, _ = f.GetString("auth-user")
+	auth.Pswd, _ = f.GetString("auth-pass")
+	auth.Realm, _ = f.GetString("auth-realm")
+	return auth, true
+}
+
+// readCacheFlags 组装 --cache-*。path 为空等于关闭缓存。
+func readCacheFlags(cmd *cobra.Command) (*config.Cache, bool) {
+	f := cmd.Flags()
+	if !f.Changed("cache-path") && !f.Changed("cache-valid") && !f.Changed("cache-max-size") {
+		return nil, false
+	}
+	cache := &config.Cache{}
+	cache.Path, _ = f.GetString("cache-path")
+	cache.Valid, _ = f.GetStringSlice("cache-valid")
+	if f.Changed("cache-max-size") {
+		cache.MaxSize, _ = f.GetInt("cache-max-size")
+	}
+	return cache, true
 }
 
 func RunEnable(cmd *cobra.Command, args []string) error {

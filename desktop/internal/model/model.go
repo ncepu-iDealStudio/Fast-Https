@@ -86,6 +86,21 @@ type SiteInput struct {
 	Type      string `json:"type"`
 	Root      string `json:"root"`
 	ProxyPass string `json:"proxyPass"`
+
+	// 高级配置（主 location）：响应压缩、限流、Basic 认证、代理缓存。
+	// 编辑模式才提交；添加站点时 site add 不支持这些字段，前端不会带。
+	Zip           []string `json:"zip"`
+	LimitRate     int      `json:"limitRate"`
+	LimitBurst    int      `json:"limitBurst"`
+	LimitMem      int      `json:"limitMem"`
+	LimitNodelay  bool     `json:"limitNodelay"`
+	AuthOn        bool     `json:"authOn"`
+	AuthUser      string   `json:"authUser"`
+	AuthPass      string   `json:"authPass"`
+	AuthRealm     string   `json:"authRealm"`
+	CachePath     string   `json:"cachePath"`
+	CacheValid    []string `json:"cacheValid"`
+	CacheMaxSize  int      `json:"cacheMaxSize"`
 }
 
 // SiteDetail 是详情弹窗一次拉取的内容：表单字段 + 只读信息 + 是否可编辑。
@@ -106,6 +121,21 @@ type SiteDetail struct {
 	CertKey   string `json:"certKey"`
 	Index     string `json:"index"`
 	Raw       string `json:"raw"`
+
+	// 高级配置，回填弹窗用。AuthPass 恒为脱敏值或空串：site show 已经
+	// 把 pswd 抹成 ***，这里再原样透出，前端留空即表示不修改。
+	Zip          []string `json:"zip"`
+	LimitRate    int      `json:"limitRate"`
+	LimitBurst   int      `json:"limitBurst"`
+	LimitMem     int      `json:"limitMem"`
+	LimitNodelay bool     `json:"limitNodelay"`
+	AuthOn       bool     `json:"authOn"`
+	AuthUser     string   `json:"authUser"`
+	AuthPass     string   `json:"authPass"`
+	AuthRealm    string   `json:"authRealm"`
+	CachePath    string   `json:"cachePath"`
+	CacheValid   []string `json:"cacheValid"`
+	CacheMaxSize int      `json:"cacheMaxSize"`
 }
 
 type ConfigField struct {

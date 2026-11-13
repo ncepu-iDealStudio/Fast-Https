@@ -70,6 +70,80 @@ func TestPlanAddProxy(t *testing.T) {
 	}
 }
 
+// 新建站点时填了高级配置，要在 site add 之后补一条 site update。
+// site add 本身不收这四个字段，用户不该因为「先建站点」就配不了。
+func TestPlanAddWithAdvanced(t *testing.T) {
+	plan, err := planAdd(model.SiteInput{
+		Name: "blog.example.com", Listen: "80",
+		Type: "local", Root: "./httpdoc/root",
+		Zip:       []string{"gzip", "br"},
+		LimitRate: 100, LimitBurst: 50, LimitMem: 1024, LimitNodelay: true,
+		AuthOn: true, AuthUser: "u", AuthPass: "p", AuthRealm: "realm",
+		CachePath: "./cache", CacheValid: []string{"10s", "1m"}, CacheMaxSize: 4096,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan) != 2 {
+		t.Fatalf("应产出 site add + site update 两条命令，得到 %d 条", len(plan))
+	}
+	upd := strings.Join(plan[1], " ")
+	if !strings.Contains(upd, "site update blog.example.com") {
+		t.Fatalf("第二条应是 site update：%s", upd)
+	}
+	for _, want := range []string{
+		"--zip gzip", "--zip br",
+		"--limit-rate 100", "--limit-burst 50", "--limit-mem 1024", "--limit-nodelay",
+		"--auth-type basic", "--auth-user u", "--auth-pass p", "--auth-realm realm",
+		"--cache-path ./cache", "--cache-valid 10s", "--cache-valid 1m", "--cache-max-size 4096",
+		"--yes",
+	} {
+		if !strings.Contains(upd, want) {
+			t.Errorf("补全命令缺少 %q：%s", want, upd)
+		}
+	}
+	// site add 那条不该被污染
+	if strings.Contains(strings.Join(plan[0], " "), "--zip") {
+		t.Errorf("site add 不应带高级配置：%s", strings.Join(plan[0], " "))
+	}
+}
+
+// 没填高级配置时不能多跑一条 update，否则每次建站都多一次配置事务。
+func TestPlanAddWithoutAdvancedStaysSingleCommand(t *testing.T) {
+	plan, err := planAdd(model.SiteInput{
+		Name: "blog.example.com", Listen: "80",
+		Type: "local", Root: "./httpdoc/root",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan) != 1 {
+		t.Fatalf("没填高级配置应只有一条命令，得到 %d 条", len(plan))
+	}
+}
+
+// 多域名 + 高级配置要合并成同一条 update，而不是各来一条。
+func TestPlanAddMultiDomainWithAdvancedMerges(t *testing.T) {
+	plan, err := planAdd(model.SiteInput{
+		Name: "a.example.com b.example.com", Listen: "80",
+		Type: "local", Root: "./httpdoc/root",
+		Zip: []string{"gzip"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan) != 2 {
+		t.Fatalf("应合并成两条命令，得到 %d 条", len(plan))
+	}
+	upd := strings.Join(plan[1], " ")
+	if !strings.Contains(upd, "--server-name a.example.com b.example.com") {
+		t.Errorf("缺 server-name：%s", upd)
+	}
+	if !strings.Contains(upd, "--zip gzip") {
+		t.Errorf("缺 zip：%s", upd)
+	}
+}
+
 func TestParseSiteInputRejectsBadInput(t *testing.T) {
 	cases := []model.SiteInput{
 		{Name: "", Listen: "80", Type: "local", Root: "./x"},                   // 无域名
