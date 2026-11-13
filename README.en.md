@@ -33,6 +33,20 @@ How a request travels:
 connection → rate limit / IP blacklist → location routing → application firewall → static file / reverse proxy / TCP / WebSocket → response
 ```
 
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | Deployment and operations: config keys, sites, certificates, proxy, cache, WAF |
+| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | The same guide in Chinese |
+| [docs/usage.md](docs/usage.md) | In-repo source of the usage guide; `docs/usage.html` is generated from it and ships with releases |
+| [docs/feature/](docs/feature/README.md) | One page per feature, with config samples and implementation notes |
+| [docs/develop/](docs/develop/README.md) | Build environment, tests, code standards, adding config keys, debugging, release |
+| [docs/architecture.html](docs/architecture.html) | Architecture diagram ([PNG](docs/images/architecture.png) / [dark PNG](docs/images/architecture-dark.png)): layers and the request path |
+| [docs/architecture-map.md](docs/architecture-map.md) | Package inventory and dependency direction |
+
+The full index is [docs/README.md](docs/README.md).
+
 ## Architecture
 
 ![Fast-Https architecture](docs/images/architecture.png)
@@ -211,19 +225,7 @@ Fast-Https parses HTTP/1.1 itself and uses one goroutine per connection — ther
 
 No. The config is static JSON. `$variable` occurrences in `proxy_cache.key` and `proxy_set_header` are one-shot string substitutions, not expression evaluation.
 
-## Documentation
 
-| Document | Contents |
-| --- | --- |
-| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | Deployment and operations: config keys, sites, certificates, proxy, cache, WAF |
-| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | The same guide in Chinese |
-| [docs/usage.md](docs/usage.md) | In-repo source of the usage guide; `docs/usage.html` is generated from it and ships with releases |
-| [docs/feature/](docs/feature/README.md) | One page per feature, with config samples and implementation notes |
-| [docs/develop/](docs/develop/README.md) | Build environment, tests, code standards, adding config keys, debugging, release |
-| [docs/architecture.html](docs/architecture.html) | Architecture diagram ([PNG](docs/images/architecture.png) / [dark PNG](docs/images/architecture-dark.png)): layers and the request path |
-| [docs/architecture-map.md](docs/architecture-map.md) | Package inventory and dependency direction |
-
-The full index is [docs/README.md](docs/README.md).
 
 ## Project Structure
 
