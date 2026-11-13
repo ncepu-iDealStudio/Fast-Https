@@ -1,4 +1,10 @@
-/* 状态徽标 —— 从 App.vue 的 <style scoped> 抽出，属于通用组件层。 */
-.badge { font-size: var(--fs-xs); padding: 2px var(--sp-2); border-radius: 999px; }
-.badge--ok { color: var(--ok); background: var(--accent-soft); }
-.badge--off { color: var(--faint); background: var(--accent-soft); }
+/* 状态徽标 —— 沿用旧版 .st-badge 的中性色圆角块。 */
+.badge {
+  display: inline-flex; align-items: center;
+  font-size: 11px; line-height: 1.5;
+  padding: 1px 8px;
+  border: 1px solid var(--line-strong); border-radius: 10px;
+  color: var(--muted); background: var(--accent-soft);
+}
+.badge--ok { color: var(--ok); border-color: var(--ok); }
+.badge--off { color: var(--faint); }

@@ -10,12 +10,20 @@ export type PaneKey =
 
 const MODE_KEY = 'fast-https.mode';
 const PANE_KEY = 'fast-https.pane';
+const VALID_PANES: readonly PaneKey[] = [
+  'overview', 'matrix', 'sites', 'certs', 'logs', 'runtime', 'operations', 'settings',
+];
+
+function initialPane(): PaneKey {
+  const saved = localStorage.getItem(PANE_KEY) as PaneKey | null;
+  return saved && VALID_PANES.includes(saved) ? saved : 'overview';
+}
 
 export const useAppStore = defineStore('app', () => {
   const savedMode = localStorage.getItem(MODE_KEY);
   const mode = ref<'light' | 'dark'>(savedMode === 'dark' ? 'dark' : 'light');
   const lang = ref<Lang>(readStoredLang());
-  const pane = ref<PaneKey>((localStorage.getItem(PANE_KEY) as PaneKey | null) ?? 'overview');
+  const pane = ref<PaneKey>(initialPane());
 
   function applyMode(): void {
     document.documentElement.setAttribute('data-mode', mode.value);

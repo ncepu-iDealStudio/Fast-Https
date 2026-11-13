@@ -1,13 +1,79 @@
-/* FhField.vue —— 统一表单行的 grid，从 SFC 的 <style scoped> 抽出。
+/* FhField.vue —— 统一表单行的 grid，沿用旧版 .form-row 规格。
    所有弹窗共用这一份列宽与间距，避免控件对不齐。 */
 .fh-field {
   display: grid;
   grid-template-columns: var(--field-w) minmax(0, 1fr);
   gap: var(--field-row-gap);
-  padding: var(--sp-1) 0;
+  padding: 6px 0;
   align-items: start;
 }
-.fh-field__label { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; }
-.fh-field__title { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
-.fh-field__hint { font-size: var(--fs-xs); line-height: 1.6; color: var(--faint); }
+.fh-field__label { font-size: 13px; line-height: 1.5; }
+.fh-field__title { font-weight: 600; }
+.fh-field__hint {
+  display: block; margin-top: 2px;
+  font-size: 11px; line-height: 1.5; color: var(--faint);
+}
 .fh-field__control { min-width: 0; }
+
+/* ---------------------------------------------------------------- 表单控件基元
+   旧版 components.css 的输入框 / 复选框 / 下拉规范，作为全局基元保留。
+   新组件与后续迁移的页面都复用，避免各自写一套导致「框乱」。 */
+.fh-field__control input[type="text"],
+.fh-field__control input[type="number"],
+.fh-field__control input[type="email"],
+.fh-field__control input[type="password"],
+.fh-field__control select,
+.fh-field__control textarea {
+  width: 100%; max-width: 560px; height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text);
+  font: inherit; font-size: 13px;
+}
+.fh-field__control textarea {
+  height: auto; min-height: 62px; padding: 8px 10px; resize: vertical;
+  font: 12px/1.6 var(--font-mono);
+}
+.fh-field__control input:focus,
+.fh-field__control select:focus,
+.fh-field__control textarea:focus {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.fh-field__control input[type="number"] { max-width: 180px; }
+.fh-field__control input[type="email"] { max-width: 340px; }
+.fh-field__control select { max-width: 340px; }
+
+.fh-field__control input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 16px; height: 16px; flex: 0 0 16px; margin: 0; position: relative;
+  border: 1px solid var(--line-strong); border-radius: 4px;
+  background: var(--bg); cursor: pointer;
+}
+.fh-field__control input[type="checkbox"]:checked {
+  background: var(--accent); border-color: var(--accent);
+}
+.fh-field__control input[type="checkbox"]::after {
+  content: ""; position: absolute; left: 5px; top: 1.5px;
+  width: 4px; height: 8px;
+  border: solid var(--accent-ink); border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg); opacity: 0;
+}
+.fh-field__control input[type="checkbox"]:checked::after { opacity: 1; }
+
+/* 多列小字段与说明文字（旧版 .inline-fields / .mini-field / .field-note） */
+.fh-field__control .inline-fields {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 6px;
+}
+.fh-field__control .mini-field {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--muted); white-space: nowrap;
+}
+.fh-field__control .mini-field input[type="number"] { width: 84px; max-width: 84px; }
+.fh-field__control .field-note {
+  display: block; margin-top: 4px;
+  font-size: 11px; line-height: 1.5; color: var(--faint);
+}
+.fh-field__control .choice-group {
+  display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 0;
+}

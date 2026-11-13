@@ -47,7 +47,7 @@ onMounted(() => {
     <div v-else class="main__body">
       <section class="placeholder">
         <p>{{ paneTitle }}</p>
-        <small>{{ t('nav.group') }} · {{ paneTitle }}</small>
+        <small>{{ t('nav.group') }}</small>
       </section>
     </div>
   </AppLayout>

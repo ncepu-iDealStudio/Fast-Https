@@ -1,39 +1,107 @@
-/* 窗口骨架与导航：Frameless 顶栏 + 侧边导航 + 主区。
-   从 App.vue 的 <style scoped> 抽出，作用域改为全局类名（见 README.md）。 */
+/* 窗口骨架与导航：尺寸、比例、拖拽区、选中态均沿用旧版设计。
+   从旧 src/styles/{base,layout}.css 迁移到新类名结构，细节一条不丢。 */
 
-.window { height: 100%; display: flex; flex-direction: column; background: var(--surface); }
+.window {
+  width: 100%; height: 100vh;
+  display: flex; flex-direction: column;
+  position: relative; overflow: hidden;
+}
 
+/* 顶部通栏：52px 高，只放 logo 与自绘窗口按钮 */
 .topbar {
-  height: 40px; flex: 0 0 40px; display: flex; align-items: center; justify-content: space-between;
-  padding: 0 var(--sp-3); background: var(--panel); border-bottom: 1px solid var(--line);
+  height: 52px; flex: 0 0 52px;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 12px 0 20px;
+  background: var(--bg);
+  --wails-draggable: drag;
   -webkit-app-region: drag;
+  -webkit-user-select: none; user-select: none;
+  border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: baseline; gap: var(--sp-2); }
-.brand .mark { width: 20px; height: 20px; align-self: center; }
-.brand b { font-size: var(--fs-lg); }
-.brand small { font-size: 10px; letter-spacing: .12em; color: var(--faint); }
+.topbar button { --wails-draggable: no-drag; -webkit-app-region: no-drag; }
 
-.win-controls { display: flex; gap: 2px; -webkit-app-region: no-drag; }
-.win-btn {
-  width: 30px; height: 28px; display: grid; place-items: center;
-  border: none; background: transparent; color: var(--muted); border-radius: var(--radius-sm);
+.brand { display: flex; align-items: center; gap: 9px; }
+/* 应用图标来自 frontend/public/appicon.png，dev 与生产同一路径 */
+.mark { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 4px; object-fit: contain; }
+.brand b { font-size: 15px; letter-spacing: -.02em; }
+.brand small { font-size: 10px; letter-spacing: .16em; color: var(--faint); }
+
+/* 窗口按钮按系统原生比例：46px 宽、撑满通栏高度、直角 */
+.win-controls {
+  display: flex; align-items: stretch; align-self: stretch;
+  margin-left: auto; margin-right: -12px;
 }
-.win-btn svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.2; }
+.win-btn {
+  width: 46px; border: 0; border-radius: 0;
+  background: transparent; color: var(--muted); cursor: pointer;
+  display: grid; place-items: center;
+}
+.win-btn svg {
+  width: 10px; height: 10px; fill: none; stroke: currentColor;
+  stroke-width: 1.1; stroke-linecap: round;
+}
 .win-btn:hover { background: var(--accent-soft); color: var(--text); }
-.win-btn.close:hover { background: var(--danger); color: #fff; }
+.win-btn.close:hover { background: #c0392b; color: #fff; }
 
 .app { flex: 1; display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); min-height: 0; }
-.sidebar { padding: var(--sp-3); border-right: 1px solid var(--line); overflow-y: auto; }
-.group { padding: var(--sp-2) var(--sp-2); font-size: var(--fs-xs); color: var(--faint); }
-.nav-item {
-  width: 100%; display: flex; align-items: center; gap: var(--sp-2);
-  padding: var(--sp-2); margin-bottom: 2px; border: none; border-radius: var(--radius-md);
-  background: transparent; color: var(--muted); font-size: var(--fs-md); text-align: left;
-}
-.nav-item:hover { background: var(--accent-soft); color: var(--text); }
-.nav-item.on { background: var(--accent-soft); color: var(--text); font-weight: 600; }
 
-.main { display: flex; flex-direction: column; min-width: 0; }
-.main__head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5) var(--sp-3); }
+/* 左侧导航：选中态是中性色圆角块，没有左侧竖指示条 */
+.sidebar {
+  background: var(--bg);
+  display: flex; flex-direction: column; min-height: 0;
+  padding-top: 14px; overflow: hidden;
+  border-right: 1px solid var(--line);
+}
+.group {
+  height: 28px; flex: 0 0 28px;
+  display: flex; align-items: center;
+  padding: 0 18px;
+  font-size: 11px; letter-spacing: .08em; color: var(--faint);
+}
+.nav-item {
+  height: 38px; flex: 0 0 38px;
+  margin: 0 10px 2px; width: calc(100% - 20px);
+  display: flex; align-items: center; gap: 10px; padding: 0 12px;
+  border: 0; border-radius: 6px;
+  background: transparent; color: var(--text);
+  font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.nav-item:hover { background: var(--surface); }
+.nav-item.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+/* 底部账户 / 设置区（旧版 .side-foot） */
+.side-foot-wrap { margin-top: auto; flex: 0 0 52px; }
+.side-foot {
+  width: 100%; height: 52px;
+  border: 0; border-top: 1px solid var(--line);
+  background: var(--bg); color: var(--text);
+  display: flex; align-items: center; gap: 9px; padding: 0 14px;
+  font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+}
+.side-foot:hover { background: var(--surface); }
+.acct-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-caret { margin-left: 2px; color: var(--faint); opacity: .6; }
+.avatar {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent-soft); border: 1px solid var(--line-strong);
+  display: grid; place-items: center;
+  color: var(--accent); font-size: 10px; font-weight: 600;
+}
+
+/* 工作区 */
+.main {
+  background: var(--surface);
+  display: flex; flex-direction: column;
+  min-width: 0; min-height: 0; overflow: hidden;
+}
+.main__head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 32px 8px;
+}
 .main__head h1 { margin: 0; font-size: var(--fs-xl); font-weight: 600; }
-.main__body { flex: 1; padding: 0 var(--sp-5) var(--sp-5); overflow-y: auto; }
+.main__body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column;
+  padding: 8px 32px 20px;
+}

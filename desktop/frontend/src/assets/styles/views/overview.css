@@ -1,17 +1,38 @@
-/* 概览页：状态卡片网格与迁移占位块。
-   从 App.vue 的 <style scoped> 抽出；后续每个 pane 一个同名文件放这里。 */
+/* 概览页：状态卡片网格与迁移占位块。卡片质感沿用旧版 components.css。 */
 
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--sp-3); }
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
 
-.card { padding: var(--sp-4); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-.card__k { font-size: var(--fs-sm); color: var(--muted); }
-.card__v { margin-top: var(--sp-2); font-size: var(--fs-xl); font-weight: 600; }
-.card--error { color: var(--danger); font-size: var(--fs-sm); grid-column: 1 / -1; }
+.card {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(16, 20, 28, .03);
+}
+.card__k { font-size: 12px; color: var(--muted); }
+.card__v { margin-top: 8px; font-size: var(--fs-xl); font-weight: 600; line-height: 1.4; }
+.card--error {
+  color: var(--danger); font-size: var(--fs-sm);
+  grid-column: 1 / -1; margin-bottom: 0;
+}
 
 .mono { font-family: var(--font-mono); }
 
+/* 未完成 pane 的占位块：虚线框保持与卡片一致的留白 */
 .placeholder {
-  padding: var(--sp-5); color: var(--muted); background: var(--panel);
-  border: 1px dashed var(--line-strong); border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
 }
-.placeholder small { display: block; margin-top: var(--sp-2); font-size: var(--fs-xs); color: var(--faint); }
+.placeholder p { margin: 0; font-size: 13px; }
+.placeholder small {
+  display: block; margin-top: 8px;
+  font-size: 11px; color: var(--faint);
+}
