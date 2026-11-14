@@ -344,6 +344,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) (int, error) 
 	headCode := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
 	status, _ := strconv.Atoi(headCode)
 	logProxyAccess(ev, status, len(ev.RR.Res.Body))
+	// 这里只说明响应已经读完。HTTP 500 也算网络成功，不在这里改健康判断。
 	noteUpstreamOK(p.ProxyAddr)
 
 	return status, nil

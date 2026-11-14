@@ -56,6 +56,20 @@ func TestHealthUsesRecentWindow(t *testing.T) {
 	}
 }
 
+func TestReceivedHTTPResponseIsNetworkSuccess(t *testing.T) {
+	ResetMetricsForTest()
+	t.Cleanup(ResetMetricsForTest)
+	now := time.Date(2026, 11, 14, 3, 0, 0, 0, time.UTC)
+	healthNow = func() time.Time { return now }
+	t.Cleanup(func() { healthNow = time.Now })
+	// getDataFromServer 在读完响应后调用 noteUpstreamOK，不看状态码。
+	noteUpstreamOK("10.2.0.1:8080")
+	got := healthByAddr(t)
+	if got["10.2.0.1:8080"].Health != "healthy" {
+		t.Fatalf("a received response was not network-healthy: %+v", got["10.2.0.1:8080"])
+	}
+}
+
 func TestRecentFailureIsUnhealthy(t *testing.T) {
 	ResetMetricsForTest()
 	t.Cleanup(ResetMetricsForTest)

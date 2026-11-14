@@ -63,6 +63,7 @@ func noteReadTimeout(addr string) {
 }
 
 // noteUpstreamOK 记录一次已经拿到上游响应的请求。拨号或超时失败不走这里。
+// 状态码不参与判断：能读完响应就是网络成功。
 func noteUpstreamOK(addr string) {
 	noteAddr(metricAddr(addr), func(c *addrCounters) {
 		c.samples.Add(1)
@@ -119,7 +120,8 @@ type AddrStats struct {
 	SendTimeoutTotal uint64 `json:"send_timeout_total"`
 	ReadTimeoutTotal uint64 `json:"read_timeout_total"`
 	Healthy          bool   `json:"healthy"`
-	// Health 是当前窗口内的判断：healthy、unhealthy、unknown。
+	// Health 是最近一分钟的网络健康：拨号、发送和读取是否成功。
+	// 收到 HTTP 响应就算成功，包括 4xx 和 5xx。它不是业务健康，也不能单凭 5xx 比例摘除地址。
 	// Healthy 只在 Health 为 healthy 时为 true。累计失败次数不单独决定它。
 	Health  string `json:"health"`
 	Drained bool   `json:"drained"`

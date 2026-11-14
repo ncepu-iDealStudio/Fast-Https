@@ -74,7 +74,8 @@ type upstreamFact struct {
 	Drained bool   `json:"drained"`
 }
 
-// drainStep 只在一个地址当前不健康、且另有健康地址时提出摘除。
+// drainStep 只根据网络健康提出摘除：一个地址当前 unhealthy，且另有明确 healthy 的地址。
+// 5xx 事件本身不是摘除证据。unknown 既不能当故障，也不能当备用。
 // unknown 既不算可摘除，也不算备用。已经 drained 的地址不再生成计划。
 func drainStep(classification, contextJSON string) []string {
 	if classification != "http_5xx_spike" && classification != "port_unreachable" {
