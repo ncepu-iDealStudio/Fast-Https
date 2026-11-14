@@ -1,17 +1,32 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { Plus, Power, Trash2, RefreshCw } from '@lucide/vue';
+import { Plus, Power, Trash2, RefreshCw, Pencil } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useSitesStore } from '../../stores/sites';
 import FhButton from '../../components/ui/FhButton.vue';
+import SiteDialog from '../../components/common/SiteDialog.vue';
 import { messageOf } from '../../services/api/base';
 
 const { t } = useI18n();
 const sites = useSitesStore();
-const busy = ref<string>('');
+const busy = ref('');
 const notice = ref('');
+const dialogOpen = ref(false);
+const editingId = ref<string | undefined>(undefined);
 
 onMounted(() => { void sites.refresh(); });
+
+function openAdd(): void {
+  editingId.value = undefined;
+  dialogOpen.value = true;
+}
+function openEdit(id: string): void {
+  editingId.value = id;
+  dialogOpen.value = true;
+}
+async function onSaved(): Promise<void> {
+  await sites.refresh();
+}
 
 async function onToggle(id: string, enabled: boolean): Promise<void> {
   busy.value = id;
@@ -44,7 +59,7 @@ async function onDelete(id: string): Promise<void> {
       <FhButton :loading="sites.loading" @click="sites.refresh()">
         <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
       </FhButton>
-      <FhButton variant="primary">
+      <FhButton variant="primary" @click="openAdd">
         <Plus :size="14" /><span>{{ t('sites.add') }}</span>
       </FhButton>
     </div>
@@ -73,6 +88,9 @@ async function onDelete(id: string): Promise<void> {
           </span>
         </span>
         <span class="table__ops">
+          <button class="icon-btn" :title="t('sites.detail')" @click="openEdit(s.id)">
+            <Pencil :size="14" />
+          </button>
           <button
             class="icon-btn" :disabled="busy === s.id"
             :title="s.enabled ? t('sites.toggleOn') : t('sites.toggleOff')"
@@ -89,5 +107,7 @@ async function onDelete(id: string): Promise<void> {
         </span>
       </div>
     </div>
+
+    <SiteDialog v-model:open="dialogOpen" :editing-id="editingId" @saved="onSaved" />
   </div>
 </template>

@@ -66,7 +66,7 @@
 
 /* 日志视图：等宽字体、按级别着色 */
 .logview {
-  flex: 1; min-height: 0; overflow: auto;
+  flex: 1; min-height: 240px; max-height: 60vh; overflow: auto;
   padding: 8px 0;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
   font: 12px/1.65 var(--font-mono);
@@ -75,3 +75,49 @@
 .logview__row:hover { background: var(--surface); }
 .logview__row--error { color: var(--danger); }
 .logview__row--warn { color: var(--warn); }
+
+/* ---------------------------------------------------------------- 弹窗内元素 */
+.dlg-source { margin: -4px 0 10px; font-size: 11px; line-height: 1.5; color: var(--faint); overflow-wrap: anywhere; }
+.dialog-error { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--danger); }
+
+/* 折叠区（高级配置 / 只读信息 / 原始 JSON） */
+.raw-details {
+  margin: 10px 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.raw-details > summary {
+  cursor: pointer; list-style: none;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  padding: 2px 0;
+}
+.raw-details > summary::-webkit-details-marker { display: none; }
+.raw-details > summary::before { content: "▸ "; color: var(--faint); }
+.raw-details[open] > summary::before { content: "▾ "; }
+.raw-details > summary:hover { color: var(--text); }
+.raw-details .field-note { margin: 4px 0 8px; }
+
+/* 键值表（只读信息） */
+.kv-table { margin-top: 6px; border-top: 1px solid var(--line-strong); }
+.kv-row {
+  display: grid; grid-template-columns: 130px minmax(0, 1fr);
+  gap: 12px; align-items: center;
+  min-height: 34px; border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.kv-row .k { color: var(--muted); }
+.kv-row .v { overflow-wrap: anywhere; }
+
+/* 原始 JSON / 命令输出 */
+.cmd-result {
+  margin: 8px 0 0; padding: 10px 12px;
+  max-height: 280px; overflow: auto;
+  font: 11.5px/1.7 var(--font-mono);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+/* 勾选组 */
+.choice-group { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 4px 0; }
+.choice-group .mini-field { gap: 6px; }
+
