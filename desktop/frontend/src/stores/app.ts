@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { Lang } from '../types/i18n';
 import { readStoredLang, storeLang } from '../i18n/config';
 import { switchLang } from '../i18n';
+import { translate } from '../composables/useI18n';
 
 export type PaneKey =
   | 'overview' | 'matrix' | 'sites' | 'certs' | 'logs'
@@ -41,14 +42,21 @@ export const useAppStore = defineStore('app', () => {
     lang.value = next;
     switchLang(next);
     storeLang(next);
+    applyMissingToken();
   }
   function activate(next: PaneKey): void {
     pane.value = next;
     localStorage.setItem(PANE_KEY, next);
   }
 
+  /** 「未配置」角标走 CSS 伪元素，文案要靠 CSS 变量喂进去（原版机制）。 */
+  function applyMissingToken(): void {
+    document.documentElement.style.setProperty('--i18n-missing', JSON.stringify(translate('settings.formMissing')));
+  }
+
   applyMode();
   document.documentElement.lang = lang.value === 'en-US' ? 'en' : lang.value;
+  applyMissingToken();
 
   return {
     mode, lang, pane,

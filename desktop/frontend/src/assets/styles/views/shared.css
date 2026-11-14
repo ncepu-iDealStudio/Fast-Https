@@ -140,10 +140,15 @@
   border-bottom: 1px solid var(--line);
 }
 .cfg-row:last-child { border-bottom: 0; }
-.cfg-row__label { font-size: 13px; line-height: 1.5; }
+.cfg-row__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+}
 .cfg-row__label small {
-  display: block; margin-top: 2px;
-  font-size: 11px; line-height: 1.5; color: var(--faint);
+  display: block; margin-top: 3px;
+  font-size: 11px; font-weight: 400; line-height: 1.5; color: var(--faint);
 }
 .cfg-row__control { min-width: 0; }
 .cfg-row__control input[type="text"],
@@ -165,7 +170,14 @@
 .cfg-row__control select { max-width: 340px; }
 .cfg-row--missing .cfg-row__label::after {
   content: var(--i18n-missing, "未配置");
-  margin-left: 6px; font-size: 10px; color: var(--warn);
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--warn);
+  background: rgba(167, 91, 10, .07);
+  border-radius: 8px;
+  padding: 0 6px;
+  vertical-align: 1px;
 }
 
 /* 路径列表：一行一个输入 + 浏览 + 删除 */
