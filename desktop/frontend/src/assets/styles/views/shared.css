@@ -190,5 +190,26 @@
 .filter-toggle:hover { color: var(--text); }
 .filter-toggle svg { transition: transform .15s; }
 
+/* ---------------------------------------------------------------- 操作记录 */
+.table__head--ops, .table__row--ops {
+  grid-template-columns: 150px minmax(0, 1.4fr) 92px 90px 90px;
+}
+.table__row--ops { cursor: pointer; }
+.table__head--certs, .table__row--certs {
+  grid-template-columns: minmax(0, 1.4fr) 110px minmax(0, 1.2fr);
+}
+.ops-filter {
+  height: 32px; padding: 0 8px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: 12px;
+}
+.ops-detail {
+  padding: 12px 16px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.ops-detail .kv-table { margin-top: 0; }
+
+
 
 
