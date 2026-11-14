@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
-import { RefreshCw, RotateCcw, ChevronDown } from '@lucide/vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { RefreshCw, RotateCcw, ChevronDown, Pause, Play } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { queryLogs } from '../../services/api/log';
 import { messageOf } from '../../services/api/base';
@@ -33,9 +33,28 @@ const hasMore = ref(false);
 const cursor = ref('');
 const loading = ref(false);
 const error = ref('');
-const statusText = ref('');
+const live = ref(true);
+
+const viewport = ref<HTMLElement | null>(null);
+let liveTimer: number | null = null;
+
+/** 日志时间只取 HH:MM:SS.mmm，日期在 title 里给全。 */
+function timeText(s?: string): string {
+  const m = String(s || '').match(/T(\d{2}:\d{2}:\d{2})(?:\.(\d{1,3}))?/);
+  return m ? m[1] + (m[2] ? '.' + m[2] : '') : (s || '—');
+}
+
+/** 状态码决定行的严重程度：5xx 报错、4xx 警告、其余正常。 */
+function rowTone(e: LogEntry): 'ok' | 'warn' | 'err' | '' {
+  const code = Number(String(e.status || '').replace(/\D.*$/, ''));
+  if (!code) return e.level === 'error' ? 'err' : '';
+  if (code >= 500) return 'err';
+  if (code >= 400) return 'warn';
+  return 'ok';
+}
 
 async function load(append = false): Promise<void> {
+  if (loading.value) return;
   loading.value = true;
   error.value = '';
   try {
@@ -49,19 +68,25 @@ async function load(append = false): Promise<void> {
       pathPrefix: filters.pathPrefix,
       reason: filters.reason,
       since: filters.since,
-      until: append ? (filters.until || '') : filters.until,
+      until: filters.until,
       cursor: append ? cursor.value : '',
     });
     rows.value = append ? [...rows.value, ...page.lines] : page.lines;
     hasMore.value = page.hasMore;
     cursor.value = page.nextUntil ?? '';
-    statusText.value = `${rows.value.length}${page.hasMore ? ' +' : ''}`;
   } catch (e) {
     error.value = messageOf(e);
-    rows.value = append ? rows.value : [];
+    if (!append) rows.value = [];
   } finally {
     loading.value = false;
   }
+}
+
+/** 滚到底部附近自动续拉（与原版一致：距底 < 120px 触发）。 */
+function onScroll(): void {
+  const el = viewport.value;
+  if (!el || loading.value || !hasMore.value) return;
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) void load(true);
 }
 
 function pickKind(k: string): void {
@@ -77,26 +102,57 @@ function reset(): void {
   void load();
 }
 
-onMounted(() => { void load(); });
+function setLive(on: boolean): void {
+  live.value = on;
+  if (liveTimer) { window.clearInterval(liveTimer); liveTimer = null; }
+  if (on) liveTimer = window.setInterval(() => { void load(); }, 5000);
+}
+
+const statusText = computed(() => {
+  const n = rows.value.length;
+  if (loading.value && !n) return t('logs.querying');
+  return hasMore.value ? t('logs.statusLoaded', { n }) : t('logs.statusOldest');
+});
+
+watch(live, (on) => setLive(on));
+
+onMounted(() => {
+  void load();
+  setLive(live.value);
+});
+onUnmounted(() => { if (liveTimer) window.clearInterval(liveTimer); });
+
+// 换筛选后把视口滚回顶部，避免停在上一批的末尾
+watch(() => filters.kind, () => nextTick(() => { if (viewport.value) viewport.value.scrollTop = 0; }));
 </script>
 
 <template>
-  <div class="main__body">
+  <div class="main__body logs-page">
     <p class="lede" v-html="t('logs.lede')" />
 
     <div class="toolbar">
-      <button
-        v-for="k in KINDS" :key="k.key"
-        class="tab" :class="{ 'tab--on': filters.kind === k.key }"
-        @click="pickKind(k.key)"
-      >{{ t(k.label) }}</button>
+      <div class="seg">
+        <button
+          v-for="k in KINDS" :key="k.key"
+          class="seg__item" :class="{ 'seg__item--on': filters.kind === k.key }"
+          @click="pickKind(k.key)"
+        >{{ t(k.label) }}</button>
+      </div>
       <FhButton :loading="loading" @click="load()">
         <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
       </FhButton>
       <FhButton @click="reset">
         <RotateCcw :size="14" /><span>{{ t('logs.reset') }}</span>
       </FhButton>
-      <span v-if="statusText" class="muted mono">{{ statusText }}</span>
+      <button
+        class="live-btn" :class="{ 'live-btn--on': live }"
+        :title="live ? t('logs.autoRefreshOn') : t('logs.autoRefreshOff')"
+        @click="setLive(!live)"
+      >
+        <component :is="live ? Pause : Play" :size="12" />
+        <span>{{ t('logs.autoRefresh') }}</span>
+      </button>
+      <span class="logs-count mono">{{ statusText }}</span>
     </div>
 
     <div class="filter-bar">
@@ -121,17 +177,37 @@ onMounted(() => { void load(); });
 
     <p v-if="error" class="notice notice--err">{{ error }}</p>
 
-    <div class="logview">
-      <div v-if="!rows.length && !loading" class="table__empty">{{ t('logs.empty') }}</div>
-      <div
-        v-for="(e, i) in rows" :key="i"
-        class="logview__row" :class="`logview__row--${e.level || 'plain'}`"
-        :title="e.raw || e.message"
-      >{{ e.message || e.raw }}</div>
-    </div>
-
-    <div v-if="hasMore" class="toolbar" style="justify-content: center; margin-top: 12px">
-      <FhButton :loading="loading" @click="load(true)">{{ t('logs.more') }}</FhButton>
+    <!-- 结构化日志表：一行一条记录，按列对齐，状态色编码严重程度。
+         表头与行放在同一个滚动容器内，宽度计算完全一致，不会错列。 -->
+    <div class="logtable">
+      <div ref="viewport" class="logtable__body" @scroll.passive="onScroll">
+        <div class="logtable__head">
+          <span>time</span>
+          <span>lvl</span>
+          <span>method</span>
+          <span>path</span>
+          <span>status</span>
+          <span>size</span>
+          <span>host / peer</span>
+        </div>
+        <div v-if="!rows.length && !loading" class="table__empty">{{ t('logs.empty') }}</div>
+        <div
+          v-for="(e, i) in rows" :key="`${e.time}-${i}`"
+          class="logrow" :class="`logrow--${rowTone(e)}`"
+          :title="e.raw || e.message"
+        >
+          <span class="logrow__time mono">{{ timeText(e.time) }}</span>
+          <span class="logrow__lvl mono">{{ e.level || '—' }}</span>
+          <span class="logrow__method mono">{{ e.method || '—' }}</span>
+          <span class="logrow__path mono">{{ e.path || e.message || '—' }}</span>
+          <span class="logrow__status mono">{{ e.status || '—' }}</span>
+          <span class="logrow__size mono">{{ e.size || '—' }}</span>
+          <span class="logrow__host mono">{{ e.host || '—' }}<template v-if="e.remoteAddr"> · {{ e.remoteAddr }}</template></span>
+        </div>
+        <div v-if="hasMore" class="logtable__more">
+          <FhButton :loading="loading" size="small" @click="load(true)">{{ t('logs.more') }}</FhButton>
+        </div>
+      </div>
     </div>
   </div>
 </template>

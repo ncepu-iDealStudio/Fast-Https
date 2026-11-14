@@ -64,17 +64,6 @@
 .tab:hover { border-color: var(--accent); color: var(--accent); }
 .tab--on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
-/* 日志视图：等宽字体、按级别着色 */
-.logview {
-  flex: 1; min-height: 240px; max-height: 60vh; overflow: auto;
-  padding: 8px 0;
-  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
-  font: 12px/1.65 var(--font-mono);
-}
-.logview__row { padding: 2px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.logview__row:hover { background: var(--surface); }
-.logview__row--error { color: var(--danger); }
-.logview__row--warn { color: var(--warn); }
 
 /* ---------------------------------------------------------------- 弹窗内元素 */
 .dlg-source { margin: -4px 0 10px; font-size: 11px; line-height: 1.5; color: var(--faint); overflow-wrap: anywhere; }

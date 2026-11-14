@@ -66,4 +66,5 @@ export interface LogEntry {
   status: string;
   size: string;
   host: string;
+  remoteAddr: string;
 }
