@@ -1,0 +1,10 @@
+{
+  "monitor_dir": "logs/monitor",
+  "state_dir": "state/agent",
+  "fast_https_bin": "fast-https",
+  "runtime_url": "http://127.0.0.1:9088/runtime",
+  "cert_warn_days": 30,
+  "model_url": "https://api.deepseek.com",
+  "model": "deepseek-chat",
+  "model_key": "sk-b7c056088cba49d29ff70446e335f879"
+}

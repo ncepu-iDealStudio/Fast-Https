@@ -10,6 +10,8 @@ fast-https.exe
 # 只忽略仓库根目录的编译产物：不加前导 / 会连 build/packaging/logrotate/fast-https 一起忽略
 /fast-https
 fast-https.pid
+# 本地 Agent 配置可含模型令牌，不入库
+/agent.json
 go.mod
 go.sum
 config/cert/*.pem
