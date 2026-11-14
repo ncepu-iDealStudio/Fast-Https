@@ -72,8 +72,13 @@ function openHelpDialog(): void {
 
 function onDocClick(e: MouseEvent): void {
   if (!open.value) return;
+  // WebView2 偶发把点击 target 给成脱离 DOM 的节点（Vue 重渲染瞬间），
+  // contains 会误判成「点在菜单外」，菜单刚点开就被关掉——表现为点不动。
+  // 防御：target 为空视为菜单内，不关闭。
+  const target = e.target as Node | null;
+  if (!target) return;
   const el = root.value;
-  if (el && !el.contains(e.target as Node | null)) close();
+  if (el && !el.contains(target)) close();
 }
 
 function onKeydown(e: KeyboardEvent): void {
@@ -106,7 +111,8 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <div v-if="open" class="account-menu" role="menu">
+    <!-- 菜单内点击不冒泡到 document：外点关闭只处理菜单外的点击 -->
+    <div v-if="open" class="account-menu" role="menu" @click.stop>
       <div class="menu-head">
         <img class="menu-logo" src="/appicon.png" alt="" />
         <div class="menu-head-text">
