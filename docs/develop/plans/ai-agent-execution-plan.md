@@ -1,6 +1,6 @@
 # fast-https AI Agent 第一阶段执行计划
 
-修订日期：2026-11-10。状态：**A1–A6 已实施**（只读诊断与待审批）。C6 的多上游与 `upstream drain`、C7 的 `cert renew` 通道已在 Server 侧落地。Agent 仍不能批准 `cert renew`。
+修订日期：2026-11-14。状态：**A1–A6 已实施**。其后又落地了人工批准的 `upstream drain` / `upstream undrain`、执行后名单核对、心跳和 schema 版本。Agent 仍不能批准 `cert renew`。下面各节里的「本阶段」描述的是当时的交付，和后面的可靠性改造不是同一批。
 
 设计规范：[fast-https AI agent功能设计与开发规范.md](../../fast-https%20AI%20agent功能设计与开发规范.md)。  
 能力以扫描为准：[fast-https-AI-Agent源码扫描报告.md](../../fast-https-AI-Agent源码扫描报告.md)。  
@@ -21,7 +21,7 @@ Server / Monitor 上要补的观测和写接口另见 [ai-agent-server-gap-plan.
 5. 策略结果只有 `ALLOW` 的空操作、`REQUIRE_APPROVAL`、`DENY`。没有任何写命令进入 `ALLOW`。
 6. 追加审计。进程重启后从 SQLite 恢复未完成任务。
 
-CLI 增加只读的 `agent status|tasks|task get|approvals`。DSH 以后用 SSH 调这四条。本阶段没有 `agent approve`。
+CLI 有 `agent status|tasks|task get|approvals`，以及后来加上的 `agent approve`。DSH 以后用 SSH 调这些命令。
 
 ## 2. 不做
 
@@ -113,7 +113,7 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 | 现有基础 | Monitor 已经把 `5xx_ratio`、`unreachable` 等判断做完。Agent 不再重算阈值 |
 | 新增文件 | `agent/diagnose.go`、`agent/plan.go`、`agent/policy.go` 及测试 |
 | 接口 | 输入任务 + 上下文。输出诊断字段：分类、对象、原因、影响、证据（引用上下文键）、是否需要人工。计划字段：`plan_id`、`event_id`、步骤、风险、验证方式、失败处理 |
-| 数据 | 行写入 `agent_diagnosis`、`agent_plan`。`5xx_ratio` 与 `stuck_suspected`、`port_probe` 的计划为 `REQUIRE_APPROVAL` 且步骤为空，任务进入 `WAITING_APPROVAL` 并插入 `agent_approval`。`collect_error` 进入 `ESCALATED`。无法识别的 `type` 进入 `ESCALATED`，不执行 |
+| 数据 | 行写入 `agent_diagnosis`、`agent_plan`。没有可执行步骤时任务是 `WAITING_HUMAN`，不插入待审批。恰好一条当前可摘除的 `upstream drain` 才是 `WAITING_APPROVAL`。`collect_error` 与无法识别的 `type` 进入 `ESCALATED`，不执行 |
 | 依赖 | A2 |
 | 验收 | 构造一条 `5xx_ratio`，得到 `http_5xx_spike` 诊断，策略不是 `ALLOW` 的写操作。构造 `message` 含 `Ignore previous instructions` 的事件，审计与计划里保留原文，策略不因此出现新动作 |
 | 测试 | `TestDiagnoseMapping`、`TestPolicyDeniesMutations`、`TestInjectionIsData`、`TestRecoveredClosesUnreachable` |
@@ -133,7 +133,7 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 | 接口 | 仅 `cert list --json`。阈值默认 30 天，配置项 `cert_warn_days` |
 | 数据 | 合成事件类型 `certificate_expiring`。若 `events.jsonl` 里已经有同一证书的该事件，不再插第二条任务。`event_id` 在需要合成时由域名 + `not_after` 哈希。同一证书同一到期日不重复开任务 |
 | 依赖 | A2、A3 |
-| 验收 | `days_left` 小于阈值生成 `WAITING_APPROVAL`。大于等于阈值不生成。CLI 失败时记审计，不编造证书状态 |
+| 验收 | `days_left` 小于阈值生成 `WAITING_HUMAN`（没有续期步骤）。大于等于阈值不生成。CLI 失败时记审计，不编造证书状态 |
 | 测试 | `TestCertPollThreshold`，CLI 替身返回夹具 JSON |
 
 ### A5 只读查询
@@ -146,7 +146,7 @@ monitor/events.jsonl  --尾读--->  agent/          写 FASTHTTPS_AGENT_DIR/agen
 | 目标 | DSH 能用现有 CLI 风格读到任务与待审批 |
 | 现有基础 | `management/monview`、`cmd/monitor.go`、`cmd/cli_output.go` |
 | 新增文件 | `management/agentview/agentview.go`、`cmd/agent.go`、`cmd/cli_agent_test.go`；在 `cmd/commands.go` 注册 |
-| 接口 | 扫描报告 4.5 的四条命令。未知子命令退出码 2。库文件不存在时 `agent status` 为 `not_running`，退出码 0。打开方式为只读 |
+| 接口 | 扫描报告 4.5 的四条命令，外加后来的 `agent approve`。未知子命令退出码 2。库文件不存在或没有心跳时 `agent status` 为 `unknown`，退出码 0。查询打开方式为只读 |
 | 数据 | 只读 `agent.db`。不创建任务 |
 | 依赖 | A1 的表结构稳定之后。可与 A3 并行编写读取测试 |
 | 验收 | `--json` 的 stdout 只有一个对象。待审批列表不含私钥、不含 `ssl_certificate_key`。只读打开不得改变库文件大小 |
@@ -183,7 +183,7 @@ A5 只依赖表结构，可以在 A3 之后立即做，让诊断结果能被看�
 | --- | --- |
 | 15.1 独立启动、解耦、收事件、持久化、重启恢复、采集上下文、结构化诊断和计划 | A1–A3、A6 |
 | 15.2 独立策略、白名单、模型不能执行 Shell、未授权不执行、高风险须审批、审计 | A3。重试上限：同一任务自动流程只跑一遍，失败进入 `FAILED` 或 `ESCALATED`，不循环写操作。冷却沿用 Monitor 已有冷却，Agent 不再对同一 `event_id` 开第二次任务 |
-| 15.3 自动修复、修复验证、批准后执行 | **本阶段不做。** 没有可安全自动执行的写接口。待审批只记录、可查询 |
+| 15.3 自动修复、修复验证、批准后执行 | 第一阶段不做自动修复。后来的 `agent approve` 只执行一条已写好的 drain 或 undrain，并核对名单。没有其他自动写动作 |
 | 15.4 Agent 停止不影响 Server；模型不可用 | 无模型依赖，故降级条款不适用。解耦由分层测试与「Server 不 import agent」保证 |
 | 12.1 Upstream 自动摘除 | 阻塞于 `upstream-failover-plan.md`。该计划落地并提供明确的 CLI 之后，再单独立项把对应动作加入策略表 |
 | 12.2 502/504 | 诊断引用 `/runtime` 的 `responses_502_total` 与 `responses_504_total`。Monitor 仍只有 `5xx_ratio` 事件，不另写 502/504 规则 |
@@ -196,4 +196,4 @@ A5 只依赖表结构，可以在 A3 之后立即做，让诊断结果能被看�
 1. Upstream 故障转移本身（已有计划），然后才是摘除动作的策略与验证。
 2. 审批后的 `cert renew`。回环令牌通道已经落地，策略表仍拒绝这条命令，要单独再开批准步骤。
 3. 本地模型只改写诊断说明。已实现：配置 `FASTHTTPS_AGENT_MODEL_URL` 后走 OpenAI 兼容接口；超时、失败或说明里出现写命令时保留规则原文。分类、步骤和策略仍由 Go 决定。
-4. `agent approve`：只执行计划里已经写好的一条 `upstream drain` 或 `upstream undrain`。批准时核对 `plan_id` 与步骤哈希。哈希不一致或会摘掉最后一个地址时不改名单。模型不能把该步骤改成自动执行。`cert renew` 仍不能批准。
+4. `agent approve` 已实现：只执行计划里已经写好的一条 `upstream drain` 或 `upstream undrain`。批准时重算计划哈希，用条件更新占用审批，写完名单后核对。哈希不一致、会摘掉最后一个地址，或健康状态不再允许摘除时不改名单。`undrain` 后若快照不是 `healthy`，任务停在 `WAITING_HUMAN`。模型不能把该步骤改成自动执行。`cert renew` 仍不能批准。

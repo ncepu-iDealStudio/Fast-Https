@@ -1,6 +1,6 @@
 # fast-https 核心补齐计划（为 AI Agent）
 
-修订日期：2026-11-10。状态：**C1–C7 已实施。** C7 只开放 CLI 续期通道。Agent 批准 `cert renew` 仍是 DENY。
+修订日期：2026-11-14。状态：**C1–C7 已实施。** C7 只开放 CLI 续期通道。Agent 批准 `cert renew` 仍是 DENY。Agent 侧的事务、审批占用、名单核对、心跳和 schema 版本见 `ai-agent-reliability-batch-0-result.md` 到 `batch-3-result.md`，那些不改变本表里的 Server 缺口结论。
 
 依据：[fast-https-AI-Agent源码扫描报告.md](../../fast-https-AI-Agent源码扫描报告.md)。  
 Agent 进程用 Go 实现，见规范第 1.4 节。本文不改语言选择，只列 Server、Monitor 与管理核心上还缺的观测和受控操作。Agent 任务在 [ai-agent-execution-plan.md](ai-agent-execution-plan.md)。

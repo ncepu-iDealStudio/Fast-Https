@@ -1,20 +1,21 @@
 # 22. 独立 AI Agent
 
-状态：✅ 第一阶段已实现（只读诊断与待审批）。自动摘除上游和证书续期未做。
+状态：✅ 已实现只读诊断，以及经人工批准的 `upstream drain` / `upstream undrain`。证书续期不能由 Agent 批准。
 
 ## 功能
 
 `agent` 是独立于 Server 的进程。它尾读 Monitor 的 `events.jsonl`，用固定参数调用本机 `fast-https` 的只读命令，并直接 `GET /runtime`。然后按事件类型写诊断和计划。
 
-本阶段不调用模型，不执行 `config apply`、`service reload`、摘除上游、证书续期或重启。写操作在策略里是 `DENY`。需要人看的计划进入 `WAITING_APPROVAL`，可用 CLI 查询，还没有 `agent approve`。
+模型只改写诊断说明。`config apply`、`service reload`、证书续期和重启仍是 `DENY`。有一条合法摘除或恢复步骤时任务进入 `WAITING_APPROVAL`，要用 `agent approve <plan-id> --yes` 才会执行。没有可执行步骤时进入 `WAITING_HUMAN`，不进审批队列。
 
 停掉 Agent 不影响业务端口和 `/runtime`。Server 不 import `agent`。
 
 | Monitor `type` | 结果 |
 | --- | --- |
-| `5xx_ratio`、`port_probe`、`stuck_suspected`、`certificate_expiring` | `WAITING_APPROVAL`，步骤为空 |
+| `5xx_ratio`、`port_probe` | 恰好一个地址当前 `unhealthy`、另有 `healthy` 地址、且目标未摘除时，生成一条 `upstream drain`，任务为 `WAITING_APPROVAL`。否则 `WAITING_HUMAN`，步骤为空 |
+| `stuck_suspected`、`certificate_expiring` | `WAITING_HUMAN`，没有可执行步骤 |
 | `unreachable`、`collect_error`、无法识别的类型 | `ESCALATED` |
-| `recovered` | 把同一次启动里未关闭的 `unreachable` 标为 `COMPLETED` |
+| `recovered` | 只关闭同一 `started_at` 下恰好一条更早的 `unreachable`。多于一条时都不关闭，恢复任务进入 `WAITING_HUMAN` |
 | `restarted` | 只记录，`COMPLETED` |
 
 `days_left` 低于 30 时，若事件文件里还没有这张证书的 `certificate_expiring`，Agent 会用 `cert list --json` 补一条。`cert list` 失败只记审计。
@@ -56,7 +57,7 @@ fast-https agent task get t_<event_id> --json
 fast-https agent approvals --json
 ```
 
-库文件不存在时 `agent status` 为 `not_running`，退出码 0。
+库文件不存在或没有心跳时 `agent status` 为 `unknown`，退出码 0。心跳在 30 秒内是 `online`，更旧是 `offline`。
 
 ## 实现方案
 
@@ -72,7 +73,7 @@ fast-https agent approvals --json
 
 ## 已知限制
 
-- 不自动修改配置，不摘除上游，不续期证书。
+- 支持的写动作只有人工批准后的一条 `upstream drain` 或 `upstream undrain`。批准会重算计划哈希，先占住 `pending` 审批，写 operation，再改名单。名单核对通过才把任务标成 `COMPLETED`。`undrain` 后快照不是 `healthy` 时停在 `WAITING_HUMAN`。不能批准证书续期。
 - 模型可选。设置 `FASTHTTPS_AGENT_MODEL_URL`（以及可选的 `FASTHTTPS_AGENT_MODEL_EXTERNAL_URL`）后，只重写诊断说明。没配置、超时，或说明里出现写命令时，仍用规则原文。策略和步骤不交给模型。
 - 不打包进 deb/rpm，也没有 systemd 单元。
 - 待审批可以查看。`agent approve <plan-id> --yes` 只执行计划里唯一的 `upstream drain` 或 `upstream undrain`。哈希对不上，或会摘掉最后一个地址时，名单不变。不能批准证书续期或其他写命令。

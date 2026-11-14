@@ -30,6 +30,6 @@ HTTP/HTTPS 反向代理：转发到 `proxy_pass` 上游、请求头改写、上�
 
 ## 已知限制
 
-- 多地址只做轮询，以及拨号失败或超时后的下一次尝试。没有权重、会话保持和主动探测。摘除名单不改 `proxy_pass`，计数里的 `healthy` 在该地址失败过一次后保持 false，直到进程重启。
+- 多地址只做轮询，以及拨号失败或超时后的下一次尝试。没有权重、会话保持和主动探测。摘除名单不改 `proxy_pass`。`health` 看最近一分钟：成功晚于失败是 `healthy`，失败晚于成功是 `unhealthy`，没有样本或已过窗口是 `unknown`。`healthy` 只在 `health` 为 `healthy` 时为 true。累计失败次数仍然保留。
 - HTTPS 上游 `InsecureSkipVerify: true`（不校验上游证书）。
 - 响应不做压缩（客户端接受压缩而上游未压时透传原文）。
