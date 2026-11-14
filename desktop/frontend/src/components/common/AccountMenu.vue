@@ -1,17 +1,14 @@
 <script setup lang="ts">
 /**
- * 左下角「本机管理」账户菜单：外观切换、语言切换、设置入口、隐藏到托盘、帮助文档。
+ * 左下角「本机管理」账户菜单：外观（三张图标卡片）、语言（下拉框）、
+ * 设置入口、隐藏到托盘、帮助文档。
  * 语言列表从 i18n 的 LANGS 注册表生成，label 用各语言自己的写法；
  * 新增语言只要在注册表加一行，这里不用改。
- *
- * 组件自带触发按钮（.side-foot）与面板（.account-menu）：面板按旧版规格
- * 绝对定位在窗口左下角，放进侧栏底部即可，不需要父组件再传状态。
- * 帮助弹窗也由本组件持有，点击「帮助文档」直接打开。
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronDown, Settings2 } from '@lucide/vue';
+import { ChevronDown, Settings2, Sun, Moon, Monitor } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
-import { useAppStore } from '../../stores/app';
+import { useAppStore, type ThemeMode } from '../../stores/app';
 import { LANGS } from '../../i18n/config';
 import { hideWindow } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
@@ -31,8 +28,9 @@ const langItems = computed(() =>
   (Object.entries(LANGS) as [Lang, { label: string }][]).map(([code, l]) => ({ code, label: l.label })));
 
 const modes = computed(() => [
-  { key: 'light' as const, label: 'menu.light' },
-  { key: 'dark' as const, label: 'menu.dark' },
+  { key: 'light' as ThemeMode, label: 'menu.light', icon: Sun },
+  { key: 'dark' as ThemeMode, label: 'menu.dark', icon: Moon },
+  { key: 'system' as ThemeMode, label: 'menu.system', icon: Monitor },
 ]);
 
 function close(): void {
@@ -44,13 +42,12 @@ function toggle(): void {
   error.value = '';
 }
 
-function setMode(mode: 'light' | 'dark'): void {
-  if (app.mode !== mode) app.toggleMode();
+function setMode(mode: ThemeMode): void {
+  app.setMode(mode);
 }
 
 function pickLang(code: Lang): void {
-  if (app.lang !== code) app.changeLang(code);
-  close();
+  app.changeLang(code);
 }
 
 function gotoSettings(): void {
@@ -118,25 +115,37 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div class="menu-title">{{ t('menu.appearance') }}</div>
-      <button
-        v-for="m in modes" :key="m.key" type="button" class="menu-item"
-        role="menuitemradio" :aria-checked="app.mode === m.key"
-        @click="setMode(m.key)"
-      >
-        <span>{{ t(m.label) }}</span>
-        <span class="menu-check">{{ app.mode === m.key ? '✓' : '' }}</span>
-      </button>
+      <!-- 语言：下拉框，一眼看到当前语言与全部选项 -->
+      <div class="menu-row">
+        <span class="menu-row__label">{{ t('common.language') }}</span>
+        <div class="menu-select">
+          <select
+            :value="app.lang" aria-label="Language"
+            @change="pickLang(($event.target as HTMLSelectElement).value as Lang)"
+          >
+            <option v-for="l in langItems" :key="l.code" :value="l.code">{{ l.label }}</option>
+          </select>
+        </div>
+      </div>
 
-      <div class="menu-title">{{ t('common.language') }}</div>
-      <button
-        v-for="l in langItems" :key="l.code" type="button" class="menu-item"
-        role="menuitemradio" :aria-checked="app.lang === l.code"
-        @click="pickLang(l.code)"
-      >
-        <span>{{ l.label }}</span>
-        <span class="menu-check">{{ app.lang === l.code ? '✓' : '' }}</span>
-      </button>
+      <div class="menu-sep" />
+
+      <!-- 外观：三张图标卡片，当前项高亮描边 -->
+      <div class="menu-row">
+        <span class="menu-row__label">{{ t('menu.appearance') }}</span>
+        <div class="mode-cards" role="radiogroup" aria-label="Appearance">
+          <button
+            v-for="m in modes" :key="m.key" type="button"
+            class="mode-card" :class="{ 'mode-card--on': app.mode === m.key }"
+            role="radio" :aria-checked="app.mode === m.key"
+            :title="t(m.label)"
+            @click="setMode(m.key)"
+          >
+            <component :is="m.icon" :size="16" />
+            <span>{{ t(m.label) }}</span>
+          </button>
+        </div>
+      </div>
 
       <div class="menu-sep" />
       <button type="button" class="menu-item" @click="gotoSettings">

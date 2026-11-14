@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import type { Lang } from '../types/i18n';
 import { readStoredLang, storeLang } from '../i18n/config';
 import { switchLang } from '../i18n';
@@ -8,6 +8,9 @@ import { translate } from '../composables/useI18n';
 export type PaneKey =
   | 'overview' | 'matrix' | 'sites' | 'certs' | 'logs'
   | 'runtime' | 'operations' | 'versions' | 'settings';
+
+/** 外观三态：亮 / 暗 / 跟随系统。跟随模式下 data-mode 随系统实时切换。 */
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 const MODE_KEY = 'fast-https.mode';
 const PANE_KEY = 'fast-https.pane';
@@ -24,20 +27,44 @@ function initialPane(): PaneKey {
   return saved && NAV_PANES.includes(saved) ? saved : 'overview';
 }
 
+function initialMode(): ThemeMode {
+  const saved = localStorage.getItem(MODE_KEY) as ThemeMode | null;
+  return saved === 'dark' || saved === 'system' ? saved : 'light';
+}
+
 export const useAppStore = defineStore('app', () => {
-  const savedMode = localStorage.getItem(MODE_KEY);
-  const mode = ref<'light' | 'dark'>(savedMode === 'dark' ? 'dark' : 'light');
+  const mode = ref<ThemeMode>(initialMode());
   const lang = ref<Lang>(readStoredLang());
   const pane = ref<PaneKey>(initialPane());
 
-  function applyMode(): void {
-    document.documentElement.setAttribute('data-mode', mode.value);
+  /** 系统当前的亮暗（跟随系统模式下用它）。 */
+  const systemDark = ref(
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false,
+  );
+  const mql: MediaQueryList | null =
+    typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null;
+  function onSystemChange(e: MediaQueryListEvent): void {
+    systemDark.value = e.matches;
+    if (mode.value === 'system') applyMode();
   }
-  function toggleMode(): void {
-    mode.value = mode.value === 'dark' ? 'light' : 'dark';
-    localStorage.setItem(MODE_KEY, mode.value);
+  mql?.addEventListener('change', onSystemChange);
+  onUnmounted(() => mql?.removeEventListener('change', onSystemChange));
+
+  /** data-mode 是 CSS 的唯一开关；system 折算成实际的亮或暗。 */
+  function applyMode(): void {
+    const effective = mode.value === 'system' ? (systemDark.value ? 'dark' : 'light') : mode.value;
+    document.documentElement.setAttribute('data-mode', effective);
+  }
+  function setMode(next: ThemeMode): void {
+    mode.value = next;
+    localStorage.setItem(MODE_KEY, next);
     applyMode();
   }
+
   function changeLang(next: Lang): void {
     lang.value = next;
     switchLang(next);
@@ -60,7 +87,9 @@ export const useAppStore = defineStore('app', () => {
 
   return {
     mode, lang, pane,
-    isDark: computed(() => mode.value === 'dark'),
-    toggleMode, changeLang, activate,
+    isDark: computed(() =>
+      mode.value === 'system' ? systemDark.value : mode.value === 'dark',
+    ),
+    setMode, changeLang, activate,
   };
 });
