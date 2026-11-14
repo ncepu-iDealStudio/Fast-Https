@@ -290,7 +290,9 @@ func executeClaimedApproval(cmd *cobra.Command, db *sql.DB, planID, taskID, acti
 
 func finishExecutingApproval(cmd *cobra.Command, db *sql.DB, planID, taskID, action, host string) error {
 	if !alreadyInState(action, host) {
-		_, _ = transitionTask(db, taskID, "EXECUTING", "WAITING_HUMAN")
+		if err := requireTransition(db, taskID, "EXECUTING", "WAITING_HUMAN"); err != nil {
+			return err
+		}
 		store := operation.Store{Dir: stateDir()}
 		if rec, found, err := store.Lookup("approve:" + planID); err == nil && found && rec.Status == operation.StatusRunning {
 			_, _ = store.Finish(rec, operation.StatusUnknown, "unconfirmed", nil, &operation.ErrorBody{Message: "result not confirmed"})
@@ -388,24 +390,30 @@ func applyApprovedDrain(action, host, cfgPath string) error {
 }
 
 func verifyAndFinish(cmd *cobra.Command, db *sql.DB, planID, taskID, action, host, cfgPath string, idempotent bool) error {
-	if _, err := transitionTask(db, taskID, "EXECUTING", "VERIFYING"); err != nil {
-		return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
+	if err := requireTransition(db, taskID, "EXECUTING", "VERIFYING"); err != nil {
+		return err
 	}
 	verified, health, err := verifyDrainEffect(action, host, cfgPath)
 	if err != nil {
-		_, _ = transitionTask(db, taskID, "VERIFYING", "WAITING_HUMAN")
+		if moveErr := requireTransition(db, taskID, "VERIFYING", "WAITING_HUMAN"); moveErr != nil {
+			return moveErr
+		}
 		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "drain result could not be confirmed", Cause: err}
 	}
 	if !verified.ConfigOK {
-		_, _ = transitionTask(db, taskID, "VERIFYING", "WAITING_HUMAN")
+		if moveErr := requireTransition(db, taskID, "VERIFYING", "WAITING_HUMAN"); moveErr != nil {
+			return moveErr
+		}
 		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "drain list does not match the approved action"}
 	}
 	if action == "undrain" && health != "healthy" {
-		_, _ = transitionTask(db, taskID, "VERIFYING", "WAITING_HUMAN")
+		if moveErr := requireTransition(db, taskID, "VERIFYING", "WAITING_HUMAN"); moveErr != nil {
+			return moveErr
+		}
 		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "upstream was restored in the drain list but is not confirmed healthy"}
 	}
-	if _, err := transitionTask(db, taskID, "VERIFYING", "COMPLETED"); err != nil {
-		return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
+	if err := requireTransition(db, taskID, "VERIFYING", "COMPLETED"); err != nil {
+		return err
 	}
 	res, err := db.Exec(`UPDATE agent_approval SET status = 'approved' WHERE plan_id = ? AND status = 'executing'`, planID)
 	if err != nil {
@@ -493,6 +501,25 @@ func otherPeerRemains(groups [][]string, host string) bool {
 		}
 	}
 	return true
+}
+
+func requireTransition(db *sql.DB, taskID, from, to string) error {
+	ok, err := transitionTask(db, taskID, from, to)
+	if err != nil {
+		return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
+	}
+	if ok {
+		return nil
+	}
+	var status string
+	err = db.QueryRow(`SELECT status FROM agent_task WHERE task_id = ?`, taskID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return &CLIError{Command: "agent.approve", Code: CodeNotFound, Message: "task not found"}
+	}
+	if err != nil {
+		return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
+	}
+	return &CLIError{Command: "agent.approve", Code: CodeConflict, Message: fmt.Sprintf("task status is %s, cannot move from %s to %s", status, from, to)}
 }
 
 func transitionTask(db *sql.DB, taskID, from, to string) (bool, error) {
