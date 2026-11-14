@@ -9,6 +9,7 @@ import CertsView from './views/certs/index.vue';
 import LogsView from './views/logs/index.vue';
 import RuntimeView from './views/runtime/index.vue';
 import OperationsView from './views/operations/index.vue';
+import SettingsView from './views/settings/index.vue';
 import { useAppStore, type PaneKey } from './stores/app';
 import { useOverviewStore } from './stores/overview';
 import { useI18n } from './composables/useI18n';
@@ -54,6 +55,7 @@ onMounted(() => {
     <LogsView v-else-if="app.pane === 'logs'" />
     <RuntimeView v-else-if="app.pane === 'runtime'" />
     <OperationsView v-else-if="app.pane === 'operations'" />
+    <SettingsView v-else-if="app.pane === 'settings'" />
     <div v-else class="main__body">
       <section class="placeholder">
         <p>{{ paneTitle }}</p>

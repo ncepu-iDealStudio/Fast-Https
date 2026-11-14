@@ -1,10 +1,10 @@
 // Wails bindings 是生成代码（JS + JSDoc），这里给出精确签名，
 // 业务层只依赖这个接口，不接触生成物，也不使用 any。
 import type { Overview, Site, Cert, LogEntry, RuntimePaths } from '../../types/model';
+import type { ConfigForm } from '../../types/config';
 
-export interface ConfigForm {
-  [key: string]: string;
-}
+export type { ConfigForm };
+
 export interface SiteInput {
   id: string;
   name: string;
@@ -25,29 +25,44 @@ export interface SiteInput {
   cacheValid: string[];
   cacheMaxSize: number;
 }
+
 export interface SiteDetail extends SiteInput {
   source: string;
+  path: string;
+  editable: boolean;
+  note: string;
   cert: string;
   certKey: string;
   index: string;
-  path: string;
   raw: string;
 }
+
+/** logs query 的筛选条件，字段与 Go 的 model.LogQuery 一一对应。 */
+export interface LogQuery {
+  kind: string;
+  limit: number;
+  level: string;
+  status: string;
+  host: string;
+  method: string;
+  pathPrefix: string;
+  reason: string;
+  since: string;
+  until: string;
+  cursor: string;
+}
+
+export interface LogPage {
+  lines: LogEntry[];
+  hasMore: boolean;
+  nextUntil: string;
+}
+
 export interface CertTrustGuide {
   [key: string]: string;
 }
-export interface LogQuery {
-  keyword: string;
-  level: string;
-  page: number;
-  pageSize: number;
-}
-export interface LogPage {
-  entries: LogEntry[];
-  total: number;
-}
 
-/** DesktopService 契约（与 REFACTOR-BASELINE.md 的 28 个方法一致）。 */
+/** DesktopService 契约（与 REFACTOR-BASELINE.md 的 Service 清单一致）。 */
 export interface DesktopServiceContract {
   MinimiseWindow(): Promise<void>;
   ToggleMaximiseWindow(): Promise<void>;

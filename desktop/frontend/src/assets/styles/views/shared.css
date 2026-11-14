@@ -121,3 +121,74 @@
 .choice-group { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 4px 0; }
 .choice-group .mini-field { gap: 6px; }
 
+/* ---------------------------------------------------------------- 配置表单
+   设置页按字段类型渲染，列宽与 FhField 保持一致（150px label）。 */
+.card-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.card-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+
+.cfg-row {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 16px; align-items: start;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cfg-row:last-child { border-bottom: 0; }
+.cfg-row__label { font-size: 13px; line-height: 1.5; }
+.cfg-row__label small {
+  display: block; margin-top: 2px;
+  font-size: 11px; line-height: 1.5; color: var(--faint);
+}
+.cfg-row__control { min-width: 0; }
+.cfg-row__control input[type="text"],
+.cfg-row__control input[type="number"],
+.cfg-row__control input[type="email"],
+.cfg-row__control select,
+.cfg-row__control textarea {
+  width: 100%; max-width: 560px; height: 34px; padding: 0 10px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 13px;
+}
+.cfg-row__control textarea {
+  height: auto; min-height: 62px; padding: 8px 10px; resize: vertical;
+  font: 12px/1.6 var(--font-mono);
+}
+.cfg-row__control input:focus,
+.cfg-row__control select:focus,
+.cfg-row__control textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cfg-row__control select { max-width: 340px; }
+.cfg-row--missing .cfg-row__label::after {
+  content: var(--i18n-missing, "未配置");
+  margin-left: 6px; font-size: 10px; color: var(--warn);
+}
+
+/* 路径列表：一行一个输入 + 浏览 + 删除 */
+.path-list { display: flex; flex-direction: column; gap: 6px; }
+.path-row { display: flex; align-items: center; gap: 6px; }
+.path-row input { flex: 1; min-width: 0; }
+
+/* ---------------------------------------------------------------- 日志筛选 */
+.filter-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.filter-bar input {
+  height: 32px; padding: 0 10px; width: 170px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: 12px;
+}
+.filter-bar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.filter-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-bottom: 10px; padding: 0;
+  border: 0; background: transparent; color: var(--faint);
+  font-size: 12px; cursor: pointer;
+}
+.filter-toggle:hover { color: var(--text); }
+.filter-toggle svg { transition: transform .15s; }
+
+
+
