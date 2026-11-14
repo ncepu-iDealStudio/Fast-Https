@@ -16,7 +16,12 @@ func TestDrainStepHealthCases(t *testing.T) {
 		{"already drained", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","health":"unhealthy","drained":true},{"address":"10.0.0.2:8080","health":"healthy"}]}}`, ""},
 		{"only one", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","health":"unhealthy"}]}}`, ""},
 		{"one healthy among several", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","health":"unhealthy"},{"address":"10.0.0.2:8080","health":"unknown"},{"address":"10.0.0.3:8080","health":"healthy"}]}}`, "upstream drain 10.0.0.1:8080"},
-		{"legacy bool", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","healthy":false},{"address":"10.0.0.2:8080","healthy":true}]}}`, "upstream drain 10.0.0.1:8080"},
+		{"legacy false is unknown", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","healthy":false},{"address":"10.0.0.2:8080","healthy":true}]}}`, ""},
+		{"legacy true only", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","healthy":true},{"address":"10.0.0.2:8080","healthy":true}]}}`, ""},
+		{"missing health fields", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080"},{"address":"10.0.0.2:8080"}]}}`, ""},
+		{"illegal health", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","health":"bad"},{"address":"10.0.0.2:8080","health":"healthy"}]}}`, ""},
+		{"unknown among peers", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","health":"unhealthy"},{"address":"10.0.0.2:8080","health":"unknown"}]}}`, ""},
+		{"all unknown", `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","health":"unknown"},{"address":"10.0.0.2:8080","health":"unknown"}]}}`, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

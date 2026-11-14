@@ -69,7 +69,7 @@ func makePlan(taskID, eventID, classification string, steps []string) Plan {
 
 type upstreamFact struct {
 	Address string `json:"address"`
-	Healthy bool   `json:"healthy"`
+	Healthy *bool  `json:"healthy,omitempty"`
 	Health  string `json:"health"`
 	Drained bool   `json:"drained"`
 }
@@ -89,7 +89,7 @@ func drainStep(classification, contextJSON string) []string {
 		if item.Address == "" || item.Drained {
 			continue
 		}
-		switch upstreamHealth(item) {
+		switch interpretHealth(item.Health, item.Healthy) {
 		case "healthy":
 			good = append(good, item.Address)
 		case "unhealthy":
@@ -122,15 +122,4 @@ func upstreamFacts(contextJSON string) []upstreamFact {
 		return snap.Upstream.Upstreams
 	}
 	return snap.Upstreams
-}
-
-func upstreamHealth(item upstreamFact) string {
-	switch item.Health {
-	case "healthy", "unhealthy", "unknown":
-		return item.Health
-	}
-	if item.Healthy {
-		return "healthy"
-	}
-	return "unhealthy"
 }

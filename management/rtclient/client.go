@@ -163,7 +163,7 @@ type UpstreamAddrInfo struct {
 	DialFailTotal    uint64 `json:"dial_fail_total"`
 	SendTimeoutTotal uint64 `json:"send_timeout_total"`
 	ReadTimeoutTotal uint64 `json:"read_timeout_total"`
-	Healthy          bool   `json:"healthy"`
+	Healthy          *bool  `json:"healthy,omitempty"`
 	Health           string `json:"health,omitempty"`
 	Drained          bool   `json:"drained,omitempty"`
 }

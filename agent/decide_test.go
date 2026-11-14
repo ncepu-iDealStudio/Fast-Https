@@ -225,7 +225,7 @@ func (s scriptedModel) Generate(ctx context.Context, req model.Request) (*model.
 }
 
 func TestDrainStepFromContext(t *testing.T) {
-	ctx := `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","healthy":false},{"address":"10.0.0.2:8080","healthy":true}]}}`
+	ctx := `{"runtime":{"upstreams":[{"address":"10.0.0.1:8080","health":"unhealthy"},{"address":"10.0.0.2:8080","health":"healthy"}]}}`
 	state := seedTask(t, "5xx_ratio", "ratio up", "12121212121212121212121212121212", "", ctx)
 	if _, err := DiagnosePending(state, time.Now(), nil); err != nil {
 		t.Fatal(err)

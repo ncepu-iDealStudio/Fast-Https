@@ -11,6 +11,22 @@ import (
 
 const runtimeSchema = "1"
 
+// interpretHealth 优先相信新版 health 字段。
+// 旧快照只有 healthy=false 时，不能当成当前确定不健康，记为 unknown。
+func interpretHealth(health string, legacy *bool) string {
+	switch health {
+	case "healthy", "unhealthy", "unknown":
+		return health
+	case "":
+		if legacy != nil && *legacy {
+			return "healthy"
+		}
+		return "unknown"
+	default:
+		return "unknown"
+	}
+}
+
 // fetchRuntime 读取本机快照。schema_version 不是 "1" 时返回 unavailable，不把正文交给诊断。
 func fetchRuntime(ctx context.Context, url string) (json.RawMessage, error) {
 	if url == "" {

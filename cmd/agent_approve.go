@@ -207,14 +207,7 @@ func drainStillAllowed(rows []rtclient.UpstreamAddrInfo, host string) error {
 	drained := false
 	healthy := 0
 	for _, row := range rows {
-		kind := row.Health
-		if kind == "" {
-			if row.Healthy {
-				kind = "healthy"
-			} else {
-				kind = "unhealthy"
-			}
-		}
+		kind := interpretUpstreamHealth(row.Health, row.Healthy)
 		if row.Address == host {
 			seen = true
 			state = kind
@@ -466,14 +459,7 @@ func verifyDrainEffect(action, host, cfgPath string) (drainVerification, string,
 			if row.Address != host {
 				continue
 			}
-			health = row.Health
-			if health == "" {
-				if row.Healthy {
-					health = "healthy"
-				} else {
-					health = "unhealthy"
-				}
-			}
+			health = interpretUpstreamHealth(row.Health, row.Healthy)
 		}
 	}
 	return drainVerification{ConfigOK: configOK}, health, nil
@@ -501,6 +487,20 @@ func otherPeerRemains(groups [][]string, host string) bool {
 		}
 	}
 	return true
+}
+
+func interpretUpstreamHealth(health string, legacy *bool) string {
+	switch health {
+	case "healthy", "unhealthy", "unknown":
+		return health
+	case "":
+		if legacy != nil && *legacy {
+			return "healthy"
+		}
+		return "unknown"
+	default:
+		return "unknown"
+	}
 }
 
 func requireTransition(db *sql.DB, taskID, from, to string) error {
