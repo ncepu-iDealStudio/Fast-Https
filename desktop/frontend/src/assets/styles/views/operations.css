@@ -56,6 +56,32 @@
   font-size: 11px; color: var(--faint);
 }
 
+/* 展开的详情：错误用结构化块，结果是 key-value 行，不再塞原始 JSON */
+.ops-detail .kv-row { grid-template-columns: 130px minmax(0, 1fr); min-height: 30px; }
+.ops-detail .kv-table { margin-top: 0; }
+
+.ops-err {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--danger);
+  border-left-width: 3px;
+  border-radius: 6px;
+}
+.ops-err__code {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+  margin-bottom: 3px;
+}
+.ops-err__msg { font-size: 12px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.ops-err__details { margin-top: 6px; }
+.ops-err__detail {
+  font-size: 11px; line-height: 1.6; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.ops-err__detail .mono { color: var(--danger); }
+
 /* 窄窗口收起 version 列，保证命令列可读 */
 @media (max-width: 1080px) {
   .opstable__head, .opsrow { grid-template-columns: 150px minmax(0, 1fr) 88px 76px; }

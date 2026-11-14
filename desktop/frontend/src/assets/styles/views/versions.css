@@ -43,3 +43,56 @@
   .verlist__row { grid-template-columns: 108px minmax(0, 1fr) auto; gap: 10px; }
   .verlist__ops .fh-btn span { display: none; }
 }
+
+/* ---------------------------------------------------------------- diff 表
+   之前把 cfgdiff 的原始 JSON 丢进 <pre>，用户读不懂。改成四列表格：
+   配置项 / 变更 / 旧值 / 新值，并按增删改着色。 */
+.difftable {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.difftable__head,
+.diffrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) 72px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  padding: 8px 14px;
+}
+.difftable__head {
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.diffrow {
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid transparent;
+}
+.diffrow:last-child { border-bottom: 0; }
+.diffrow__path { overflow-wrap: anywhere; }
+.diffrow__op {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.diffrow__val { overflow-wrap: anywhere; color: var(--muted); }
+
+/* 增 / 删 / 改：左侧色条 + 变更标签着色，值本身不染色以免长文本变花 */
+.diffrow--add { border-left-color: var(--ok); }
+.diffrow--add .diffrow__op { color: var(--ok); }
+.diffrow--del { border-left-color: var(--danger); }
+.diffrow--del .diffrow__op { color: var(--danger); }
+.diffrow--mod { border-left-color: var(--warn); }
+.diffrow--mod .diffrow__op { color: var(--warn); }
+
+@media (max-width: 900px) {
+  .difftable__head, .diffrow { grid-template-columns: minmax(0, 1.4fr) 64px minmax(0, 1fr); }
+  .diffrow > span:last-child, .difftable__head > span:last-child { display: none; }
+}

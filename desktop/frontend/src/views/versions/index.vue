@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { RefreshCw, GitCompareArrows, Undo2, AlertTriangle } from '@lucide/vue';
+import { RefreshCw, GitCompareArrows, Undo2, AlertTriangle, X } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { runCommand } from '../../services/api/command';
 import { messageOf } from '../../services/api/base';
@@ -17,15 +17,28 @@ interface Version {
   parent?: string;
 }
 
+/** cfgdiff.Result 的镜像：Changes 每条是一个字段路径的增 / 删 / 改。 */
+interface Change {
+  path?: string;
+  op?: string;
+  value?: unknown;
+  old?: unknown;
+  new?: unknown;
+}
+interface DiffResult {
+  identical?: boolean;
+  changes?: Change[];
+}
+
 const versions = ref<Version[]>([]);
 const drift = ref(false);
 const loading = ref(false);
 const error = ref('');
 const notice = ref('');
 
-const diffText = ref('');
+const diff = ref<DiffResult | null>(null);
 const diffVersion = ref('');
-const diffOpen = ref(false);
+const diffLoading = ref(false);
 
 async function load(): Promise<void> {
   loading.value = true;
@@ -47,17 +60,38 @@ function metaText(v: Version): string {
   return [v.created_at, v.created_by, v.summary].filter(Boolean).join(' · ');
 }
 
+/** 值转成一行的可读文本：字符串原样，对象/数组压成 JSON。 */
+function showVal(v: unknown): string {
+  if (v === undefined || v === null) return '—';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  return JSON.stringify(v);
+}
+
+function opLabel(op?: string): string {
+  if (op === 'added') return t('settings.diffOpAdded');
+  if (op === 'removed') return t('settings.diffOpRemoved');
+  return t('settings.diffOpModified');
+}
+
+function opClass(op?: string): string {
+  if (op === 'added') return 'diffrow--add';
+  if (op === 'removed') return 'diffrow--del';
+  return 'diffrow--mod';
+}
+
 async function showDiff(version: string): Promise<void> {
   diffVersion.value = version;
-  diffOpen.value = true;
-  diffText.value = '';
+  diff.value = null;
+  diffLoading.value = true;
   error.value = '';
   try {
     const r = await runCommand(['config', 'diff', '--candidate', version]);
-    diffText.value = r.text || JSON.stringify(r.data ?? {}, null, 2);
+    diff.value = (r.data ?? null) as DiffResult | null;
   } catch (e) {
     error.value = messageOf(e);
-    diffOpen.value = false;
+  } finally {
+    diffLoading.value = false;
   }
 }
 
@@ -67,6 +101,7 @@ async function rollback(version: string): Promise<void> {
   try {
     const r = await runCommand(['config', 'rollback', '--version', version, '--yes']);
     notice.value = r.text || version;
+    diff.value = null;
     await load();
   } catch (e) {
     error.value = messageOf(e);
@@ -85,7 +120,6 @@ onMounted(() => { void load(); });
       <span class="logs-count mono">{{ versions.length }}</span>
     </div>
 
-    <!-- 配置漂移：磁盘上的文件与当前版本不一致 -->
     <div v-if="drift" class="alert-strip">
       <span class="alert-strip__title">
         <AlertTriangle :size="12" /> {{ t('settings.driftNote') }}
@@ -101,7 +135,10 @@ onMounted(() => { void load(); });
       <div v-if="!versions.length && !loading" class="table__empty">
         {{ t('settings.versionsEmpty') }}
       </div>
-      <div v-for="v in versions" :key="String(v.version)" class="verlist__row" :class="{ 'verlist__row--active': v.active }">
+      <div
+        v-for="v in versions" :key="String(v.version)"
+        class="verlist__row" :class="{ 'verlist__row--active': v.active }"
+      >
         <span class="verlist__ver mono">
           {{ v.version }}
           <span v-if="v.active" class="badge badge--ok">{{ t('settings.current') }}</span>
@@ -118,13 +155,39 @@ onMounted(() => { void load(); });
       </div>
     </div>
 
-    <!-- diff 结果：右侧不抢位置，直接在本页底部展开 -->
-    <div v-if="diffOpen" class="card">
+    <!-- diff 结果：结构化表格，不再丢原始 JSON 给用户 -->
+    <div v-if="diffVersion" class="card">
       <div class="card-head">
-        <h3>{{ t('settings.diff') }} · {{ diffVersion }}</h3>
-        <FhButton size="small" @click="diffOpen = false">{{ t('common.close') }}</FhButton>
+        <h3>
+          {{ t('settings.diff') }} · <span class="mono">{{ diffVersion }}</span>
+        </h3>
+        <FhButton size="small" @click="diffVersion = ''; diff = null">
+          <X :size="12" /><span>{{ t('common.close') }}</span>
+        </FhButton>
       </div>
-      <pre class="cmd-result">{{ diffText || t('settings.diffNone') }}</pre>
+
+      <div v-if="diffLoading" class="notice">{{ t('settings.diffRunning') }}</div>
+
+      <template v-else-if="diff">
+        <div v-if="diff.identical" class="notice">{{ t('settings.diffNone') }}</div>
+        <div v-else class="difftable">
+          <div class="difftable__head">
+            <span>{{ t('settings.diffPath') }}</span>
+            <span>{{ t('settings.diffChange') }}</span>
+            <span>{{ t('settings.diffOld') }}</span>
+            <span>{{ t('settings.diffNew') }}</span>
+          </div>
+          <div
+            v-for="(c, i) in diff.changes" :key="i"
+            class="diffrow" :class="opClass(c.op)"
+          >
+            <span class="diffrow__path mono">{{ c.path || '—' }}</span>
+            <span><span class="diffrow__op">{{ opLabel(c.op) }}</span></span>
+            <span class="diffrow__val mono">{{ showVal(c.old ?? (c.op === 'added' ? undefined : c.value)) }}</span>
+            <span class="diffrow__val mono">{{ showVal(c.new ?? (c.op === 'added' ? c.value : undefined)) }}</span>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 </template>
