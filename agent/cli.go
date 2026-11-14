@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os/exec"
 	"time"
 )
@@ -56,7 +57,8 @@ func runAllowed(ctx context.Context, run cmdRunner, binary string, args []string
 	if err := dec.Decode(&body); err != nil || len(body) == 0 || body[0] != '{' {
 		return nil, fmt.Errorf("stdout is not one JSON object")
 	}
-	if dec.More() {
+	var extra struct{}
+	if err := dec.Decode(&extra); err != io.EOF {
 		return nil, fmt.Errorf("stdout is not one JSON object")
 	}
 	return body, nil

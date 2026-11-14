@@ -37,6 +37,35 @@ func TestCLIAllowlistRejects(t *testing.T) {
 	}
 }
 
+func TestCLIStdoutIsOneJSONObject(t *testing.T) {
+	run := func(out string) error {
+		_, err := runAllowed(context.Background(), func(context.Context, string, ...string) ([]byte, error) {
+			return []byte(out), nil
+		}, "fast-https", []string{"service", "status", "--json"})
+		return err
+	}
+	if err := run("{\"ok\":true}"); err != nil {
+		t.Fatal(err)
+	}
+	if err := run("{\"ok\":true}\n"); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{
+		`{"ok":true}{"unexpected":true}`,
+		"{\"ok\":true}\nunexpected",
+		`{"ok":true} trailing`,
+		``,
+		`not-json`,
+		`[1,2]`,
+		`"text"`,
+		`null`,
+	} {
+		if err := run(bad); err == nil {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+}
+
 func TestRuntimeSchema(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"schema_version":"2","requests":{"total":1}}`))
