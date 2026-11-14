@@ -4,7 +4,7 @@ import { RefreshCw, Save, CheckCircle2, Plus, X } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { readConfigForm, saveConfigForm } from '../../services/api/log';
 import { runCommand } from '../../services/api/command';
-import { pickPath } from '../../services/api/app';
+import { pickPath, getRuntimePaths } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 import FhButton from '../../components/ui/FhButton.vue';
 import type { ConfigField, ConfigForm } from '../../types/config';
@@ -19,12 +19,18 @@ const saving = ref(false);
 const error = ref('');
 const notice = ref('');
 
+/** pid 与日志根是运行期派生路径，只读展示，不进表单也不参与保存。 */
+const runtimePid = ref('');
+const runtimeLog = ref('');
 
-  /** 字段按 group 分组，与后端 fieldSpec 的 group 一致。 */
+
+  /** 字段按 group 分组，与后端 fieldSpec 的 group 一致。
+   *  pid / log_root 是运行期派生路径，不进可编辑表单，在「基础」组里只读展示。 */
 const groups = computed(() => {
   if (!form.value) return [] as { name: string; fields: ConfigField[] }[];
   const map = new Map<string, ConfigField[]>();
   for (const f of form.value.fields) {
+    if (f.path === 'pid' || f.path === 'log_root') continue;
     const list = map.get(f.group) ?? [];
     list.push(f);
     map.set(f.group, list);
@@ -51,6 +57,10 @@ async function load(): Promise<void> {
     for (const fld of f.fields) init[fld.path] = fld.value ?? '';
     initial.value = init;
     values.value = { ...init };
+    // 运行期路径（pid / 日志根）单独拉，用于只读展示
+    const p = await getRuntimePaths();
+    runtimePid.value = p.pid || '';
+    runtimeLog.value = p.log || '';
   } catch (e) {
     error.value = messageOf(e);
     form.value = null;
@@ -163,6 +173,29 @@ onMounted(() => { void load(); });
       <div class="card-head">
         <h3>{{ g.name }}</h3>
       </div>
+
+      <!-- 运行期路径：pid / 日志根，只读展示（派生自安装位置，改配置不改它们） -->
+      <template v-if="g.name === '基础'">
+        <div class="cfg-row">
+          <label class="cfg-row__label">
+            <span>pid {{ t('settings.readonly') }}</span>
+            <small>{{ t('settings.pidReadonlyHint') }}</small>
+          </label>
+          <div class="cfg-row__control">
+            <div class="readonly-path mono" :title="runtimePid">{{ runtimePid || '—' }}</div>
+          </div>
+        </div>
+        <div class="cfg-row">
+          <label class="cfg-row__label">
+            <span>{{ t('settings.logRootLabel') }}</span>
+            <small>{{ t('settings.logRootHint') }}</small>
+          </label>
+          <div class="cfg-row__control">
+            <div class="readonly-path mono" :title="runtimeLog">{{ runtimeLog || '—' }}</div>
+          </div>
+        </div>
+      </template>
+
       <div v-for="f in g.fields" :key="f.path" class="cfg-row" :class="{ 'cfg-row--missing': f.missing }">
         <label class="cfg-row__label">
           <span>{{ f.label }}</span>

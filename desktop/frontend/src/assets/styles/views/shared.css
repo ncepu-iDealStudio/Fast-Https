@@ -180,6 +180,23 @@
   vertical-align: 1px;
 }
 
+/* 只读路径：与输入框同高同宽，但无描边、不可编辑——语义是「这是现状」 */
+.readonly-path {
+  width: 100%;
+  max-width: 560px;
+  height: 34px;
+  line-height: 32px;
+  padding: 0 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* 路径列表：一行一个输入 + 浏览 + 删除 */
 .path-list { display: flex; flex-direction: column; gap: 6px; }
 .path-row { display: flex; align-items: center; gap: 6px; }
