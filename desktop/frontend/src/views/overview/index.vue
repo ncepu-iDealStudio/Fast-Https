@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Play, Square, RotateCw, FolderOpen, ScrollText, Globe, ShieldCheck, Stethoscope } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore } from '../../stores/app';
@@ -10,7 +10,6 @@ import {
 import { messageOf } from '../../services/api/base';
 import FhButton from '../../components/ui/FhButton.vue';
 import DiagnoseDialog from '../../components/common/DiagnoseDialog.vue';
-import { ref } from 'vue';
 
 const { t } = useI18n();
 const app = useAppStore();
@@ -81,6 +80,36 @@ const quick = [
 ];
 
 const diagnoseOpen = ref(false);
+
+/**
+ * 本机动态时间线：原版是在状态轮询时把变化合成到本地列表（最近 5 条），
+ * 这里用同样的做法 —— 监听 overview 数据，状态或配置版本变化时记一条。
+ */
+interface Ev { time: string; text: string; kind: 'info' | 'warn' | 'ok' }
+const events = ref<Ev[]>([]);
+let lastStatus = '';
+
+function nowTime(): string {
+  const d = new Date();
+  const p = (n: number): string => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+function pushEvent(text: string, kind: Ev['kind']): void {
+  events.value.unshift({ time: nowTime(), text, kind });
+  if (events.value.length > 5) events.value.pop();
+}
+
+watch(() => ov.data, (d) => {
+  if (!d) return;
+  const key = `${d.status}|${d.running}`;
+  if (key !== lastStatus) {
+    if (lastStatus === '') pushEvent(t('events.started'), 'info');
+    else if (d.running) pushEvent(t('events.serverUp'), 'ok');
+    else pushEvent(t('events.serverDown'), 'warn');
+    lastStatus = key;
+  }
+  if (d.error) pushEvent(t('events.configError'), 'warn');
+}, { immediate: true });
 </script>
 
 <template>
@@ -147,5 +176,23 @@ const diagnoseOpen = ref(false);
     </div>
 
     <DiagnoseDialog v-model:open="diagnoseOpen" />
+
+    <!-- 本机动态：状态轮询合成的本地时间线，最近 5 条 -->
+    <div class="card events-card">
+      <div class="card-head">
+        <h3>{{ t('overview.eventsTitle') }}</h3>
+        <button class="tab" @click="app.activate('operations')">{{ t('overview.eventsOps') }}</button>
+      </div>
+      <ul class="event-list">
+        <li v-if="!events.length" class="event-list__empty">{{ t('events.empty') }}</li>
+        <li v-for="(e, i) in events" :key="i" :class="`event-list__item event-list__item--${e.kind}`">
+          <span class="ev-dot" />
+          <div>
+            <b>{{ e.text }}</b>
+            <small>{{ e.time }} · {{ t('events.systemMsg') }}</small>
+          </div>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
