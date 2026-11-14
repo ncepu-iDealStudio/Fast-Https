@@ -120,7 +120,7 @@ async function save(): Promise<void> {
 
 async function validate(): Promise<void> {
   try {
-    const r = await runCommand(['config', 'check']);
+    const r = await runCommand(['config', 'validate']);
     notice.value = r.text || t('settings.validateOk');
   } catch (e) {
     error.value = messageOf(e);
@@ -140,7 +140,7 @@ async function loadVersions(): Promise<void> {
 
 async function showDiff(version: string): Promise<void> {
   try {
-    const r = await runCommand(['config', 'diff', String(version)]);
+    const r = await runCommand(['config', 'diff', '--candidate', String(version)]);
     diffText.value = r.text || JSON.stringify(r.data, null, 2);
     diffOpen.value = true;
   } catch (e) {
@@ -150,7 +150,7 @@ async function showDiff(version: string): Promise<void> {
 
 async function rollback(version: string): Promise<void> {
   try {
-    const r = await runCommand(['config', 'rollback', String(version), '--yes']);
+    const r = await runCommand(['config', 'rollback', '--version', String(version), '--yes']);
     notice.value = r.text || String(version);
     await load();
     await loadVersions();
@@ -186,6 +186,12 @@ onMounted(() => { void load(); void loadVersions(); });
     </p>
 
     <div v-if="loading && !form" class="notice">{{ t('settings.readingConfig') }}</div>
+
+    <!-- 读取失败或拿不到字段时给明确结论，避免只剩一张空白页 -->
+    <div v-if="!loading && !form" class="card">
+      <div class="card-head"><h3>{{ t('settings.readFailedTitle') }}</h3></div>
+      <p class="field-note">{{ t('settings.readFailedBody') }}</p>
+    </div>
 
     <div v-for="g in groups" :key="g.name" class="card">
       <div class="card-head">

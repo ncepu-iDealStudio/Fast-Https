@@ -97,15 +97,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="side-foot-wrap">
-    <button
-      type="button" class="side-foot" aria-haspopup="menu" :aria-expanded="open"
-      @click="toggle"
-    >
-      <span class="avatar"><Settings2 :size="12" /></span>
-      <span class="acct-name">{{ t('nav.account') }}</span>
-      <ChevronDown :size="12" class="acct-caret" />
-    </button>
+  <div ref="root" class="account-anchor">
+    <div class="side-foot-wrap">
+      <button
+        type="button" class="side-foot" aria-haspopup="menu" :aria-expanded="open"
+        @click="toggle"
+      >
+        <span class="avatar"><Settings2 :size="12" /></span>
+        <span class="acct-name">{{ t('nav.account') }}</span>
+        <ChevronDown :size="12" class="acct-caret" />
+      </button>
+    </div>
 
     <div v-if="open" class="account-menu" role="menu">
       <div class="menu-head">

@@ -50,7 +50,7 @@ async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
   try {
-    const r = await runCommand(['ops', 'list', '--limit', '100']);
+    const r = await runCommand(['operation', 'list', '--limit', '50']);
     const d = r.data as { operations?: Op[]; ops?: Op[] } | null;
     rows.value = d?.operations ?? d?.ops ?? [];
   } catch (e) {

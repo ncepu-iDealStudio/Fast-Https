@@ -1,17 +1,23 @@
 /* 账户菜单 —— 旧版左下角绝对定位规格。
-   父级 .side-foot-wrap 必须 position: relative，否则菜单会贴到视口。 */
+   .account-anchor 不建立定位上下文（position: static），让 .account-menu
+   相对 .sidebar（已有 position: relative）定位，与旧版一致：
+   贴住侧栏左下角、bottom 让开 52px 的底栏。 */
+
+.account-anchor { position: static; }
 
 .account-menu {
   position: absolute;
   left: 10px;
   bottom: 58px;
   width: 264px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
   z-index: 35;
-  padding: 8px;
+  padding: 6px 0;
   background: var(--bg);
   border: 1px solid var(--line-strong);
-  border-radius: 10px;
-  box-shadow: 0 18px 48px rgba(16, 20, 28, .22);
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(16, 20, 28, .18);
 }
 
 .menu-head {
