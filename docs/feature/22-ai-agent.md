@@ -59,6 +59,31 @@ fast-https agent approvals --json
 
 库文件不存在或没有心跳时 `agent status` 为 `unknown`，退出码 0。心跳在 30 秒内是 `online`，更旧是 `offline`。
 
+### 安装包里的进程
+
+deb / rpm / apk 和归档都带独立二进制 `fast-https-agent`。它和 Server、Monitor 是三个进程。Server 不启动它，它也不声明对 `fast-https.service` 的依赖。停掉 Agent 不影响业务端口和 `GET /runtime`。
+
+安装脚本只 `daemon-reload`，不执行 `systemctl enable`。装完要自己启用：
+
+```bash
+sudo systemctl status fast-https-agent
+sudo systemctl enable --now fast-https-agent
+sudo systemctl stop fast-https-agent
+sudo journalctl -u fast-https-agent -f
+```
+
+包内路径：
+
+| 内容 | 路径 |
+| --- | --- |
+| 程序 | `/usr/bin/fast-https-agent` |
+| 单元 | `fast-https-agent.service` |
+| 配置 | `/etc/fast-https/agent.json` |
+| 状态库 | `/var/lib/fast-https/agent` |
+| Monitor 事件 | `/var/log/fast-https/monitor` |
+
+Agent 读 Monitor 的事件文件，并用 `/usr/bin/fast-https` 的只读命令和 `GET /runtime` 采集上下文。`apt remove` 保留配置和状态库。`apt purge` 或 `rpm -e` 会删掉 `/etc/fast-https/agent.json`，状态库随 `/var/lib/fast-https` 一起清掉。升级不动这些文件。
+
 ## 实现方案
 
 - `agent/` 只引用自己的子包、标准库和 `modernc.org/sqlite`。事件 ID 与 Monitor 的算法一致：已有 32 位十六进制就用，旧行按类型、级别、说明和快照里的 pid、`started_at` 补齐。

@@ -563,6 +563,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <tr><td>配置文件自动重载</td><td>暂不支持，监听文件变化后自动 reload 仍未排期</td></tr>
 <tr><td><code>cert renew</code></td><td>服务进程没在跑、或状态目录里没有 <code>renew.token</code> 时退出码 4。Agent 不能批准这条命令</td></tr>
 <tr><td>Monitor 进程</td><td>采集进程是独立二进制 <code>fast-https-monitor</code>，随 deb / rpm / apk 与归档发布，包内另有独立单元 <code>fast-https-monitor.service</code>；CLI 不启停它，只读 <code>status.json</code> 与 <code>events.jsonl</code>，文件不存在时 <code>monitor status</code> 为 <code>not_installed</code></td></tr>
+<tr><td>Agent 进程</td><td>独立二进制 <code>fast-https-agent</code>，单元 <code>fast-https-agent.service</code>。配置 <code>/etc/fast-https/agent.json</code>，状态库 <code>/var/lib/fast-https/agent</code>，事件目录 <code>/var/log/fast-https/monitor</code>。安装后不自动 enable。<code>apt remove</code> 保留配置和状态库，<code>purge</code> 才删 <code>agent.json</code> 和 <code>/var/lib/fast-https</code></td></tr>
 </tbody>
 </table>
 <h2 id="sec-38">14. 版本与许可</h2>

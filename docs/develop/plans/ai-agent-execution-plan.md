@@ -30,7 +30,7 @@ CLI 有 `agent status|tasks|task get|approvals`，以及后来加上的 `agent a
 - 调用 `config apply`、`service reload`、`site *` 写命令、顶层 `start`/`stop`。
 - 引入 `github.com/openai/openai-go`。模型包只保留接口；未配置时路由器返回「模型不可用」，规则诊断继续。
 - 使用 Python 作为生产进程，或引入通用 Agent 框架。
-- 打包进 deb/rpm。进程先以 `go run ./agent` 运行，打包另案，避免和 Monitor 第 8 步的发行版验证缠在一起。
+- 第一阶段当时不打包。现在 deb / rpm / apk 已带 `fast-https-agent` 和 `fast-https-agent.service`，安装后不自动 enable。路径见 [22-ai-agent.md](../../feature/22-ai-agent.md)。
 - 把待审批自动变成执行。
 
 ## 3. 模块边界

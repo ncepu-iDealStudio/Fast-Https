@@ -53,7 +53,7 @@
 | `management/svcctl` | 受控 reload：校验、新增端口预检、发信号；读得到快照时 `WaitRuntime`（生成号加一、pid/`started_at` 不变），否则 `WaitBasic` | `service reload`、`config apply` |
 | `management/diagnose` | 只读健康汇总。`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning） | `diagnose` |
 | `management/monview` | 只读 Monitor 的 `status.json` 与 `events.jsonl`。不连接 Monitor 进程；文件不存在视为未安装 | `monitor status` / `monitor events` |
-| `management/agentview` | 只读 Agent 的 `agent.db`。不启动 Agent，库不存在时视为未运行 | `agent status` / `agent tasks` / `agent approvals` |
+| `management/agentview` | 只读 Agent 的 `agent.db`。不启动 Agent。没有库或没有心跳时 `agent status` 为 `unknown`，30 秒内的心跳为 `online` | `agent status` / `agent tasks` / `agent approvals` |
 | `agent` | 独立运维进程：尾读 `events.jsonl`，采集只读上下文，写规则诊断与待审批。不执行配置、reload、摘除或续期 | 独立可执行程序，尚未打进安装包；Server 不依赖它 |
 | `monitor` | 独立 Monitor 进程：周期读本机 `GET /runtime`，把原始快照追加到 `snapshots.jsonl`；`rules.go` 里的确定性规则（不可达/恢复、进程重启、5xx 比例、端口探测与疑似卡死，后两条可关）写事件到 `events.jsonl`，并原子更新 `status.json`；事件与快照按单文件上限自轮转 | 独立可执行程序，随 deb/rpm/apk 与归档发布，有独立的 systemd 单元；Server 不依赖它 |
 | `desktop/` | Wails v3 桌面管理端，独立 Go module | 独立可执行程序 |

@@ -626,6 +626,7 @@ Windows 没有 `SIGHUP`。这条断线语义只在 Unix 上实现，Windows 上�
 | 配置文件自动重载 | 暂不支持，监听文件变化后自动 reload 仍未排期 |
 | `cert renew` | 服务进程没在跑、或状态目录里没有 `renew.token` 时退出码 4。Agent 不能批准这条命令 |
 | Monitor 进程 | 采集进程是独立二进制 `fast-https-monitor`，随 deb / rpm / apk 与归档发布，包内另有独立单元 `fast-https-monitor.service`；CLI 不启停它，只读 `status.json` 与 `events.jsonl`，文件不存在时 `monitor status` 为 `not_installed` |
+| Agent 进程 | 独立二进制 `fast-https-agent`，单元 `fast-https-agent.service`。配置 `/etc/fast-https/agent.json`，状态库 `/var/lib/fast-https/agent`，事件目录 `/var/log/fast-https/monitor`。安装后不自动 enable。`apt remove` 保留配置和状态库，`purge` 才删 `agent.json` 和 `/var/lib/fast-https` |
 
 ## 14. 版本与许可
 
