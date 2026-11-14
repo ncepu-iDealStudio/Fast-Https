@@ -51,6 +51,37 @@ func OpenStore(dir string) (*Store, error) {
 func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) migrate() error {
+	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS agent_schema (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  version INTEGER NOT NULL
+)`); err != nil {
+		return err
+	}
+	var version int
+	err := s.db.QueryRow(`SELECT version FROM agent_schema WHERE id = 1`).Scan(&version)
+	if errors.Is(err, sql.ErrNoRows) {
+		version = 0
+	} else if err != nil {
+		return err
+	}
+	steps := []func() error{s.migrateV1, s.migrateV2, s.migrateV3}
+	for i, step := range steps {
+		next := i + 1
+		if version >= next {
+			continue
+		}
+		if err := step(); err != nil {
+			return fmt.Errorf("schema %d: %w", next, err)
+		}
+		if _, err := s.db.Exec(`INSERT OR REPLACE INTO agent_schema (id, version) VALUES (1, ?)`, next); err != nil {
+			return err
+		}
+		version = next
+	}
+	return nil
+}
+
+func (s *Store) migrateV1() error {
 	_, err := s.db.Exec(`
 CREATE TABLE IF NOT EXISTS agent_event (
   event_id TEXT PRIMARY KEY,
@@ -107,8 +138,12 @@ CREATE TABLE IF NOT EXISTS agent_offset (
 );
 INSERT OR IGNORE INTO agent_offset (id, monitor_offset) VALUES (1, 0);
 `)
-	if err != nil {
-		return err
+	return err
+}
+
+func (s *Store) migrateV2() error {
+	if migrationHook == 2 {
+		return errors.New("migration 2 failed")
 	}
 	for _, col := range []struct{ table, name, decl string }{
 		{"agent_event", "snapshot_started_at", "TEXT"},
@@ -124,6 +159,25 @@ INSERT OR IGNORE INTO agent_offset (id, monitor_offset) VALUES (1, 0);
 	}
 	return s.migrateWaitingHuman()
 }
+
+func (s *Store) migrateV3() error {
+	if _, err := s.db.Exec(`CREATE TABLE IF NOT EXISTS agent_heartbeat (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  agent_id TEXT,
+  pid INTEGER,
+  started_at TEXT,
+  heartbeat_at TEXT,
+  last_event_at TEXT,
+  last_success_at TEXT,
+  last_error TEXT
+)`); err != nil {
+		return err
+	}
+	return ensureColumn(s.db, "agent_offset", "prefix", "TEXT")
+}
+
+// migrationHook 让测试在指定版本失败。0 表示不拦截。
+var migrationHook int
 
 func ensureColumn(db *sql.DB, table, name, decl string) error {
 	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
@@ -180,6 +234,40 @@ func (s *Store) Offset() (int64, error) {
 func (s *Store) SetOffset(n int64) error {
 	_, err := s.db.Exec(`UPDATE agent_offset SET monitor_offset = ? WHERE id = 1`, n)
 	return err
+}
+
+func (s *Store) Cursor() (int64, string, error) {
+	var n int64
+	var prefix sql.NullString
+	err := s.db.QueryRow(`SELECT monitor_offset, prefix FROM agent_offset WHERE id = 1`).Scan(&n, &prefix)
+	return n, prefix.String, err
+}
+
+func (s *Store) SetCursor(n int64, prefix string) error {
+	_, err := s.db.Exec(`UPDATE agent_offset SET monitor_offset = ?, prefix = ? WHERE id = 1`, n, prefix)
+	return err
+}
+
+func (s *Store) Beat(now time.Time, pid int, started, lastEvent, lastErr string) error {
+	at := now.UTC().Format(time.RFC3339)
+	_, err := s.db.Exec(`
+INSERT INTO agent_heartbeat (id, agent_id, pid, started_at, heartbeat_at, last_event_at, last_success_at, last_error)
+VALUES (1, 'local', ?, ?, ?, NULLIF(?, ''), CASE WHEN ? = '' THEN NULL ELSE ? END, ?)
+ON CONFLICT(id) DO UPDATE SET
+  pid = excluded.pid,
+  started_at = excluded.started_at,
+  heartbeat_at = excluded.heartbeat_at,
+  last_event_at = COALESCE(excluded.last_event_at, agent_heartbeat.last_event_at),
+  last_success_at = CASE WHEN excluded.last_error = '' THEN excluded.heartbeat_at ELSE agent_heartbeat.last_success_at END,
+  last_error = excluded.last_error`,
+		pid, started, at, lastEvent, lastErr, at, lastErr)
+	return err
+}
+
+func (s *Store) SchemaVersion() (int, error) {
+	var v int
+	err := s.db.QueryRow(`SELECT version FROM agent_schema WHERE id = 1`).Scan(&v)
+	return v, err
 }
 
 func (s *Store) TaskCount() (int, error) {

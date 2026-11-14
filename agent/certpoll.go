@@ -29,7 +29,20 @@ func PollCerts(monitorDir, stateDir, binary string, warnDays int, run cmdRunner,
 	if now.IsZero() {
 		now = time.Now()
 	}
-	body, err := runAllowed(context.Background(), run, binary, []string{"cert", "list", "--json"})
+	return pollCerts(context.Background(), monitorDir, stateDir, binary, warnDays, run, now)
+}
+
+func pollCerts(ctx context.Context, monitorDir, stateDir, binary string, warnDays int, run cmdRunner, now time.Time) (int, error) {
+	if warnDays < 1 {
+		warnDays = defaultCertWarnDays
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	body, err := runAllowed(ctx, run, binary, []string{"cert", "list", "--json"})
 	st, sterr := OpenStore(stateDir)
 	if sterr != nil {
 		return 0, sterr

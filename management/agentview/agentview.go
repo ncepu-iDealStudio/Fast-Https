@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"fast-https/management/logquery"
 
@@ -59,8 +60,14 @@ func ResolveDir(explicit string) string {
 	return filepath.Join("state", "agent")
 }
 
+const heartbeatFresh = 30 * time.Second
+
 func ReadStatus(dir string) (Status, error) {
-	out := Status{Status: "not_running", Source: "agent_db"}
+	return readStatusAt(dir, time.Now())
+}
+
+func readStatusAt(dir string, now time.Time) (Status, error) {
+	out := Status{Status: "unknown", Source: "agent_db"}
 	db, err := openReadOnly(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -69,9 +76,22 @@ func ReadStatus(dir string) (Status, error) {
 		return Status{}, err
 	}
 	defer db.Close()
-	out.Status = "present"
 	_ = db.QueryRow(`SELECT COUNT(*) FROM agent_task`).Scan(&out.Tasks)
 	_ = db.QueryRow(`SELECT IFNULL(MAX(updated_at), '') FROM agent_task`).Scan(&out.LastUpdated)
+	var beat sql.NullString
+	err = db.QueryRow(`SELECT heartbeat_at FROM agent_heartbeat WHERE id = 1`).Scan(&beat)
+	if err != nil || !beat.Valid || strings.TrimSpace(beat.String) == "" {
+		return out, nil
+	}
+	at, err := time.Parse(time.RFC3339, beat.String)
+	if err != nil {
+		return out, nil
+	}
+	if now.Sub(at) <= heartbeatFresh {
+		out.Status = "online"
+		return out, nil
+	}
+	out.Status = "offline"
 	return out, nil
 }
 

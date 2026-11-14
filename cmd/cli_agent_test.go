@@ -25,7 +25,7 @@ func TestAgentStatusMissing(t *testing.T) {
 	}
 	doc := decodeOneDocument(t, out)
 	data := doc["data"].(map[string]any)
-	if data["status"] != "not_running" {
+	if data["status"] != "unknown" {
 		t.Fatalf("status = %v", data)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "agent.db")); !os.IsNotExist(err) {

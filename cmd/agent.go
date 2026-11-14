@@ -14,8 +14,8 @@ func newAgentCmd() *cobra.Command {
 		Use:   "agent",
 		Short: t("查询 AI Agent 的任务与待审批", "query AI agent tasks and pending approvals"),
 		Long: t(
-			"只读 Agent 的状态库，不启动 Agent，也不创建任务。\n库文件不存在时 status 为 not_running。",
-			"Read the agent state database. This does not start the agent or create tasks.\nA missing database reports status not_running."),
+			"只读 Agent 的状态库，不启动 Agent，也不创建任务。\n没有心跳或库文件不存在时 status 为 unknown；心跳超过 30 秒为 offline。",
+			"Read the agent state database. This does not start the agent or create tasks.\nA missing database or heartbeat is unknown. A heartbeat older than 30 seconds is offline."),
 		SilenceUsage: true,
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {

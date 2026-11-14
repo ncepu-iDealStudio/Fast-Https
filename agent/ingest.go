@@ -23,11 +23,11 @@ func IngestOnce(monitorDir, stateDir string, now time.Time) (IngestResult, error
 }
 
 func ingestStore(st *Store, monitorDir string, now time.Time) (IngestResult, error) {
-	offset, err := st.Offset()
+	offset, prefix, err := st.Cursor()
 	if err != nil {
 		return IngestResult{}, err
 	}
-	next, lines, err := readNewLines(monitorDir, offset)
+	next, prefix, lines, err := readNewLines(monitorDir, offset, prefix)
 	if err != nil {
 		return IngestResult{}, err
 	}
@@ -50,7 +50,7 @@ func ingestStore(st *Store, monitorDir string, now time.Time) (IngestResult, err
 			res.Added++
 		}
 	}
-	if err := st.SetOffset(next); err != nil {
+	if err := st.SetCursor(next, prefix); err != nil {
 		return res, err
 	}
 	return res, nil

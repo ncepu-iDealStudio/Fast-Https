@@ -13,6 +13,7 @@ type CollectOptions struct {
 	RuntimeURL string
 	Run        cmdRunner
 	Now        time.Time
+	Ctx        context.Context
 }
 
 type contextDoc struct {
@@ -38,7 +39,11 @@ func CollectPending(stateDir string, opt CollectOptions) (int, error) {
 	}
 	n := 0
 	for _, id := range ids {
-		raw, err := json.Marshal(buildContext(context.Background(), opt))
+		ctx := opt.Ctx
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		raw, err := json.Marshal(buildContext(ctx, opt))
 		if err != nil {
 			return n, err
 		}
