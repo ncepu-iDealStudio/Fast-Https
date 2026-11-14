@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Activity, LayoutGrid, Globe, ShieldCheck, ScrollText, Zap, History } from '@lucide/vue';
+import { Activity, LayoutGrid, Globe, ShieldCheck, ScrollText, Zap, History, GitBranch } from '@lucide/vue';
 import type { Component } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore, type PaneKey } from '../../stores/app';
@@ -18,6 +18,7 @@ const items: NavItem[] = [
   { key: 'logs', label: 'nav.logs', icon: ScrollText },
   { key: 'runtime', label: 'nav.runtime', icon: Zap },
   { key: 'operations', label: 'nav.operations', icon: History },
+  { key: 'versions', label: 'settings.versionsTitle', icon: GitBranch },
 ];
 </script>
 

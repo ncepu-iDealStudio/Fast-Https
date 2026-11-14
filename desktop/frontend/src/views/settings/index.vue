@@ -19,10 +19,6 @@ const saving = ref(false);
 const error = ref('');
 const notice = ref('');
 
-const versions = ref<Record<string, unknown>[]>([]);
-const drift = ref(false);
-const diffText = ref('');
-const diffOpen = ref(false);
 
   /** 字段按 group 分组，与后端 fieldSpec 的 group 一致。 */
 const groups = computed(() => {
@@ -110,7 +106,6 @@ async function save(): Promise<void> {
   try {
     notice.value = await saveConfigForm(changed.value);
     await load();
-    await loadVersions();
   } catch (e) {
     error.value = messageOf(e);
   } finally {
@@ -127,39 +122,10 @@ async function validate(): Promise<void> {
   }
 }
 
-async function loadVersions(): Promise<void> {
-  try {
-    const r = await runCommand(['config', 'versions']);
-    const d = r.data as { versions?: Record<string, unknown>[]; drift?: boolean } | null;
-    versions.value = d?.versions ?? [];
-    drift.value = !!d?.drift;
-  } catch {
-    versions.value = [];
-  }
-}
 
-async function showDiff(version: string): Promise<void> {
-  try {
-    const r = await runCommand(['config', 'diff', '--candidate', String(version)]);
-    diffText.value = r.text || JSON.stringify(r.data, null, 2);
-    diffOpen.value = true;
-  } catch (e) {
-    error.value = messageOf(e);
-  }
-}
 
-async function rollback(version: string): Promise<void> {
-  try {
-    const r = await runCommand(['config', 'rollback', '--version', String(version), '--yes']);
-    notice.value = r.text || String(version);
-    await load();
-    await loadVersions();
-  } catch (e) {
-    error.value = messageOf(e);
-  }
-}
 
-onMounted(() => { void load(); void loadVersions(); });
+onMounted(() => { void load(); });
 </script>
 
 <template>
@@ -263,37 +229,5 @@ onMounted(() => { void load(); void loadVersions(); });
       </div>
     </div>
 
-    <!-- 配置版本 -->
-    <div class="card">
-      <div class="card-head">
-        <h3>{{ t('settings.versionsTitle') }}</h3>
-        <FhButton size="small" @click="loadVersions">{{ t('common.refresh') }}</FhButton>
-      </div>
-      <p v-if="drift" class="notice">{{ t('settings.driftNote') }}</p>
-      <div class="kv-table">
-        <div v-if="!versions.length" class="ver-row">
-          <span class="k">—</span><span class="v">{{ t('settings.versionsEmpty') }}</span>
-        </div>
-        <div v-for="v in versions" :key="String(v.version)" class="ver-row">
-          <span class="k mono">
-            {{ v.version }}
-            <span v-if="v.active" class="badge badge--ok">{{ t('settings.current') }}</span>
-          </span>
-          <span class="v muted">
-            {{ [v.created_at, v.created_by, v.summary].filter(Boolean).join(' · ') }}
-          </span>
-          <span class="n">
-            <FhButton size="small" @click="showDiff(String(v.version))">{{ t('settings.diff') }}</FhButton>
-            <FhButton v-if="!v.active" size="small" @click="rollback(String(v.version))">
-              {{ t('settings.rollback') }}
-            </FhButton>
-          </span>
-        </div>
-      </div>
-      <details v-if="diffOpen" class="raw-details" open>
-        <summary>{{ t('settings.diff') }}</summary>
-        <pre class="cmd-result">{{ diffText }}</pre>
-      </details>
-    </div>
   </div>
 </template>

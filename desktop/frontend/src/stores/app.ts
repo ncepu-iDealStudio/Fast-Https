@@ -6,7 +6,7 @@ import { switchLang } from '../i18n';
 
 export type PaneKey =
   | 'overview' | 'matrix' | 'sites' | 'certs' | 'logs'
-  | 'runtime' | 'operations' | 'settings';
+  | 'runtime' | 'operations' | 'versions' | 'settings';
 
 const MODE_KEY = 'fast-https.mode';
 const PANE_KEY = 'fast-https.pane';
@@ -15,7 +15,7 @@ const PANE_KEY = 'fast-https.pane';
 // 不进导航，也不该成为「上次停留的页面」——否则刷新后卡在设置页且
 // 侧栏没有任何高亮项，用户以为界面坏了。
 const NAV_PANES: readonly PaneKey[] = [
-  'overview', 'matrix', 'sites', 'certs', 'logs', 'runtime', 'operations',
+  'overview', 'matrix', 'sites', 'certs', 'logs', 'runtime', 'operations', 'versions',
 ];
 
 function initialPane(): PaneKey {

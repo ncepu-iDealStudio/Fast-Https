@@ -9,6 +9,7 @@ import CertsView from './views/certs/index.vue';
 import LogsView from './views/logs/index.vue';
 import RuntimeView from './views/runtime/index.vue';
 import OperationsView from './views/operations/index.vue';
+import VersionsView from './views/versions/index.vue';
 import SettingsView from './views/settings/index.vue';
 import { useAppStore, type PaneKey } from './stores/app';
 import { useOverviewStore } from './stores/overview';
@@ -22,7 +23,8 @@ const { t } = useI18n();
 const PANE_TITLES: Record<PaneKey, string> = {
   overview: 'nav.overview', matrix: 'nav.matrix', sites: 'nav.sites',
   certs: 'nav.certs', logs: 'nav.logs', runtime: 'nav.runtime',
-  operations: 'nav.operations', settings: 'settings.configTitle',
+  operations: 'nav.operations', versions: 'settings.versionsTitle',
+  settings: 'settings.configTitle',
 };
 const paneTitle = computed(() => t(PANE_TITLES[app.pane]));
 
@@ -55,6 +57,7 @@ onMounted(() => {
     <LogsView v-else-if="app.pane === 'logs'" />
     <RuntimeView v-else-if="app.pane === 'runtime'" />
     <OperationsView v-else-if="app.pane === 'operations'" />
+    <VersionsView v-else-if="app.pane === 'versions'" />
     <SettingsView v-else-if="app.pane === 'settings'" />
     <div v-else class="main__body">
       <section class="placeholder">
