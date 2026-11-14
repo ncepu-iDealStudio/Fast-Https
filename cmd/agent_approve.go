@@ -115,6 +115,13 @@ func runAgentApprove(cmd *cobra.Command, planID string) error {
 	if !claimed {
 		return &CLIError{Command: "agent.approve", Code: CodeConflict, Message: "plan is already being approved"}
 	}
+	if ok, err := transitionTask(db, plan.taskID, "WAITING_APPROVAL", "EXECUTING"); err != nil || !ok {
+		_, _ = db.Exec(`UPDATE agent_approval SET status = 'pending' WHERE plan_id = ? AND status = 'executing'`, planID)
+		if err != nil {
+			return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
+		}
+		return &CLIError{Command: "agent.approve", Code: CodeConflict, Message: "task is not waiting for approval"}
+	}
 	return executeClaimedApproval(cmd, db, planID, plan.taskID, action, host, cfgPath)
 }
 
@@ -257,34 +264,34 @@ func executeClaimedApproval(cmd *cobra.Command, db *sql.DB, planID, taskID, acti
 		return fromStateError("agent.approve", err)
 	}
 	if rec.Status == operation.StatusSucceeded {
-		return completeApproval(cmd, db, planID, taskID, action, host, true)
+		return verifyAndFinish(cmd, db, planID, taskID, action, host, cfgPath, true)
 	}
 	if alreadyInState(action, host) {
 		_, _ = store.Finish(rec, operation.StatusSucceeded, "already", map[string]any{"address": host, "plan_id": planID, "applied": false}, nil)
-		return completeApproval(cmd, db, planID, taskID, action, host, true)
+		return verifyAndFinish(cmd, db, planID, taskID, action, host, cfgPath, true)
 	}
 	if err := applyApprovedDrain(action, host, cfgPath); err != nil {
 		_, _ = store.Finish(rec, operation.StatusFailed, "failed", nil, &operation.ErrorBody{Message: "drain change failed"})
+		_, _ = transitionTask(db, taskID, "EXECUTING", "FAILED")
 		_, _ = db.Exec(`UPDATE agent_approval SET status = 'pending' WHERE plan_id = ? AND status = 'executing'`, planID)
 		return err
 	}
 	if _, err := store.Finish(rec, operation.StatusSucceeded, "committed", map[string]any{"address": host, "plan_id": planID, "applied": true}, nil); err != nil {
 		return fromStateError("agent.approve", err)
 	}
-	return completeApproval(cmd, db, planID, taskID, action, host, false)
+	return verifyAndFinish(cmd, db, planID, taskID, action, host, cfgPath, false)
 }
 
 func finishExecutingApproval(cmd *cobra.Command, db *sql.DB, planID, taskID, action, host string) error {
 	if !alreadyInState(action, host) {
-		now := time.Now().UTC().Format(time.RFC3339)
-		_, _ = db.Exec(`UPDATE agent_task SET status = 'WAITING_HUMAN', updated_at = ? WHERE task_id = ?`, now, taskID)
+		_, _ = transitionTask(db, taskID, "EXECUTING", "WAITING_HUMAN")
 		store := operation.Store{Dir: stateDir()}
 		if rec, found, err := store.Lookup("approve:" + planID); err == nil && found && rec.Status == operation.StatusRunning {
 			_, _ = store.Finish(rec, operation.StatusUnknown, "unconfirmed", nil, &operation.ErrorBody{Message: "result not confirmed"})
 		}
 		return &CLIError{Command: "agent.approve", Code: CodeConflict, Message: "approval is executing and the upstream state is not confirmed"}
 	}
-	return completeApproval(cmd, db, planID, taskID, action, host, true)
+	return verifyAndFinish(cmd, db, planID, taskID, action, host, "", true)
 }
 
 func alreadyInState(action, host string) bool {
@@ -332,8 +339,26 @@ func applyApprovedDrain(action, host, cfgPath string) error {
 	return nil
 }
 
-func completeApproval(cmd *cobra.Command, db *sql.DB, planID, taskID, action, host string, idempotent bool) error {
-	now := time.Now().UTC().Format(time.RFC3339)
+func verifyAndFinish(cmd *cobra.Command, db *sql.DB, planID, taskID, action, host, cfgPath string, idempotent bool) error {
+	if _, err := transitionTask(db, taskID, "EXECUTING", "VERIFYING"); err != nil {
+		return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
+	}
+	verified, health, err := verifyDrainEffect(action, host, cfgPath)
+	if err != nil {
+		_, _ = transitionTask(db, taskID, "VERIFYING", "WAITING_HUMAN")
+		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "drain result could not be confirmed", Cause: err}
+	}
+	if !verified.ConfigOK {
+		_, _ = transitionTask(db, taskID, "VERIFYING", "FAILED")
+		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "drain list does not match the approved action"}
+	}
+	if action == "undrain" && health != "healthy" {
+		_, _ = transitionTask(db, taskID, "VERIFYING", "WAITING_HUMAN")
+		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "upstream was restored in the drain list but is not confirmed healthy"}
+	}
+	if _, err := transitionTask(db, taskID, "VERIFYING", "COMPLETED"); err != nil {
+		return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
+	}
 	res, err := db.Exec(`UPDATE agent_approval SET status = 'approved' WHERE plan_id = ? AND status = 'executing'`, planID)
 	if err != nil {
 		return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
@@ -345,15 +370,91 @@ func completeApproval(cmd *cobra.Command, db *sql.DB, planID, taskID, action, ho
 			return &CLIError{Command: "agent.approve", Code: CodeConflict, Message: "plan is not pending"}
 		}
 	}
-	if _, err := db.Exec(`UPDATE agent_task SET status = 'COMPLETED', updated_at = ? WHERE task_id = ?`, now, taskID); err != nil {
-		return &CLIError{Command: "agent.approve", Code: CodeInternal, Message: err.Error(), Cause: err}
+	data := map[string]any{
+		"plan_id": planID, "address": host, "action": action, "idempotent": idempotent,
+		"config_verified": true, "runtime_health": health,
 	}
-	data := map[string]any{"plan_id": planID, "address": host, "action": action, "idempotent": idempotent}
 	if jsonMode(cmd) {
 		return emitOK(cmd, "agent.approve", data, nil)
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "approved %s %s\n", action, host)
 	return nil
+}
+
+type drainVerification struct {
+	ConfigOK bool
+}
+
+func verifyDrainEffect(action, host, cfgPath string) (drainVerification, string, error) {
+	inList := false
+	for _, item := range proxy.DrainedList() {
+		if item == host {
+			inList = true
+			break
+		}
+	}
+	configOK := (action == "drain" && inList) || (action == "undrain" && !inList)
+	if action == "drain" && configOK && cfgPath != "" {
+		groups, err := config.ProxyPeerGroups(cfgPath)
+		if err != nil {
+			return drainVerification{}, "", err
+		}
+		if !otherPeerRemains(groups, host) {
+			configOK = false
+		}
+	}
+	health := "unavailable"
+	if rows, err := currentUpstreams(); err == nil {
+		health = "unknown"
+		for _, row := range rows {
+			if row.Address != host {
+				continue
+			}
+			health = row.Health
+			if health == "" {
+				if row.Healthy {
+					health = "healthy"
+				} else {
+					health = "unhealthy"
+				}
+			}
+		}
+	}
+	return drainVerification{ConfigOK: configOK}, health, nil
+}
+
+func otherPeerRemains(groups [][]string, host string) bool {
+	drained := map[string]struct{}{}
+	for _, item := range proxy.DrainedList() {
+		drained[item] = struct{}{}
+	}
+	for _, group := range groups {
+		contains := false
+		left := 0
+		for _, peer := range group {
+			h := proxy.NormalizePeer(peer)
+			if h == host {
+				contains = true
+			}
+			if _, skip := drained[h]; !skip {
+				left++
+			}
+		}
+		if contains && left == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func transitionTask(db *sql.DB, taskID, from, to string) (bool, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := db.Exec(`UPDATE agent_task SET status = ?, updated_at = ? WHERE task_id = ? AND status = ?`, to, now, taskID, from)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
 }
 
 func ensureApprovalColumns(db *sql.DB) error {

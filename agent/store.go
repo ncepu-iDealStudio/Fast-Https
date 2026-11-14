@@ -112,6 +112,7 @@ INSERT OR IGNORE INTO agent_offset (id, monitor_offset) VALUES (1, 0);
 	}
 	for _, col := range []struct{ table, name, decl string }{
 		{"agent_event", "snapshot_started_at", "TEXT"},
+		{"agent_event", "event_time", "TEXT"},
 		{"agent_plan", "verify_text", "TEXT"},
 		{"agent_plan", "on_failure", "TEXT"},
 		{"agent_approval", "decided_at", "TEXT"},
@@ -219,9 +220,9 @@ func (s *Store) insertEventOnce(ev lineEvent, id string, now time.Time) (bool, e
 	}
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.Exec(`
-INSERT OR IGNORE INTO agent_event (event_id, monitor_type, severity, summary, received_at, source, snapshot_started_at)
-VALUES (?, ?, ?, ?, ?, 'fast_https_monitor', ?)`,
-		id, ev.Type, ev.Severity, ev.Message, at, started)
+INSERT OR IGNORE INTO agent_event (event_id, monitor_type, severity, summary, received_at, source, snapshot_started_at, event_time)
+VALUES (?, ?, ?, ?, ?, 'fast_https_monitor', ?, ?)`,
+		id, ev.Type, ev.Severity, ev.Message, at, started, ev.Time)
 	if err != nil {
 		return false, err
 	}
@@ -310,4 +311,36 @@ func (s *Store) ContextJSON(taskID string) (string, error) {
 		return "", err
 	}
 	return raw.String, nil
+}
+
+// taskTransitions 是允许的状态变化。恢复一条故障只从这些状态进入 COMPLETED。
+var taskTransitions = map[string]map[string]bool{
+	"PENDING":          {"COLLECTING": true, "WAITING_APPROVAL": true, "WAITING_HUMAN": true, "COMPLETED": true, "ESCALATED": true, "IGNORED": true, "FAILED": true},
+	"COLLECTING":       {"PENDING": true},
+	"WAITING_APPROVAL": {"EXECUTING": true, "WAITING_HUMAN": true},
+	"EXECUTING":        {"VERIFYING": true, "FAILED": true, "WAITING_HUMAN": true},
+	"VERIFYING":        {"COMPLETED": true, "FAILED": true, "WAITING_HUMAN": true},
+	"ESCALATED":        {"COMPLETED": true},
+	"WAITING_HUMAN":    {"COMPLETED": true},
+}
+
+// TransitionTask 只在当前状态属于允许的来源时更新。from 为空时读取当前状态。
+func (s *Store) TransitionTask(taskID, from, to string, now time.Time) (bool, error) {
+	at := now.UTC().Format(time.RFC3339)
+	if from == "" {
+		var current string
+		if err := s.db.QueryRow(`SELECT status FROM agent_task WHERE task_id = ?`, taskID).Scan(&current); err != nil {
+			return false, err
+		}
+		from = current
+	}
+	if !taskTransitions[from][to] {
+		return false, nil
+	}
+	res, err := s.db.Exec(`UPDATE agent_task SET status = ?, updated_at = ? WHERE task_id = ? AND status = ?`, to, at, taskID, from)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
 }

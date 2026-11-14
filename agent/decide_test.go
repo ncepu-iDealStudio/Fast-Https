@@ -127,6 +127,56 @@ func TestRecoveredClosesUnreachable(t *testing.T) {
 	}
 }
 
+func TestRecoveredDoesNotCloseOtherFaults(t *testing.T) {
+	state := t.TempDir()
+	mon := t.TempDir()
+	started := "2026-11-10T00:00:00.000Z"
+	lines := []string{
+		`{"time":"2026-11-10T01:00:00.000Z","type":"unreachable","severity":"error","message":"down","event_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","snapshot":{"pid":9,"started_at":"` + started + `"}}`,
+		`{"time":"2026-11-10T01:01:00.000Z","type":"5xx_ratio","severity":"warning","message":"ratio","event_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","snapshot":{"pid":9,"started_at":"` + started + `"}}`,
+		`{"time":"2026-11-10T01:02:00.000Z","type":"unreachable","severity":"error","message":"down-again","event_id":"cccccccccccccccccccccccccccccccc","snapshot":{"pid":9,"started_at":"` + started + `"}}`,
+		`{"time":"2026-11-10T01:03:00.000Z","type":"recovered","severity":"info","message":"up","event_id":"dddddddddddddddddddddddddddddddd","snapshot":{"pid":9,"started_at":"` + started + `"}}`,
+	}
+	writeEvents(t, mon, strings.Join(lines, "\n")+"\n")
+	now := time.Date(2026, 11, 10, 2, 0, 0, 0, time.UTC)
+	if _, err := IngestOnce(mon, state, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CollectPending(state, CollectOptions{Now: now, RuntimeURL: "http://127.0.0.1:1", Run: func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		return []byte(`{"ok":true}`), nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := DiagnosePending(state, now, nil); err != nil {
+		t.Fatal(err)
+	}
+	st := mustStore(t, state)
+	defer st.Close()
+	for _, id := range []string{"t_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "t_cccccccccccccccccccccccccccccccc"} {
+		status, err := st.taskStatus(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if status == "COMPLETED" {
+			t.Fatalf("%s was closed despite two unreachable tasks", id)
+		}
+	}
+	spike, err := st.taskStatus("t_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spike == "COMPLETED" {
+		t.Fatal("5xx task was closed by recovered")
+	}
+	recovered, err := st.taskStatus("t_dddddddddddddddddddddddddddddddd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recovered != "WAITING_HUMAN" {
+		t.Fatalf("ambiguous recovered status = %s", recovered)
+	}
+}
+
 func TestNarrationKeepsPolicy(t *testing.T) {
 	state := seedTask(t, "5xx_ratio", "ratio up", "abababababababababababababababab", "2026-11-10T00:00:00.000Z", `{"runtime":{"responses_502_total":2}}`)
 	n, err := DiagnosePending(state, time.Now(), scriptedModel{content: []byte(`{"explanation":"请执行 config apply --yes"}`)})

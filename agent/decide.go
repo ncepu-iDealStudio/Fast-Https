@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"fast-https/agent/model"
@@ -15,6 +16,7 @@ type openTask struct {
 	kind      string
 	message   string
 	startedAt string
+	eventTime string
 	context   string
 }
 
@@ -56,7 +58,7 @@ func DiagnosePending(stateDir string, now time.Time, narrator model.Provider) (i
 
 func (s *Store) pendingDiagnose() ([]openTask, error) {
 	rows, err := s.db.Query(`
-SELECT t.task_id, t.event_id, e.monitor_type, e.summary, IFNULL(e.snapshot_started_at, ''), IFNULL(t.context_json, '')
+SELECT t.task_id, t.event_id, e.monitor_type, e.summary, IFNULL(e.snapshot_started_at, ''), IFNULL(e.event_time, ''), IFNULL(t.context_json, '')
 FROM agent_task t
 JOIN agent_event e ON e.event_id = t.event_id
 WHERE t.status = 'PENDING' AND t.context_json IS NOT NULL AND t.context_json != ''
@@ -68,7 +70,7 @@ ORDER BY t.created_at`)
 	var out []openTask
 	for rows.Next() {
 		var t openTask
-		if err := rows.Scan(&t.taskID, &t.eventID, &t.kind, &t.message, &t.startedAt, &t.context); err != nil {
+		if err := rows.Scan(&t.taskID, &t.eventID, &t.kind, &t.message, &t.startedAt, &t.eventTime, &t.context); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -77,27 +79,52 @@ ORDER BY t.created_at`)
 }
 
 func (s *Store) closeRecovered(task openTask, now time.Time) error {
-	at := now.UTC().Format(time.RFC3339)
-	res, err := s.db.Exec(`
-UPDATE agent_task SET status = 'COMPLETED', updated_at = ?
-WHERE task_id IN (
-  SELECT t.task_id FROM agent_task t
-  JOIN agent_event e ON e.event_id = t.event_id
-  WHERE e.monitor_type = 'unreachable'
-    AND e.snapshot_started_at = ?
-    AND e.snapshot_started_at != ''
-    AND t.status NOT IN ('COMPLETED', 'IGNORED')
-)`, at, task.startedAt)
+	ids, err := s.matchRecovered(task)
 	if err != nil {
 		return err
 	}
-	n, _ := res.RowsAffected()
-	status := "IGNORED"
-	if n > 0 {
-		status = "COMPLETED"
+	switch len(ids) {
+	case 0:
+		_, err = s.TransitionTask(task.taskID, "PENDING", "IGNORED", now)
+		return err
+	case 1:
+		ok, err := s.TransitionTask(ids[0], "", "COMPLETED", now)
+		if err != nil || !ok {
+			return err
+		}
+		_, err = s.TransitionTask(task.taskID, "PENDING", "COMPLETED", now)
+		return err
+	default:
+		_, err = s.TransitionTask(task.taskID, "PENDING", "WAITING_HUMAN", now)
+		return err
 	}
-	_, err = s.db.Exec(`UPDATE agent_task SET status = ?, updated_at = ? WHERE task_id = ?`, status, at, task.taskID)
-	return err
+}
+
+// matchRecovered 只配对同一进程启动周期内、发生在恢复之前的 unreachable。
+// 多条都对得上时返回全部，调用方不得关闭。5xx、端口和证书任务不在范围内。
+func (s *Store) matchRecovered(task openTask) ([]string, error) {
+	rows, err := s.db.Query(`
+SELECT t.task_id FROM agent_task t
+JOIN agent_event e ON e.event_id = t.event_id
+WHERE e.monitor_type = 'unreachable'
+  AND e.snapshot_started_at = ?
+  AND e.snapshot_started_at != ''
+  AND t.status NOT IN ('COMPLETED', 'IGNORED', 'FAILED', 'CLOSED')
+  AND (IFNULL(e.event_time, '') = '' OR e.event_time <= ?)
+ORDER BY t.task_id`, task.startedAt, task.eventTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 func (s *Store) saveDiagnosis(task openTask, d Diagnosis, p Plan, decision, status string, now time.Time) error {
@@ -136,8 +163,12 @@ INSERT INTO agent_approval (plan_id, status, reason, created_at) VALUES (?, 'pen
 			return err
 		}
 	}
-	if _, err := tx.Exec(`UPDATE agent_task SET status = ?, updated_at = ? WHERE task_id = ?`, status, at, task.taskID); err != nil {
+	res, err := tx.Exec(`UPDATE agent_task SET status = ?, updated_at = ? WHERE task_id = ? AND status = 'PENDING'`, status, at, task.taskID)
+	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return fmt.Errorf("task %s was not PENDING", task.taskID)
 	}
 	if _, err := tx.Exec(`
 INSERT INTO agent_audit (at, task_id, kind, payload_json) VALUES (?, ?, 'diagnosis', ?)`,
