@@ -2,13 +2,25 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
+
+// errRetryTask 让 InsertEvent 再试一次。测试用它模拟 SQLite 暂时失败。
+var errRetryTask = errors.New("retry task insert")
+
+var insertTaskRow = func(tx *sql.Tx, taskID, eventID, at string) error {
+	_, err := tx.Exec(`
+INSERT INTO agent_task (task_id, event_id, status, attempts, created_at, updated_at)
+VALUES (?, ?, 'PENDING', 0, ?, ?)`, taskID, eventID, at, at)
+	return err
+}
 
 // Store 是 Agent 自己的 SQLite 文件，不使用 Server 的状态目录。
 type Store struct {
@@ -23,12 +35,16 @@ func OpenStore(dir string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(1)
 	s := &Store{db: db}
+	if _, err := db.Exec(`PRAGMA busy_timeout = 5000`); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
-	_, _ = db.Exec(`ALTER TABLE agent_event ADD COLUMN snapshot_started_at TEXT`)
 	return s, nil
 }
 
@@ -91,6 +107,66 @@ CREATE TABLE IF NOT EXISTS agent_offset (
 );
 INSERT OR IGNORE INTO agent_offset (id, monitor_offset) VALUES (1, 0);
 `)
+	if err != nil {
+		return err
+	}
+	for _, col := range []struct{ table, name, decl string }{
+		{"agent_event", "snapshot_started_at", "TEXT"},
+		{"agent_plan", "verify_text", "TEXT"},
+		{"agent_plan", "on_failure", "TEXT"},
+		{"agent_approval", "decided_at", "TEXT"},
+		{"agent_approval", "actor", "TEXT"},
+	} {
+		if err := ensureColumn(s.db, col.table, col.name, col.decl); err != nil {
+			return err
+		}
+	}
+	return s.migrateWaitingHuman()
+}
+
+func ensureColumn(db *sql.DB, table, name, decl string) error {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var col, typ string
+		var notNull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &col, &typ, &notNull, &dflt, &pk); err != nil {
+			return err
+		}
+		if col == name {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	_, err = db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + name + ` ` + decl)
+	return err
+}
+
+func (s *Store) migrateWaitingHuman() error {
+	_, err := s.db.Exec(`
+UPDATE agent_task SET status = 'WAITING_HUMAN'
+WHERE status = 'WAITING_APPROVAL'
+  AND task_id IN (
+    SELECT task_id FROM agent_plan
+    WHERE IFNULL(steps_json, '') IN ('', '[]', 'null')
+  )`)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`
+UPDATE agent_approval SET status = 'expired'
+WHERE status = 'pending'
+  AND plan_id IN (
+    SELECT plan_id FROM agent_plan
+    WHERE IFNULL(steps_json, '') IN ('', '[]', 'null')
+  )`)
 	return err
 }
 
@@ -117,14 +193,32 @@ func (s *Store) AuditCount(kind string) (int, error) {
 	return n, err
 }
 
-// InsertEvent 在事件首次出现时写入事件和一条 PENDING 任务。已存在则返回 false。
+// InsertEvent 在同一个事务里写入事件和任务。事件已在且任务也在时返回 false。
+// 只有事件、没有任务的历史行会补建任务。任务插入失败会回滚事件。
 func (s *Store) InsertEvent(ev lineEvent, id string, now time.Time) (bool, error) {
+	var added bool
+	var err error
+	for attempt := 0; attempt < 8; attempt++ {
+		added, err = s.insertEventOnce(ev, id, now)
+		if err == nil || (!errors.Is(err, errRetryTask) && !sqliteBusy(err)) {
+			return added, err
+		}
+	}
+	return added, err
+}
+
+func (s *Store) insertEventOnce(ev lineEvent, id string, now time.Time) (bool, error) {
 	at := now.UTC().Format(time.RFC3339)
 	started := ""
 	if ev.Snapshot != nil {
 		started = ev.Snapshot.StartedAt
 	}
-	res, err := s.db.Exec(`
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.Exec(`
 INSERT OR IGNORE INTO agent_event (event_id, monitor_type, severity, summary, received_at, source, snapshot_started_at)
 VALUES (?, ?, ?, ?, ?, 'fast_https_monitor', ?)`,
 		id, ev.Type, ev.Severity, ev.Message, at, started)
@@ -136,13 +230,40 @@ VALUES (?, ?, ?, ?, ?, 'fast_https_monitor', ?)`,
 		return false, err
 	}
 	if n == 0 {
-		return false, nil
+		var count int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM agent_task WHERE event_id = ?`, id).Scan(&count); err != nil {
+			return false, err
+		}
+		if count > 0 {
+			return false, tx.Commit()
+		}
 	}
-	_, err = s.db.Exec(`
-INSERT INTO agent_task (task_id, event_id, status, attempts, created_at, updated_at)
-VALUES (?, ?, 'PENDING', 0, ?, ?)`,
-		"t_"+id, id, at, at)
-	return err == nil, err
+	if err := insertTaskRow(tx, "t_"+id, id, at); err != nil {
+		if sqliteConstraint(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func sqliteBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "locked") || strings.Contains(msg, "busy")
+}
+
+func sqliteConstraint(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "constraint") || strings.Contains(msg, "unique")
 }
 
 func (s *Store) Audit(kind, payload string, now time.Time) error {

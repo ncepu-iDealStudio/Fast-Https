@@ -45,7 +45,7 @@ func DiagnosePending(stateDir string, now time.Time, narrator model.Provider) (i
 		}
 		p := makePlan(task.taskID, task.eventID, d.Classification, drainStep(d.Classification, task.context))
 		decision := policyOf(d.Classification, p.Steps)
-		status := statusFor(d.Classification, decision)
+		status := statusFor(d.Classification, decision, p.Steps)
 		if err := st.saveDiagnosis(task, d, p, decision, status, now); err != nil {
 			return n, err
 		}
@@ -120,16 +120,16 @@ VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		return err
 	}
 	approval := 0
-	if decision == policyApproval {
+	if decision == policyApproval && executableDrain(p.Steps) {
 		approval = 1
 	}
 	if _, err := tx.Exec(`
-INSERT INTO agent_plan (plan_id, task_id, event_id, risk, plan_hash, steps_json, needs_approval)
-VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		p.ID, task.taskID, task.eventID, p.Risk, p.Hash, string(steps), approval); err != nil {
+INSERT INTO agent_plan (plan_id, task_id, event_id, risk, plan_hash, steps_json, needs_approval, verify_text, on_failure)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, task.taskID, task.eventID, p.Risk, p.Hash, string(steps), approval, p.Verify, p.OnFailure); err != nil {
 		return err
 	}
-	if decision == policyApproval {
+	if decision == policyApproval && executableDrain(p.Steps) {
 		if _, err := tx.Exec(`
 INSERT INTO agent_approval (plan_id, status, reason, created_at) VALUES (?, 'pending', ?, ?)`,
 			p.ID, d.Cause, at); err != nil {

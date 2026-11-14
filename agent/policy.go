@@ -55,16 +55,23 @@ func isDrainStep(step string) bool {
 	return fields[2] != "" && !strings.ContainsAny(fields[2], ";&|$`'\"\\")
 }
 
-func statusFor(classification, decision string) string {
+func statusFor(classification, decision string, steps []string) string {
 	switch classification {
 	case "collect_error", "certificate_read_error", "unknown", "service_unavailable":
 		return "ESCALATED"
 	}
-	if decision == policyApproval {
-		return "WAITING_APPROVAL"
-	}
 	if decision == policyAllow {
 		return "COMPLETED"
 	}
+	if decision == policyApproval && executableDrain(steps) {
+		return "WAITING_APPROVAL"
+	}
+	if decision == policyApproval {
+		return "WAITING_HUMAN"
+	}
 	return "ESCALATED"
+}
+
+func executableDrain(steps []string) bool {
+	return len(steps) == 1 && isDrainStep(steps[0])
 }

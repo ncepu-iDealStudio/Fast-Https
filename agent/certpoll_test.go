@@ -40,7 +40,7 @@ func TestCertPollThreshold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status != "WAITING_APPROVAL" {
+	if status != "WAITING_HUMAN" {
 		t.Fatalf("status = %s", status)
 	}
 	var msg string

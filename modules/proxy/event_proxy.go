@@ -344,6 +344,7 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) (int, error) 
 	headCode := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
 	status, _ := strconv.Atoi(headCode)
 	logProxyAccess(ev, status, len(ev.RR.Res.Body))
+	noteUpstreamOK(p.ProxyAddr)
 
 	return status, nil
 }

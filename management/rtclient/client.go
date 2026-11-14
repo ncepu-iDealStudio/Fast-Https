@@ -164,6 +164,8 @@ type UpstreamAddrInfo struct {
 	SendTimeoutTotal uint64 `json:"send_timeout_total"`
 	ReadTimeoutTotal uint64 `json:"read_timeout_total"`
 	Healthy          bool   `json:"healthy"`
+	Health           string `json:"health,omitempty"`
+	Drained          bool   `json:"drained,omitempty"`
 }
 
 // UptimeSeconds 由 started_at 推算。解析失败则省略。

@@ -26,21 +26,28 @@ func TestDiagnoseMapping(t *testing.T) {
 		t.Fatalf("class = %q err=%v", class, err)
 	}
 	status, err := st.taskStatus("t_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-	if err != nil || status != "WAITING_APPROVAL" {
+	if err != nil || status != "WAITING_HUMAN" {
 		t.Fatalf("status = %q err=%v", status, err)
 	}
-	var steps, decisionCause string
+	var steps, cause string
 	if err := st.db.QueryRow(`SELECT steps_json FROM agent_plan WHERE event_id = ?`, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee").Scan(&steps); err != nil {
 		t.Fatal(err)
 	}
 	if steps != "[]" {
 		t.Fatalf("steps = %s", steps)
 	}
-	if err := st.db.QueryRow(`SELECT reason FROM agent_approval WHERE plan_id = ?`, "p_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee").Scan(&decisionCause); err != nil {
+	if err := st.db.QueryRow(`SELECT cause FROM agent_diagnosis WHERE task_id = ?`, "t_eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee").Scan(&cause); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(decisionCause, "responses_502_total=4") {
-		t.Fatalf("cause = %s", decisionCause)
+	if !strings.Contains(cause, "responses_502_total=4") {
+		t.Fatalf("cause = %s", cause)
+	}
+	var approvals int
+	if err := st.db.QueryRow(`SELECT COUNT(*) FROM agent_approval`).Scan(&approvals); err != nil {
+		t.Fatal(err)
+	}
+	if approvals != 0 {
+		t.Fatalf("empty plan entered the approval queue: %d", approvals)
 	}
 }
 
@@ -139,7 +146,7 @@ func TestNarrationKeepsPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	status, _ = st.taskStatus("t_abababababababababababababababab")
-	if steps != "[]" || status != "WAITING_APPROVAL" {
+	if steps != "[]" || status != "WAITING_HUMAN" {
 		t.Fatalf("steps=%s status=%s", steps, status)
 	}
 }
