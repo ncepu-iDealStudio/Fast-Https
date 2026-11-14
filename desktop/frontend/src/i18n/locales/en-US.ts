@@ -172,6 +172,10 @@ export const enUS: Record<string, string> = {
   'sites.empty': 'No sites',
   'sites.toggleOn': 'Disable site',
   'sites.toggleOff': 'Enable site',
+  'sites.urlsTitle': 'Access URLs',
+  'sites.copy': 'Copy link',
+  'sites.open': 'Open in browser',
+  'sites.copied': 'Copied {url}',
   'sites.del': 'Delete site',
   'sites.detail': 'View details',
 

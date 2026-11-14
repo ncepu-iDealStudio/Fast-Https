@@ -172,6 +172,10 @@ export const zhCN: Record<string, string> = {
   'sites.empty': '没有站点',
   'sites.toggleOn': '停用站点',
   'sites.toggleOff': '启用站点',
+  'sites.urlsTitle': '访问方式',
+  'sites.copy': '复制链接',
+  'sites.open': '在浏览器打开',
+  'sites.copied': '已复制 {url}',
   'sites.del': '删除站点',
   'sites.detail': '查看详情',
 

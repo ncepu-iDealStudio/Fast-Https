@@ -1,0 +1,82 @@
+/* 站点列表：行点击展开访问链接面板。
+   与日志/操作记录同一套表格语言，展开面板是唯一的新元素。 */
+
+.sitelist {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sitelist__row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1.2fr) minmax(0, 1fr) 84px auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+}
+.sitelist__row:hover { background: var(--surface); }
+.sitelist__row--open { background: var(--surface); }
+
+.sitelist__chevron {
+  display: grid; place-items: center;
+  color: var(--faint);
+  transition: transform .15s;
+}
+.sitelist__chevron.is-open { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .sitelist__chevron { transition: none; }
+}
+
+.sitelist__name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sitelist__listen { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sitelist__ops {
+  display: flex; align-items: center; gap: 4px;
+  justify-content: flex-end;
+}
+
+/* ---------------------------------------------------------------- 展开面板 */
+.sitelist__panel {
+  padding: 12px 16px 14px 52px;   /* 左侧缩进与站点名对齐 */
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.sitelist__panel-label {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 8px;
+}
+
+.sitelist__url {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.sitelist__url:last-child { margin-bottom: 0; }
+
+.sitelist__url-ico { color: var(--accent); flex: 0 0 auto; }
+.sitelist__url-text { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sitelist__url-ops { display: flex; gap: 4px; }
+
+/* 服务停止或站点停用：链接灰化，打开按钮禁用（复制仍可用） */
+.sitelist__url--off .sitelist__url-text,
+.sitelist__url--off .sitelist__url-ico { color: var(--faint); }
+.sitelist__url--off .sitelist__url-ico { opacity: .5; }
+
+/* 窄窗口收起 listen 列 */
+@media (max-width: 1000px) {
+  .sitelist__row { grid-template-columns: 22px minmax(0, 1.3fr) 84px auto; }
+  .sitelist__listen, .sitelist__row > span:nth-child(3) { display: none; }
+}
