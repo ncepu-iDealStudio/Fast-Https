@@ -30,25 +30,40 @@ export interface Overview {
 export interface Site {
   id: string;
   name: string;
+  port: string;
   listen: string;
   listens: string[];
-  port: string;
-  type: string;
-  root: string;
-  proxyPass: string;
-  enabled: boolean;
   tls: boolean;
+  source: string;
+  enabled: boolean;
+  certStatus: string;
+  error: string;
 }
 
 export interface Cert {
-  id: string;
-  name: string;
+  domain: string;
+  subject: string;
+  names: string;
+  issuer: string;
+  notAfter: string;
   daysLeft: number;
-  path: string;
+  selfSigned: boolean;
+  local: boolean;
+  status: string;
+  acmeManaged: boolean;
+  file: string;
+  note: string;
 }
 
 export interface LogEntry {
-  line: string;
-  kind: string;
+  raw: string;
   time: string;
+  level: string;
+  kind: string;
+  message: string;
+  method: string;
+  path: string;
+  status: string;
+  size: string;
+  host: string;
 }

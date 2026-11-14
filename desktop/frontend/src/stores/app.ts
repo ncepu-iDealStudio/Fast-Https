@@ -10,13 +10,17 @@ export type PaneKey =
 
 const MODE_KEY = 'fast-https.mode';
 const PANE_KEY = 'fast-https.pane';
-const VALID_PANES: readonly PaneKey[] = [
-  'overview', 'matrix', 'sites', 'certs', 'logs', 'runtime', 'operations', 'settings',
+
+// 可从侧栏进入的页面。settings 不在此列：它由底部账户区打开，
+// 不进导航，也不该成为「上次停留的页面」——否则刷新后卡在设置页且
+// 侧栏没有任何高亮项，用户以为界面坏了。
+const NAV_PANES: readonly PaneKey[] = [
+  'overview', 'matrix', 'sites', 'certs', 'logs', 'runtime', 'operations',
 ];
 
 function initialPane(): PaneKey {
   const saved = localStorage.getItem(PANE_KEY) as PaneKey | null;
-  return saved && VALID_PANES.includes(saved) ? saved : 'overview';
+  return saved && NAV_PANES.includes(saved) ? saved : 'overview';
 }
 
 export const useAppStore = defineStore('app', () => {

@@ -1,0 +1,77 @@
+/* 页面通用元素：工具条、数据表、提示条、标签页、日志视图、图标按钮。
+   多个 pane 共用，按 views 层统一维护（组件层只放可复用 UI 组件的外观）。 */
+
+/* 页面导语 */
+.lede {
+  margin: 0 0 14px; padding: 12px 16px;
+  font-size: 12.5px; line-height: 1.75; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+}
+
+/* 工具条 */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* 提示条 */
+.notice {
+  margin: 0 0 14px; padding: 10px 14px;
+  font-size: 12px; line-height: 1.6; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+}
+.notice--err { color: var(--danger); border-color: var(--danger); }
+
+/* 数据表：一行一条记录，列宽固定，便于扫读 */
+.table {
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden;
+}
+.table__head, .table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .8fr) 88px;
+  gap: 16px; align-items: center;
+  padding: 10px 16px;
+}
+.table__head {
+  font-size: 11px; letter-spacing: .04em; color: var(--faint);
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.table__row { font-size: 13px; border-bottom: 1px solid var(--line); }
+.table__row:last-child { border-bottom: 0; }
+.table__row:hover { background: var(--surface); }
+.table__ops { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.table__empty { padding: 24px 16px; text-align: center; font-size: 12px; color: var(--faint); }
+
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muted { color: var(--muted); }
+
+/* 图标按钮 */
+.icon-btn {
+  width: 28px; height: 28px; flex: 0 0 28px;
+  display: grid; place-items: center;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--muted); cursor: pointer;
+}
+.icon-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+.icon-btn:disabled { opacity: .45; cursor: not-allowed; }
+.icon-btn--danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+
+/* 标签页（日志切换） */
+.tab {
+  height: 30px; padding: 0 12px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--muted);
+  font-size: 12px; cursor: pointer;
+}
+.tab:hover { border-color: var(--accent); color: var(--accent); }
+.tab--on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+/* 日志视图：等宽字体、按级别着色 */
+.logview {
+  flex: 1; min-height: 0; overflow: auto;
+  padding: 8px 0;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  font: 12px/1.65 var(--font-mono);
+}
+.logview__row { padding: 2px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.logview__row:hover { background: var(--surface); }
+.logview__row--error { color: var(--danger); }
+.logview__row--warn { color: var(--warn); }

@@ -1,2 +1,3 @@
-/* 视图层聚合：每个 pane 一个文件，逐页迁移时在这里补 @import。 */
+/* 视图层聚合：shared 先加载（各页通用元素），页面样式在其后覆盖。 */
+@import './shared.css';
 @import './overview.css';

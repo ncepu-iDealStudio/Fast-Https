@@ -1,4 +1,4 @@
-﻿// 简体中文文案（基准语言）。key 用点号分组；新增 key 两份字典都要补，
+// 简体中文文案（基准语言）。key 用点号分组；新增 key 两份字典都要补，
 // 英文缺 key 时会回落到这里的中文。
 export const zhCN: Record<string, string> = {
   // ---- 通用按钮与通用词 ----
@@ -378,6 +378,10 @@ export const zhCN: Record<string, string> = {
 
   // ---- 日志页 ----
   'logs.lede': 'JSON 结构化 · 只读；切换 access / error / system / safe，按级别、状态、Host、方法、路径前缀与时间筛选，滚动加载更早记录。',
+  'logs.access': '访问日志',
+  'logs.error': '错误日志',
+  'logs.system': '系统日志',
+  'logs.safe': '安全日志',
   'logs.levelPh': '级别：info / error',
   'logs.statusAria': '状态码',
   'logs.statusAll': '全部状态',

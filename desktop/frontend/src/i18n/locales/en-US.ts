@@ -378,6 +378,10 @@ export const enUS: Record<string, string> = {
 
   // ---- Logs page ----
   'logs.lede': 'JSON structured · read-only; switch between access / error / system / safe, filter by level, status, host, method, path prefix and time, scroll to load older records.',
+  'logs.access': 'Access log',
+  'logs.error': 'Error log',
+  'logs.system': 'System log',
+  'logs.safe': 'Security log',
   'logs.levelPh': 'Level: info / error',
   'logs.statusAria': 'Status code',
   'logs.statusAll': 'All statuses',

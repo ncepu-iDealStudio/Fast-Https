@@ -75,4 +75,5 @@ export interface DesktopServiceContract {
   QueryLogs(query: LogQuery): Promise<LogPage>;
   CertTrustGuide(): Promise<CertTrustGuide>;
   PickPath(kind: string): Promise<string>;
+  RunCommand(args: string[]): Promise<unknown>;
 }
