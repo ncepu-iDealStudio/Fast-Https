@@ -186,6 +186,62 @@ CREATE TABLE agent_approval (plan_id TEXT PRIMARY KEY, status TEXT, reason TEXT,
 	}
 }
 
+func TestApproveUndrainWithoutHealthStaysHuman(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "fast-https.json")
+	body := `{
+	  "http": {"server": [{
+	    "listen": "80",
+	    "server_name": "a.example",
+	    "location": [{"url": "/", "type": "proxy", "proxy_pass": ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]}]
+	  }]}
+	}`
+	if err := os.WriteFile(cfgPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	drainFile := filepath.Join(dir, "drained.json")
+	if err := os.WriteFile(drainFile, []byte(`{"addresses":["10.0.0.1:8080"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("FASTHTTPS_UPSTREAM_DRAIN_FILE", drainFile)
+	t.Setenv("FASTHTTPS_STATE_DIR", dir)
+	t.Setenv(agentview.EnvDir, dir)
+	serveApproveRuntime(t, `{
+	  "schema_version":"1",
+	  "upstream":{"upstreams":[
+	    {"address":"10.0.0.1:8080","health":"unknown"},
+	    {"address":"10.0.0.2:8080","health":"healthy","healthy":true}
+	  ]}
+	}`)
+	writeApprovablePlan(t, filepath.Join(dir, "agent.db"), "e-undrain", []string{"upstream undrain 10.0.0.1:8080"})
+	out, _, code := runCLI(t, "agent", "approve", "p_e-undrain", "--config", cfgPath, "--yes", "--json")
+	if code != 6 {
+		t.Fatalf("exit = %d, want 6\n%s", code, out)
+	}
+	if !strings.Contains(out, "not confirmed healthy") {
+		t.Fatalf("output = %s", out)
+	}
+	raw, err := os.ReadFile(drainFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "10.0.0.1:8080") {
+		t.Fatalf("undrain left the address in the list: %s", raw)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(dir, "agent.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var status string
+	if err := db.QueryRow(`SELECT status FROM agent_task WHERE task_id = 't1'`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "WAITING_HUMAN" {
+		t.Fatalf("task status = %s", status)
+	}
+}
+
 func serveApproveRuntime(t *testing.T, body string) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

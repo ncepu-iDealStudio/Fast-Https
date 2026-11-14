@@ -34,6 +34,7 @@ Unicode true
 !define APP_EXE "fast-https.exe"
 !define DESKTOP_EXE "fast-https-desktop.exe"
 !define MONITOR_EXE "fast-https-monitor.exe"
+!define AGENT_EXE "fast-https-agent.exe"
 !define APP_PUBLISHER "NCEPU BJ"
 !define APP_URL "https://gitee.com/ncepu-bj/fast-https"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
@@ -79,6 +80,7 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
 
   ; 升级时先停掉在跑的桌面端、Monitor 与服务进程，否则文件被占用会替换失败。
   ; Monitor 先停：它与主程序分开托管，留着它会把自己被替换的那一下记成一条假事件。
+  nsExec::ExecToLog 'taskkill /F /IM ${AGENT_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${MONITOR_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${DESKTOP_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${APP_EXE}'
@@ -147,6 +149,7 @@ SectionEnd
 
 Section "Uninstall"
   ; 顺序与安装一致：Monitor 先停，避免它把卸载过程记成一条假的「不可达」
+  nsExec::ExecToLog 'taskkill /F /IM ${AGENT_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${MONITOR_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${DESKTOP_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${APP_EXE}'

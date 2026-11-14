@@ -1,0 +1,9 @@
+{
+  "monitor_dir": "/var/log/fast-https/monitor",
+  "state_dir": "/var/lib/fast-https/agent",
+  "fast_https_bin": "/usr/bin/fast-https",
+  "runtime_url": "http://127.0.0.1:9088/runtime",
+  "cert_warn_days": 30,
+  "model": "local",
+  "model_external": "external"
+}

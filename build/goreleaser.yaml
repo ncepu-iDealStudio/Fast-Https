@@ -99,6 +99,43 @@ builds:
     ldflags:
       - "-s -w"
 
+  # 独立 Agent：路径由 -config 给出，不需要 rpm tag。
+  - id: agent-unix
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https-agent
+    main: ./agent
+
+  - id: agent-windows
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https-agent
+    main: ./agent
+
+  - id: agent-linux-pkg
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    binary: fast-https-agent
+    main: ./agent
+    ldflags:
+      - "-s -w"
+
   # 桌面管理端：独立 Go module。Linux 后端必须 CGO_ENABLED=0 + purego 才能在
   # Windows 上交叉编译（buildguard 要求二者之一），运行期再加载系统 GTK4/WebKitGTK。
   # 前端 dist 与 .desktop 由 build/package.ps1 在调用 goreleaser 之前准备好。
@@ -124,6 +161,7 @@ archives:
     ids:
       - unix
       - monitor-unix
+      - agent-unix
     formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
@@ -149,6 +187,7 @@ archives:
     ids:
       - windows-amd64
       - monitor-windows
+      - agent-windows
     formats: [zip]
     name_template: >-
       {{ .ProjectName }}_
@@ -174,6 +213,7 @@ archives:
     ids:
       - windows-arm64
       - monitor-windows
+      - agent-windows
     formats: [zip]
     name_template: >-
       {{ .ProjectName }}_
@@ -200,6 +240,7 @@ nfpms:
     ids:
       - linux-pkg
       - monitor-linux-pkg
+      - agent-linux-pkg
     package_name: fast-https
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
@@ -266,6 +307,11 @@ nfpms:
       - src: build/packaging/monitor.json
         dst: /etc/fast-https/monitor.json
         type: config|noreplace
+      - src: build/packaging/systemd/fast-https-agent.service
+        dst: /usr/lib/systemd/system/fast-https-agent.service
+      - src: build/packaging/agent.json
+        dst: /etc/fast-https/agent.json
+        type: config|noreplace
       - src: build/packaging/logrotate/fast-https
         dst: /etc/logrotate.d/fast-https
         type: config|noreplace
@@ -310,6 +356,7 @@ nfpms:
     ids:
       - desktop-linux
       - monitor-linux-pkg
+      - agent-linux-pkg
     package_name: fast-https-desktop
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
@@ -378,6 +425,11 @@ nfpms:
       - src: build/packaging/monitor.json
         dst: /etc/fast-https/monitor.json
         type: config|noreplace
+      - src: build/packaging/systemd/fast-https-agent.service
+        dst: /usr/lib/systemd/system/fast-https-agent.service
+      - src: build/packaging/agent.json
+        dst: /etc/fast-https/agent.json
+        type: config|noreplace
       - src: build/packaging/logrotate/fast-https
         dst: /etc/logrotate.d/fast-https
         type: config|noreplace
@@ -409,6 +461,7 @@ nfpms:
     ids:
       - desktop-linux
       - monitor-linux-pkg
+      - agent-linux-pkg
     package_name: fast-https-desktop
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
@@ -479,6 +532,11 @@ nfpms:
       - src: build/packaging/monitor.json
         dst: /etc/fast-https/monitor.json
         type: config|noreplace
+      - src: build/packaging/systemd/fast-https-agent.service
+        dst: /usr/lib/systemd/system/fast-https-agent.service
+      - src: build/packaging/agent.json
+        dst: /etc/fast-https/agent.json
+        type: config|noreplace
       - src: build/packaging/logrotate/fast-https
         dst: /etc/logrotate.d/fast-https
         type: config|noreplace
@@ -510,6 +568,7 @@ nfpms:
     ids:
       - desktop-linux
       - monitor-linux-pkg
+      - agent-linux-pkg
     package_name: fast-https-desktop
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
@@ -575,6 +634,11 @@ nfpms:
         dst: /usr/lib/systemd/system/fast-https-monitor.service
       - src: build/packaging/monitor.json
         dst: /etc/fast-https/monitor.json
+        type: config|noreplace
+      - src: build/packaging/systemd/fast-https-agent.service
+        dst: /usr/lib/systemd/system/fast-https-agent.service
+      - src: build/packaging/agent.json
+        dst: /etc/fast-https/agent.json
         type: config|noreplace
       - src: build/packaging/logrotate/fast-https
         dst: /etc/logrotate.d/fast-https

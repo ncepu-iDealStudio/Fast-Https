@@ -1,0 +1,19 @@
+[Unit]
+Description=Fast-Https agent
+Documentation=https://gitee.com/ncepu-bj/fast-https
+After=network-online.target
+Wants=network-online.target
+# Server 没起来时 Agent 仍要能记下不可达，所以这里不声明对 Server 单元的依赖。
+# Server 单元也不依赖本单元，停掉 Agent 不影响业务端口与 /runtime。
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/share/fast-https
+ExecStart=/usr/bin/fast-https-agent -config /etc/fast-https/agent.json
+Restart=on-failure
+RestartSec=5s
+LogsDirectory=fast-https
+StateDirectory=fast-https
+
+[Install]
+WantedBy=multi-user.target

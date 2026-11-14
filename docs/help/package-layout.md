@@ -2,7 +2,7 @@
 
 同一个二进制有两种布局，由编译期 build tag 决定。运行时不检测发行版，所以行为永远可预测。
 
-Monitor 是另一个二进制，不区分 build tag：它不读站点配置，也不判断发行版，目录全部由命令行给出（包里由 systemd 单元的 `-config` / `-dir` 指定，归档下走默认的 `./logs/monitor`）。
+Monitor 和 Agent 是另外两个二进制，不区分 build tag：它们不读站点配置，也不判断发行版。目录由命令行或自己的配置给出。包里分别由 `fast-https-monitor.service` 和 `fast-https-agent.service` 指定。
 
 ## 对照表
 
@@ -20,7 +20,10 @@ Monitor 是另一个二进制，不区分 build tag：它不读站点配置，�
 | Monitor 程序 | `fast-https-monitor` | `/usr/bin/fast-https-monitor` |
 | Monitor 配置 | — | `/etc/fast-https/monitor.json` |
 | Monitor 快照 / 事件 / 状态 | `./logs/monitor/` | `/var/log/fast-https/monitor/` |
-| systemd 单元 | — | `/usr/lib/systemd/system/fast-https.service`、`fast-https-monitor.service` |
+| Agent 程序 | `fast-https-agent` | `/usr/bin/fast-https-agent` |
+| Agent 配置 | `agent.json` | `/etc/fast-https/agent.json` |
+| Agent 状态库 | `./state/agent/` | `/var/lib/fast-https/agent/` |
+| systemd 单元 | — | `/usr/lib/systemd/system/fast-https.service`、`fast-https-monitor.service`、`fast-https-agent.service` |
 | 使用文档 | `docs/usage.html` | `/usr/share/doc/fast-https/usage.html` |
 | man 页 | — | `/usr/share/man/man1/fast-https.1` |
 | 日志轮转 | — | `/etc/logrotate.d/fast-https` |

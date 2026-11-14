@@ -15,8 +15,9 @@ import (
 const eventsFile = "events.jsonl"
 
 // readNewLines 从 offset 读取完整行。
-// prefix 是上次看到的文件开头。文件被换掉时，即使新文件更长，也从 0 读。
-// 文件变短时同样从 0 读。返回新偏移、新的开头标记和每一行文本。
+// prefix 优先是文件身份（Unix 的 dev:inode，Windows 的卷和文件索引）。
+// 身份变了就从 0 读，哪怕新文件比旧偏移更长。读不到身份时才退回比较文件开头。
+// 文件变短时同样从 0 读。返回新偏移、新的身份或开头标记，以及每一行文本。
 func readNewLines(monitorDir string, offset int64, prefix string) (int64, string, []string, error) {
 	path := filepath.Join(monitorDir, eventsFile)
 	info, err := os.Lstat(path)
@@ -34,11 +35,18 @@ func readNewLines(monitorDir string, offset int64, prefix string) (int64, string
 		return offset, prefix, nil, err
 	}
 	defer f.Close()
-	if replaced, id, err := fileReplaced(f, prefix); err != nil {
-		return offset, prefix, nil, err
-	} else if replaced || info.Size() < offset {
-		offset = 0
+	id, hasID := fileIdentity(f)
+	replaced := false
+	if hasID {
+		replaced = prefix != "" && prefix != id
 		prefix = id
+	} else if hashReplaced, _, err := fileReplaced(f, prefix); err != nil {
+		return offset, prefix, nil, err
+	} else {
+		replaced = hashReplaced
+	}
+	if replaced || info.Size() < offset {
+		offset = 0
 	}
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		return offset, prefix, nil, err
@@ -58,8 +66,10 @@ func readNewLines(monitorDir string, offset int64, prefix string) (int64, string
 			}
 		}
 		if err == io.EOF {
-			if next, err := prefixOf(f); err == nil && next != "" {
-				prefix = next
+			if !hasID {
+				if next, err := prefixOf(f); err == nil && next != "" {
+					prefix = next
+				}
 			}
 			return offset, prefix, lines, nil
 		}

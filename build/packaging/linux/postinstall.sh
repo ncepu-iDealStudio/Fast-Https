@@ -11,7 +11,7 @@ fi
 
 # FHS 布局下的可写目录。systemd 的 LogsDirectory/RuntimeDirectory 会建，
 # 但 Alpine 没有 systemd，手工启动（非单元托管）时也得先存在，否则写日志失败。
-mkdir -p /etc/fast-https/cert/acme /etc/fast-https/conf.d /var/log/fast-https /run/fast-https /var/lib/fast-https
+mkdir -p /etc/fast-https/cert/acme /etc/fast-https/conf.d /var/log/fast-https /run/fast-https /var/lib/fast-https /var/lib/fast-https/agent
 chmod 0700 /etc/fast-https/cert /etc/fast-https/cert/acme /var/lib/fast-https 2>/dev/null || true
 
 # 早期版本的包把所有运行资源放在 /usr/share/fast-https/ 下。

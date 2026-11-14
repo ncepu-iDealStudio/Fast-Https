@@ -75,5 +75,5 @@ fast-https agent approvals --json
 
 - 支持的写动作只有人工批准后的一条 `upstream drain` 或 `upstream undrain`。批准会重算计划哈希，先占住 `pending` 审批，写 operation，再改名单。名单核对通过才把任务标成 `COMPLETED`。`undrain` 后快照不是 `healthy` 时停在 `WAITING_HUMAN`。不能批准证书续期。
 - 模型可选。设置 `FASTHTTPS_AGENT_MODEL_URL`（以及可选的 `FASTHTTPS_AGENT_MODEL_EXTERNAL_URL`）后，只重写诊断说明。没配置、超时，或说明里出现写命令时，仍用规则原文。策略和步骤不交给模型。
-- 不打包进 deb/rpm，也没有 systemd 单元。
+- deb / rpm / apk 带上 `fast-https-agent` 和 `fast-https-agent.service`。单元不依赖 Server。配置在 `/etc/fast-https/agent.json`，状态库在 `/var/lib/fast-https/agent`。归档包里也有这个二进制。
 - 待审批可以查看。`agent approve <plan-id> --yes` 只执行计划里唯一的 `upstream drain` 或 `upstream undrain`。哈希对不上，或会摘掉最后一个地址时，名单不变。不能批准证书续期或其他写命令。
