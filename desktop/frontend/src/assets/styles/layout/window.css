@@ -70,7 +70,7 @@
 .nav-item.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 
 /* 底部账户 / 设置区（旧版 .side-foot）。position:relative 供账户菜单绝对定位。 */
-.side-foot-wrap { margin-top: auto; flex: 0 0 52px; }
+.side-foot-wrap { flex: 0 0 52px; }
 .side-foot {
   width: 100%; height: 52px;
   border: 0; border-top: 1px solid var(--line);

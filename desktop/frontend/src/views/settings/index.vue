@@ -271,16 +271,16 @@ onMounted(() => { void load(); void loadVersions(); });
       </div>
       <p v-if="drift" class="notice">{{ t('settings.driftNote') }}</p>
       <div class="kv-table">
-        <div v-if="!versions.length" class="kv-row">
+        <div v-if="!versions.length" class="ver-row">
           <span class="k">—</span><span class="v">{{ t('settings.versionsEmpty') }}</span>
         </div>
-        <div v-for="v in versions" :key="String(v.version)" class="kv-row">
+        <div v-for="v in versions" :key="String(v.version)" class="ver-row">
           <span class="k mono">
             {{ v.version }}
             <span v-if="v.active" class="badge badge--ok">{{ t('settings.current') }}</span>
           </span>
           <span class="v muted">
-            {{ [v.created_at, v.created_by, v.summary].filter(Boolean).join(' 路 ') }}
+            {{ [v.created_at, v.created_by, v.summary].filter(Boolean).join(' · ') }}
           </span>
           <span class="n">
             <FhButton size="small" @click="showDiff(String(v.version))">{{ t('settings.diff') }}</FhButton>

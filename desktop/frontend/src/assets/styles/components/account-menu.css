@@ -1,9 +1,16 @@
 /* 账户菜单 —— 旧版左下角绝对定位规格。
    .account-anchor 不建立定位上下文（position: static），让 .account-menu
    相对 .sidebar（已有 position: relative）定位，与旧版一致：
-   贴住侧栏左下角、bottom 让开 52px 的底栏。 */
+   贴住侧栏左下角、bottom 让开 52px 的底栏。
+   margin-top: auto 必须落在 anchor 上——它是 .sidebar 的直接 flex 子项，
+   放在内层 .side-foot-wrap 上推不动任何东西。 */
 
-.account-anchor { position: static; }
+.account-anchor {
+  position: static;
+  margin-top: auto;
+  flex: 0 0 auto;
+}
+.side-foot-wrap { flex: 0 0 52px; }
 
 .account-menu {
   position: absolute;
