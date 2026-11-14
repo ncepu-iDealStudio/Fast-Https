@@ -5,9 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="icon" href="data:,"/>
   <title>Fast-Https · 本机管理端</title>
+  <style>
+    /* 首屏骨架：Vue 挂载前先画出与真实布局同构的占位，避免 dev 首次启动
+       时 Webview 抢在 Vite 依赖预构建完成之前渲染出「只有侧边栏」的半成品。 */
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #F5F7FA; }
+    #boot {
+      height: 100%; display: flex; flex-direction: column;
+      font: 400 13.5px/1.7 "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", sans-serif;
+      color: #666C75;
+    }
+    #boot .top { height: 52px; flex: 0 0 52px; background: #fff; border-bottom: 1px solid #E6E8EC; }
+    #boot .body { flex: 1; display: grid; grid-template-columns: 200px 1fr; min-height: 0; }
+    #boot .side { background: #fff; border-right: 1px solid #E6E8EC; }
+    #boot .hold { display: grid; place-items: center; }
+    #boot .hold span { font-size: 12px; color: #949AA3; letter-spacing: .04em; }
+  </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="boot">
+  <div class="top"></div>
+  <div class="body">
+    <div class="side"></div>
+    <div class="hold"><span>正在加载界面…</span></div>
+  </div>
+</div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
