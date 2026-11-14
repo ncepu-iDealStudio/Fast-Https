@@ -260,7 +260,8 @@ func executeClaimedApproval(cmd *cobra.Command, db *sql.DB, planID, taskID, acti
 		Phase:     "prepared",
 	})
 	if err != nil {
-		_, _ = db.Exec(`UPDATE agent_approval SET status = 'pending' WHERE plan_id = ? AND status = 'executing'`, planID)
+		// 名单还没写。审批和任务一起退回，才能再次批准。
+		_ = restoreApprovalBeforeAction(db, planID, taskID)
 		return fromStateError("agent.approve", err)
 	}
 	if rec.Status == operation.StatusSucceeded {
@@ -270,13 +271,18 @@ func executeClaimedApproval(cmd *cobra.Command, db *sql.DB, planID, taskID, acti
 		_, _ = store.Finish(rec, operation.StatusSucceeded, "already", map[string]any{"address": host, "plan_id": planID, "applied": false}, nil)
 		return verifyAndFinish(cmd, db, planID, taskID, action, host, cfgPath, true)
 	}
+	if err := prepareApprovedDrain(); err != nil {
+		_, _ = store.Finish(rec, operation.StatusFailed, "not-started", nil, &operation.ErrorBody{Message: "drain did not start"})
+		_ = restoreApprovalBeforeAction(db, planID, taskID)
+		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "drain did not start", Cause: err}
+	}
 	if err := applyApprovedDrain(action, host, cfgPath); err != nil {
-		_, _ = store.Finish(rec, operation.StatusFailed, "failed", nil, &operation.ErrorBody{Message: "drain change failed"})
-		_, _ = transitionTask(db, taskID, "EXECUTING", "FAILED")
-		_, _ = db.Exec(`UPDATE agent_approval SET status = 'pending' WHERE plan_id = ? AND status = 'executing'`, planID)
+		_, _ = store.Finish(rec, operation.StatusUnknown, "unconfirmed", nil, &operation.ErrorBody{Message: "drain result not confirmed"})
+		_ = markApprovalUncertain(db, planID, taskID)
 		return err
 	}
 	if _, err := store.Finish(rec, operation.StatusSucceeded, "committed", map[string]any{"address": host, "plan_id": planID, "applied": true}, nil); err != nil {
+		_ = markApprovalUncertain(db, planID, taskID)
 		return fromStateError("agent.approve", err)
 	}
 	return verifyAndFinish(cmd, db, planID, taskID, action, host, cfgPath, false)
@@ -306,6 +312,48 @@ func alreadyInState(action, host string) bool {
 		return found
 	}
 	return !found
+}
+
+// prepareApprovedDrain 在写名单之前运行。测试用它模拟「操作还没开始就失败」。
+var prepareApprovedDrain = func() error { return nil }
+
+func restoreApprovalBeforeAction(db *sql.DB, planID, taskID string) error {
+	if _, err := db.Exec(`UPDATE agent_approval SET status = 'pending' WHERE plan_id = ? AND status = 'executing'`, planID); err != nil {
+		return err
+	}
+	ok, err := transitionTask(db, taskID, "EXECUTING", "WAITING_APPROVAL")
+	if err != nil {
+		return err
+	}
+	if ok {
+		return nil
+	}
+	var status string
+	if err := db.QueryRow(`SELECT status FROM agent_task WHERE task_id = ?`, taskID).Scan(&status); err != nil {
+		return err
+	}
+	if status == "WAITING_APPROVAL" {
+		return nil
+	}
+	return fmt.Errorf("task %s is %s after approval was returned to pending", taskID, status)
+}
+
+func markApprovalUncertain(db *sql.DB, planID, taskID string) error {
+	ok, err := transitionTask(db, taskID, "EXECUTING", "WAITING_HUMAN")
+	if err != nil {
+		return err
+	}
+	if ok {
+		return nil
+	}
+	var status string
+	if scanErr := db.QueryRow(`SELECT status FROM agent_task WHERE task_id = ?`, taskID).Scan(&status); scanErr != nil {
+		return scanErr
+	}
+	if status == "WAITING_HUMAN" {
+		return nil
+	}
+	return fmt.Errorf("task %s stayed %s while approval %s is still executing", taskID, status, planID)
 }
 
 func applyApprovedDrain(action, host, cfgPath string) error {
@@ -349,7 +397,7 @@ func verifyAndFinish(cmd *cobra.Command, db *sql.DB, planID, taskID, action, hos
 		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "drain result could not be confirmed", Cause: err}
 	}
 	if !verified.ConfigOK {
-		_, _ = transitionTask(db, taskID, "VERIFYING", "FAILED")
+		_, _ = transitionTask(db, taskID, "VERIFYING", "WAITING_HUMAN")
 		return &CLIError{Command: "agent.approve", Code: CodeOperationFailed, Message: "drain list does not match the approved action"}
 	}
 	if action == "undrain" && health != "healthy" {

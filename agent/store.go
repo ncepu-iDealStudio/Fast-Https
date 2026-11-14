@@ -406,7 +406,7 @@ var taskTransitions = map[string]map[string]bool{
 	"PENDING":          {"COLLECTING": true, "WAITING_APPROVAL": true, "WAITING_HUMAN": true, "COMPLETED": true, "ESCALATED": true, "IGNORED": true, "FAILED": true},
 	"COLLECTING":       {"PENDING": true},
 	"WAITING_APPROVAL": {"EXECUTING": true, "WAITING_HUMAN": true},
-	"EXECUTING":        {"VERIFYING": true, "FAILED": true, "WAITING_HUMAN": true},
+	"EXECUTING":        {"VERIFYING": true, "FAILED": true, "WAITING_HUMAN": true, "WAITING_APPROVAL": true},
 	"VERIFYING":        {"COMPLETED": true, "FAILED": true, "WAITING_HUMAN": true},
 	"ESCALATED":        {"COMPLETED": true},
 	"WAITING_HUMAN":    {"COMPLETED": true},
