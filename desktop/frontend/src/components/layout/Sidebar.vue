@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Activity, LayoutGrid, Globe, ShieldCheck, ScrollText, Zap, History, Settings2, ChevronDown } from '@lucide/vue';
+import { Activity, LayoutGrid, Globe, ShieldCheck, ScrollText, Zap, History } from '@lucide/vue';
 import type { Component } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore, type PaneKey } from '../../stores/app';
+import AccountMenu from '../common/AccountMenu.vue';
 
 const { t } = useI18n();
 const app = useAppStore();
@@ -33,13 +34,7 @@ const items: NavItem[] = [
       <span>{{ t(item.label) }}</span>
     </button>
 
-    <!-- 底部账户/设置区，沿用旧版 .side-foot 布局 -->
-    <div class="side-foot-wrap">
-      <button class="side-foot" type="button" @click="app.activate('settings')">
-        <span class="avatar"><Settings2 :size="12" /></span>
-        <span class="acct-name">{{ t('nav.account') }}</span>
-        <ChevronDown :size="12" class="acct-caret" />
-      </button>
-    </div>
+    <!-- 底部账户区：主题/语言切换、设置、隐藏到托盘、帮助 -->
+    <AccountMenu />
   </aside>
 </template>

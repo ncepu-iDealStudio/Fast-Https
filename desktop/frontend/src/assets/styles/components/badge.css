@@ -8,3 +8,5 @@
 }
 .badge--ok { color: var(--ok); border-color: var(--ok); }
 .badge--off { color: var(--faint); }
+.badge--warn { color: var(--warn); border-color: var(--warn); }
+.badge--err { color: var(--danger); border-color: var(--danger); }

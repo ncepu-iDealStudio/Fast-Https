@@ -1,14 +1,22 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { RefreshCw, ShieldCheck } from '@lucide/vue';
+import { RefreshCw, ShieldCheck, Stethoscope } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useCertsStore } from '../../stores/certs';
 import FhButton from '../../components/ui/FhButton.vue';
 import TrustDialog from '../../components/common/TrustDialog.vue';
+import CertCheckDialog from '../../components/common/CertCheckDialog.vue';
 
 const { t } = useI18n();
 const certs = useCertsStore();
 const trustOpen = ref(false);
+const checkOpen = ref(false);
+const checkDomain = ref('');
+
+function openCheck(domain: string): void {
+  checkDomain.value = domain;
+  checkOpen.value = true;
+}
 
 onMounted(() => { void certs.refresh(); });
 
@@ -45,6 +53,7 @@ function statusLabel(s: string): string {
         <span>{{ t('certs.configured') }}</span>
         <span>{{ t('common.status') }}</span>
         <span>expires</span>
+        <span class="table__ops" />
       </div>
       <div v-if="!certs.items.length && !certs.loading" class="table__empty">
         {{ t('certs.empty') }}
@@ -64,9 +73,15 @@ function statusLabel(s: string): string {
           {{ c.notAfter || '—' }}
           <template v-if="c.daysLeft > 0"> · {{ t('certs.daysLeft', { days: c.daysLeft }) }}</template>
         </span>
+        <span class="table__ops">
+          <button class="icon-btn" :title="t('certs.check')" @click="openCheck(c.domain)">
+            <Stethoscope :size="14" />
+          </button>
+        </span>
       </div>
     </div>
 
     <TrustDialog v-model:open="trustOpen" />
+    <CertCheckDialog v-model:open="checkOpen" :domain="checkDomain" />
   </div>
 </template>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Play, Square, RotateCw, HeartPulse, FolderOpen, ScrollText, Globe, ShieldCheck } from '@lucide/vue';
+import { Play, Square, RotateCw, FolderOpen, ScrollText, Globe, ShieldCheck, Stethoscope } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore } from '../../stores/app';
 import { useOverviewStore } from '../../stores/overview';
@@ -9,6 +9,8 @@ import {
 } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 import FhButton from '../../components/ui/FhButton.vue';
+import DiagnoseDialog from '../../components/common/DiagnoseDialog.vue';
+import { ref } from 'vue';
 
 const { t } = useI18n();
 const app = useAppStore();
@@ -77,6 +79,8 @@ const quick = [
   { key: 'overview.quickCerts', icon: ShieldCheck, pane: 'certs' as const },
   { key: 'overview.quickLogs', icon: ScrollText, pane: 'logs' as const },
 ];
+
+const diagnoseOpen = ref(false);
 </script>
 
 <template>
@@ -124,7 +128,7 @@ const quick = [
       </div>
     </div>
 
-    <!-- 甯哥敤鎿嶄綔 -->
+    <!-- 常用操作 -->
     <div class="card quick-card">
       <div class="card-head">
         <h3>{{ t('overview.quickTitle') }}</h3>
@@ -135,11 +139,13 @@ const quick = [
           <component :is="q.icon" :size="18" />
           <span>{{ t(q.key) }}</span>
         </button>
-        <button class="quick-item" @click="app.activate('matrix')">
-          <HeartPulse :size="18" />
+        <button class="quick-item" @click="diagnoseOpen = true">
+          <Stethoscope :size="18" />
           <span>{{ t('overview.diagnose') }}</span>
         </button>
       </div>
     </div>
+
+    <DiagnoseDialog v-model:open="diagnoseOpen" />
   </div>
 </template>

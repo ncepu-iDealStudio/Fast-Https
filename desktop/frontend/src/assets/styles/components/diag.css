@@ -1,0 +1,25 @@
+/* 健康检查 / 证书检查弹窗 —— 沿用旧版 components.css 的 .diag-* 块。 */
+.diag-overall {
+  display: flex; align-items: baseline; gap: 12px;
+  margin-bottom: 12px;
+}
+.diag-label { font-size: 12px; color: var(--muted); }
+.diag-overall-text { font-size: 15px; font-weight: 600; }
+.diag-overall-text.st-ok { color: var(--ok); }
+.diag-overall-text.st-warn { color: var(--warn); }
+.diag-overall-text.st-err { color: var(--danger); }
+.diag-overall-text.st-off { color: var(--faint); }
+.diag-report-id { font-size: 11px; color: var(--faint); }
+
+/* 三列状态行：key / 说明 / 右对齐徽标（现有 .kv-row 只有 2 列）。 */
+.kv-row--status {
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  min-height: 40px;
+}
+.kv-row .n {
+  display: flex; flex-direction: column; align-items: flex-end;
+  gap: 2px; max-width: 240px;
+  font-size: 12px; color: var(--muted); text-align: right;
+  overflow-wrap: anywhere;
+}
+.kv-row .n small { display: block; margin-top: 2px; font-size: 11px; }

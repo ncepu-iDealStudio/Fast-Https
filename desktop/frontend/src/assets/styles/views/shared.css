@@ -196,7 +196,7 @@
 }
 .table__row--ops { cursor: pointer; }
 .table__head--certs, .table__row--certs {
-  grid-template-columns: minmax(0, 1.4fr) 110px minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1.4fr) 110px minmax(0, 1.2fr) 44px;
 }
 .ops-filter {
   height: 32px; padding: 0 8px;
@@ -209,6 +209,21 @@
   background: var(--surface);
 }
 .ops-detail .kv-table { margin-top: 0; }
+
+/* ---------------------------------------------------------------- 状态矩阵 */
+.matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.matrix-grid .card-head h3 {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0; font-size: 14px; font-weight: 600;
+}
+.matrix-grid .kv-row { grid-template-columns: 130px minmax(0, 1fr); }
+.card__v.small { font-size: 13px; font-weight: 500; }
+
 
 
 

@@ -17,6 +17,10 @@ export function quitApp(): Promise<void> {
 export function openConfigDir(path: string): Promise<string> {
   return service.OpenPath(path);
 }
+/** 打开随发行包分发的中文完整命令参考（docs/usage.html）。 */
+export function openHelp(): Promise<string> {
+  return service.OpenHelp();
+}
 export function pickPath(kind: string): Promise<string> {
   return service.PickPath(kind);
 }
