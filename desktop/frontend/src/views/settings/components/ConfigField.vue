@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 单个配置字段：按 fieldSpec.type 选控件，值由父级 values 驱动。 */
 import { computed } from 'vue';
-import { Plus, X, FolderOpen } from '@lucide/vue';
+import { Plus, X, FolderOpen, CircleAlert } from '@lucide/vue';
 import { useI18n } from '../../../composables/useI18n';
 import type { ConfigField as Field } from '../../../types/config';
 
@@ -46,7 +46,20 @@ function delPathRow(i: number): void {
 <template>
   <div class="cfg-row" :class="{ 'cfg-row--missing': field.missing }">
     <label class="cfg-row__label">
-      <span>{{ field.label }}</span>
+      <span class="cfg-row__title">
+        <span>{{ field.label }}</span>
+        <!-- 未配置只用一个图标示意：这一列几乎每行都缺省，铺满「未配置」
+             文字反而把真正要看的字段淹掉。语义放在 title/aria 上。 -->
+        <span
+          v-if="field.missing"
+          class="cfg-row__missing"
+          role="img"
+          :aria-label="t('settings.formMissing')"
+          :title="t('settings.formMissing')"
+        >
+          <CircleAlert :size="13" />
+        </span>
+      </span>
       <small v-if="field.help">{{ field.help }}</small>
     </label>
     <div class="cfg-row__control">

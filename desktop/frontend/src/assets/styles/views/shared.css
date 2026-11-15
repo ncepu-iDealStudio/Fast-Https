@@ -165,17 +165,21 @@
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
 }
 .cfg-row__control select { max-width: 340px; }
-.cfg-row--missing .cfg-row__label::after {
-  content: var(--i18n-missing, "未配置");
-  margin-left: 6px;
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--warn);
-  background: rgba(167, 91, 10, .07);
-  border-radius: 8px;
-  padding: 0 6px;
-  vertical-align: 1px;
+.cfg-row__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
+/* 未配置只有一个图标：整列几乎每行都缺省，写「未配置」会把真正要看的字段淹掉。
+   图标本身给 title/aria-label，鼠标悬停或读屏仍能拿到含义。 */
+.cfg-row__missing {
+  display: inline-flex;
+  align-items: center;
+  color: var(--warn);
+  opacity: .7;
+  transition: opacity var(--dur-1) var(--ease);
+}
+.cfg-row--missing:hover .cfg-row__missing { opacity: 1; }
 
 /* 只读路径：与输入框同高同宽，但无描边、不可编辑——语义是「这是现状」 */
 .readonly-path {
