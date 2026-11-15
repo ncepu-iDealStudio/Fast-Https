@@ -36,3 +36,4 @@ tests/test_data/*
 state/
 # 前端逐页截图的本地验证产物，不入库
 desktop/frontend/shots/
+.loomy-attachments/
