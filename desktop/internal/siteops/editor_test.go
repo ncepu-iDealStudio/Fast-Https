@@ -208,6 +208,77 @@ func TestPlanUpdateDiffsAgainstCurrent(t *testing.T) {
 	}
 }
 
+// TestPlanAddWithSharedCert 弹窗里填了证书路径：直接带进 site add，
+// 让多个站点共用同一张证书（如通配符证书）。
+func TestPlanAddWithSharedCert(t *testing.T) {
+	plan, err := planAdd(model.SiteInput{
+		Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./www",
+		Cert: "./cert/wildcard.pem", CertKey: "./cert/wildcard-key.pem",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Join(plan[0], " ")
+	for _, want := range []string{
+		"--tls", "--ssl-certificate ./cert/wildcard.pem", "--ssl-certificate-key ./cert/wildcard-key.pem",
+	} {
+		if !strings.Contains(args, want) {
+			t.Errorf("参数缺少 %q：%s", want, args)
+		}
+	}
+}
+
+// TestParseSiteInputCertWithoutTLS 有证书却没有 ssl 监听 → 直接拒绝，
+// 不要写出自相矛盾的站点，也别等 CLI 返回费解的错误码。
+func TestParseSiteInputCertWithoutTLS(t *testing.T) {
+	cases := []model.SiteInput{
+		// 只有证书没有私钥
+		{Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./x", Cert: "./cert/a.pem"},
+		// 有证书但没有 ssl 监听
+		{Name: "a.example", Listen: "80", Type: "local", Root: "./x",
+			Cert: "./cert/a.pem", CertKey: "./cert/a-key.pem"},
+	}
+	for i, in := range cases {
+		if _, err := planAdd(in); err == nil {
+			t.Errorf("case %d 应被拒绝：%#v", i, in)
+		}
+	}
+}
+
+// TestPlanUpdateCertChanges 证书路径变化才带参数；清空用 --flag= 形式，
+// 让 CLI 把证书交回默认约定。
+func TestPlanUpdateCertChanges(t *testing.T) {
+	cur := SiteDetail{
+		Id: "a", Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./www",
+		Cert: "./cert/a.example.pem", CertKey: "./cert/a.example-key.pem",
+	}
+	// 换成共享证书
+	args, err := planUpdate("a", cur, model.SiteInput{
+		Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./www",
+		Cert: "./cert/wildcard.pem", CertKey: "./cert/wildcard-key.pem",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--ssl-certificate=./cert/wildcard.pem") ||
+		!strings.Contains(joined, "--ssl-certificate-key=./cert/wildcard-key.pem") {
+		t.Fatalf("应带共享证书参数：%s", joined)
+	}
+
+	// 清空 → 交回默认约定
+	args, err = planUpdate("a", cur, model.SiteInput{
+		Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./www",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined = strings.Join(args, " ")
+	if !strings.Contains(joined, "--ssl-certificate= ") && !strings.HasSuffix(joined, "--ssl-certificate=") {
+		t.Fatalf("清空证书应传空值：%s", joined)
+	}
+}
+
 func TestFormatListenValue(t *testing.T) {
 	if got := formatListenValue([]any{"80", "443 ssl h2"}); got != "80, 443 ssl h2" {
 		t.Fatalf("数组拼接错误：%q", got)

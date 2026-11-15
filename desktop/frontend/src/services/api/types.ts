@@ -12,6 +12,9 @@ export interface SiteInput {
   type: string;
   root: string;
   proxyPass: string;
+  /** 证书 / 私钥路径；留空表示走默认约定（./cert/<域名>.pem，首次启动生成）。 */
+  cert: string;
+  certKey: string;
   zip: string[];
   limitRate: number;
   limitBurst: number;

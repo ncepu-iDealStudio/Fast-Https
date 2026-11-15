@@ -268,6 +268,8 @@ export const zhCN: Record<string, string> = {
   'dialog.site.save': '保存修改',
   'dialog.site.cert': '站点证书',
   'dialog.site.certKey': '证书私钥',
+  'dialog.site.certSection': '证书',
+  'dialog.site.certHint': '留空则首次启动自动生成，多个站点可指向同一张证书',
   'dialog.site.index': '首页 index',
   'dialog.site.source': '配置来源',
   'dialog.site.path': '配置路径',

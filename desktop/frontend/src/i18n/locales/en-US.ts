@@ -268,6 +268,8 @@ export const enUS: Record<string, string> = {
   'dialog.site.save': 'Save changes',
   'dialog.site.cert': 'Site certificate',
   'dialog.site.certKey': 'Private key',
+  'dialog.site.certSection': 'Certificate',
+  'dialog.site.certHint': 'Leave empty to generate it on first start; several sites may share one certificate',
   'dialog.site.index': 'Index page',
   'dialog.site.source': 'Config source',
   'dialog.site.path': 'Config path',

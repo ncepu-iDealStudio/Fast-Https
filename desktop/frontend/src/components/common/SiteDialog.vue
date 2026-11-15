@@ -28,6 +28,8 @@ const form = reactive({
   root: '',
   proxyScheme: 'http://',
   proxy: '',
+  cert: '',
+  certKey: '',
   zipGzip: false,
   zipBr: false,
   limitRate: 0,
@@ -118,7 +120,7 @@ watch(() => props.open, async (open) => {
   if (!props.editingId) {
     Object.assign(form, {
       name: '', proto: 'http', httpPort: '80', httpsPort: '443', listen: '80',
-      type: 'local', root: '', proxyScheme: 'http://', proxy: '',
+      type: 'local', root: '', proxyScheme: 'http://', proxy: '', cert: '', certKey: '',
       zipGzip: false, zipBr: false, limitRate: 0, limitBurst: 0, limitMem: 0,
       limitNodelay: false, authOn: false, authUser: '', authPass: '', authRealm: '',
       cachePath: '', cacheValid: '', cacheMaxSize: 0,
@@ -144,6 +146,8 @@ watch(() => props.open, async (open) => {
     const mp = /^(https?:\/\/)?(.*)$/.exec(d.proxyPass ?? '');
     form.proxyScheme = mp?.[1] || 'http://';
     form.proxy = mp?.[2] ?? '';
+    form.cert = d.cert ?? '';
+    form.certKey = d.certKey ?? '';
     form.zipGzip = (d.zip ?? []).includes('gzip');
     form.zipBr = (d.zip ?? []).some((z) => z === 'br' || z === 'brotli');
     form.limitRate = d.limitRate ?? 0;
@@ -158,8 +162,6 @@ watch(() => props.open, async (open) => {
     form.cacheValid = (d.cacheValid ?? []).join(', ');
     form.cacheMaxSize = d.cacheMaxSize ?? 0;
     info.value = [
-      { k: t('dialog.site.cert'), v: d.cert ?? '' },
-      { k: t('dialog.site.certKey'), v: d.certKey ?? '' },
       { k: t('dialog.site.index'), v: d.index ?? '' },
       { k: t('dialog.site.path'), v: d.path ?? '' },
     ].filter((r) => r.v);
@@ -175,6 +177,9 @@ function buildPayload(): SiteInput {
   const zip: string[] = [];
   if (form.zipGzip) zip.push('gzip');
   if (form.zipBr) zip.push('br');
+  // 证书只在有 TLS 监听时有效：切回纯 HTTP 时一并清空，否则 CLI 会拒绝
+  // 「有证书却没有 ssl 监听」的配置。
+  const tls = /ssl/i.test(listenText());
   return {
     id: props.editingId ?? '',
     name: form.name,
@@ -182,6 +187,8 @@ function buildPayload(): SiteInput {
     type: form.type,
     root: form.type === 'local' ? form.root : '',
     proxyPass: form.type === 'proxy' ? form.proxyScheme + form.proxy : '',
+    cert: tls ? form.cert.trim() : '',
+    certKey: tls ? form.certKey.trim() : '',
     zip,
     limitRate: toInt(form.limitRate),
     limitBurst: toInt(form.limitBurst),
@@ -220,6 +227,23 @@ async function browse(): Promise<void> {
     error.value = messageOf(e);
   }
 }
+
+/** 证书/私钥走文件选择器；留空则由首次启动按域名自动生成。 */
+async function browseCert(kind: 'cert' | 'certKey'): Promise<void> {
+  try {
+    const p = await pickPath('file');
+    if (!p) return;
+    if (kind === 'cert') form.cert = p;
+    else form.certKey = p;
+  } catch (e) {
+    error.value = messageOf(e);
+  }
+}
+
+/** 默认证书路径提示：./cert/<主域名>.pem（与 CLI 的约定一致）。 */
+const primaryName = computed(() => form.name.trim().split(/\s+/)[0] || '<域名>');
+const certPlaceholder = computed(() => `./cert/${primaryName.value}.pem`);
+const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`);
 </script>
 
 <template>
@@ -305,6 +329,32 @@ async function browse(): Promise<void> {
         <div class="fset__ctrl">
           <input v-model="form.listen" type="text" class="mono wide" />
           <small class="field-note">{{ t('dialog.site.listenNote') }}</small>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 证书：只有 TLS 站点才需要；留空交给首次启动生成 ── -->
+    <section v-if="form.proto !== 'http'" class="fset">
+      <div class="fset__head">{{ t('dialog.site.certSection') }}</div>
+      <div class="fset__row">
+        <label class="fset__label">
+          <span>{{ t('dialog.site.cert') }}</span>
+          <small>{{ t('dialog.site.certHint') }}</small>
+        </label>
+        <div class="fset__ctrl">
+          <div class="joined">
+            <input v-model="form.cert" type="text" class="mono" :placeholder="certPlaceholder" />
+            <FhButton size="small" @click="browseCert('cert')">{{ t('dialog.site.browse') }}</FhButton>
+          </div>
+        </div>
+      </div>
+      <div class="fset__row">
+        <label class="fset__label"><span>{{ t('dialog.site.certKey') }}</span></label>
+        <div class="fset__ctrl">
+          <div class="joined">
+            <input v-model="form.certKey" type="text" class="mono" :placeholder="certKeyPlaceholder" />
+            <FhButton size="small" @click="browseCert('certKey')">{{ t('dialog.site.browse') }}</FhButton>
+          </div>
         </div>
       </div>
     </section>
