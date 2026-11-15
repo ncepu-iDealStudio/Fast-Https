@@ -180,7 +180,8 @@ func (ev *Event) Close() {
 
 func (ev *Event) WriteResponseClose(data []byte) {
 	ev.WriteResponse(data)
-	if !ev.RR.Req.H2 { // TODO: impove this
+	// 连接级拒绝发生在请求解析之前，此时 Req 为空，按 HTTP/1.1 处理。
+	if ev.RR.Req == nil || !ev.RR.Req.H2 { // TODO: impove this
 		ev.Close()
 	}
 }

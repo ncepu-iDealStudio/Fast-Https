@@ -24,12 +24,14 @@ func HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 
 	fif := filters.NewFilter() // Filter interface
 
+	// 连接级钩子（黑名单、全局限流）在 HTTP 解析前就会写拒绝响应，
+	// 因此 EventWrite 必须在 ConnFilter 之前装配，否则写响应时空指针。
+	ev.EventWrite = EventWrite
+
 	if !fif.Fif.ConnFilter(ev) {
 		metrics.NoteRejected()
 		return
 	}
-
-	ev.EventWrite = EventWrite
 
 	for {
 		select {
