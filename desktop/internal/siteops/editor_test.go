@@ -1,6 +1,7 @@
 package siteops
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -276,6 +277,26 @@ func TestPlanUpdateCertChanges(t *testing.T) {
 	joined = strings.Join(args, " ")
 	if !strings.Contains(joined, "--ssl-certificate= ") && !strings.HasSuffix(joined, "--ssl-certificate=") {
 		t.Fatalf("清空证书应传空值：%s", joined)
+	}
+}
+
+// TestResolveRootExpandsRelative 输入框里粘 "..\..\www" 时先展开成绝对路径：
+// CLI 的路径守卫会拒绝含 ".." 的写法，直接透传就会报 invalid path。
+func TestResolveRootExpandsRelative(t *testing.T) {
+	dir := t.TempDir()
+	got := resolveRoot(dir, filepath.Join("..", "www"))
+	if !filepath.IsAbs(got) {
+		t.Fatalf("应展开成绝对路径：%s", got)
+	}
+	if strings.Contains(got, "..") {
+		t.Fatalf("展开后不应残留 ..：%s", got)
+	}
+	abs := filepath.Join(dir, "www")
+	if keep := resolveRoot(dir, abs); keep != abs {
+		t.Fatalf("绝对路径应原样返回：%s", keep)
+	}
+	if empty := resolveRoot(dir, "  "); empty != "" {
+		t.Fatalf("空值应保持空：%q", empty)
 	}
 }
 

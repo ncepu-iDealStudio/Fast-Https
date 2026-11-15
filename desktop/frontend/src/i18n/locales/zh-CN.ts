@@ -420,14 +420,11 @@ export const zhCN: Record<string, string> = {
   'menu.accentOchre': '赭石',
   'menu.accentIndigo': '靛灰',
   'menu.settings': '设置',
-  'menu.settingsHint': '本机管理端',
   'menu.system': '系统',
   'menu.autostart': '开机自启动',
   'menu.autostartOn': '已开启开机自启动',
   'menu.autostartOff': '已关闭开机自启动',
   'menu.tray': '隐藏到后台托盘',
-  'menu.trayHint': '保留窗口',
-  'menu.helpHint': '应用内',
 
   // ---- 服务操作（data-action） ----
   'action.start': '启动',

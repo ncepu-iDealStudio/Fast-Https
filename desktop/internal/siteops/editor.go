@@ -169,6 +169,9 @@ func runSite(dir string, args ...string) (any, error) {
 
 // AddSite 受控新增站点：转交 site add（多域名再补一条 site update）。
 func AddSite(dir string, in SiteInput) (string, error) {
+	// 输入框里粘 "..\..\front\www" 很常见，但 CLI 的路径守卫会拒绝含 ".."
+	// 的写法（防越界）。先在桌面端展开成绝对路径，守卫再看是否真的越界。
+	in.Root = resolveRoot(dir, in.Root)
 	plan, err := planAdd(in)
 	if err != nil {
 		return "", err
@@ -531,6 +534,7 @@ func SaveSiteDetail(dir string, in SiteInput) (string, error) {
 	if id == "" {
 		return "", fmt.Errorf("缺少站点名")
 	}
+	in.Root = resolveRoot(dir, in.Root)
 	cur, err := ReadSiteDetail(dir, id)
 	if err != nil {
 		return "", err
@@ -547,6 +551,19 @@ func SaveSiteDetail(dir string, in SiteInput) (string, error) {
 		return "", err
 	}
 	return txnMessage(data, "更新", id), nil
+}
+
+// resolveRoot 把相对路径按运行目录展开成绝对路径。
+//
+// CLI 的 pathguard 会直接拒绝含 ".." 的写法（防止绕到配置/证书/状态目录），
+// 而用户把 "..\..\front\www" 粘进输入框是完全正常的用法。展开成绝对路径后
+// 守卫仍然生效（越界、不存在、落在禁入目录都会被拦），只是不再因为写法被误杀。
+func resolveRoot(dir, root string) string {
+	root = strings.TrimSpace(root)
+	if root == "" || filepath.IsAbs(root) {
+		return root
+	}
+	return filepath.Join(dir, root)
 }
 
 // splitListenText 把弹窗的监听输入拆成单条监听。

@@ -153,17 +153,14 @@ onBeforeUnmount(() => {
       <div class="menu-sep" />
       <button type="button" class="menu-item" @click="gotoSettings">
         <span>{{ t('menu.settings') }}</span>
-        <span class="menu-hint">{{ t('menu.settingsHint') }}</span>
       </button>
       <button type="button" class="menu-item" @click="toTray">
         <span>{{ t('menu.tray') }}</span>
-        <span class="menu-hint">{{ t('menu.trayHint') }}</span>
       </button>
 
       <div class="menu-sep" />
       <button type="button" class="menu-item" @click="openHelpDialog">
         <span>{{ t('help.open') }}</span>
-        <span class="menu-hint">{{ t('menu.helpHint') }}</span>
       </button>
 
       <p v-if="error" class="notice notice--err">{{ error }}</p>

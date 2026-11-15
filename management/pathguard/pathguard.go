@@ -20,7 +20,7 @@ func CheckRoot(root string, banned []string) (string, error) {
 		return "", fmt.Errorf("%w: --root is required", ErrPath)
 	}
 	if containsDotDot(root) {
-		return "", fmt.Errorf("%w: path must not contain '..'", ErrPath)
+		return "", fmt.Errorf("%w: path must not contain '..' (use an absolute path)", ErrPath)
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {

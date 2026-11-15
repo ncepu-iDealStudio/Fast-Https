@@ -420,14 +420,11 @@ export const enUS: Record<string, string> = {
   'menu.accentOchre': 'Ochre',
   'menu.accentIndigo': 'Indigo gray',
   'menu.settings': 'Settings',
-  'menu.settingsHint': 'Local console',
   'menu.system': 'System',
   'menu.autostart': 'Start with Windows',
   'menu.autostartOn': 'Auto-start enabled',
   'menu.autostartOff': 'Auto-start disabled',
   'menu.tray': 'Hide to tray',
-  'menu.trayHint': 'Window kept',
-  'menu.helpHint': 'In-app',
 
   // ---- Service actions (data-action) ----
   'action.start': 'Start',

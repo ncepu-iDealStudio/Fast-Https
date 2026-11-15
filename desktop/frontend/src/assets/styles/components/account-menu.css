@@ -60,7 +60,6 @@
   margin-left: auto;
   color: var(--accent); font-size: 12px;
 }
-.menu-hint { padding: 0 10px 6px; font-size: 11px; line-height: 1.5; color: var(--faint); }
 .menu-sep { height: 1px; margin: 6px 0; background: var(--line); }
 
 /* ---------------------------------------------------------------- 标签行
