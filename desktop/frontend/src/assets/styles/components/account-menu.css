@@ -1,0 +1,119 @@
+/* 账户菜单 —— 锢点位于底部横带左段，菜单向上弹出。
+   .footbar 已设 position: relative，菜单相对它定位。 */
+
+.account-anchor {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+.account-menu {
+  position: absolute;
+  left: 10px;
+  bottom: calc(100% + 8px);
+  width: 268px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  z-index: 35;
+  padding: 6px 0;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  box-shadow: 0 12px 36px rgba(16, 20, 28, .18);
+}
+
+.menu-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+.menu-logo {
+  width: 26px; height: 26px; flex: 0 0 26px;
+  border-radius: 6px; object-fit: contain;
+}
+.menu-head-text { display: flex; flex-direction: column; min-width: 0; }
+.menu-head-text b { font-size: 13px; font-weight: 600; }
+.menu-head-text small { font-size: 11px; color: var(--faint); }
+
+.menu-title {
+  padding: 8px 10px 4px;
+  font-size: 11px; letter-spacing: .06em; color: var(--faint);
+}
+.menu-item {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px;
+  border: 0; border-radius: 6px;
+  background: transparent; color: var(--text);
+  font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+.menu-item:hover { background: var(--accent-soft); }
+.menu-item:disabled { opacity: .5; cursor: not-allowed; }
+.menu-check {
+  margin-left: auto;
+  color: var(--accent); font-size: 12px;
+}
+.menu-hint { padding: 0 10px 6px; font-size: 11px; line-height: 1.5; color: var(--faint); }
+.menu-sep { height: 1px; margin: 6px 0; background: var(--line); }
+
+/* ---------------------------------------------------------------- 标签行
+   语言下拉与外观卡片所在的行：label 在上、控件在下，与旧版设置类 UI 一致。 */
+.menu-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 10px 8px;
+}
+.menu-row__label {
+  font-size: 11px;
+  letter-spacing: .06em;
+  color: var(--faint);
+}
+
+/* 语言下拉框 */
+.menu-select select {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.menu-select select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---------------------------------------------------------------- 外观卡片
+   三张等宽卡片：图标在上、名称在下；当前项用 accent 描边 + 浅底。 */
+/* 外观切换：三个纯图标按钮（无文字），当前项用描边+底色标示。
+   参考桌面端分段控件的紧凑做法，避免菜单里出现三行文字占高度。 */
+.mode-cards {
+  display: flex;
+  gap: 6px;
+}
+.mode-card {
+  width: 40px; height: 34px;
+  display: grid; place-items: center;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.mode-card:hover { border-color: var(--accent); color: var(--text); }
+.mode-card--on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.mode-card--on svg { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .mode-card { transition: none; }
+}
+
+/* 暗色下的卡片选中底色用半透明白，与 --accent-soft 的定义一致，无需单写 */

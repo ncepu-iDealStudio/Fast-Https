@@ -1,0 +1,3 @@
+/* 布局层聚合：窗口骨架与全局排版。 */
+@import './window.css';
+@import './footbar.css';

@@ -1,0 +1,106 @@
+/* 设计令牌 —— 与旧版 base.css 完全一致，视觉方向不变。
+   亮色：文档式运行报告；暗色：深石墨值班台。
+   顶部通栏放 logo，工作区是浅底 + 白卡片；导航选中态用中性色块，不用左侧竖条。 */
+
+:root {
+  --accent: #5F6670;
+  --accent-soft: #ECEDF0;
+  --accent-ink: #FFFFFF;
+  --bg: #FFFFFF;
+  --surface: #F5F7FA;
+  --panel: #FFFFFF;
+  --line: #E6E8EC;
+  --line-strong: #D7DBE1;
+  --text: #16181D;
+  --muted: #666C75;
+  --faint: #949AA3;
+  --ok: #16794A;
+  --warn: #A75B0A;
+  --danger: #C0392B;
+  --sidebar-w: 200px;
+}
+
+html[data-mode="dark"] {
+  --accent: #C2C8D0;
+  --accent-soft: rgba(255,255,255,.09);
+  --accent-ink: #14171C;
+  --bg: #1A1E24;
+  --surface: #101319;
+  --panel: #171B21;
+  --line: #2A2F37;
+  --line-strong: #3A414B;
+  --text: #E8EBEF;
+  --muted: #98A1AD;
+  --faint: #6F7884;
+  --ok: #5FCB96;
+  --warn: #E0A458;
+  --danger: #F08A80;
+}
+
+/* ---------------------------------------------------------------- 收敛层
+   原版散落的字号与间距收敛到这里，组件样式只用这些变量。 */
+:root {
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --field-label-w: 150px;
+  --field-row-gap: 14px;
+  --control-h: 32px;
+
+  /* 控件尺寸：所有按钮/输入框/分段控件统一从这里取值，避免各页自己写宽高 */
+  --btn-h: 32px;
+  --btn-h-sm: 28px;
+  --btn-h-lg: 36px;
+  --btn-pad: 12px;
+  --input-h: 34px;
+  --icon-btn: 32px;
+  --icon-size: 14px;
+
+  --font-ui: "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI",
+             "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --font-mono: Consolas, "Courier New", monospace;
+}
+
+/* ---------------------------------------------------------------- 重置与全局 */
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body, #app { margin: 0; height: 100%; }
+body {
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--text);
+  /* 与旧版一致：柔和字体栈、轻字重、松行距、字距微开 */
+  font: 400 13.5px/1.7 var(--font-ui);
+  letter-spacing: .012em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
+}
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+button { cursor: pointer; }
+h1, h2, h3, h4, b, strong, .m-value { font-weight: 600; letter-spacing: 0; }
+.mono, .cmd-result, .log-row, .log-head { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* 滚动条弱化：透明轨道 + 与背景接近的滑块，hover 才加深 */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

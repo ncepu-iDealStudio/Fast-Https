@@ -1,0 +1,275 @@
+/* 页面通用元素：工具条、数据表、提示条、标签页、日志视图、图标按钮。
+   多个 pane 共用，按 views 层统一维护（组件层只放可复用 UI 组件的外观）。 */
+
+/* 页面导语 */
+.lede {
+  margin: 0 0 14px; padding: 12px 16px;
+  font-size: 12.5px; line-height: 1.75; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+}
+
+/* 工具条 */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+
+/* 提示条 */
+.notice {
+  margin: 0 0 14px; padding: 10px 14px;
+  font-size: 12px; line-height: 1.6; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+}
+.notice--err { color: var(--danger); border-color: var(--danger); }
+
+/* 数据表：一行一条记录，列宽固定，便于扫读 */
+.table {
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden;
+}
+.table__head, .table__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .8fr) 88px;
+  gap: 16px; align-items: center;
+  padding: 10px 16px;
+}
+.table__head {
+  font-size: 11px; letter-spacing: .04em; color: var(--faint);
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.table__row { font-size: 13px; border-bottom: 1px solid var(--line); }
+.table__row:last-child { border-bottom: 0; }
+.table__row:hover { background: var(--surface); }
+.table__ops { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.table__empty { padding: 24px 16px; text-align: center; font-size: 12px; color: var(--faint); }
+
+.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muted { color: var(--muted); }
+
+/* 标签页（日志切换） */
+.tab {
+  height: var(--btn-h-sm); padding: 0 12px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--muted);
+  font-size: 12px; cursor: pointer;
+}
+.tab:hover { border-color: var(--accent); color: var(--accent); }
+.tab--on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+
+/* ---------------------------------------------------------------- 弹窗内元素 */
+.dlg-source { margin: -4px 0 10px; font-size: 11px; line-height: 1.5; color: var(--faint); overflow-wrap: anywhere; }
+.dialog-error { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--danger); }
+
+/* 折叠区（高级配置 / 只读信息 / 原始 JSON） */
+.raw-details {
+  margin: 10px 0 0;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.raw-details > summary {
+  cursor: pointer; list-style: none;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+  padding: 2px 0;
+}
+.raw-details > summary::-webkit-details-marker { display: none; }
+.raw-details > summary::before { content: "▸ "; color: var(--faint); }
+.raw-details[open] > summary::before { content: "▾ "; }
+.raw-details > summary:hover { color: var(--text); }
+.raw-details .field-note { margin: 4px 0 8px; }
+
+/* 键值表（只读信息） */
+.kv-table { margin-top: 6px; border-top: 1px solid var(--line-strong); }
+.kv-row {
+  display: grid; grid-template-columns: 130px minmax(0, 1fr);
+  gap: 12px; align-items: center;
+  min-height: var(--input-h); border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.kv-row .k { color: var(--muted); }
+.kv-row .v { overflow-wrap: anywhere; }
+
+/* 三列状态行：key / 说明 / 右对齐徽标。
+   必须与 .kv-row 同处视图层——这两个选择器同权重，放组件层会被这里覆盖。 */
+.kv-row--status {
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  min-height: 40px;
+}
+.kv-row .n {
+  display: flex; flex-direction: column; align-items: flex-end;
+  gap: 2px; max-width: 240px;
+  font-size: 12px; color: var(--muted); text-align: right;
+  overflow-wrap: anywhere;
+}
+.kv-row .n small { display: block; margin-top: 2px; font-size: 11px; }
+
+/* 原始 JSON / 命令输出 */
+.cmd-result {
+  margin: 8px 0 0; padding: 10px 12px;
+  max-height: 280px; overflow: auto;
+  font: 11.5px/1.7 var(--font-mono);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
+/* 勾选组 */
+.choice-group { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 4px 0; }
+.choice-group .mini-field { gap: 6px; }
+
+/* ---------------------------------------------------------------- 配置表单
+   设置页按字段类型渲染，列宽与 FhField 保持一致（150px label）。 */
+.card-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.card-head h3 { margin: 0; font-size: 14px; font-weight: 600; }
+
+.cfg-row {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 16px; align-items: start;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cfg-row:last-child { border-bottom: 0; }
+.cfg-row__label {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text);
+}
+.cfg-row__label small {
+  display: block; margin-top: 3px;
+  font-size: 11px; font-weight: 400; line-height: 1.5; color: var(--faint);
+}
+.cfg-row__control { min-width: 0; }
+.cfg-row__control input[type="text"],
+.cfg-row__control input[type="number"],
+.cfg-row__control input[type="email"],
+.cfg-row__control select,
+.cfg-row__control textarea {
+  width: 100%; max-width: 560px; height: var(--input-h); padding: 0 10px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text); font: inherit; font-size: 13px;
+}
+.cfg-row__control textarea {
+  height: auto; min-height: 62px; padding: 8px 10px; resize: vertical;
+  font: 12px/1.6 var(--font-mono);
+}
+.cfg-row__control input:focus,
+.cfg-row__control select:focus,
+.cfg-row__control textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cfg-row__control select { max-width: 340px; }
+.cfg-row--missing .cfg-row__label::after {
+  content: var(--i18n-missing, "未配置");
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--warn);
+  background: rgba(167, 91, 10, .07);
+  border-radius: 8px;
+  padding: 0 6px;
+  vertical-align: 1px;
+}
+
+/* 只读路径：与输入框同高同宽，但无描边、不可编辑——语义是「这是现状」 */
+.readonly-path {
+  width: 100%;
+  max-width: 560px;
+  height: var(--input-h);
+  line-height: 32px;
+  padding: 0 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 路径列表：一行一个输入 + 浏览 + 删除 */
+.path-list { display: flex; flex-direction: column; gap: 6px; }
+.path-row { display: flex; align-items: center; gap: 6px; }
+.path-row input { flex: 1; min-width: 0; }
+
+/* ---------------------------------------------------------------- 日志筛选 */
+.filter-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.filter-bar input {
+  height: 32px; padding: 0 10px; width: 170px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: 12px;
+}
+.filter-bar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.filter-toggle {
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-bottom: 10px; padding: 0;
+  border: 0; background: transparent; color: var(--faint);
+  font-size: 12px; cursor: pointer;
+}
+.filter-toggle:hover { color: var(--text); }
+.filter-toggle svg { transition: transform .15s; }
+
+/* ---------------------------------------------------------------- 操作记录 */
+.table__head--ops, .table__row--ops {
+  grid-template-columns: 150px minmax(0, 1.4fr) 92px 90px 90px;
+}
+.table__row--ops { cursor: pointer; }
+.table__head--certs, .table__row--certs {
+  grid-template-columns: minmax(0, 1.4fr) 110px minmax(0, 1.2fr) 44px;
+}
+.ops-filter {
+  height: 32px; padding: 0 8px;
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--bg); color: var(--text); font-size: 12px;
+}
+.ops-detail {
+  padding: 12px 16px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.ops-detail .kv-table { margin-top: 0; }
+
+/* ---------------------------------------------------------------- 状态矩阵 */
+.matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+.matrix-grid .card-head h3 {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0; font-size: 14px; font-weight: 600;
+}
+.matrix-grid .kv-row { grid-template-columns: 130px minmax(0, 1fr); }
+.card__v.small { font-size: 13px; font-weight: 500; }
+
+/* ---------------------------------------------------------------- 配置版本行
+   三列：版本号 / 说明 / 操作按钮。之前复用 2 列的 .kv-row，第三个子元素被挤到
+   下一行第 1 列，按钮竖排堆在版本号下方。 */
+.ver-row {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.ver-row:last-child { border-bottom: 0; }
+.ver-row .k {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--muted);
+}
+.ver-row .v { overflow-wrap: anywhere; }
+.ver-row .n {
+  display: flex; align-items: center; gap: 6px;
+  justify-content: flex-end; white-space: nowrap;
+}
+
+
+
+
+

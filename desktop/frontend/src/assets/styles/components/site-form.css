@@ -1,0 +1,152 @@
+/* 站点弹窗的表单排版。
+   原先把字段一股脑堆在 FhField 里，端口和 listen 分三行、浏览按钮掉行，
+   显得松散。这里按「基本信息 / 监听 / 高级配置」分区，每区内部用固定的
+   label 列宽 + 控件列，紧凑且对齐。 */
+
+/* ---------------------------------------------------------------- 分区 */
+.fset {
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+.fset:last-of-type { border-bottom: 0; }
+
+.fset__head {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 6px;
+}
+
+.fset__row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 5px 0;
+}
+.fset__label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+.fset__label small {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--faint);
+}
+.fset__ctrl { min-width: 0; }
+
+/* 输入控件：与令牌一致的 34px 高，宽度按语义分档 */
+.fset__ctrl input[type="text"],
+.fset__ctrl input[type="number"],
+.fset__ctrl input[type="password"],
+.fset__ctrl select {
+  height: var(--input-h);
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.fset__ctrl input:focus,
+.fset__ctrl select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.fset__ctrl .wide { width: 100%; }
+.fset__ctrl .mid { width: 200px; }
+.fset__ctrl .port { width: 78px; }
+.fset__ctrl .scheme { width: 106px; flex: 0 0 106px; }
+
+/* 一行内控件的组合：浏览按钮紧贴输入框右侧，不再掉行 */
+.joined {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.joined input { flex: 1; min-width: 0; }
+.joined .fh-btn { flex: 0 0 auto; height: var(--input-h); }
+
+.mini-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.mini-field input[type="text"],
+.mini-field input[type="number"],
+.mini-field input[type="password"] {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  width: 120px;
+}
+.mini-field input[type="number"] { width: 78px; }
+
+/* ---------------------------------------------------------------- 高级配置 */
+.adv {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.adv > summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 2px 0;
+}
+.adv > summary::-webkit-details-marker { display: none; }
+.adv > summary::before { content: "▸ "; color: var(--faint); }
+.adv[open] > summary::before { content: "▾ "; }
+.adv > summary:hover { color: var(--text); }
+
+/* 四块高级配置两列排布，比纵向堆叠省一半高度 */
+.adv__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin-top: 10px;
+}
+.adv__block { min-width: 0; }
+.adv__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.adv__block .grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+.adv__block .grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.adv__block .choice-group { padding: 2px 0; }
+.adv__block .field-note { margin-top: 6px; }
+.adv__block .joined { margin-bottom: 6px; }
+.adv__block .joined input { width: 100%; }
+
+/* 窄窗口高级配置改单列 */
+@media (max-width: 700px) {
+  .adv__grid { grid-template-columns: minmax(0, 1fr); }
+}

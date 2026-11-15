@@ -1,0 +1,12 @@
+/* 组件层聚合：设计令牌必须排在最前，其余按组件名逐一列出。
+   新增组件样式时在这里补一行 @import，不要直接写进业务组件。 */
+@import './tokens.css';
+@import './fh-button.css';
+@import './fh-dialog.css';
+@import './fh-field.css';
+@import './badge.css';
+@import './icon-btn.css';
+@import './diag.css';
+@import './help.css';
+@import './account-menu.css';
+@import './site-form.css';

@@ -1,0 +1,18 @@
+/* 视图层聚合：样式统一放在 assets/styles/views/ 下，按组件拆分文件。
+   每个 .css 对应一个组件/页面区块，由这里统一 @import。
+   注意：新增组件 css 时必须在这里补一行，否则样式不会生效。 */
+@import './shared.css';
+@import './overview.css';
+@import './logs.css';
+@import './logs-toolbar.css';
+@import './logs-table.css';
+@import './operations.css';
+@import './operations-table.css';
+@import './operations-detail.css';
+@import './versions.css';
+@import './versions-list.css';
+@import './versions-diff.css';
+@import './sites.css';
+@import './sites-list.css';
+@import './sites-panel.css';
+@import './monitor.css';

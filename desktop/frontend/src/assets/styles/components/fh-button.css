@@ -1,0 +1,35 @@
+/* FhButton.vue -- global button. Sizes from --btn-h tokens. */
+.fh-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px;
+  height: var(--btn-h); padding: 0 var(--btn-pad);
+  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  background: var(--bg); color: var(--text);
+  font: inherit; font-size: var(--fs-sm); font-weight: 500; white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.fh-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.fh-btn:active:not(:disabled) { transform: scale(.97); }
+.fh-btn:disabled { opacity: .45; cursor: not-allowed; }
+.fh-btn:disabled:hover { filter: none; border-color: var(--line-strong); color: var(--text); }
+.fh-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.fh-btn--primary:hover:not(:disabled) { filter: brightness(1.08); color: var(--accent-ink); border-color: var(--accent); }
+.fh-btn--primary:disabled:hover { border-color: var(--accent); color: var(--accent-ink); }
+.fh-btn--danger { color: var(--danger); border-color: var(--danger); }
+.fh-btn--danger:hover:not(:disabled) { background: rgba(192, 57, 43, .06); }
+.fh-btn--ghost { border-color: transparent; background: transparent; }
+.fh-btn--small { height: var(--btn-h-sm); padding: 0 10px; font-size: var(--fs-sm); }
+.fh-btn--large { height: var(--btn-h-lg); padding: 0 16px; }
+.fh-btn.is-loading { display: inline-flex; align-items: center; justify-content: center; }
+.fh-btn--icon { width: var(--icon-btn); height: var(--icon-btn); padding: 0; flex: 0 0 var(--icon-btn); }
+.fh-btn__spinner {
+  width: 12px; height: 12px; border: 2px solid currentColor;
+  border-right-color: transparent; border-radius: 50%;
+  animation: fh-spin .7s linear infinite;
+}
+@keyframes fh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .fh-btn { transition: none; }
+  .fh-btn__spinner { animation: none; }
+}
