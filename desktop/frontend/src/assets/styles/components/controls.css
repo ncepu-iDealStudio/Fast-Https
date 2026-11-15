@@ -1,0 +1,99 @@
+/* 控件基元：复选框 / 单选框 / 焦点环 / 占位符。
+   之前复选框样式只写在 .fh-field__control 里，站点弹窗、状态栏等处的勾选框
+   落回系统原生外观（不同字号下对勾还会偏），视觉上像是两个产品拼起来的。
+   这里收敛成全局一套，任何上下文里的勾选框长得都一样。 */
+
+input[type="checkbox"],
+input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease),
+              border-color var(--dur-1) var(--ease),
+              box-shadow var(--dur-1) var(--ease);
+}
+input[type="checkbox"] { border-radius: var(--radius-xs); }
+input[type="radio"] { border-radius: 50%; }
+
+input[type="checkbox"]:hover:not(:disabled),
+input[type="radio"]:hover:not(:disabled) { border-color: var(--accent); }
+
+/* 勾与圆点用伪元素绘制，靠 grid 居中：不再是 left/top 硬编码的偏移，
+   换字号、换缩放都不会歪，边缘也不会发虚。 */
+input[type="checkbox"]::after {
+  content: "";
+  width: 8px;
+  height: 4.5px;
+  margin-top: -2px;
+  border-left: 1.6px solid var(--accent-ink);
+  border-bottom: 1.6px solid var(--accent-ink);
+  transform: rotate(-45deg);
+  opacity: 0;
+  transition: opacity var(--dur-1) var(--ease);
+}
+input[type="radio"]::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-ink);
+  opacity: 0;
+  transform: scale(.4);
+  transition: opacity var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+
+input[type="checkbox"]:checked,
+input[type="radio"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+input[type="checkbox"]:checked::after { opacity: 1; }
+input[type="radio"]:checked::after { opacity: 1; transform: scale(1); }
+
+input[type="checkbox"]:disabled,
+input[type="radio"]:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 焦点环统一成「细描边 + 柔光」，比 2px 实线 outline 安静，
+   也不会在密集表单里连成一片高对比色块。 */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+input,
+select,
+textarea { accent-color: var(--accent); }
+input::placeholder,
+textarea::placeholder { color: var(--faint); opacity: 1; }
+input:not([type="checkbox"]):not([type="radio"]):disabled,
+select:disabled,
+textarea:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  background: var(--surface);
+}
+
+/* 按钮与可点块共用的柔光焦点环（键盘导航可见、鼠标点击不打扰） */
+.fh-btn:focus-visible,
+.icon-btn:focus-visible,
+.fbtn:focus-visible,
+.tab:focus-visible,
+.nav-item:focus-visible,
+.win-btn:focus-visible,
+.rail-toggle:focus-visible,
+.side-foot:focus-visible,
+.quick-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+  border-color: var(--accent);
+}

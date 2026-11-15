@@ -7,7 +7,7 @@
   background: var(--bg);
   border: 1px solid var(--danger);
   border-left-width: 3px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .ops-err__code {
   font-size: 11px;

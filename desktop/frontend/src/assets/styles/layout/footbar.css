@@ -56,10 +56,11 @@
 .fbtn {
   width: 24px; height: 24px; flex: 0 0 24px;
   display: grid; place-items: center;
-  border: 1px solid var(--line-strong); border-radius: 5px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-xs);
   background: var(--bg); color: var(--muted);
   cursor: pointer;
-  transition: border-color .15s, color .15s;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease),
+              color var(--dur-1) var(--ease);
 }
 .fbtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .fbtn:disabled { opacity: .45; cursor: not-allowed; }

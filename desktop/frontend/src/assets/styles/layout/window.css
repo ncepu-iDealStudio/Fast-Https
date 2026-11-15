@@ -72,8 +72,9 @@
 .rail-toggle {
   width: 26px; height: 26px; flex: 0 0 26px;
   display: grid; place-items: center;
-  border: 0; border-radius: 5px; background: transparent;
+  border: 0; border-radius: var(--radius-xs); background: transparent;
   color: var(--faint); cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 .rail-toggle:hover { background: var(--surface); color: var(--text); }
 
@@ -88,10 +89,11 @@
   height: 38px; flex: 0 0 38px;
   margin: 0 10px 2px; width: calc(100% - 20px);
   display: flex; align-items: center; gap: 10px; padding: 0 12px;
-  border: 0; border-radius: 6px;
+  border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--text);
   font: inherit; font-size: 13px; text-align: left; cursor: pointer;
   white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 .nav-item:hover { background: var(--surface); }
 .nav-item.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
@@ -140,4 +142,7 @@
   flex: 1 1 auto; min-height: 0; overflow-y: auto;
   display: flex; flex-direction: column;
   padding: 8px 32px 20px;
+  /* 内容变长时滚动条出现/消失不再让整页横向跳动 */
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }

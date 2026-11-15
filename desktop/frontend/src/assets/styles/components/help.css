@@ -14,7 +14,7 @@
 }
 .help-toc-item {
   padding: 7px 10px;
-  border: 0; border-radius: 6px;
+  border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--muted);
   font: inherit; font-size: 12.5px; line-height: 1.45;
   text-align: left; text-decoration: none; cursor: pointer;
@@ -29,7 +29,7 @@
 .help-section p { margin: 8px 0; }
 .help-section ul, .help-section ol { margin: 8px 0; padding-left: 22px; }
 .help-section .mono {
-  padding: 1px 5px; border-radius: 4px;
+  padding: 1px 5px; border-radius: var(--radius-xs);
   font-family: var(--font-mono); font-size: 12px;
   background: var(--accent-soft);
 }

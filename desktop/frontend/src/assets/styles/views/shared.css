@@ -5,7 +5,7 @@
 .lede {
   margin: 0 0 14px; padding: 12px 16px;
   font-size: 12.5px; line-height: 1.75; color: var(--muted);
-  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-md);
 }
 
 /* 工具条 */
@@ -15,14 +15,18 @@
 .notice {
   margin: 0 0 14px; padding: 10px 14px;
   font-size: 12px; line-height: 1.6; color: var(--muted);
-  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm);
 }
-.notice--err { color: var(--danger); border-color: var(--danger); }
+.notice--err {
+  color: var(--danger);
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+}
 
 /* 数据表：一行一条记录，列宽固定，便于扫读 */
 .table {
   background: var(--bg); border: 1px solid var(--line);
-  border-radius: 8px; overflow: hidden;
+  border-radius: var(--radius-md); overflow: hidden;
 }
 .table__head, .table__row {
   display: grid;
@@ -31,10 +35,10 @@
   padding: 10px 16px;
 }
 .table__head {
-  font-size: 11px; letter-spacing: .04em; color: var(--faint);
+  font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--faint);
   background: var(--surface); border-bottom: 1px solid var(--line);
 }
-.table__row { font-size: 13px; border-bottom: 1px solid var(--line); }
+.table__row { font-size: 13px; border-bottom: 1px solid var(--line); transition: background-color var(--dur-1) var(--ease); }
 .table__row:last-child { border-bottom: 0; }
 .table__row:hover { background: var(--surface); }
 .table__ops { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
@@ -46,9 +50,10 @@
 /* 标签页（日志切换） */
 .tab {
   height: var(--btn-h-sm); padding: 0 12px;
-  border: 1px solid var(--line-strong); border-radius: 6px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--muted);
   font-size: 12px; cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
 }
 .tab:hover { border-color: var(--accent); color: var(--accent); }
 .tab--on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
@@ -105,7 +110,7 @@
   margin: 8px 0 0; padding: 10px 12px;
   max-height: 280px; overflow: auto;
   font: 11.5px/1.7 var(--font-mono);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 
@@ -146,8 +151,9 @@
 .cfg-row__control select,
 .cfg-row__control textarea {
   width: 100%; max-width: 560px; height: var(--input-h); padding: 0 10px;
-  border: 1px solid var(--line-strong); border-radius: 6px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--text); font: inherit; font-size: 13px;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 .cfg-row__control textarea {
   height: auto; min-height: 62px; padding: 8px 10px; resize: vertical;
@@ -155,7 +161,9 @@
 }
 .cfg-row__control input:focus,
 .cfg-row__control select:focus,
-.cfg-row__control textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cfg-row__control textarea:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
+}
 .cfg-row__control select { max-width: 340px; }
 .cfg-row--missing .cfg-row__label::after {
   content: var(--i18n-missing, "未配置");
@@ -174,10 +182,10 @@
   width: 100%;
   max-width: 560px;
   height: var(--input-h);
-  line-height: 32px;
+  line-height: calc(var(--input-h) - 2px);
   padding: 0 10px;
   border: 1px dashed var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--muted);
   font-size: 12px;
@@ -190,6 +198,9 @@
 .path-list { display: flex; flex-direction: column; gap: 6px; }
 .path-row { display: flex; align-items: center; gap: 6px; }
 .path-row input { flex: 1; min-width: 0; }
+/* 行内按钮与输入框同高，否则 32 对 34 会差出一条缝 */
+.path-row .fh-btn,
+.path-row .icon-btn { height: var(--input-h); }
 
 /* ---------------------------------------------------------------- 日志筛选 */
 .filter-bar {
@@ -198,10 +209,11 @@
 }
 .filter-bar input {
   height: 32px; padding: 0 10px; width: 170px;
-  border: 1px solid var(--line-strong); border-radius: 6px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--text); font-size: 12px;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
-.filter-bar input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.filter-bar input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
 .filter-toggle {
   display: inline-flex; align-items: center; gap: 4px;
   margin-bottom: 10px; padding: 0;
@@ -221,8 +233,9 @@
 }
 .ops-filter {
   height: 32px; padding: 0 8px;
-  border: 1px solid var(--line-strong); border-radius: 6px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--text); font-size: 12px;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 .ops-detail {
   padding: 12px 16px 14px;

@@ -10,14 +10,27 @@
   --surface: #F5F7FA;
   --panel: #FFFFFF;
   --line: #E6E8EC;
-  --line-strong: #D7DBE1;
+  --line-strong: #CFD4DC;
   --text: #16181D;
-  --muted: #666C75;
-  --faint: #949AA3;
+  --muted: #5F6670;
+  /* faint 只用于说明文字，必须过 AA：白底上 4.7:1。改浅就会出现「看得见但费劲」。 */
+  --faint: #6F7782;
   --ok: #16794A;
   --warn: #A75B0A;
   --danger: #C0392B;
   --sidebar-w: 200px;
+
+  /* 语义色底/描边：徽标、提示条用半透明叠加，避免整块实色压过内容 */
+  --ok-soft: rgba(22, 121, 74, .10);
+  --ok-line: rgba(22, 121, 74, .32);
+  --warn-soft: rgba(167, 91, 10, .10);
+  --warn-line: rgba(167, 91, 10, .32);
+  --danger-soft: rgba(192, 57, 43, .09);
+  --danger-line: rgba(192, 57, 43, .30);
+  --ring: rgba(95, 102, 112, .16);
+
+  /* 原生控件（下拉箭头、数字步进、滚动条）跟随主题，否则暗色下会是黑箭头 */
+  color-scheme: light;
 }
 
 html[data-mode="dark"] {
@@ -30,11 +43,21 @@ html[data-mode="dark"] {
   --line: #2A2F37;
   --line-strong: #3A414B;
   --text: #E8EBEF;
-  --muted: #98A1AD;
-  --faint: #6F7884;
+  --muted: #A2ABB8;
+  --faint: #8B94A1;
   --ok: #5FCB96;
   --warn: #E0A458;
   --danger: #F08A80;
+
+  --ok-soft: rgba(95, 203, 150, .12);
+  --ok-line: rgba(95, 203, 150, .34);
+  --warn-soft: rgba(224, 164, 88, .12);
+  --warn-line: rgba(224, 164, 88, .34);
+  --danger-soft: rgba(240, 138, 128, .12);
+  --danger-line: rgba(240, 138, 128, .34);
+  --ring: rgba(194, 200, 208, .22);
+
+  color-scheme: dark;
 }
 
 /* ---------------------------------------------------------------- 收敛层
@@ -52,9 +75,20 @@ html[data-mode="dark"] {
   --sp-4: 16px;
   --sp-5: 24px;
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
+  --radius-xs: 5px;
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* 一层极轻投影表示「浮起」，不刻意做玻璃拟态；对话框用更深一层 */
+  --shadow-1: 0 1px 2px rgba(16, 20, 28, .04), 0 1px 1px rgba(16, 20, 28, .03);
+  --shadow-2: 0 18px 48px rgba(16, 20, 28, .18), 0 2px 8px rgba(16, 20, 28, .06);
+
+  /* 动效：统一时长与缓动，避免各处 .15s/.18s/.2s 混用显得跳 */
+  --ease: cubic-bezier(.2, .7, .3, 1);
+  --dur-1: 120ms;
+  --dur-2: 180ms;
 
   --field-label-w: 150px;
   --field-row-gap: 14px;
@@ -85,10 +119,15 @@ body {
   /* 与旧版一致：柔和字体栈、轻字重、松行距、字距微开 */
   font: 400 13.5px/1.7 var(--font-ui);
   letter-spacing: .012em;
+  /* 抗锯齿 + 优先几何精度：中文在小字号下不再糊成一团 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   font-variant-numeric: tabular-nums;
+  font-synthesis-weight: none;
 }
+/* 选中态用中性底，避免系统蓝在灰调界面里跳出来 */
+::selection { background: var(--accent-soft); color: var(--text); }
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; }
 h1, h2, h3, h4, b, strong, .m-value { font-weight: 600; letter-spacing: 0; }
@@ -96,10 +135,15 @@ h1, h2, h3, h4, b, strong, .m-value { font-weight: 600; letter-spacing: 0; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* 滚动条弱化：透明轨道 + 与背景接近的滑块，hover 才加深 */
-::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: var(--line-strong); }
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 3px solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
