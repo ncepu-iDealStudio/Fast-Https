@@ -100,6 +100,58 @@ func TestTreeWithOnlyDisabledSitesIsValid(t *testing.T) {
 	}
 }
 
+// TestTreeAutoCertMissingIsWarning 约定证书（<主域名>.pem）在候选树里缺失
+// 只告警：候选树按设计不带证书文件，证书要等首次 start 由本地 CA 生成。
+// 装完包还没启动过、或新增 TLS 站点，都不该被这条拦住。
+func TestTreeAutoCertMissingIsWarning(t *testing.T) {
+	site := `{
+  "listen": ["8443 ssl"],
+  "server_name": "localhost",
+  "ssl_certificate": "./cert/localhost.pem",
+  "ssl_certificate_key": "./cert/localhost-key.pem",
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	cand := writeCandidateTree(t, site)
+	warnings, err := ValidateConfigTree(cand)
+	if err != nil {
+		t.Fatalf("约定证书缺失应降级为告警：%v", err)
+	}
+	if len(warnings) == 0 || !strings.Contains(strings.Join(warnings, "\n"), "ssl_certificate not found") {
+		t.Fatalf("应给出证书缺失告警，实际：%v", warnings)
+	}
+}
+
+// TestTreeCertResolvedFromLiveDir 相对证书路径要能按「线上配置目录」解析，
+// 不能依赖进程工作目录：桌面端从快捷方式启动时 CWD 未必是安装目录。
+func TestTreeCertResolvedFromLiveDir(t *testing.T) {
+	site := `{
+  "listen": ["8443 ssl"],
+  "server_name": "dep.example",
+  "ssl_certificate": "./cert/dep.example.pem",
+  "ssl_certificate_key": "./cert/dep.example-key.pem",
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	cand := writeCandidateTree(t, site)
+
+	live := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(live, "cert"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"dep.example.pem", "dep.example-key.pem"} {
+		if err := os.WriteFile(filepath.Join(live, "cert", name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	warnings, err := ValidateConfigTree(cand, live)
+	if err != nil {
+		t.Fatalf("证书在线上配置目录里，应校验通过：%v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("证书找得到就不应告警：%v", warnings)
+	}
+}
+
 func TestTreeMissingCert(t *testing.T) {
 	site := `{
   "listen": ["8443 ssl"],

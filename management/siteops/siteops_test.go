@@ -159,6 +159,74 @@ func TestSiteAddServerNameConflictByPort(t *testing.T) {
 	}
 }
 
+// TestSiteAddTLSWithoutCert 新增 TLS 站点时证书文件还没生成（要等首次
+// start 的 CertInit），校验不能因此拒绝，否则新装的机器永远加不了 HTTPS 站点。
+func TestSiteAddTLSWithoutCert(t *testing.T) {
+	live, doc, _, _ := writeLive(t, "live.example")
+	dirs := []string{filepath.Join(filepath.Dir(live), "conf.d")}
+	if _, err := Add(dirs, AddInput{
+		Domain: "tls.example", Root: doc, Listens: []string{"18443 ssl h2"}, TLS: true,
+	}); err != nil {
+		t.Fatalf("新增 TLS 站点不应因证书未生成而失败：%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dirs[0], "tls.example.json")); err != nil {
+		t.Fatalf("站点文件应已写入：%v", err)
+	}
+}
+
+// TestSiteAddOnFreshInstall 复刻装机现场：安装包自带 conf.d/default.json
+// （443 ssl，指向 ./cert/localhost.pem），但 config/cert 是空的、服务还没
+// start 过。此时新增站点不能被「默认站点证书还没生成」拦死。
+func TestSiteAddOnFreshInstall(t *testing.T) {
+	work := t.TempDir()
+	cfg := filepath.Join(work, "config")
+	confd := filepath.Join(cfg, "conf.d")
+	doc := filepath.Join(work, "www")
+	for _, dir := range []string{confd, filepath.Join(cfg, "cert"), doc} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shipped := `{
+  "listen": [80, "443 ssl h2"],
+  "server_name": "localhost",
+  "ssl_certificate": "./cert/localhost.pem",
+  "ssl_certificate_key": "./cert/localhost-key.pem",
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	if err := os.WriteFile(filepath.Join(confd, "default.json"), []byte(shipped), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	live := filepath.Join(cfg, "fast-https.json")
+	if err := os.WriteFile(live, []byte(`{"http":{"include":["conf.d"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(cfg)
+	eng := &txn.Engine{
+		State:    state.Dir{Root: filepath.Join(work, "state"), Alive: func(int, string) bool { return true }},
+		Reloader: &countReload{},
+		Probe:    func(int) bool { return true },
+		Bind:     func(int) error { return nil },
+	}
+	res, err := Run(context.Background(), eng, RunInput{
+		LiveMain: live, RequestID: "fresh1", Command: "site.add", Summary: "add site.example",
+		Args: map[string]string{"domain": "site.example"},
+		Mutate: func(_ string, dirs []string) error {
+			_, err := Add(dirs, AddInput{Domain: "site.example", Root: doc, Listens: []string{"8080"}})
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatalf("新装环境下新增站点应成功：%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(confd, "site.example.json")); err != nil {
+		t.Fatalf("站点文件应已落盘：%v", err)
+	}
+	if len(res.Warnings) == 0 {
+		t.Fatal("应给出「证书待首次 start 生成」的告警")
+	}
+}
+
 func TestSiteAddInvalidDomainOrListen(t *testing.T) {
 	live, doc, eng, _ := writeLive(t, "live.example")
 	_, err := runAdd(t, eng, live, "../evil", doc, "bad", false)
