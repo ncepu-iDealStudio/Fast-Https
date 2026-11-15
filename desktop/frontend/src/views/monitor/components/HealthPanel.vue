@@ -1,32 +1,41 @@
 <script setup lang="ts">
-/** 组件健康四卡：图标 + 标题 + 描述 + 徽标 + 查看详情链接。 */
+/**
+ * 组件健康度四卡：图标 + 名称 + 状态徽标 + 描述 + 右下角查看链接。
+ * 每张卡是一个可跳转的入口，action 为空则不显示链接。
+ */
 import { ChevronRight } from '@lucide/vue';
 
-export interface HealthItem {
+export interface HealthCard {
   title: string;
-  desc: string;
-  status: string;
-  ok: boolean;
   ico: unknown;
+  ok: boolean;
+  status: string;
+  desc: string;
+  meta?: string;
   action?: string;
+  pane?: string;
 }
-defineProps<{ items: HealthItem[]; title: string; note: string }>();
-const emit = defineEmits<{ detail: [title: string] }>();
+defineProps<{ cards: HealthCard[] }>();
+const emit = defineEmits<{ go: [pane: string] }>();
 </script>
 
 <template>
-  <div class="section-head"><span>{{ title }}</span><small>{{ note }}</small></div>
-  <div class="health-grid">
-    <div v-for="h in items" :key="h.title" class="health-card">
-      <div class="health-card__head">
-        <div class="health-card__ico"><component :is="h.ico" :size="15" /></div>
-        <b>{{ h.title }}</b>
-        <span class="badge" :class="h.ok ? 'badge--ok' : 'badge--off'">{{ h.status }}</span>
+  <div class="comp-grid">
+    <div v-for="c in cards" :key="c.title" class="comp">
+      <div class="comp__top">
+        <span class="comp__ico"><component :is="c.ico" :size="12" /></span>
+        <span class="comp__name">{{ c.title }}</span>
+        <span class="badge" :class="c.ok ? 'badge--ok' : 'badge--off'">
+          <span class="badge__dot" />{{ c.status }}
+        </span>
       </div>
-      <div class="health-card__desc">{{ h.desc }}</div>
-      <button v-if="h.action" class="health-card__link" @click="emit('detail', h.title)">
-        {{ h.action }} <ChevronRight :size="12" />
-      </button>
+      <div class="comp__desc">{{ c.desc }}</div>
+      <div class="comp__bottom">
+        <span class="comp__meta">{{ c.meta }}</span>
+        <button v-if="c.action && c.pane" class="comp__link" @click="emit('go', c.pane)">
+          {{ c.action }}<ChevronRight :size="11" />
+        </button>
+      </div>
     </div>
   </div>
 </template>

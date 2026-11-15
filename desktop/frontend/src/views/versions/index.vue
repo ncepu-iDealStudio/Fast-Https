@@ -84,7 +84,6 @@ onMounted(() => {
     </div>
     <p v-if="error" class="notice notice--err">{{ error }}</p>
     <p v-else-if="notice" class="notice">{{ notice }}</p>
-    <p class="field-note">{{ t('settings.versionsNote') }}</p>
 
     <VersionList :versions="versions" :loading="loading" @diff="showDiff" @rollback="rollback" />
 

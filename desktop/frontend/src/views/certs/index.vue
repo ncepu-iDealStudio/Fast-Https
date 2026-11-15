@@ -29,13 +29,11 @@ onMounted(() => {
 
 <template>
   <div class="main__body">
-    <p class="lede" v-html="t('certs.lede')" />
     <div class="toolbar">
       <FhButton @click="trustOpen = true">
         <ShieldCheck :size="14" /><span>{{ t('certs.trust') }}</span>
       </FhButton>
     </div>
-    <p class="field-note" v-html="t('certs.note')" />
     <p v-if="certs.error" class="notice notice--err">{{ certs.error }}</p>
     <div v-if="certs.loading && !certs.items.length" class="notice">{{ t('certs.loading') }}</div>
 

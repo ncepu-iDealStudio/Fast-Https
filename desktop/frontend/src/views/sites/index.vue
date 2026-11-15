@@ -8,6 +8,7 @@ import { useOverviewStore } from '../../stores/overview';
 import FhButton from '../../components/ui/FhButton.vue';
 import SiteDialog from '../../components/common/SiteDialog.vue';
 import SiteList from './components/SiteList.vue';
+import ConfirmDialog from '../../components/common/ConfirmDialog.vue';
 import { openConfigDir } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 
@@ -17,6 +18,10 @@ const overview = useOverviewStore();
 const busy = ref('');
 const notice = ref('');
 const dialogOpen = ref(false);
+/** 删除确认：先弹窗再执行，避免误点直接删除 */
+const delOpen = ref(false);
+const delId = ref('');
+const delBusy = ref(false);
 const editingId = ref<string | undefined>(undefined);
 
 onMounted(() => {
@@ -52,13 +57,27 @@ async function onToggle(id: string, enabled: boolean): Promise<void> {
   }
 }
 
-async function onDelete(id: string): Promise<void> {
+/** 点删除：只打开确认框，不动数据。 */
+function askDelete(id: string): void {
+  delId.value = id;
+  delOpen.value = true;
+}
+
+/** 确认后执行删除。 */
+async function doDelete(): Promise<void> {
+  const id = delId.value;
+  if (!id) return;
+  delBusy.value = true;
   busy.value = id;
   try {
     notice.value = await sites.remove(id);
+    delOpen.value = false;
+    delId.value = '';
   } catch (e) {
     notice.value = messageOf(e);
+    delOpen.value = false;
   } finally {
+    delBusy.value = false;
     busy.value = '';
   }
 }
@@ -83,7 +102,6 @@ async function onOpen(url: string): Promise<void> {
 
 <template>
   <div class="main__body">
-    <p class="lede" v-html="t('sites.lede')" />
 
     <div class="toolbar">
       <FhButton variant="primary" @click="openAdd">
@@ -98,9 +116,17 @@ async function onOpen(url: string): Promise<void> {
 
     <SiteList
       :items="sites.items" :loading="sites.loading" :server-up="serverUp" :busy="busy"
-      @edit="openEdit" @toggle="onToggle" @delete="onDelete" @copy="onCopy" @open="onOpen"
+      @edit="openEdit" @toggle="onToggle" @delete="askDelete" @copy="onCopy" @open="onOpen"
     />
 
     <SiteDialog v-model:open="dialogOpen" :editing-id="editingId" @saved="onSaved" />
+
+    <ConfirmDialog
+      v-model:open="delOpen"
+      :title="t('sites.delConfirmTitle')"
+      :message="t('sites.delConfirmBody')"
+      :loading="delBusy"
+      @confirm="doDelete"
+    />
   </div>
 </template>

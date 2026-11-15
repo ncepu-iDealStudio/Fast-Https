@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import AppLayout from './components/layout/AppLayout.vue';
-import AppHeader from './components/common/AppHeader.vue';
+import PageTitle from './components/common/PageTitle.vue';
 import SitesView from './views/sites/index.vue';
 import CertsView from './views/certs/index.vue';
 import LogsView from './views/logs/index.vue';
@@ -10,11 +10,9 @@ import VersionsView from './views/versions/index.vue';
 import MonitorView from './views/monitor/index.vue';
 import SettingsView from './views/settings/index.vue';
 import { useAppStore, type PaneKey } from './stores/app';
-import { useOverviewStore } from './stores/overview';
 import { useI18n } from './composables/useI18n';
 
 const app = useAppStore();
-const overview = useOverviewStore();
 const { t } = useI18n();
 
 const PANE_TITLES: Record<PaneKey, string> = {
@@ -44,7 +42,7 @@ onMounted(() => {
 
 <template>
   <AppLayout>
-    <AppHeader :title="paneTitle" :running="overview.data?.running ?? false" />
+    <PageTitle v-if="app.pane !== 'monitor'" :title="paneTitle" />
     <MonitorView v-if="app.pane === 'monitor'" />
     <SitesView v-else-if="app.pane === 'sites'" />
     <CertsView v-else-if="app.pane === 'certs'" />

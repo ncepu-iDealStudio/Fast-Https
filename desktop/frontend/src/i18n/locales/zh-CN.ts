@@ -148,7 +148,54 @@ export const zhCN: Record<string, string> = {
   'matrix.accessEmpty': '日志为空或文件不存在',
 
   // ---- 运行快照 / Monitor ----
-  'monitor.centerNote': '一览掌握 fast-https 的运行状态、流量与健康情况',
+  'monitor.normal': '正常',
+  'monitor.metricAccepted': '累计接受连接',
+  'monitor.metricRequests': '累计处理请求',
+  'monitor.metricErrors': '异常 / 拒绝',
+  'monitor.accepted': '持续增长 accepted',
+  'monitor.requests': '运行正常 requests',
+  'monitor.allNormal': '全部正常 errors · rejected',
+  'monitor.hasErrors': '有异常需关注',
+  'monitor.compHttp': 'HTTP 服务',
+  'monitor.viewDetail': '查看详情',
+  'monitor.viewEvents': '查看事件',
+  'monitor.collectEnabled': '健康采集 已启用',
+  'monitor.sitesManaged': '{n} 个站点正在托管 · 配置加载成功',
+  'monitor.manageSites': '管理站点',
+  'monitor.certsConfigured': '{n} 张证书已配置 · 证书可用',
+  'monitor.expireIn': '{n} 天后到期',
+  'monitor.manageCerts': '管理证书',
+  'monitor.sectionOverview': '运行概览',
+  'monitor.sectionOverviewNote': '关键指标 · 服务进程实时快照',
+  'monitor.sectionHealth': '组件健康度',
+  'monitor.sectionHealthNote': '服务链路关键模块',
+  'monitor.sectionMetrics': '运行数据明细',
+  'monitor.processMetrics': 'PROCESS METRICS',
+  'monitor.noData': '当前无数据',
+  'monitor.eventLimit': '只展示最近 {n} 条事件',
+  'logs.openLog': '打开日志',
+  'evt.collectFailed': '监控采集失败',
+  'evt.collectFailedDetail': '探针访问不到本机服务，通常是服务尚未启动',
+  'evt.collectFailedRepeat': '已连续 {n} 次采集失败，服务可能未启动',
+
+
+
+  'evt.serviceUnreachable': '服务无法连接',
+  'evt.serviceUnreachableDetail': '监控探针访问不到本机服务，通常是服务未启动',
+  'evt.serviceRecovered': '服务已恢复',
+  'evt.serviceRecoveredDetail': '监控探针重新连上本机服务',
+  'evt.serverErrors': '服务端出现错误响应',
+  'evt.serverErrorsDetail': '新增 {n} 次 5xx 响应，建议查看日志定位',
+  'evt.serverErrorsDetailPlain': '服务端返回 5xx，建议查看日志定位',
+  'evt.slowResponse': '响应变慢',
+  'evt.slowResponseDetail': '部分请求耗时超过阈值',
+  'evt.started': '服务已启动',
+  'evt.startedDetail': '进程 PID {pid} 开始监听',
+  'evt.stopped': '服务已停止',
+  'evt.configReloaded': '配置已重载',
+  'evt.trafficChange': '访问量变化',
+  'evt.trafficChangeDetail': '本次采集新增 {n} 个请求',
+  'evt.generic': '监控记录了一条事件',
   'monitor.center': '监控中心',
   'monitor.loading': '正在读取 Monitor 状态…',
   'monitor.notInstalledBody': 'Monitor 未安装：没有采集到本机动态。',
@@ -167,9 +214,8 @@ export const zhCN: Record<string, string> = {
   'monitor.eventsFailed': '读取事件失败：{msg}',
 
   // ---- 站点页 ----
-  'sites.lede': '每个站点对应 <span class="mono">conf.d</span> 下的一个配置文件（如 <span class="mono">localhost.json</span>），一个站点可同时监听多个端口（如 80 与 443）。增删改与启停都走配置事务（校验、恢复点、reload、可回滚），提交后立即生效。',
   'sites.configured': '已配置的站点',
-  'sites.add': '+ 添加站点',
+  'sites.add': '添加站点',
   'sites.loading': '正在读取站点…',
   'sites.stateOn': '已启用',
   'sites.stateOff': '已停用',
@@ -180,6 +226,10 @@ export const zhCN: Record<string, string> = {
   'sites.copy': '复制链接',
   'sites.open': '在浏览器打开',
   'sites.copied': '已复制 {url}',
+  'sites.delConfirmTitle': '删除站点',
+  'sites.delConfirmBody': '删除后该站点的配置文件将被移除，且需重载配置才会生效。确定删除吗？',
+
+
   'sites.del': '删除站点',
   'sites.detail': '查看详情',
 
@@ -262,8 +312,6 @@ export const zhCN: Record<string, string> = {
   'dialog.site.cacheNote': 'valid 用逗号分隔（如 10s, 1m）；max_size 单位是字节，0 表示不限制',
 
   // ---- 证书页 ----
-  'certs.lede': '证书清单来自主程序的 <span class="mono">cert list</span>：主题、签发者、到期时间与剩余天数一目了然，状态徽标标出「有效／即将到期／已过期」；标记「本地生成」的证书由本机根 CA（<span class="mono">root.crt</span>）自动签发。',
-  'certs.note': '本地 CA 不在系统／浏览器的信任库里，所以访问 <span class="mono">https://localhost</span> 仍会提示「不安全」——这是自签 CA 的正常现象，不是证书损坏。下方「信任本地 CA…」可一步步导入；对外服务请改用 ACME 或正式证书。证书与根 CA 只在文件缺失时生成，已经生成的旧证书不会被覆盖。',
   'certs.configured': '已配置的证书',
   'certs.trust': '信任本地 CA…',
   'certs.loading': '正在读取证书…',
@@ -385,7 +433,6 @@ export const zhCN: Record<string, string> = {
   'action.status': '查询状态',
 
   // ---- 日志页 ----
-  'logs.lede': 'JSON 结构化 · 只读；切换 access / error / system / safe，按级别、状态、Host、方法、路径前缀与时间筛选，滚动加载更早记录。',
   'logs.access': '访问日志',
   'logs.error': '错误日志',
   'logs.system': '系统日志',
@@ -440,7 +487,6 @@ export const zhCN: Record<string, string> = {
 
   // ---- 设置页：配置版本 ----
   'settings.versionsTitle': '配置版本',
-  'settings.versionsNote': 'config versions · 快照与回滚',
   'settings.driftNote': '磁盘配置与所有版本快照不一致（手工改过文件）',
   'settings.current': '当前',
   'settings.fromVersion': '来自 {v}',

@@ -38,7 +38,11 @@ export const useAppStore = defineStore('app', () => {
   const lang = ref<Lang>(readStoredLang());
   const pane = ref<PaneKey>(initialPane());
   /** 渚ф爮鎶樺彔锛氭姌鍙犲悗鍙暀鍥炬爣銆傝蹇嗗埌涓嬫鍚姩銆?*/
-  const railCollapsed = ref(localStorage.getItem(RAIL_KEY) === '1');
+  // 首次启动（从未保存过）默认折叠：小屏幕上一进来就腾出内容宽度。
+  // 用户手动展开后会写入 '0'，之后保持他的选择。
+  const railCollapsed = ref(
+    localStorage.getItem(RAIL_KEY) === null || localStorage.getItem(RAIL_KEY) === '1',
+  );
 
   function toggleRail(): void {
     railCollapsed.value = !railCollapsed.value;

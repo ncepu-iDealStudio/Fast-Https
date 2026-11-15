@@ -148,7 +148,54 @@ export const enUS: Record<string, string> = {
   'matrix.accessEmpty': 'Log empty or file missing',
 
   // ---- Runtime snapshot / Monitor ----
-  'monitor.centerNote': 'At-a-glance view of fast-https runtime state, traffic and health',
+  'monitor.normal': 'Normal',
+  'monitor.metricAccepted': 'Accepted connections',
+  'monitor.metricRequests': 'Requests handled',
+  'monitor.metricErrors': 'Errors / rejected',
+  'monitor.accepted': 'growing · accepted',
+  'monitor.requests': 'running · requests',
+  'monitor.allNormal': 'all good · errors · rejected',
+  'monitor.hasErrors': 'errors need attention',
+  'monitor.compHttp': 'HTTP service',
+  'monitor.viewDetail': 'Details',
+  'monitor.viewEvents': 'Events',
+  'monitor.collectEnabled': 'Health collection enabled',
+  'monitor.sitesManaged': '{n} site(s) managed · config loaded',
+  'monitor.manageSites': 'Manage sites',
+  'monitor.certsConfigured': '{n} certificate(s) configured · usable',
+  'monitor.expireIn': 'expires in {n} days',
+  'monitor.manageCerts': 'Manage certs',
+  'monitor.sectionOverview': 'Runtime overview',
+  'monitor.sectionOverviewNote': 'Key metrics · live process snapshot',
+  'monitor.sectionHealth': 'Component health',
+  'monitor.sectionHealthNote': 'Critical service-chain modules',
+  'monitor.sectionMetrics': 'Runtime detail',
+  'monitor.processMetrics': 'PROCESS METRICS',
+  'monitor.noData': 'No data',
+  'monitor.eventLimit': 'Latest {n} events only',
+  'logs.openLog': 'Open logs',
+  'evt.collectFailed': 'Monitoring collection failed',
+  'evt.collectFailedDetail': 'The probe could not reach the local service — it is probably not running',
+  'evt.collectFailedRepeat': '{n} consecutive failures — the service may be down',
+
+
+
+  'evt.serviceUnreachable': 'Service unreachable',
+  'evt.serviceUnreachableDetail': 'The probe could not reach the local service — usually it is not running',
+  'evt.serviceRecovered': 'Service recovered',
+  'evt.serviceRecoveredDetail': 'The probe reconnected to the local service',
+  'evt.serverErrors': 'Server error responses',
+  'evt.serverErrorsDetail': '{n} new 5xx responses — check the logs',
+  'evt.serverErrorsDetailPlain': 'The service returned 5xx — check the logs',
+  'evt.slowResponse': 'Slow responses',
+  'evt.slowResponseDetail': 'Some requests exceeded the latency threshold',
+  'evt.started': 'Service started',
+  'evt.startedDetail': 'Process PID {pid} started listening',
+  'evt.stopped': 'Service stopped',
+  'evt.configReloaded': 'Configuration reloaded',
+  'evt.trafficChange': 'Traffic changed',
+  'evt.trafficChangeDetail': '{n} new requests in this sample',
+  'evt.generic': 'A monitoring event was recorded',
   'monitor.center': 'Monitor Center',
   'monitor.loading': 'Loading Monitor status…',
   'monitor.notInstalledBody': 'Monitor is not installed: no local activity collected.',
@@ -167,9 +214,8 @@ export const enUS: Record<string, string> = {
   'monitor.eventsFailed': 'Could not load events: {msg}',
 
   // ---- Sites page ----
-  'sites.lede': 'Each site is one config file under <span class="mono">conf.d</span> (for example <span class="mono">localhost.json</span>); a single site can listen on several ports at once (80 and 443). Add, edit, delete and enable/disable all run as config transactions (validate, restore point, reload, rollback) and take effect immediately.',
   'sites.configured': 'Configured sites',
-  'sites.add': '+ Add site',
+  'sites.add': 'Add site',
   'sites.loading': 'Loading sites…',
   'sites.stateOn': 'Enabled',
   'sites.stateOff': 'Disabled',
@@ -180,6 +226,10 @@ export const enUS: Record<string, string> = {
   'sites.copy': 'Copy link',
   'sites.open': 'Open in browser',
   'sites.copied': 'Copied {url}',
+  'sites.delConfirmTitle': 'Delete site',
+  'sites.delConfirmBody': 'The site configuration will be removed, and a config reload is required to take effect. Delete it?',
+
+
   'sites.del': 'Delete site',
   'sites.detail': 'View details',
 
@@ -262,8 +312,6 @@ export const enUS: Record<string, string> = {
   'dialog.site.cacheNote': 'Separate valid entries with commas (e.g. 10s, 1m); max_size is in bytes, 0 means unlimited',
 
   // ---- Certificates page ----
-  'certs.lede': 'The certificate list comes from <span class="mono">cert list</span>: subject, issuer, expiry and days left at a glance, with badges for valid / expiring / expired. Certs marked "Locally generated" are issued by the local root CA (<span class="mono">root.crt</span>).',
-  'certs.note': 'The local CA is not in the system/browser trust store, so <span class="mono">https://localhost</span> still shows "Not secure" — normal for a self-signed CA, not a broken cert. Use "Trust local CA…" below to import it step by step; for public services use ACME or a real certificate. Certs and the root CA are only generated when missing; existing files are never overwritten.',
   'certs.configured': 'Configured certificates',
   'certs.trust': 'Trust local CA…',
   'certs.loading': 'Loading certificates…',
@@ -385,7 +433,6 @@ export const enUS: Record<string, string> = {
   'action.status': 'Query status',
 
   // ---- Logs page ----
-  'logs.lede': 'JSON structured · read-only; switch between access / error / system / safe, filter by level, status, host, method, path prefix and time, scroll to load older records.',
   'logs.access': 'Access log',
   'logs.error': 'Error log',
   'logs.system': 'System log',
@@ -440,7 +487,6 @@ export const enUS: Record<string, string> = {
 
   // ---- Settings: config versions ----
   'settings.versionsTitle': 'Config versions',
-  'settings.versionsNote': 'config versions · snapshots & rollback',
   'settings.driftNote': 'On-disk config differs from every version snapshot (edited by hand)',
   'settings.current': 'Current',
   'settings.fromVersion': 'from {v}',

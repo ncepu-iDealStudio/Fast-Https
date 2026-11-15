@@ -82,7 +82,6 @@ onUnmounted(() => { if (liveTimer) window.clearInterval(liveTimer); });
 
 <template>
   <div class="main__body logs-page">
-    <p class="lede" v-html="t('logs.lede')" />
 
     <LogToolbar
       :filters="filters" :advanced="advanced" :loading="loading" :live="live"

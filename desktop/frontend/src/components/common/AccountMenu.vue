@@ -145,8 +145,7 @@ onBeforeUnmount(() => {
             :title="t(m.label)"
             @click="setMode(m.key)"
           >
-            <component :is="m.icon" :size="16" />
-            <span>{{ t(m.label) }}</span>
+            <component :is="m.icon" :size="15" />
           </button>
         </div>
       </div>
