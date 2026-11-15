@@ -75,6 +75,44 @@
 .joined input { flex: 1; min-width: 0; }
 .joined .fh-btn { flex: 0 0 auto; height: var(--input-h); }
 
+/* 勾选行：协议开关、压缩编码一类，统一行高与间距 */
+.check-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  min-height: var(--input-h);
+}
+.check-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.check-field input { margin: 0; flex: 0 0 auto; }
+.check-field.is-off { color: var(--faint); cursor: default; }
+
+/* 端口组：HTTP / HTTPS 两个小字段并排 */
+.port-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: var(--input-h);
+}
+
+/* 分区与高级配置里的说明文字统一字号/颜色/行高，换行不再忽大忽小 */
+.fset .field-note,
+.adv .field-note {
+  display: block;
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--faint);
+}
+
 .mini-field {
   display: inline-flex;
   align-items: center;
@@ -116,34 +154,59 @@
 .adv[open] > summary::before { content: "▾ "; }
 .adv > summary:hover { color: var(--text); }
 
-/* 四块高级配置两列排布，比纵向堆叠省一半高度 */
+/* 四块高级配置两列排布，比纵向堆叠省一半高度。每块是一张浅色卡片，
+   边界清楚；块内字段「标签在上、输入框在下」，宽度自动对齐。 */
 .adv__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px 18px;
+  gap: 12px;
   margin-top: 10px;
 }
-.adv__block { min-width: 0; }
+.adv__block {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
 .adv__title {
   font-size: 12px;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
-.adv__block .grid2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 6px;
+.adv__fields { display: grid; gap: 8px; }
+.adv__fields--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.adv__fields--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.stack-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--muted);
 }
-.adv__block .grid3 {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+.stack-field span { line-height: 1.4; }
+.stack-field input[type="text"],
+.stack-field input[type="number"],
+.stack-field input[type="password"] {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
 }
-.adv__block .choice-group { padding: 2px 0; }
-.adv__block .field-note { margin-top: 6px; }
-.adv__block .joined { margin-bottom: 6px; }
+.stack-field.span-2 { grid-column: span 2; }
+
+.adv__block .check-row { min-height: 26px; }
+.adv__block .field-note { margin-top: 8px; }
+.adv__block .joined { margin-bottom: 8px; }
 .adv__block .joined input { width: 100%; }
 
 /* 窄窗口高级配置改单列 */

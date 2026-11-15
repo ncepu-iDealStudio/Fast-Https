@@ -20,7 +20,9 @@ const raw = ref('');
 
 const form = reactive({
   name: '',
-  proto: 'http' as 'http' | 'https' | 'both',
+  // 监听：两个开关决定 listen，端口单独一行。勾了 HTTPS 才需要证书。
+  https: false,
+  keepHttp: false,
   httpPort: '80',
   httpsPort: '443',
   listen: '80',
@@ -54,14 +56,17 @@ function portText(v: string | number): string {
   return String(v ?? '').trim();
 }
 
-/** 协议 + 端口 → listen 串，可再手动微调（如加 h2）。 */
+/** 协议开关 + 端口 → listen 串，可再手动微调（如给 HTTPS 补 h2）。 */
 function syncListen(): void {
   const http = portText(form.httpPort) || '80';
   const https = portText(form.httpsPort) || '443';
-  if (form.proto === 'http') form.listen = http;
-  else if (form.proto === 'https') form.listen = `${https} ssl h2`;
-  else form.listen = `${http}, ${https} ssl h2`;
+  if (!form.https) form.listen = http;
+  else if (form.keepHttp) form.listen = `${http}, ${https} ssl h2`;
+  else form.listen = `${https} ssl h2`;
 }
+
+/** listen 里出现 ssl 才算 TLS：证书区、提交时的证书字段都以它为准。 */
+const tlsOn = computed(() => /ssl/i.test(form.listen));
 
 /** listen 一律以字符串提交；用户清空时回落到「协议 + 端口」重新生成。 */
 function listenText(): string {
@@ -107,10 +112,14 @@ function portsOf(listen: string): { http: string; https: string } {
 let hydrating = false;
 
 watch(
-  () => [form.proto, form.httpPort, form.httpsPort],
+  () => [form.https, form.keepHttp, form.httpPort, form.httpsPort],
   () => { if (!hydrating) syncListen(); },
   { flush: 'sync' },
 );
+
+// 关掉 HTTPS 时「同时保留 HTTP」不再有意义，顺手复位，避免下次勾选 HTTPS
+// 时莫名变成双端口监听。
+watch(() => form.https, (on) => { if (!on) form.keepHttp = false; });
 
 watch(() => props.open, async (open) => {
   if (!open) return;
@@ -119,7 +128,7 @@ watch(() => props.open, async (open) => {
   raw.value = '';
   if (!props.editingId) {
     Object.assign(form, {
-      name: '', proto: 'http', httpPort: '80', httpsPort: '443', listen: '80',
+      name: '', https: false, keepHttp: false, httpPort: '80', httpsPort: '443', listen: '80',
       type: 'local', root: '', proxyScheme: 'http://', proxy: '', cert: '', certKey: '',
       zipGzip: false, zipBr: false, limitRate: 0, limitBurst: 0, limitMem: 0,
       limitNodelay: false, authOn: false, authUser: '', authPass: '', authRealm: '',
@@ -131,10 +140,13 @@ watch(() => props.open, async (open) => {
   try {
     const d = await readSiteDetail(props.editingId);
     const ports = portsOf(d.listen);
+    const tls = /ssl/i.test(d.listen ?? '');
     hydrating = true;
     try {
       form.name = d.name;
-      form.proto = /ssl/i.test(d.listen ?? '') ? (ports.http ? 'both' : 'https') : 'http';
+      form.https = tls;
+      // 同时配了非 ssl 端口（如 "80, 443 ssl h2"）才勾「同时保留 HTTP」。
+      form.keepHttp = tls && !!ports.http;
       form.httpPort = ports.http || '80';
       form.httpsPort = ports.https || '443';
       form.listen = d.listen;
@@ -219,12 +231,18 @@ async function submit(): Promise<void> {
   }
 }
 
+/** 用户取消文件选择框不是错误，别把 "cancelled by user" 当红字报出来。 */
+function isCancel(e: unknown): boolean {
+  const msg = String((e as { message?: string })?.message ?? e ?? '');
+  return /cancel/i.test(msg);
+}
+
 async function browse(): Promise<void> {
   try {
     const p = await pickPath('dir');
     if (p) form.root = p;
   } catch (e) {
-    error.value = messageOf(e);
+    if (!isCancel(e)) error.value = messageOf(e);
   }
 }
 
@@ -236,7 +254,7 @@ async function browseCert(kind: 'cert' | 'certKey'): Promise<void> {
     if (kind === 'cert') form.cert = p;
     else form.certKey = p;
   } catch (e) {
-    error.value = messageOf(e);
+    if (!isCancel(e)) error.value = messageOf(e);
   }
 }
 
@@ -303,27 +321,40 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
       </div>
     </section>
 
-    <!-- ── 监听：协议 + 端口一行，listen 单独一行可微调 ── -->
+    <!-- ── 监听：两个开关定协议，端口一行，listen 可手动微调 ── -->
     <section class="fset">
-      <div class="fset__head">{{ t('dialog.site.proto') }}</div>
+      <div class="fset__head">{{ t('dialog.site.listenSection') }}</div>
+
       <div class="fset__row">
         <label class="fset__label"><span>{{ t('dialog.site.proto') }}</span></label>
         <div class="fset__ctrl">
-          <div class="joined">
-            <select v-model="form.proto" class="mid">
-              <option value="http">{{ t('dialog.site.protoHttp') }}</option>
-              <option value="https">{{ t('dialog.site.protoHttps') }}</option>
-              <option value="both">{{ t('dialog.site.protoBoth') }}</option>
-            </select>
-            <label v-if="form.proto !== 'https'" class="mini-field">
+          <div class="check-row">
+            <label class="check-field">
+              <input v-model="form.https" type="checkbox" />
+              <span>{{ t('dialog.site.httpsOn') }}</span>
+            </label>
+            <label class="check-field" :class="{ 'is-off': !form.https }">
+              <input v-model="form.keepHttp" type="checkbox" :disabled="!form.https" />
+              <span>{{ t('dialog.site.keepHttp') }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="fset__row">
+        <label class="fset__label"><span>{{ t('dialog.site.port') }}</span></label>
+        <div class="fset__ctrl">
+          <div class="port-row">
+            <label v-if="!form.https || form.keepHttp" class="mini-field">
               <span>HTTP</span><input v-model="form.httpPort" type="number" class="port" />
             </label>
-            <label v-if="form.proto !== 'http'" class="mini-field">
+            <label v-if="form.https" class="mini-field">
               <span>HTTPS</span><input v-model="form.httpsPort" type="number" class="port" />
             </label>
           </div>
         </div>
       </div>
+
       <div class="fset__row">
         <label class="fset__label"><span class="mono">listen</span></label>
         <div class="fset__ctrl">
@@ -334,7 +365,7 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
     </section>
 
     <!-- ── 证书：只有 TLS 站点才需要；留空交给首次启动生成 ── -->
-    <section v-if="form.proto !== 'http'" class="fset">
+    <section v-if="tlsOn" class="fset">
       <div class="fset__head">{{ t('dialog.site.certSection') }}</div>
       <div class="fset__row">
         <label class="fset__label">
@@ -367,31 +398,59 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
       <div class="adv__grid">
         <div class="adv__block">
           <div class="adv__title">{{ t('dialog.site.zip') }}</div>
-          <div class="choice-group">
-            <label class="mini-field"><input v-model="form.zipGzip" type="checkbox" /><span>gzip</span></label>
-            <label class="mini-field"><input v-model="form.zipBr" type="checkbox" /><span>brotli</span></label>
+          <div class="check-row">
+            <label class="check-field"><input v-model="form.zipGzip" type="checkbox" /><span>gzip</span></label>
+            <label class="check-field"><input v-model="form.zipBr" type="checkbox" /><span>brotli</span></label>
           </div>
           <small class="field-note">{{ t('dialog.site.zipHint') }}</small>
         </div>
 
         <div class="adv__block">
           <div class="adv__title">{{ t('dialog.site.limit') }}</div>
-          <div class="grid3">
-            <label class="mini-field"><span>{{ t('dialog.site.limitRate') }}</span><input v-model.number="form.limitRate" type="number" min="0" /></label>
-            <label class="mini-field"><span>{{ t('dialog.site.limitBurst') }}</span><input v-model.number="form.limitBurst" type="number" min="0" /></label>
-            <label class="mini-field"><span>{{ t('dialog.site.limitMem') }}</span><input v-model.number="form.limitMem" type="number" min="0" /></label>
+          <div class="adv__fields adv__fields--3">
+            <label class="stack-field">
+              <span>{{ t('dialog.site.limitRate') }}</span>
+              <input v-model.number="form.limitRate" type="number" min="0" />
+            </label>
+            <label class="stack-field">
+              <span>{{ t('dialog.site.limitBurst') }}</span>
+              <input v-model.number="form.limitBurst" type="number" min="0" />
+            </label>
+            <label class="stack-field">
+              <span>{{ t('dialog.site.limitMem') }}</span>
+              <input v-model.number="form.limitMem" type="number" min="0" />
+            </label>
           </div>
-          <label class="mini-field"><input v-model="form.limitNodelay" type="checkbox" /><span>{{ t('dialog.site.limitNodelay') }}</span></label>
+          <div class="check-row">
+            <label class="check-field">
+              <input v-model="form.limitNodelay" type="checkbox" />
+              <span>{{ t('dialog.site.limitNodelay') }}</span>
+            </label>
+          </div>
           <small class="field-note">{{ t('dialog.site.limitHint') }}</small>
         </div>
 
         <div class="adv__block">
           <div class="adv__title">{{ t('dialog.site.auth') }}</div>
-          <label class="mini-field"><input v-model="form.authOn" type="checkbox" /><span>{{ t('dialog.site.authOn') }}</span></label>
-          <div v-if="form.authOn" class="grid2">
-            <label class="mini-field"><span>{{ t('dialog.site.authUser') }}</span><input v-model="form.authUser" type="text" autocomplete="off" /></label>
-            <label class="mini-field"><span>{{ t('dialog.site.authPass') }}</span><input v-model="form.authPass" type="password" autocomplete="new-password" /></label>
-            <label class="mini-field"><span>{{ t('dialog.site.authRealm') }}</span><input v-model="form.authRealm" type="text" /></label>
+          <div class="check-row">
+            <label class="check-field">
+              <input v-model="form.authOn" type="checkbox" />
+              <span>{{ t('dialog.site.authOn') }}</span>
+            </label>
+          </div>
+          <div v-if="form.authOn" class="adv__fields adv__fields--2">
+            <label class="stack-field">
+              <span>{{ t('dialog.site.authUser') }}</span>
+              <input v-model="form.authUser" type="text" autocomplete="off" />
+            </label>
+            <label class="stack-field">
+              <span>{{ t('dialog.site.authPass') }}</span>
+              <input v-model="form.authPass" type="password" autocomplete="new-password" />
+            </label>
+            <label class="stack-field span-2">
+              <span>{{ t('dialog.site.authRealm') }}</span>
+              <input v-model="form.authRealm" type="text" />
+            </label>
           </div>
           <small class="field-note">{{ t('dialog.site.authHint') }}</small>
         </div>
@@ -401,9 +460,15 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
           <div class="joined">
             <input v-model="form.cachePath" type="text" placeholder="./cache" />
           </div>
-          <div class="grid2">
-            <label class="mini-field"><span>{{ t('dialog.site.cacheValid') }}</span><input v-model="form.cacheValid" type="text" placeholder="10s, 1m" /></label>
-            <label class="mini-field"><span>{{ t('dialog.site.cacheMaxSize') }}</span><input v-model.number="form.cacheMaxSize" type="number" min="0" /></label>
+          <div class="adv__fields adv__fields--2">
+            <label class="stack-field">
+              <span>{{ t('dialog.site.cacheValid') }}</span>
+              <input v-model="form.cacheValid" type="text" placeholder="10s, 1m" />
+            </label>
+            <label class="stack-field">
+              <span>{{ t('dialog.site.cacheMaxSize') }}</span>
+              <input v-model.number="form.cacheMaxSize" type="number" min="0" />
+            </label>
           </div>
           <small class="field-note">{{ t('dialog.site.cacheNote') }}</small>
         </div>
