@@ -6,7 +6,8 @@ export interface RuntimePaths {
   cert: string;
   log: string;
   pid: string;
-  rootCrt: string;
+  /** 沿用 CLI `config path --json` 的键名，不是 camelCase。 */
+  root_crt: string;
   state: string;
 }
 

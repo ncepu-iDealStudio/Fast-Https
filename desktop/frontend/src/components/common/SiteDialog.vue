@@ -43,13 +43,72 @@ const form = reactive({
   cacheMaxSize: 0,
 });
 
+/**
+ * 端口输入框是 type="number"，Vue 的 v-model 会自动把值转成 number，
+ * 所以这里必须显式收回字符串，否则 listen 会变成数字，提交时后端
+ * （Go 的 SiteInput.listen 是 string）解析直接失败。
+ */
+function portText(v: string | number): string {
+  return String(v ?? '').trim();
+}
+
 /** 协议 + 端口 → listen 串，可再手动微调（如加 h2）。 */
 function syncListen(): void {
-  if (form.proto === 'http') form.listen = form.httpPort;
-  else if (form.proto === 'https') form.listen = `${form.httpsPort} ssl h2`;
-  else form.listen = `${form.httpPort}, ${form.httpsPort} ssl h2`;
+  const http = portText(form.httpPort) || '80';
+  const https = portText(form.httpsPort) || '443';
+  if (form.proto === 'http') form.listen = http;
+  else if (form.proto === 'https') form.listen = `${https} ssl h2`;
+  else form.listen = `${http}, ${https} ssl h2`;
 }
-watch(() => [form.proto, form.httpPort, form.httpsPort], syncListen);
+
+/** listen 一律以字符串提交；用户清空时回落到「协议 + 端口」重新生成。 */
+function listenText(): string {
+  const cur = portText(form.listen);
+  if (cur) return cur;
+  syncListen();
+  return portText(form.listen);
+}
+
+/** number 输入框被清空时 v-model.number 会留下空串，统一收敛成整数。 */
+function toInt(v: number | string): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+}
+
+/** 从一条 listen 片段取端口：兼容 ":80" / "127.0.0.1:8080" / "443 ssl h2"。 */
+function portOfSegment(seg: string): string {
+  const first = seg.trim().split(/\s+/)[0] ?? '';
+  const m = /(\d+)$/.exec(first);
+  return m ? m[1] : '';
+}
+
+/** 从 listen 串反解 HTTP / HTTPS 端口，编辑时回填端口输入框。 */
+function portsOf(listen: string): { http: string; https: string } {
+  let http = '';
+  let https = '';
+  for (const seg of String(listen ?? '').split(',')) {
+    const port = portOfSegment(seg);
+    if (!port) continue;
+    if (/ssl/i.test(seg)) {
+      if (!https) https = port;
+    } else if (!http) {
+      http = port;
+    }
+  }
+  return { http, https };
+}
+
+/**
+ * 详情回填期间挂起 listen 重算，否则「写端口 → watch → syncListen」
+ * 会把后端给的原始监听串（如 "443 ssl"）改写成模板串。
+ */
+let hydrating = false;
+
+watch(
+  () => [form.proto, form.httpPort, form.httpsPort],
+  () => { if (!hydrating) syncListen(); },
+  { flush: 'sync' },
+);
 
 watch(() => props.open, async (open) => {
   if (!open) return;
@@ -69,8 +128,17 @@ watch(() => props.open, async (open) => {
   busy.value = true;
   try {
     const d = await readSiteDetail(props.editingId);
-    form.name = d.name;
-    form.listen = d.listen;
+    const ports = portsOf(d.listen);
+    hydrating = true;
+    try {
+      form.name = d.name;
+      form.proto = /ssl/i.test(d.listen ?? '') ? (ports.http ? 'both' : 'https') : 'http';
+      form.httpPort = ports.http || '80';
+      form.httpsPort = ports.https || '443';
+      form.listen = d.listen;
+    } finally {
+      hydrating = false;
+    }
     form.type = d.type === 'proxy' ? 'proxy' : 'local';
     form.root = d.root ?? '';
     const mp = /^(https?:\/\/)?(.*)$/.exec(d.proxyPass ?? '');
@@ -110,14 +178,14 @@ function buildPayload(): SiteInput {
   return {
     id: props.editingId ?? '',
     name: form.name,
-    listen: form.listen,
+    listen: listenText(),
     type: form.type,
     root: form.type === 'local' ? form.root : '',
     proxyPass: form.type === 'proxy' ? form.proxyScheme + form.proxy : '',
     zip,
-    limitRate: form.limitRate,
-    limitBurst: form.limitBurst,
-    limitMem: form.limitMem,
+    limitRate: toInt(form.limitRate),
+    limitBurst: toInt(form.limitBurst),
+    limitMem: toInt(form.limitMem),
     limitNodelay: form.limitNodelay,
     authOn: form.authOn,
     authUser: form.authOn ? form.authUser : '',
@@ -125,7 +193,7 @@ function buildPayload(): SiteInput {
     authRealm: form.authOn ? form.authRealm : '',
     cachePath: form.cachePath.trim(),
     cacheValid: form.cacheValid.split(',').map((s) => s.trim()).filter(Boolean),
-    cacheMaxSize: form.cacheMaxSize,
+    cacheMaxSize: toInt(form.cacheMaxSize),
   };
 }
 
