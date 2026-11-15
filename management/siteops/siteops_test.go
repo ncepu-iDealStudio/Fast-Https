@@ -316,6 +316,55 @@ func TestSiteAddCertWithoutTLS(t *testing.T) {
 	}
 }
 
+// TestSiteAddSameNameDifferentPortOnShippedConfig 复刻装机现场：
+// 安装包自带 default.json（server_name localhost，监听 80），
+// 再建一个 localhost:8080 不应被判成冲突 —— 端口不同就是两个 server 块。
+func TestSiteAddSameNameDifferentPortOnShippedConfig(t *testing.T) {
+	work := t.TempDir()
+	cfg := filepath.Join(work, "config")
+	confd := filepath.Join(cfg, "conf.d")
+	doc := filepath.Join(work, "www")
+	for _, dir := range []string{confd, filepath.Join(cfg, "cert"), doc} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 只留 80：这条用例只验「端口维度」，不引入「证书还没生成」的干扰。
+	shipped := `{
+  "listen": [80],
+  "server_name": "localhost",
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	if err := os.WriteFile(filepath.Join(confd, "default.json"), []byte(shipped), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	live := filepath.Join(cfg, "fast-https.json")
+	if err := os.WriteFile(live, []byte(`{"http":{"include":["conf.d"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(cfg)
+	eng := &txn.Engine{
+		State:    state.Dir{Root: filepath.Join(work, "state"), Alive: func(int, string) bool { return true }},
+		Reloader: &countReload{},
+		Probe:    func(int) bool { return true },
+		Bind:     func(int) error { return nil },
+	}
+	_, err := Run(context.Background(), eng, RunInput{
+		LiveMain: live, RequestID: "sameport", Command: "site.add", Summary: "add localhost:8080",
+		Args: map[string]string{"domain": "localhost", "listen": "8080"},
+		Mutate: func(_ string, dirs []string) error {
+			_, err := Add(dirs, AddInput{Domain: "localhost", Root: doc, Listens: []string{"8080"}})
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatalf("localhost:8080 与 localhost:80/443 端口不同，不应冲突：%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(confd, "localhost.json")); err != nil {
+		t.Fatalf("站点文件应已写入：%v", err)
+	}
+}
+
 func TestSiteAddInvalidDomainOrListen(t *testing.T) {
 	live, doc, eng, _ := writeLive(t, "live.example")
 	_, err := runAdd(t, eng, live, "../evil", doc, "bad", false)
