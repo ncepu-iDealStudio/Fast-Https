@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * 监控中心（编排壳）：只负责拉数据 + 组装子组件。
- * 概览 / 状态矩阵 / 运行快照 已合并于此，数据只拉一次、区块不重复。
+ * 监控中心（编排壳）：页头 + 服务状态卡 + 运行概览 + 组件健康 + 明细/动态。
+ * 概览 / 状态矩阵 / 运行快照 三页合并于此，数据只拉一次、区块不重复。
  */
-import { computed, onMounted } from 'vue';
-import { Activity, Globe, ShieldCheck, Server, Zap, AlertCircle } from '@lucide/vue';
+import { computed, onMounted, ref } from 'vue';
+import { Activity, Globe, ShieldCheck, Server, Zap, AlertCircle, RefreshCw } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { startServer, stopServer, reloadServer, openConfigDir } from '../../services/api/app';
 import { useMonitorData } from './composables/useMonitorData';
@@ -16,52 +16,66 @@ import EventPanel from './components/EventPanel.vue';
 
 const { t } = useI18n();
 const { ov, rt, monitor, events, loading, load } = useMonitorData();
+const busy = ref(false);
+const notice = ref('');
 
 const running = computed(() => ov.data?.running ?? false);
 
 function durationText(seconds: number): string {
   const s = Number(seconds) || 0;
-  if (s <= 0) return '—';
+  if (s <= 0) return '\u2014';
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   return h > 0 ? t('runtime.durationHM', { h, m }) : t('runtime.durationM', { m });
 }
 
-const portsText = computed(() => (ov.data?.ports ?? []).join(', ') || '—');
+const portsText = computed(() => (ov.data?.ports ?? []).join(', ') || '\u2014');
 const conns = computed(() => rt.value?.connections ?? {});
 const reqs = computed(() => rt.value?.requests ?? {});
 const resp = computed(() => rt.value?.responses ?? {});
 const upstream = computed(() => rt.value?.upstream ?? {});
 
+function spark(seed: number): number[] {
+  return Array.from({ length: 7 }, (_, i) => 6 + Math.sin(seed + i) * 4 + i * 1.2);
+}
+
 const metrics = computed(() => [
-  { key: t('runtime.cardConn'), value: conns.value.active ?? 0, sub: 'active', ico: Activity, tone: '' as const, trend: [4, 6, 5, 9, 7, 12, 10] },
-  { key: t('runtime.cardReq'), value: reqs.value.total ?? 0, sub: 'requests', ico: Zap, tone: '' as const, trend: [2, 4, 6, 5, 8, 11, 13] },
-  { key: t('runtime.cardResp'), value: (resp.value['4xx'] ?? 0) + (resp.value['5xx'] ?? 0), sub: 'errors', ico: AlertCircle, tone: 'warn' as const, trend: [1, 1, 2, 1, 3, 2, 2] },
-  { key: t('runtime.cardUpstream'), value: Object.values(upstream.value).reduce((a, b) => a + Number(b), 0), sub: 'upstream', ico: Server, tone: '' as const, trend: [3, 3, 4, 4, 5, 5, 6] },
+  { label: t('runtime.cardConn'), value: conns.value.active ?? 0, sub: t('status.subRunning'), subTone: 'ok' as const, ico: Activity, icoTone: 'blue' as const, trend: spark(0) },
+  { label: t('runtime.cardReq'), value: reqs.value.total ?? 0, sub: t('runtime.cardReq'), subTone: 'ok' as const, ico: Zap, icoTone: 'green' as const, trend: spark(2) },
+  { label: t('runtime.cardResp'), value: resp.value.total ?? Object.values(resp.value).reduce((a, b) => a + Number(b), 0), sub: 'requests', subTone: 'muted' as const, ico: Server, icoTone: 'orange' as const, trend: spark(4) },
+  { label: t('runtime.cardUpstream'), value: Object.values(upstream.value).reduce((a, b) => a + Number(b), 0), sub: 'errors - rejected', subTone: 'ok' as const, ico: AlertCircle, icoTone: 'purple' as const, trend: spark(6) },
 ]);
 
 const health = computed(() => [
-  { title: 'HTTP', ico: Globe, status: running.value ? t('status.running') : t('status.stopped'), ok: running.value },
-  { title: 'Monitor', ico: Activity, status: monitor.value?.healthy ? t('monitor.statusRunning') : t('monitor.notInstalled'), ok: !!monitor.value?.healthy },
-  { title: t('nav.sites'), ico: Server, status: `${ov.data?.siteCount ?? 0}`, ok: true },
-  { title: t('nav.certs'), ico: ShieldCheck, status: `${ov.data?.tlsCount ?? 0}`, ok: true },
-]);
-
-function rowsOf(rec: Record<string, number>): { k: string; v: number }[] {
-  return Object.entries(rec).map(([k, v]) => ({ k, v }));
-}
-const detailGroups = computed(() => [
-  { title: t('runtime.cardConn'), rows: rowsOf(conns.value) },
-  { title: t('runtime.cardReq'), rows: rowsOf(reqs.value) },
-  { title: t('runtime.cardResp'), rows: rowsOf(resp.value) },
-  { title: t('runtime.cardUpstream'), rows: rowsOf(upstream.value) },
+  {
+    title: 'HTTP', ico: Activity, ok: running.value, status: running.value ? t('status.running') : t('status.stopped'),
+    desc: `${t('overview.metricPorts')} :80 / :443`, action: t('matrix.title'),
+  },
+  {
+    title: 'Monitor', ico: Activity, ok: !!monitor.value?.healthy,
+    status: monitor.value?.healthy ? t('monitor.statusRunning') : t('monitor.notInstalled'),
+    desc: `${t('monitor.lastCollect')} ${monitor.value?.last_collect_at?.slice(0, 19).replace('T', ' ') ?? '\u2014'}`,
+    action: t('overview.eventsTitle'),
+  },
+  {
+    title: t('nav.sites'), ico: Globe, ok: true,
+    status: t('settings.current'),
+    desc: `${ov.data?.siteCount ?? 0} ${t('nav.sites')}`, action: t('nav.sites'),
+  },
+  {
+    title: t('nav.certs'), ico: ShieldCheck, ok: true,
+    status: t('settings.current'),
+    desc: `${ov.data?.tlsCount ?? 0} ${t('nav.certs')}`, action: t('nav.certs'),
+  },
 ]);
 
 async function toggleServer(): Promise<void> {
-  try { if (running.value) await stopServer(); else await startServer(); } finally { await load(); }
+  busy.value = true;
+  try { if (running.value) await stopServer(); else await startServer(); } finally { busy.value = false; await load(); }
 }
 async function reload(): Promise<void> {
-  try { await reloadServer(); } finally { await load(); }
+  busy.value = true;
+  try { await reloadServer(); } finally { busy.value = false; await load(); }
 }
 async function openDir(): Promise<void> {
   const p = ov.data?.paths?.config;
@@ -72,7 +86,25 @@ onMounted(() => { void load(); });
 </script>
 
 <template>
-  <div class="main__body monitor-page">
+  <div class="monitor-page">
+    <!-- 页头 -->
+    <div class="page-head">
+      <div class="page-head__text">
+        <div class="page-head__eyebrow">SERVICE CONTROL CENTER</div>
+        <h1>{{ t('monitor.center') }}</h1>
+        <p>{{ t('monitor.centerNote') }}</p>
+      </div>
+      <div class="page-head__actions">
+        <button class="icon-btn page-head__refresh" :title="t('overview.openConfig')" @click="openDir">
+          <FolderOpen :size="14" />
+        </button>
+        <button class="page-head__refresh" :title="t('common.refresh')" :disabled="loading" @click="load()">
+          <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 服务状态卡 -->
     <HeroCard
       :running="running"
       :pid="rt?.pid ?? ov.data?.pid"
@@ -81,17 +113,25 @@ onMounted(() => { void load(); });
       :monitor-healthy="!!monitor?.healthy"
       :loading="loading"
       @toggle="toggleServer" @reload="reload" @refresh="load"
-      @open-dir="openDir"
+      @open-dir="openDir" @diagnose="notice = ''"
     />
 
+    <p v-if="notice" class="notice">{{ notice }}</p>
+
+    <!-- 运行概览 -->
     <div class="section-head"><span>{{ t('runtime.pageTitle') }}</span><small>{{ t('runtime.pageNote') }}</small></div>
     <MetricCards :metrics="metrics" />
 
-    <div class="two-col">
-      <HealthPanel :items="health" :title="t('nav.matrix')" />
-      <EventPanel :events="events" :title="t('overview.eventsTitle')" />
-    </div>
+    <!-- 组件健康 -->
+    <HealthPanel :items="health" :title="t('nav.matrix')" :note="t('runtime.pageNote')" @detail="notice = $event" />
 
-    <DetailPanel :groups="detailGroups" :title="t('matrix.runtimeTitle')" />
+    <!-- 明细 + 最近动态 -->
+    <div class="two-col">
+      <DetailPanel
+        :conns="conns" :reqs="reqs" :resp="resp" :upstream="upstream"
+        :title="t('matrix.runtimeTitle')" :note="t('runtime.pageNote')"
+      />
+      <EventPanel :events="events" :title="t('overview.eventsTitle')" :link="t('overview.eventsOps')" @open="notice = ''" />
+    </div>
   </div>
 </template>

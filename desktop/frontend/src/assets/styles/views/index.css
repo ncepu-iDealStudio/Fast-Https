@@ -7,16 +7,3 @@
 @import './versions.css';
 @import './sites.css';
 @import './monitor.css';
-@import './monitor-hero.css';
-@import './monitor-metrics.css';
-@import './monitor-health.css';
-@import './monitor-detail.css';
-@import './monitor-events.css';
-@import './logs-toolbar.css';
-@import './logs-table.css';
-@import './sites-list.css';
-@import './sites-panel.css';
-@import './operations-table.css';
-@import './operations-detail.css';
-@import './versions-list.css';
-@import './versions-diff.css';

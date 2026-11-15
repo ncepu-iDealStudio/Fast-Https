@@ -1,6 +1,0 @@
-.detail-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-@media (max-width: 1000px) { .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.detail-group__title { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-.detail-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 11.5px; color: var(--muted); }
-.detail-row b { color: var(--text); }
-
