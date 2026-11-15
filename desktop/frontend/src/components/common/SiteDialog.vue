@@ -19,7 +19,8 @@ const info = ref<{ k: string; v: string }[]>([]);
 const raw = ref('');
 
 const form = reactive({
-  name: '',
+  // 本机建站基本都从 localhost 起步，默认填好省一次输入；多域名仍可继续写。
+  name: 'localhost',
   // 监听：两个开关决定 listen，端口单独一行。勾了 HTTPS 才需要证书。
   https: false,
   keepHttp: false,
@@ -128,7 +129,7 @@ watch(() => props.open, async (open) => {
   raw.value = '';
   if (!props.editingId) {
     Object.assign(form, {
-      name: '', https: false, keepHttp: false, httpPort: '80', httpsPort: '443', listen: '80',
+      name: 'localhost', https: false, keepHttp: false, httpPort: '80', httpsPort: '443', listen: '80',
       type: 'local', root: '', proxyScheme: 'http://', proxy: '', cert: '', certKey: '',
       zipGzip: false, zipBr: false, limitRate: 0, limitBurst: 0, limitMem: 0,
       limitNodelay: false, authOn: false, authUser: '', authPass: '', authRealm: '',
@@ -237,10 +238,21 @@ function isCancel(e: unknown): boolean {
   return /cancel/i.test(msg);
 }
 
+/** 把路径统一成 Windows 绝对路径写法：去引号、正斜杠转反斜杠、去掉末尾分隔符。 */
+function normalizePath(v: string): string {
+  const trimmed = v.trim().replace(/^["']+|["']+$/g, '').trim();
+  const out = trimmed.replace(/\//g, '\\');
+  // 盘根（D:\ 或 D:）保留原样，其它路径去掉末尾多余的 \ 或 \\
+  if (/^[A-Za-z]:(\\?)$/.test(out)) return out;
+  return out.replace(/\\+$/, '');
+}
+
 async function browse(): Promise<void> {
   try {
     const p = await pickPath('dir');
-    if (p) form.root = p;
+    // 选择器返回的已经是绝对路径，这里再统一一次分隔符与引号，
+    // 保证填进输入框的就是最终要用的那个字符串。
+    if (p) form.root = normalizePath(p);
   } catch (e) {
     if (!isCancel(e)) error.value = messageOf(e);
   }
@@ -252,10 +264,7 @@ async function browse(): Promise<void> {
  * 后端会直接拒绝并提示填绝对路径。
  */
 function normalizeRoot(): void {
-  let v = form.root.trim();
-  if (!v) return;
-  v = v.replace(/^["']+|["']+$/g, '').trim();
-  form.root = v.replace(/\//g, '\\');
+  if (form.root.trim()) form.root = normalizePath(form.root);
 }
 
 /** 证书/私钥走文件选择器；留空则由首次启动按域名自动生成。 */
@@ -263,8 +272,9 @@ async function browseCert(kind: 'cert' | 'certKey'): Promise<void> {
   try {
     const p = await pickPath('file');
     if (!p) return;
-    if (kind === 'cert') form.cert = p;
-    else form.certKey = p;
+    const value = normalizePath(p);
+    if (kind === 'cert') form.cert = value;
+    else form.certKey = value;
   } catch (e) {
     if (!isCancel(e)) error.value = messageOf(e);
   }
