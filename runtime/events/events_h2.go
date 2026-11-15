@@ -18,6 +18,7 @@ import (
 	"fast-https/infra/logging"
 	"fast-https/runtime/filters"
 	"fast-https/runtime/listener"
+	"fast-https/runtime/metrics"
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
 )
@@ -46,6 +47,7 @@ func H2HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 		fif:  filters.NewFilter(), // Filter interface
 	}
 	if !h.fif.Fif.ConnFilter(connEv) {
+		metrics.NoteRejected()
 		_ = conn.Close()
 		return
 	}
@@ -96,6 +98,8 @@ type h2Handler struct {
 	fif  *filters.Filter
 }
 
+// ServeHTTP 把一条 HTTP/2 流转成 Event 交给 EventHandler。
+// 流级错误（RST_STREAM 等）目前还分不清，不单独计数。
 func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ev := core.NewEvent(h.lis, h.conn)
 	ev.RR.Req = request.RequestInit(true) // h2 = true
@@ -104,6 +108,7 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !fillRequest(ev.RR.Req, r) {
 		w.WriteHeader(http.StatusBadRequest)
+		metrics.NoteParseError()
 		return
 	}
 
@@ -185,6 +190,7 @@ func (s *h2ResponseWriter) write(ev *core.Event) error {
 		s.w.Header().Set(k, v)
 	}
 
+	// HTTP/2 流级错误（RST_STREAM 等）目前还分不清，不单独计数，留给后续步骤。
 	s.w.WriteHeader(statusFromFirstLine(res.FirstLine))
 
 	if s.req.Method == http.MethodHead || len(res.Body) == 0 {

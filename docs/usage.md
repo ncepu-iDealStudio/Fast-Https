@@ -51,12 +51,14 @@ man fast-https
 ### 容器
 
 ```bash
-docker build -f build/Dockerfile -t fast-https .
-docker build -f build/docker/Dockerfile_ubuntu -t fast-https:ubuntu .
-docker build -f build/docker/Dockerfile_centos7 -t fast-https:centos7 .
+docker build -f build/docker/alpine.Dockerfile -t fast-https:latest .
+docker run --rm -p 80:80 -p 443:443 fast-https:latest
+docker save -o dist/fast-https-latest-dockerImage.tar fast-https:latest
 ```
 
-镜像基于 Alpine、Ubuntu 24.04 与 CentOS 7，暴露 80 与 443，与随包默认配置一致。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 `listen`。
+镜像基于 Alpine，暴露 80 与 443。二进制带 `-tags=rpm` 编译，运行资源按 FHS 落在 `/etc/fast-https`（配置、证书）、`/usr/share/fast-https`（站点）、`/var/log/fast-https`（日志）、`/run/fast-https`（pid）与 `/var/lib/fast-https`（状态），与 deb / rpm / apk 安装后的效果一致；`FASTHTTPS_FOREGROUND=1` 让 `fast-https start` 保持前台运行，工作目录为 `/usr/share/fast-https`。容器里跑 80/443 需要 root 或相应 capability，要映射到高位端口时改 `listen`。第三条命令把镜像导出成 tar 包放在 `dist/` 下，便于离线分发；`dist/` 已被 `.dockerignore` 与 `.gitignore` 排除，不会污染构建上下文或版本库。
+
+只提供 Alpine 一份镜像：三个发行版包用的是同一份 `CGO_ENABLED=0` 静态二进制，换基础镜像没有兼容收益，只会多出几份需要同步维护的 COPY 清单。deb / rpm / apk 的真实安装验证由 `sh tests/packaging/distro/run.sh all` 在 ubuntu / almalinux / alpine 容器里实装完成。
 
 ## 3. 目录布局
 
@@ -178,29 +180,39 @@ curl -I --http2 -k https://127.0.0.1/  # 确认协商到 HTTP/2
 
 站点多了不必都堆在主配置里：`config/conf.d/*.json` 每个文件就是一个 server 块（字段与 `http.server[]` 元素完全一致），主配置的 `http.include` 指向该目录即可。
 
+新增、更新、删除、启用、停用请用 `site add/update/delete/enable/disable`：复制当前配置树到候选目录、改站点文件，再走 `config apply` 同一套事务（`--dry-run`、`--request-id` 幂等、失败回滚、自动 reload）。`site add` 不带 `--domain` 且标准输入是终端时进向导，交互入口与批量调用共用同一套校验与事务。
+
 ```bash
-fast-https site init blog --server-name blog.example --non-interactive
-fast-https site list
-fast-https site show blog            # 站点文件原文
-fast-https site show blog --merged   # 合并后的完整 server 块（含默认值）
-fast-https site init blog --tls      # 同名即更新：只改显式传的字段，加 443 ssl h2 与证书路径
-fast-https site remove blog --yes
+fast-https site add --domain demo.example --root ./httpdoc/root --listen 8081 --dry-run --json
+fast-https site add --domain demo.example --root ./httpdoc/root --listen 8081 --yes --request-id site-1
+fast-https site update demo.example --listen 8082 --yes
+fast-https site disable demo.example --yes
+fast-https site enable demo.example --yes
+fast-https site delete demo.example --yes   # 只删配置文件，不删内容目录与证书
+fast-https site list --json                 # 含 enabled、cert_status
+fast-https site add --domain blog.example --listen 80 --root ./httpdoc/root --yes
+fast-https site show blog
+fast-https site delete blog --yes
 ```
 
-- **交互式**：`fast-https site init` 省略名字（或参数不齐）时进向导，一题一屏依次问站点名、监听端口、`server_name`、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。标准输入不是终端时自动要求用参数，不会挂起。站点名带不带 `.json` 都行（`blog` 与 `blog.json` 等价，不会生成 `blog.json.json`）。
-- **反代站点**：`--type proxy --proxy-pass http://127.0.0.1:8080`。
-- **改已有站点**：`site update <name>`，只覆盖显式传进来的 flag，没传的字段保持原值。例如 `--tls` 把现有监听升级成 `443 ssl h2` 并补默认证书路径；`--server-name`、`--listen`、`--root`、`--type`、`--proxy-pass` 用法与 `init` 相同。手写的其它 `location` 块原样保留；文件会按纯 JSON 重写，里面的注释不保留。站点不存在时报错并提示用 `init`，不会隐式新建。
+- **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。
+- **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
+- **site disable / enable**：把 `<name>.json` 改名为 `<name>.json.disabled` 或改回（`include` 只加载 `*.json`）。`site list --json` 里停用站点为 `enabled: false`。
+- **site delete**：必须 `--yes`。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 `config rollback` 找回。
+- **交互式**：`fast-https site add` 不带 `--domain` 且标准输入是终端时进向导，一题一屏依次问站点名（也是文件名）、监听端口、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。最后一屏确认即视为 `--yes`。标准输入不是终端时不会挂起，会提示改用 `--domain` 等参数。
+- **反代站点（旧 init）**：`--type proxy --proxy-pass http://127.0.0.1:8080`。
+- **改已有站点**：用 `site update <name>`，只改白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`），不接受 `--type`。同名站点不再隐式更新，`site add` 遇到重名直接返回冲突（退出码 10）。
 - **多端口**：`--listen` 可重复，一个文件就能同时监听多个端口，站点文件里写成数组。
 
   ```bash
-  fast-https site init blog --server-name blog.example \
+  fast-https site add --domain blog.example --listen 80 \
       --listen 80 --listen "443 ssl h2" --non-interactive
   ```
 
   加载时这个块会展开成"一块一个端口"的两个 server 块，`server_name`、location 与证书共用；`site list` 的 LISTEN 列显示为 `80, 443 ssl h2`。
 - **TLS 站点**：`--tls` 保证至少有一个 TLS 监听，且不会把 `ssl` 贴到 80 上。不给 `--listen` 时生成 `["80", "443 ssl h2"]`；给了 `--listen` 时写什么用什么，只把非 80 的那条补成 `ssl h2`（`--listen 80 --tls` 仍是 `80` + `443 ssl h2`）。证书默认路径是 `config/cert/<server_name>.pem` 与 `-key.pem`，由首次 `start` 生成；在那之前 `reload` 的预检会报 `ssl_certificate not found`（与主配置一致）。
-- **写入安全**：先生成 `.tmp`，用主配置同一套 schema 校验通过后才 rename；同名文件已存在时要求 `--force`。
-- **生效方式**：命令只写文件并提示 `fast-https reload`（reload 会先校验配置），不自动重载。
+- **写入安全（旧 init）**：先生成 `.tmp`，用主配置同一套 schema 校验通过后才 rename；同名文件已存在时要求 `--force`。
+- **生效方式**：`site add/update/delete/enable/disable` 全部走事务并自动 reload，失败回滚；不再有「只写文件、手动 reload」的老路径。
 
 ### 4.5 停止
 
@@ -479,10 +491,32 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `reload` | 先校验配置，通过才发信号热重载；校验失败直接返回原因，运行中的配置保持不动 |
 | `status` | 读 pid 文件，进程存在返回 0，否则非 0 |
 | `version` | 打印版本号，输出一行 `fast-https <版本>` |
-| `site init [name]` | 在 `http.include` 目录下生成 `<name>.json`（交互向导或 `--listen/--server-name/--type/--proxy-pass/--tls`；`--listen` 可重复以生成多端口站点） |
-| `site list` | 列出站点文件、监听、`server_name` 与 location 类型 |
-| `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块 |
-| `site remove <name>` | 删除站点文件（需要 `--yes`） |
+| `service version` | 查询 CLI 版本；加 `--json` 输出机器可读的封套。运行中进程的 `server_version` 来自 `/runtime`，连不上时为 `null` 并带 warning |
+| `service status` | 只读查询：读 pid 文件判断进程，再对配置里的端口做一次回环连接，给出 `running`、`degraded`、`stopped`、`unknown`；读得到 `/runtime` 时补 `uptime_seconds`、`started_at`、`version`。服务没在跑也是成功的查询，退出码 0 |
+| `service reload` | 受控 reload：校验、预检新增端口、发信号，再用 `/runtime` 做强验证（pid/`started_at` 不变且 `config_generation` 加一）；读不到快照时退回弱验证。不改配置文件。`--dry-run` 只校验与预检。服务没在跑退出码 4。记 operation，支持 `--request-id` 幂等 |
+| `runtime status` | 读取 `127.0.0.1:9088/runtime` 的瞬时连接与请求状态。连不上退出码 4；`schema_version` 不认识退出码 11。没有的字段（如 CPU、reading/writing/waiting）省略并在 `warnings` 说明 |
+| `runtime stats` | 进程启动以来的累计计数，响应里 `window` 为 `since_process_start`。`--since`、`--domain` 尚未支持，传入即退出码 11（`NOT_SUPPORTED`）。Monitor 只消费这份累计快照，不另算时间窗 |
+| `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`waf`、`sites` |
+| `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
+| `config versions` | 列出状态目录里的配置版本快照。`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照不含证书与私钥 |
+| `config diff --candidate` | 比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
+| `config apply --candidate` | 将候选目录受控应用到线上（校验、差异、恢复点、切换、reload、强验证；读不到 `/runtime` 时退回弱验证；失败则还原）。必须 `--yes`。`--dry-run` 不写正式文件、不 reload |
+| `config rollback --version` | 回滚到历史版本，本身是新 operation；先校验目标版本（含证书仍存在），不删除历史版本。必须 `--yes` |
+| `operation list` / `operation get` | 查询落盘的管理操作。`running` 且持有者进程已不在时对账为 `unknown` |
+| `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
+| `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
+| `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。含 `PrintErr` 以及控制台 Warn/Error 的镜像（`source:"console"`，`kind:"error"`） |
+| `logs access` | 只读 `access.log`，过滤条件同上，另有 `--status`（`500`、`4xx` 或 `400-499`） |
+| `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
+| `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0 |
+| `monitor status` | 只读 Monitor 的 `status.json`。文件不存在时 `status` 为 `not_installed`（退出码 0）；采集时间早于 30 秒为 `stale`。不连接 Monitor 进程，也不负责启停 |
+| `monitor events` | 只读 `events.jsonl`。`--since`、`--limit`（默认 100，上限 1000）、`--severity`（`info`、`warning`、`error`、`critical`）。坏行跳过并计数，事件文本只作为数据返回 |
+| `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`）。走配置事务，非 dry-run 必须 `--yes`。同名或同 `server_name` 退出码 10 |
+| `site update <name>` | 受控更新白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`）。内联主配置站点退出码 11 |
+| `site delete <name>` | 受控删除站点配置（不删内容目录与证书）。必须 `--yes` |
+| `site enable <name>` / `site disable <name>` | 把 `<name>.json` 与 `<name>.json.disabled` 互改并 reload。必须 `--yes` |
+| `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套（含 `enabled`、`cert_status`） |
+| `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块；加 `--json` 输出脱敏后的封套（文本模式仍打印原文，包含写在文件里的口令） |
 | `acme` | 交互式配置 ACME：问邮箱、CA、挑战方式，写回 `acme` 段 |
 | `acme setup` | 同 `acme`，可用 `--email`、`--ca`、`--challenge` 等 flags 非交互执行 |
 | `acme show` | 打印生效的 ACME 配置（EAB 私钥脱敏）与会申请证书的域名 |
@@ -498,14 +532,62 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 帮助、用法与 flag 说明默认是中文。需要英文时用 `--lang en`，或者设置环境变量 `FAST_HTTPS_LANG=en`：
 
 ```bash
-fast-https site init --help            # 中文
-fast-https --lang en site init --help  # 英文
+fast-https site add --help             # 中文
+fast-https --lang en site add --help   # 英文
 FAST_HTTPS_LANG=en fast-https -h       # 英文
 ```
 
 `--lang` 优先于环境变量；两者都没给时按中文输出。语言只在进程启动时读一次，不影响运行期日志。
 
 手册页也是两份：`man fast-https` 读到的是中文页，`LANG=en_US.UTF-8 man fast-https` 读英文页（装在 `/usr/share/man/en/man1/`）。
+
+### 10.2 机器可读输出与退出码
+
+根命令有三个全局选项：`--json`、`--timeout`、`--request-id`。目前 `--json` 在下列命令上有效：`service version`、`service status`、`service reload`、`runtime status`、`runtime stats`、`monitor status`、`monitor events`、`config show`、`config validate`、`config versions`、`config diff`、`config apply`、`config rollback`、`site list`、`site show`、`site add`、`site update`、`site delete`、`site enable`、`site disable`、`cert list`、`cert check`、`logs error`、`logs access`、`logs query`、`diagnose`、`operation list`、`operation get`，以及保持原格式的 `config path`。`--request-id` 用于修改类命令的幂等。`config path --json` 现有六个键，其中 `state` 是新增的管理状态目录。
+
+`--json` 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：
+
+```json
+{"ok":true,"command":"service.version","request_id":null,"data":{},"warnings":[]}
+{"ok":false,"command":"service.version","request_id":null,"error":{"code":"USAGE_ERROR","message":"...","details":[]}}
+```
+
+`config path --json` 保持原有格式（不套封套）。原有五个键不变，S6 增加 `state`；桌面端按键解析，多一个键不影响。
+
+退出码与错误码一一对应：
+
+| 退出码 | 错误码 | 含义 |
+| ---: | --- | --- |
+| 0 | （成功） | |
+| 1 | `INTERNAL_ERROR` | 未分类错误；旧命令的一般错误也是 1，文本仍在标准错误输出 `Error: ...` |
+| 2 | `USAGE_ERROR` | 参数、flag 或命令使用错误（未知 flag、多余的位置参数、未知命令） |
+| 3 | `PERMISSION_DENIED` | 权限不足 |
+| 4 | `SERVICE_UNREACHABLE` | 目标服务不可达或未运行 |
+| 5 | `CONFIG_INVALID` | 配置校验失败 |
+| 6 | `OPERATION_FAILED`、`RECOVERY_REQUIRED` | 操作失败；恢复失败需人工处理 |
+| 7 | `OPERATION_UNKNOWN` | 状态未知，需查询 operation |
+| 8 | `TIMEOUT` | 超时 |
+| 9 | `NOT_FOUND`、`LOG_SOURCE_UNAVAILABLE` | 资源不存在；日志文件不存在或是符号链接 |
+| 10 | `CONFLICT`、`REQUEST_ID_CONFLICT` | 冲突 / 幂等键冲突 |
+| 11 | `UNMET_DEPENDENCY`、`NOT_SUPPORTED` | 依赖或环境不满足 / 功能未实现 |
+
+管理类命令按这张表退出。例如配置校验失败是 5，站点或日志文件不存在是 9。旧的 `start` / `stop` / `reload` / `status` 仍用原来的文本和退出码。
+
+### 10.3 `--request-id`、operation 与 SSH 断线
+
+`service reload`、`config apply`、`config rollback`、`site add`、`site update`、`site delete`、`site enable`、`site disable` 会在状态目录写下一条 operation。`--request-id` 由调用方提供：
+
+- 相同的 `--request-id` 加上相同参数：返回已有 operation，不重复执行。
+- 相同的 `--request-id` 但参数不同：退出码 10，错误码 `REQUEST_ID_CONFLICT`。
+- 没传时 CLI 自己生成一个，并写进 JSON 的 `request_id` 和 operation 记录。
+
+`--dry-run` 不写正式配置、不 reload，默认也不建 operation。非 dry-run 的 `config apply`、`config rollback` 和受控站点写命令必须加 `--yes`（`--confirm` 同义）。
+
+Unix 上，事务执行期间忽略 `SIGHUP` 与 `SIGPIPE`，避免 SSH 断开把正在写状态的进程杀掉。命令超时或调用方断开后，用响应里的 `operation_id` 执行 `operation get`。若记录仍是 `running` 而持有者进程已经不在，查询时会把它对账成 `unknown`。不要在状态未明时换一个新的 `--request-id` 再执行一次。
+
+Windows 没有 `SIGHUP`。这条断线语义只在 Unix 上实现，Windows 上的断线行为未在本环境验证。
+
+状态目录默认是 `./state`（安装包布局是 `/var/lib/fast-https`）。可用 `FASTHTTPS_STATE_DIR` 指到别处。`operation list` 与 `operation get` 只读这个目录。
 
 ## 11. 热重载与停机
 
@@ -537,6 +619,8 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 | `engine` 配置段 | 主从注册的预留字段，当前不参与运行逻辑 |
 | 上游故障转移 | 未实现，单个上游不可用时直接返回错误页 |
 | 配置文件自动重载 | 暂不支持，监听文件变化后自动 reload 仍未排期 |
+| `cert renew` | 未实现。续期需要服务端写通道，本阶段不做；读取用 `cert list` 与 `cert check` |
+| Monitor 进程 | 采集进程是独立二进制 `fast-https-monitor`，随 deb / rpm / apk 与归档发布，包内另有独立单元 `fast-https-monitor.service`；CLI 不启停它，只读 `status.json` 与 `events.jsonl`，文件不存在时 `monitor status` 为 `not_installed` |
 
 ## 14. 版本与许可
 

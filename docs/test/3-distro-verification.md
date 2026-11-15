@@ -5,6 +5,12 @@
 实测日期：2026-11-05（develop 分支）。
 被测产物：`1.5.0-next` 快照（`goreleaser release -f build/goreleaser.yaml --snapshot --clean --skip=archive,publish,announce`）。
 
+> **待重跑：Monitor 未覆盖（2026-11-08 起）**
+>
+> 第 8 步之后，deb / rpm 包里多了 `fast-https-monitor` 二进制、`fast-https-monitor.service` 与 `/etc/fast-https/monitor.json`；`deb.sh` / `rpm.sh` 也加了对应断言（二进制与单元落位、Server 未启动时 `-once` 报「不可达」、`remove` 保留事件目录、`purge` / `rpm -e` 删配置与事件）。
+>
+> 这些断言**未运行**：本次开发环境没有 Docker，`sh tests/packaging/distro/run.sh all` 没有执行。下面「结果总览」仍是 Monitor 之前的实测结论，合并发布前需在有 Docker 的机器上重跑并补回结论。
+
 ## 实测环境
 
 | 项 | 值 |

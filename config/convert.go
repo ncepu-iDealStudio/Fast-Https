@@ -63,7 +63,7 @@ func processIncludeCfg(cfg *Fast_Https) error {
 		cfg.Include[i] = absETCPath(cfg.Include[i])
 	}
 
-	files, err := includeFiles(cfg.Include)
+	files, err := includeFiles(cfg.Include, FAST_HTTPS_ETC_DIR, "", ".")
 	if err != nil {
 		return fmt.Errorf("process include config failed: %w", err)
 	}

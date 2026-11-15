@@ -31,3 +31,6 @@ httpdoc/theme/*
 *.exe
 *.pid
 tests/test_data/*
+
+# 运行期状态：配置版本、操作记录、锁与请求登记，跑一次服务就会生成
+state/

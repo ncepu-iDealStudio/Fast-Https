@@ -1,0 +1,9 @@
+{
+  "listen": [{{.Port}}],
+  "server_name": "demo.example",
+  "location": [{
+    "url": "/", "type": "local", "root": {{printf "%q" .Root}},
+    "auth": {"type": "basic", "user": "admin", "pswd": "S3cr3t-XYZ"},
+    "proxy_set_header": [{"HeaderKey": "Authorization", "HeaderValue": "Bearer tok-ABC"}]
+  }]
+}

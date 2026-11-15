@@ -23,7 +23,6 @@ func TestPackagingScriptsUseLF(t *testing.T) {
 		filepath.Join(root, "build", "packaging", "repo", "*", "*.sh"),
 		filepath.Join(root, "tests", "packaging", "distro", "*.sh"),
 		filepath.Join(root, "build", "spec"),
-		filepath.Join(root, "build", "Dockerfile"),
 		filepath.Join(root, "build", "docker", "*"),
 	}
 

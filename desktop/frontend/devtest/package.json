@@ -1,0 +1,12 @@
+{
+  "name": "fast-https-desktop-devtest",
+  "private": true,
+  "type": "module",
+  "description": "前端点击测试台：mock DesktopService，Playwright 遍历界面截图",
+  "scripts": {
+    "walk": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

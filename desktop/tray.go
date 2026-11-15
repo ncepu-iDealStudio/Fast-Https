@@ -26,16 +26,42 @@ func trayIcon() []byte {
 	return trayIconPNG
 }
 
-// setupTray 把「关闭窗口」改成隐藏到后台托盘，托盘菜单提供显示与退出。
-// SystemTrayManager.New() 会在 app.Run() 时自动启动托盘，不需要手动 Run。
-// appQuitting 标记「用户确实要退出」：托盘的「退出」和前端关闭弹窗里的
-// 「直接退出」都置位，WindowClosing hook 见到它才放行，否则一律隐藏到托盘。
+// setupTray 把「关闭窗口」改成隐藏到后台托盘，托盘菜单提供显示、
+// 服务启停与退出。SystemTrayManager.New() 会在 app.Run() 时自动启动
+// 托盘，不需要手动 Run。appQuitting 标记「用户确实要退出」：托盘的
+// 「退出」和前端关闭弹窗里的「直接退出」都置位，WindowClosing hook
+// 见到它才放行，否则一律隐藏到托盘。
 var appQuitting atomic.Bool
 
-func setupTray(app *application.App, window *application.WebviewWindow) {
+// serviceAction 是托盘菜单里的服务动作（转交主程序 CLI，桌面端不自己
+// 管理进程）。启停都在后台 goroutine 执行：stop 会等 1 秒复核，不能卡
+// 托盘菜单线程。
+func setupTray(app *application.App, window *application.WebviewWindow, svc *DesktopService) {
 	menu := app.NewMenu()
 	menu.Add("显示主界面").OnClick(func(*application.Context) {
 		window.Show()
+	})
+	menu.AddSeparator()
+	menu.Add("启动服务").OnClick(func(*application.Context) {
+		go func() {
+			if _, err := svc.StartServer(); err != nil {
+				app.Dialog.Error().SetTitle("启动失败").SetMessage(err.Error()).Show()
+			}
+		}()
+	})
+	menu.Add("停止服务").OnClick(func(*application.Context) {
+		go func() {
+			if _, err := svc.StopServer(); err != nil {
+				app.Dialog.Error().SetTitle("停止失败").SetMessage(err.Error()).Show()
+			}
+		}()
+	})
+	menu.Add("重载配置").OnClick(func(*application.Context) {
+		go func() {
+			if _, err := svc.ReloadServer(); err != nil {
+				app.Dialog.Error().SetTitle("重载失败").SetMessage(err.Error()).Show()
+			}
+		}()
 	})
 	menu.AddSeparator()
 	menu.Add("退出").OnClick(func(*application.Context) {

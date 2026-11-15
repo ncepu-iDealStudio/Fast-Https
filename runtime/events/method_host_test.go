@@ -30,6 +30,7 @@ func allowMethodsListener() *listener.Listener {
 
 func emitRequest(t *testing.T, lis *listener.Listener, method, path, host string) string {
 	t.Helper()
+	resetMetrics(t)
 	server, client := net.Pipe()
 	t.Cleanup(func() { _ = client.Close() })
 

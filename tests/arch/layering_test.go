@@ -66,7 +66,19 @@ var layers = []layer{
 			// 只允许读取与请求模型相关的运行时包，禁止触碰调度层。
 			"runtime/listener", "runtime/request", "runtime/response", "runtime/dynlog",
 		},
-		why: "功能包只允许依赖下层与请求模型，不允许依赖 server/events/filters 这些调度层",
+		why: "功能包只允许依赖下层与请求模型，不允许依赖 server/events/filters/metrics 这些调度层",
+	},
+	{
+		name:  "management",
+		match: prefix("management"),
+		allow: []string{"infra", "config", "modules/site", "modules/certmanager", "management"},
+		why:   "管理核心只依赖基础设施、配置与站点/证书模块，不允许依赖数据面运行时、core 或组合根",
+	},
+	{
+		name:  "monitor",
+		match: prefix("monitor"),
+		allow: []string{"monitor"},
+		why:   "独立 Monitor 进程只读本机 /runtime 与 PID 文件，不得依赖数据面、管理核心与组合根",
 	},
 	{
 		name: "composition",

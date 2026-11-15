@@ -1,10 +1,10 @@
-<h1 align="center">Fast-Https</h1>
+﻿<h1 align="center">Fast-Https</h1>
 
 <p align="center"><strong>Go 编写的轻量级 Web 服务器与反向代理：单二进制、JSON 配置、HTTP/2 与自动 HTTPS。</strong><br />
 一份 JSON 描述监听端口与 location，覆盖常见的站点与反向代理场景。</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.6.1-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.7.0-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
@@ -33,6 +33,22 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 连接 → 限流 / IP 黑名单 → location 路由 → 应用防火墙 → 静态文件 / 反向代理 / TCP / WebSocket → 响应
 ```
 
+## 使用文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | 面向部署运维：配置项、站点、证书、代理、缓存、WAF |
+| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | 同上，英文版 |
+| [docs/usage.md](docs/usage.md) | 仓库内使用文档源文件，生成 `docs/usage.html` 随发行包分发 |
+| [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案；另收 CLI / Monitor 的扫描报告、规范与改造计划 |
+| [docs/cli/](docs/cli/command-spec.md) | 管理命令契约：字段、错误码、退出码，以及只收录实际输出示例 |
+| [docs/develop/](docs/develop/README.md) | 环境构建、测试体系、代码规范、新增配置项、调试、发布 |
+| [docs/help/](docs/help/README.md) | 构建与安装、装完的目录布局、常见问题排查、开发问题日志 |
+| [docs/architecture.html](docs/architecture.html) | 项目架构图（[PNG](docs/images/architecture.png) / [深色 PNG](docs/images/architecture-dark.png)），分层与请求链 |
+| [docs/architecture-map.md](docs/architecture-map.md) | package 盘点与依赖方向 |
+
+文档总索引见 [docs/README.md](docs/README.md)。
+
 ## 项目架构
 
 ![Fast-Https 项目架构](docs/images/architecture.png)
@@ -50,7 +66,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 | 安全 | 全局限流 + 按 location、按 IP 的令牌桶限流；IP 与 IPv6 网段黑名单；Basic 认证；GuardianWAF（sqli / xss / lfi / cmdi / xxe / ssrf，可只记录不阻断） |
 | 运维 | `start` / `stop` / `reload` / `status`；热重载不断开已有连接；`start` 与 `reload` 都先校验配置 |
 | 日志 | `logs/` 下 system、access、error、safe 四路 JSON 日志，每条带 `kind` 与 RFC3339 时间，重载后重新打开文件 |
-| 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；另附 Wails v3 桌面管理端（Windows 安装包 / Linux desktop deb） |
+| 交付 | Linux / macOS / Windows 安装包、RPM spec、三套 Docker 基础镜像；另附 Wails v3 桌面管理端（Windows 安装包） |
 
 核心依赖（版本以 `go.mod` 为准，其余均为标准库）：
 
@@ -172,7 +188,7 @@ curl -kI https://127.0.0.1/        # 自签证书，-k 跳过校验
 | `./fast-https version` | 打印版本号，输出一行 `fast-https <版本>` |
 | `./fast-https acme` | 交互式配置 ACME 自动签发证书，写回 `acme` 段（改完需重启） |
 | `./fast-https acme show` | 查看当前 ACME 配置与会申请证书的域名 |
-| `./fast-https site init blog` | 在 `config/conf.d/` 下生成一个站点文件（向导，或用参数跳过提问） |
+| `./fast-https site add` | 新增站点：不带 `--domain` 时进向导，带了就用 `--listen/--root/--proxy-pass` 等参数 |
 | `./fast-https site list/check/show/remove` | 站点文件的列表、校验、查看与删除 |
 
 ## 常见问题
@@ -213,20 +229,7 @@ Fast-Https 自己解析 HTTP/1.1、每个连接一个协程，没有 C 扩展或
 
 不行。配置是静态 JSON 字段，`proxy_cache.key` 和 `proxy_set_header` 里的 `$变量` 只做一次性字符串替换，不是表达式求值。
 
-## 使用文档
 
-| 文档 | 内容 |
-| --- | --- |
-| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | 面向部署运维：配置项、站点、证书、代理、缓存、WAF |
-| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | 同上，英文版 |
-| [docs/usage.md](docs/usage.md) | 仓库内使用文档源文件，生成 `docs/usage.html` 随发行包分发 |
-| [docs/feature/](docs/feature/README.md) | 按功能分篇的说明，每篇含配置示例与实现方案 |
-| [docs/develop/](docs/develop/README.md) | 环境构建、测试体系、代码规范、新增配置项、调试、发布 |
-| [docs/help/](docs/help/README.md) | 构建与安装、装完的目录布局、常见问题排查、开发问题日志 |
-| [docs/architecture.html](docs/architecture.html) | 项目架构图（[PNG](docs/images/architecture.png) / [深色 PNG](docs/images/architecture-dark.png)），分层与请求链 |
-| [docs/architecture-map.md](docs/architecture-map.md) | package 盘点与依赖方向 |
-
-文档总索引见 [docs/README.md](docs/README.md)。
 
 ## 项目结构
 

@@ -3,6 +3,8 @@ package main
 import (
 	"embed"
 	"log"
+	"os"
+	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -16,6 +18,15 @@ var assets embed.FS
 var appRef *application.App
 
 func main() {
+	// --tray：开机自启的托盘常驻模式——启动后立即隐藏主窗口，
+	// 服务交给托盘菜单管理，不占用户桌面。
+	startInTray := false
+	for _, a := range os.Args[1:] {
+		if strings.EqualFold(a, "--tray") {
+			startInTray = true
+		}
+	}
+
 	app := application.New(application.Options{
 		Name:        "Fast-Https Desktop",
 		Description: "Fast-Https 本机管理端：状态、站点、证书与配置重载",
@@ -46,11 +57,12 @@ func main() {
 		// 构建里本来就默认关闭，这里显式关掉，避免开发版误带着入口。
 		DefaultContextMenuDisabled: true,
 		DevToolsEnabled:            false,
+		Hidden:                     startInTray,
 	})
 	setMainWindow(window)
 	appRef = app
 
-	setupTray(app, window)
+	setupTray(app, window, NewDesktopService())
 
 	if err := app.Run(); err != nil {
 		log.Fatal(err)

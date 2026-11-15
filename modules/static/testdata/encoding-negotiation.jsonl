@@ -1,0 +1,21 @@
+{"zip":"gzip","accept":"gzip","want":"gzip","note":"基础命中"}
+{"zip":"gzip","accept":"gzip;q=0","want":"","note":"q=0 等于明确拒绝"}
+{"zip":"gzip","accept":"gzip;q=0.0","want":"","note":"同上，小数写法"}
+{"zip":"gzip","accept":"gzip;q=0.001","want":"gzip","note":"q 大于 0 即接受"}
+{"zip":"gzip","accept":"gzip;q=0.5","want":"gzip","note":"半权重仍接受"}
+{"zip":"gzip","accept":"GZIP","want":"gzip","note":"编码名大小写不敏感"}
+{"zip":"gzip","accept":"deflate, gzip","want":"gzip","note":"多值列表"}
+{"zip":"gzip","accept":"","want":"","note":"未声明不接受压缩"}
+{"zip":"gzip","accept":"identity","want":"","note":"只接受 identity"}
+{"zip":"br","accept":"br","want":"br","note":"brotli 命中"}
+{"zip":"br","accept":"br;q=0","want":"","note":"brotli 被拒绝"}
+{"zip":"br","accept":"gzip","want":"","note":"只配 br 时不为 gzip 降级"}
+{"zip":"gzip+br","accept":"gzip, br","want":"br","note":"两种都接受时优先 br"}
+{"zip":"gzip+br","accept":"gzip","want":"gzip","note":"回退 gzip"}
+{"zip":"gzip+br","accept":"br;q=0, gzip;q=1","want":"gzip","note":"br 被拒时回退 gzip"}
+{"zip":"gzip+br","accept":"br;q=0, gzip;q=0","want":"","note":"两种都被拒则不压"}
+{"zip":"none","accept":"gzip, br","want":"","note":"未配置压缩"}
+{"zip":"gzip","accept":"*","want":"gzip","note":"通配符表示接受任意编码"}
+{"zip":"br","accept":"*","want":"br","note":"同上，单配 brotli"}
+{"zip":"gzip+br","accept":"*","want":"br","note":"同上，两配置时按服务端偏好"}
+{"zip":"gzip","accept":"gzip ; q=0","want":"","note":"分号与空格混排"}

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build:dev": "vite build --minify false --mode development",
-    "build": "vite build --mode production",
+    "build": "node scripts/i18n-check.mjs && vite build --mode production",
+    "i18n:check": "node scripts/i18n-check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

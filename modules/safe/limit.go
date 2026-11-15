@@ -98,7 +98,6 @@ func (il *ipLimiters) allow(ip string) bool {
 	if !ok {
 		l = &ipLimiter{lim: rate.NewLimiter(il.rate, il.burst)}
 		il.limiters[ip] = l
-		println("ALLOW-CREATE ip=", ip, " rate=", float64(il.rate), " burst=", il.burst)
 	}
 	l.lastSeen = now
 	return l.lim.Allow()

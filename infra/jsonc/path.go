@@ -1,6 +1,7 @@
 package jsonc
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"strings"
@@ -223,7 +224,7 @@ func lineStart(src []byte, pos int) int {
 }
 
 // insertMember 在对象末尾插入一个新成员。排版规则与 PatchMember 一致：
-// 空行分隔、沿用文件自身的缩进。
+// 沿用文件自身的缩进，并按原有风格决定是否用空行分隔。
 func insertMember(raw, masked []byte, obj Object, key string, value []byte) []byte {
 	indent := obj.Indent(masked)
 	insertAt := obj.Open + 1
@@ -236,7 +237,19 @@ func insertMember(raw, masked []byte, obj Object, key string, value []byte) []by
 		}
 	}
 
-	block := "\n" + indent + quoteKey(key) + ": " + indentValue(value, indent) + "\n"
+	// 空行分隔是主配置顶层块的风格；站点文件这类紧凑对象里没有空行，
+	// 每插一个键就多留一个空行会越积越多，所以只有原对象本身带空行时才加。
+	sep := "\n"
+	if len(obj.Members) > 0 && blankLineSeparated(masked, obj) {
+		sep = "\n\n"
+	}
+	// 插入点右侧通常紧跟着换行与右花括号；这时不能再补换行，否则每插一个
+	// 键就多出一个空行。单行对象（`{"a":1}`）没有这个换行，才需要补。
+	trail := ""
+	if !containsNewline(masked, insertAt, obj.Close) {
+		trail = "\n"
+	}
+	block := sep + indent + quoteKey(key) + ": " + indentValue(value, indent) + trail
 	if len(obj.Members) > 0 && !hasComma {
 		block = "," + block
 	}
@@ -246,6 +259,33 @@ func insertMember(raw, masked []byte, obj Object, key string, value []byte) []by
 	out = append(out, block...)
 	out = append(out, raw[insertAt:]...)
 	return out
+}
+
+// containsNewline 报告 [from,to) 这段里有没有换行。
+func containsNewline(masked []byte, from, to int) bool {
+	if from < 0 {
+		from = 0
+	}
+	if to > len(masked) {
+		to = len(masked)
+	}
+	if from >= to {
+		return false
+	}
+	return bytes.IndexByte(masked[from:to], '\n') >= 0
+}
+
+// blankLineSeparated 报告这个对象是否用空行分隔成员：看相邻两个成员之间
+// 是否出现过连续两个换行。只看成员之间，不看最后一个成员到右花括号，
+// 否则上一次插入留下的空行会让下一次继续加空行。
+func blankLineSeparated(masked []byte, obj Object) bool {
+	for i := 1; i < len(obj.Members); i++ {
+		gap := masked[obj.Members[i-1].ValueEnd:obj.Members[i].KeyStart]
+		if bytes.Count(gap, []byte("\n")) >= 2 {
+			return true
+		}
+	}
+	return false
 }
 
 // insertElem 在数组末尾追加一个元素。

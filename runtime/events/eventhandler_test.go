@@ -20,6 +20,7 @@ import (
 // EventHandler 全链路：filter 链 → 路由匹配 → 钩子 → 注册的模块处理器。
 // 用一个桩处理器占据未注册的 DEVMOD 类型码，不依赖任何 modules 包。
 func TestEventHandlerDispatchesToRegisteredHandler(t *testing.T) {
+	resetMetrics(t)
 	var dispatched atomic.Int32
 	core.RegisterHandler(config.DEVMOD,
 		func(cfg *listener.ListenCfg, ev *core.Event) bool { return true },
@@ -81,6 +82,7 @@ func TestEventHandlerDispatchesToRegisteredHandler(t *testing.T) {
 
 // 无匹配路由：404 + 连接关闭
 func TestEventHandlerUnknownRouteYields404(t *testing.T) {
+	resetMetrics(t)
 	lis := &listener.Listener{Port: "18080", HostMap: map[string][]listener.ListenCfg{}}
 
 	server, client := net.Pipe()
@@ -111,7 +113,7 @@ func TestEventHandlerUnknownRouteYields404(t *testing.T) {
 func TestGFilterHostPathFallbacksToDefaultPort(t *testing.T) {
 	re := regexp.MustCompile("^/api")
 	lis := &listener.Listener{Port: "18080", HostMap: map[string][]listener.ListenCfg{
-		"vip.example": {{ID: 1, Path: "/api", PathRe: re, Type: config.DEVMOD}},
+		"vip.example":       {{ID: 1, Path: "/api", PathRe: re, Type: config.DEVMOD}},
 		config.DEFAULT_PORT: {{ID: 2, Path: "/api", PathRe: re, Type: config.DEVMOD}},
 	}}
 

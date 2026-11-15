@@ -4,7 +4,7 @@ import "fast-https/infra/logging"
 
 const (
 	/* version */
-	CURRENT_VERSION string = "V1.6.1"
+	CURRENT_VERSION string = "V1.7.0"
 
 	/*
 		// use "config_dev/fast-https.json" when dev
@@ -23,8 +23,8 @@ const (
 	DEFAULT_MAX_HEADER_SIZE        = 4096
 	DEFAULT_MAX_BODY_SIZE          = 512 * 1024 // 32K
 
-	DEFAULT_LOG_ROOT       string = FAST_HTTPS_LOG_DIR
-	MONIITOR_LOG_FILE_PATH string = "monitor.log"
+	DEFAULT_LOG_ROOT string = FAST_HTTPS_LOG_DIR
+	STATE_DIR        string = FAST_HTTPS_STATE_DIR
 
 	/* log message*/
 	SYSTEM_LOG_NAME string = logging.SystemLogName

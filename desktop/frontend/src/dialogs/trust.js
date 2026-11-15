@@ -1,23 +1,26 @@
 // 信任本地 CA 引导：给出路径、分步说明、可复制的命令，自动导入前二次确认。
+// g.steps / g.command / g.risk 等是 Go 侧 CertTrustGuide 返回的说明文本，
+// 随平台不同，由后端生成，这里不做二次翻译。
 import { DesktopService, msgOf } from '../api.js';
+import { t } from '../i18n.js';
 import { $, esc, toast } from '../ui/dom.js';
 import { state } from '../state.js';
 import { askConfirm } from './confirm.js';
 
 export const template = `<div class="dialog-mask" id="trustDialog" hidden>
   <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="trustTitle">
-    <h3 id="trustTitle">信任本地 CA <span class="platform-chip" id="trustPlatform">—</span></h3>
+    <h3 id="trustTitle"><span data-i18n="dialog.trust.title">信任本地 CA</span> <span class="platform-chip" id="trustPlatform">—</span></h3>
     <p class="trust-risk" id="trustRisk"></p>
     <div class="trust-path"><span class="mono" id="trustPath">—</span><span id="trustExists"></span></div>
-    <p class="dialog-hint">这张 <span class="mono">root.crt</span> 是<b>本地根 CA 证书</b>，由服务首次启动时自动生成（不是安装包预置），负责签发各站点的证书；信任库要导入的是它，不是站点证书。CA 私钥在 <span class="mono" id="trustKeyPath">—</span>，与证书一样只在文件缺失时创建。</p>
+    <p class="dialog-hint" data-i18n-html="dialog.trust.hint">这张 <span class="mono">root.crt</span> 是<b>本地根 CA 证书</b>，由服务首次启动时自动生成（不是安装包预置），负责签发各站点的证书；信任库要导入的是它，不是站点证书。CA 私钥在 <span class="mono" id="trustKeyPath">—</span>，与证书一样只在文件缺失时创建。</p>
     <ol class="trust-steps" id="trustSteps"></ol>
     <div class="trust-cmd"><code id="trustCommand"></code></div>
     <p class="dialog-hint" id="trustResult" hidden></p>
     <div class="dialog-actions">
-      <button class="btn" id="trustCancel">取消</button>
-      <button class="btn" id="trustOpenDir">打开证书目录</button>
-      <button class="btn" id="trustCopy">复制命令</button>
-      <button class="btn primary" id="trustImport">尝试自动导入</button>
+      <button class="btn" id="trustCancel" data-i18n="common.cancel">取消</button>
+      <button class="btn" id="trustOpenDir" data-i18n="dialog.trust.openDir">打开证书目录</button>
+      <button class="btn" id="trustCopy" data-i18n="dialog.trust.copy">复制命令</button>
+      <button class="btn primary" id="trustImport" data-i18n="dialog.trust.import">尝试自动导入</button>
     </div>
   </div>
 </div>`;
@@ -33,13 +36,13 @@ async function openTrustDialog() {
     $('#trustPlatform').textContent = g.platformLabel || g.platform || '';
     $('#trustKeyPath').textContent = g.keyPath || '—';
     $('#trustPath').textContent = g.certPath || '—';
-    $('#trustExists').textContent = g.exists ? '证书已存在' : '证书尚未生成：请先启动一次服务';
+    $('#trustExists').textContent = g.exists ? t('dialog.trust.exists') : t('dialog.trust.missing');
     $('#trustSteps').innerHTML = (g.steps || []).map((s) => `<li>${esc(s)}</li>`).join('');
-    $('#trustCommand').textContent = g.command || '当前平台请手动导入 root.crt 到系统信任库';
+    $('#trustCommand').textContent = g.command || t('dialog.trust.commandFallback');
     $('#trustImport').disabled = !g.exists;
     mask.hidden = false;
   } catch (e) {
-    toast('读取引导失败：' + msgOf(e));
+    toast(t('dialog.trust.readGuideFailed', { msg: msgOf(e) }));
   }
 }
 
@@ -63,14 +66,14 @@ export function initTrustDialog() {
   $('#trustOpenDir').addEventListener('click', async () => {
     if (!state.trustGuideData) return;
     try { await DesktopService.OpenPath(state.trustGuideData.dirPath); }
-    catch (e) { setTrustResult('打开目录失败：' + msgOf(e), true); }
+    catch (e) { setTrustResult(t('dialog.trust.openDirFailed', { msg: msgOf(e) }), true); }
   });
   $('#trustCopy').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText($('#trustCommand').textContent);
-      setTrustResult('命令已复制到剪贴板', false);
+      setTrustResult(t('dialog.trust.copied'), false);
     } catch (e) {
-      setTrustResult('复制失败，请手动选中命令：' + msgOf(e), true);
+      setTrustResult(t('dialog.trust.copyFailed', { msg: msgOf(e) }), true);
     }
   });
   $('#trustImport').addEventListener('click', async () => {
@@ -79,9 +82,9 @@ export function initTrustDialog() {
     mask.hidden = true;
     let ok = false;
     try {
-      ok = await askConfirm('确认信任本地根 CA？',
-        '这会把它加入系统受信任的根证书颁发机构，之后本机所有 HTTPS 站点都会信任由它签发的证书；系统可能弹出 UAC 或管理员密码框。仅限本机开发使用。',
-        '确认并导入');
+      ok = await askConfirm(t('dialog.trust.confirmTitle'),
+        t('dialog.trust.confirmBody'),
+        t('dialog.trust.confirmOk'));
     } finally {
       mask.hidden = false;
     }
@@ -90,10 +93,10 @@ export function initTrustDialog() {
     btn.disabled = true;
     try {
       setTrustResult(await DesktopService.ImportLocalCA(), false);
-      toast('本地 CA 导入请求已发起，详情见弹窗');
+      toast(t('dialog.trust.importStarted'));
     } catch (e) {
-      setTrustResult('导入未完成：' + msgOf(e) + '\n可点「复制命令」在管理员终端里手动执行。', true);
-      toast('导入未完成，详情见弹窗');
+      setTrustResult(t('dialog.trust.importFailed', { msg: msgOf(e) }), true);
+      toast(t('dialog.trust.importFailedToast'));
     } finally {
       btn.disabled = false;
     }

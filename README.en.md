@@ -4,7 +4,7 @@
 One JSON file describes listen ports and locations, covering common site and reverse-proxy scenarios.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.6.1-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.7.0-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
@@ -32,6 +32,20 @@ How a request travels:
 ```text
 connection → rate limit / IP blacklist → location routing → application firewall → static file / reverse proxy / TCP / WebSocket → response
 ```
+
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | Deployment and operations: config keys, sites, certificates, proxy, cache, WAF |
+| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | The same guide in Chinese |
+| [docs/usage.md](docs/usage.md) | In-repo source of the usage guide; `docs/usage.html` is generated from it and ships with releases |
+| [docs/feature/](docs/feature/README.md) | One page per feature, with config samples and implementation notes |
+| [docs/develop/](docs/develop/README.md) | Build environment, tests, code standards, adding config keys, debugging, release |
+| [docs/architecture.html](docs/architecture.html) | Architecture diagram ([PNG](docs/images/architecture.png) / [dark PNG](docs/images/architecture-dark.png)): layers and the request path |
+| [docs/architecture-map.md](docs/architecture-map.md) | Package inventory and dependency direction |
+
+The full index is [docs/README.md](docs/README.md).
 
 ## Architecture
 
@@ -170,7 +184,7 @@ The shipped config carries no comments on purpose: every field is documented in 
 | `./fast-https version` | Print the version as a single line, `fast-https <version>` |
 | `./fast-https acme` | Interactive ACME setup, rewrites the `acme` section (restart required) |
 | `./fast-https acme show` | Show the effective ACME settings and the domains that will be requested |
-| `./fast-https site init blog` | Create a site file under `config/conf.d/` (wizard, or flags to skip prompts) |
+| `./fast-https site add` | Add a site: wizard when `--domain` is omitted, flags (`--listen/--root/--proxy-pass`) otherwise |
 | `./fast-https site list/check/show/remove` | List, validate, inspect and delete site files |
 
 ## FAQ
@@ -211,19 +225,7 @@ Fast-Https parses HTTP/1.1 itself and uses one goroutine per connection — ther
 
 No. The config is static JSON. `$variable` occurrences in `proxy_cache.key` and `proxy_set_header` are one-shot string substitutions, not expression evaluation.
 
-## Documentation
 
-| Document | Contents |
-| --- | --- |
-| [Fast-Https User Guide (English)](https://idealstudio-ncepu.yuque.com/kgagg7/rstqtx) | Deployment and operations: config keys, sites, certificates, proxy, cache, WAF |
-| [Fast-Https 产品说明（中文）](https://idealstudio-ncepu.yuque.com/kgagg7/lbeklg) | The same guide in Chinese |
-| [docs/usage.md](docs/usage.md) | In-repo source of the usage guide; `docs/usage.html` is generated from it and ships with releases |
-| [docs/feature/](docs/feature/README.md) | One page per feature, with config samples and implementation notes |
-| [docs/develop/](docs/develop/README.md) | Build environment, tests, code standards, adding config keys, debugging, release |
-| [docs/architecture.html](docs/architecture.html) | Architecture diagram ([PNG](docs/images/architecture.png) / [dark PNG](docs/images/architecture-dark.png)): layers and the request path |
-| [docs/architecture-map.md](docs/architecture-map.md) | Package inventory and dependency direction |
-
-The full index is [docs/README.md](docs/README.md).
 
 ## Project Structure
 

@@ -71,6 +71,7 @@ func siteDiffEdits(old, want SiteInput) []jsonc.Edit {
 				edits = append(edits, setEditAt(base, "index", mustJSON(after.Index)))
 			}
 		}
+		edits = append(edits, locationAdvancedEdits(base, before, after)...)
 	}
 
 	// 新增的 location 追加到数组末尾。用两空格缩进生成，插入后与文件其余部分对齐。
@@ -91,6 +92,86 @@ func siteDiffEdits(old, want SiteInput) []jsonc.Edit {
 // 而不是留一个空字符串——空串会参与校验，删掉才是"回到未配置"。
 func stringFieldEdits(key, before, after string) []jsonc.Edit {
 	return stringFieldEditsAt(nil, key, before, after)
+}
+
+// locationAdvancedEdits 处理 location 上的高级配置：zip、limit、auth、proxy_cache。
+//
+// 四个字段都以指针表达三态：
+//   - nil        完全不参与比对，文件原值保留（site update 没点这个字段）
+//   - 指向空值   用户点「清除」，删掉文件里的键
+//   - 指向有值   写入新值
+//
+// 删除用 delEditAt：留一个 `"limit": {}` 会被校验当成"配了限流但全 0"，
+// 删掉键才是回到未配置。
+func locationAdvancedEdits(base []jsonc.Step, before, after SiteLocation) []jsonc.Edit {
+	var edits []jsonc.Edit
+
+	if after.Zip != nil {
+		zip := normalizeZip(*after.Zip)
+		if len(zip) == 0 {
+			edits = append(edits, delEditAt(base, "zip"))
+		} else if before.Zip == nil || !sameStrings(normalizeZip(*before.Zip), zip) {
+			edits = append(edits, setEditAt(base, "zip", mustJSON(zip)))
+		}
+	}
+
+	if after.Limit != nil {
+		if after.Limit.IsZero() {
+			edits = append(edits, delEditAt(base, "limit"))
+		} else if before.Limit == nil || *before.Limit != *after.Limit {
+			edits = append(edits, setEditAt(base, "limit", mustJSON(after.Limit)))
+		}
+	}
+
+	if after.Auth != nil {
+		if after.Auth.IsZero() {
+			edits = append(edits, delEditAt(base, "auth"))
+		} else if before.Auth == nil || *before.Auth != *after.Auth {
+			edits = append(edits, setEditAt(base, "auth", mustJSON(after.Auth)))
+		}
+	}
+
+	if after.Cache != nil {
+		if after.Cache.IsZero() {
+			edits = append(edits, delEditAt(base, "proxy_cache"))
+		} else if before.Cache == nil || !sameCache(*before.Cache, *after.Cache) {
+			edits = append(edits, setEditAt(base, "proxy_cache", mustJSON(after.Cache)))
+		}
+	}
+
+	return edits
+}
+
+// normalizeZip 去空项、去重、小写化，保持原有顺序。
+//
+// 这里刻意不按合法编码过滤：调用方用「规范化后是否为空」判断用户是不是要
+// 清空 zip，若把不认识的值直接丢掉，一份手写的 "zip": ["text/html"] 会在
+// 任何无关改动（例如只改 root）时被当成空列表静默删除。合法性由
+// management/siteops.applyAdvanced 在写入前校验，差异比对只负责如实反映。
+func normalizeZip(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, raw := range in {
+		v := strings.ToLower(strings.TrimSpace(raw))
+		if v == "" {
+			continue
+		}
+		if _, dup := seen[v]; dup {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
+}
+
+// sameCache 逐字段比对：Cache 含 slice，不能直接用 !=。
+func sameCache(a, b Cache) bool {
+	return sameText(a.Path, b.Path) &&
+		sameStrings(a.Valid, b.Valid) &&
+		sameText(a.Key, b.Key) &&
+		sameStrings(a.Methods, b.Methods) &&
+		a.MaxSize == b.MaxSize
 }
 
 func stringFieldEditsAt(base []jsonc.Step, key, before, after string) []jsonc.Edit {

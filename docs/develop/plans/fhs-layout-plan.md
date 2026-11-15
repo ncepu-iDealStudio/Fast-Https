@@ -41,7 +41,7 @@
 | `FAST_HTTPS_LOG_DIR` | `/var/log/fast-https` | `./logs` | 运行日志 |
 | `FAST_HTTPS_RUN_DIR` | `/run/fast-https` | `.` | pid 文件 |
 
-开发与归档构建（`build/Dockerfile`、`build/docker/Dockerfile_*`、tar.gz 包）保持 `./config`、`./logs`、`.` 不变，因此只有 `rpm` tag 下的实现改路径。
+开发与归档构建（tar.gz 包）保持 `./config`、`./logs`、`.` 不变，因此只有 `rpm` tag 下的实现改路径。Docker 镜像（`build/docker/alpine.Dockerfile`）现在也带 `-tags=rpm`，按 FHS 落位——这是该计划落地后补的，早期三份 Dockerfile 用归档布局的做法已废弃。
 
 两个决策值得记下来：
 

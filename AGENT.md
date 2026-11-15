@@ -10,11 +10,11 @@ Fast-Https 是 Go 写的 web server 与反向代理，自带 ACME 证书签发�
 
 ### 1. 打包相关文件必须是 LF 行尾
 
-`build/` 下的 shell 脚本、`build/spec`、`build/Dockerfile*` 会被 dpkg/rpm 直接 `exec`。CRLF 会让 shebang 变成 `#!/bin/sh\r`，内核去找名为 `/bin/sh\r` 的解释器，报 `ENOENT`——表现是**装得上、卸载不掉**，且错误信息说"无法执行 prerm：没有那个文件或目录"，而文件明明在。
+`build/packaging/` 下的 shell 脚本会被 dpkg/rpm 直接 `exec`；`build/docker/*.Dockerfile` 则要求 LF，因为 CRLF 会让 Dockerfile 的续行与 `RUN` 被 `\r` 破坏。CRLF 的 shebang 会变成 `#!/bin/sh\r`，内核去找名为 `/bin/sh\r` 的解释器，报 `ENOENT`——表现是**装得上、卸载不掉**，且错误信息说"无法执行 prerm：没有那个文件或目录"，而文件明明在。
 
 Windows 上 `core.autocrlf=true` 会自动把工作区转成 CRLF，所以：
 
-- `.gitattributes` 已声明 `*.sh text eol=lf`、`build/spec`、`build/Dockerfile`、`build/docker/*`
+- `.gitattributes` 已声明 `*.sh text eol=lf`、`build/spec`、`build/docker/*`
 - `go test ./tests/packaging` 会扫所有会进包的文件，发现 `\r` 就失败
 - 新增打包脚本后，确认规则覆盖到它
 
@@ -93,7 +93,8 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 | --- | --- |
 | `config/` | 配置解析、路径基准、校验。改路径先看 `base_dir*.go` 与 `consts.go` |
 | `cmd/` | 命令行。新增子命令要重新生成 man 页 |
-| `runtime/` | 监听、连接、请求/响应、reload |
+| `management/` | 管理核心：状态目录、配置事务、只读视图、受控 reload、`rtclient`（读本机 `/runtime`）、`monview`（读 Monitor 文件）。不允许依赖 `runtime/` 或 `core` |
+| `runtime/` | 监听、连接、请求/响应、reload、进程内运行状态计数（本机 `GET /runtime` 在 `cmd/`） |
 | `modules/` | 各功能模块（proxy/static/cache/compress/auth/waf/certmanager…） |
 | `init/` | 启动编排：证书初始化、自签 CA |
 | `build/packaging/` | 打包资源：systemd 单元、安装脚本、man 页、仓库脚本 |
@@ -116,6 +117,9 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 | 安装、构建、卸载、排障 | [docs/help/](docs/help/README.md) |
 | 环境、测试、规范、发布 | [docs/develop/](docs/develop/README.md) |
 | 功能怎么用、怎么实现 | [docs/feature/](docs/feature/README.md) |
+| CLI 命令的字段、错误码、退出码 | [docs/cli/command-spec.md](docs/cli/command-spec.md)（示例见 `docs/cli/examples.md`） |
+| CLI / Monitor 的设计依据与分步实施记录 | [docs/feature/](docs/feature/README.md) 的「设计与实施记录」 |
+| AI Agent 能力规划 | [docs/fast-https AI agent功能设计与开发规范.md](docs/fast-https%20AI%20agent功能设计与开发规范.md) |
 | 历史踩坑记录 | [docs/help/dev-issues.md](docs/help/dev-issues.md) |
 | 装包实机验证的结果与是否要重跑 | [docs/test/3-distro-verification.md](docs/test/3-distro-verification.md) |
 | 证书与 ACME 的实操流程、挑战原理 | [docs/help/tls-certificates.md](docs/help/tls-certificates.md) |

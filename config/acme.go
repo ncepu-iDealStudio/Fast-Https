@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fast-https/infra/logging"
 	"fmt"
 	"strconv"
 	"strings"
@@ -85,21 +84,21 @@ func (c *AcmeConfig) UsesChallenge(name string) bool {
 	return false
 }
 
-// warnHTTP01WithoutPort80 在 http-01 可能被使用却没有任何 server 监听 80 时告警。
-// 前面可能有反向代理转发 /.well-known/acme-challenge，所以只警告不报错。
-func (c *AcmeConfig) warnHTTP01WithoutPort80(servers []jsonServer) {
+// http01Port80Warning 在 http-01 可能被使用却没有任何 server 监听 80 时返回告警文本，
+// 否则返回空串。前面可能有反向代理转发 /.well-known/acme-challenge，所以只警告不报错。
+func (c *AcmeConfig) http01Port80Warning(servers []jsonServer) string {
 	if !c.Active() || !c.UsesChallenge(ACMEChallengeHTTP01) {
-		return
+		return ""
 	}
 	for i := range servers {
 		for _, listen := range servers[i].Listen {
 			if listenPortOf(listen) == 80 {
-				return
+				return ""
 			}
 		}
 	}
-	logging.ConsoleLog.Warn().Msg("acme: http-01 is enabled but no http.server listens on port 80; " +
-		"assuming a front proxy forwards /.well-known/acme-challenge to this process")
+	return "acme: http-01 is enabled but no http.server listens on port 80; " +
+		"assuming a front proxy forwards /.well-known/acme-challenge to this process"
 }
 
 func listenPortOf(listen string) int {

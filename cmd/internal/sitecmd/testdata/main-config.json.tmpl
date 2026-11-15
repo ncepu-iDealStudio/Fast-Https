@@ -1,0 +1,14 @@
+{
+  // 站点命令组测试用的主配置：一个内联站点 + 一个 include 目录。
+  // newSiteEnv 渲染它并把 include 指向本次测试的临时目录。
+  "http": {
+    "server": [{
+      "listen": 80,
+      "server_name": "main.example",
+      "location": [{
+        "url": "/", "type": "local", "root": "./httpdoc/root"
+      }]
+    }],
+    "include": [{{printf "%q" .IncludeDir}}]
+  }
+}

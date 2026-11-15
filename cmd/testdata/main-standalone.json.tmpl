@@ -1,0 +1,14 @@
+{
+  // 只有一个内联站点的主配置：CLI 契约测试用来验证「主配置里的站点
+  // 不可删除」「list 能合并主配置与 include」这类行为。
+  "http": {
+    "include": [{{printf "%q" .IncludeDir}}],
+    "server": [{
+      "listen": 80,
+      "server_name": "main.example",
+      "location": [{
+        "url": "/", "type": "local", "root": "./httpdoc/root"
+      }]
+    }]
+  }
+}

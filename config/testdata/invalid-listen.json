@@ -1,0 +1,13 @@
+{
+  "http": {
+    "server": [
+      {
+        "listen": "bad-port",
+        "server_name": "reload-invalid.example",
+        "location": [
+          {"url": "/", "type": "local", "root": "./httpdoc/root"}
+        ]
+      }
+    ]
+  }
+}

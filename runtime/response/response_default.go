@@ -72,6 +72,24 @@ func DefaultBadRequest() *Response {
 	return res
 }
 
+// DefaultPayloadTooLarge 是 413：请求体超过 max_body_size。
+//
+// 必须真的回一个响应，而不是直接关连接——客户端（尤其是 curl、浏览器
+// 上传、SDK）需要状态码才能区分「服务端拒绝」和「网络断了」。
+func DefaultPayloadTooLarge() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(413, "PAYLOADTOOLARGE")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", CachedDate())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("413 Payload Too Large",
+		"The request body exceeds the size limit configured by the server."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
 func DefaultNotFound() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(404, "NOTFOUND")

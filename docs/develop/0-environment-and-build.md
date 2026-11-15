@@ -39,7 +39,7 @@ curl -v http://127.0.0.1:<port>/not-exist  # 404 → error_page
 
 ## Docker
 
-`build/Dockerfile` 基于 `golang:1.27-alpine` 多阶段构建；运行时需要挂载 config/ 与 httpdoc/。
+`build/docker/alpine.Dockerfile` 基于 `golang:1.27-alpine` 多阶段构建，主程序与 Monitor 都带 `-tags=rpm`；运行镜像按 FHS 落位，与 deb/rpm/apk 安装效果一致。构建命令见 `docs/usage.md`「容器」一节。
 
 ## NSIS（Windows 安装包）
 

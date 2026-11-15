@@ -24,6 +24,9 @@ const (
 	KindAccess  = "access"
 	KindError   = "error"
 	KindSafe    = "safe"
+
+	// SourceConsole 是写入 error.log 的控制台镜像行的 source 值。
+	SourceConsole = "console"
 )
 
 // 以下是访问日志的字段名契约。
@@ -32,6 +35,7 @@ const (
 // 值为数字的字段写成 JSON number，比较状态码区间时不需要类型转换。
 const (
 	FieldKind       = "kind"
+	FieldSource     = "source"
 	FieldRemoteAddr = "remote_addr"
 	FieldType       = "type"
 	FieldMethod     = "method"

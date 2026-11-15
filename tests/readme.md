@@ -14,7 +14,7 @@
 其他约定：
 
 - 生产代码不能导入 `tests/` 下的任何 package。测试辅助代码放在 `tests/unit_test/helpers`，只供测试使用。
-- 需要外部条件或会改写仓库文件的测试，默认 `t.Skip`，用环境变量开启。目前有 `FASTHTTPS_E2E_RELOAD=1`（reload 端到端）；`FASTHTTPS_PROXY_HELPER` 只由 `TestProxyHTTPIntegration` 内部设置，不需要手工开启。
+- 需要外部条件或会改写仓库文件的测试，默认 `t.Skip`，用环境变量开启。目前有 `FASTHTTPS_E2E_RELOAD=1`（reload 端到端）、`FASTHTTPS_E2E_RUNTIME=1`（进程重启与 `/runtime` 启停）；`FASTHTTPS_PROXY_HELPER` 只由 `TestProxyHTTPIntegration` 内部设置，不需要手工开启。
 - CI（`.workflow/go-test.yml`）运行 `go test ./...`，覆盖上表前三类中默认不跳过的测试。Windows 本地建议加 `-p 1`，避免并行测试 exe 出现 `Access is denied`。
 
 存量文件的说明：
@@ -39,6 +39,7 @@ tests/
 ├── client_test/                     # 子进程集成测试
 │   ├── proxy_e2e_test.go
 │   ├── reload_e2e_test.go           # FASTHTTPS_E2E_RELOAD=1 时运行
+│   ├── runtime_e2e_test.go          # FASTHTTPS_E2E_RUNTIME=1 时运行
 │   ├── reload_proc_windows_test.go  # 子进程信号辅助（Windows）
 │   └── reload_proc_other_test.go    # 子进程信号辅助（其他平台）
 └── unit_test/                       # 存量集中单测，不再新增
@@ -131,6 +132,16 @@ go test ./tests/client_test -run TestReloadPortSwitchE2E -v
 
 ```powershell
 Remove-Item Env:FASTHTTPS_E2E_RELOAD
+```
+
+#### 进程重启与 `/runtime` 启停（可选）
+
+默认跳过。在临时目录起两个短生命周期进程，不改仓库里的 `config/fast-https.json`。要求本机 `127.0.0.1:9088` 空闲。Windows 上只断言 `stop` 后 `/runtime` 连不上且 pid 文件被清理，不断言 `stopping` / `SIGTERM`。
+
+```powershell
+$env:FASTHTTPS_E2E_RUNTIME = "1"
+go test -p 1 ./tests/client_test -run TestRuntimeProcessRestartE2E -v
+Remove-Item Env:FASTHTTPS_E2E_RUNTIME
 ```
 
 #### 反向代理集成测试

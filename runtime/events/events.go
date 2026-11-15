@@ -9,6 +9,7 @@ import (
 	"fast-https/infra/logging"
 	"fast-https/runtime/filters"
 	"fast-https/runtime/listener"
+	"fast-https/runtime/metrics"
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
 	"net"
@@ -24,6 +25,7 @@ func HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 	fif := filters.NewFilter() // Filter interface
 
 	if !fif.Fif.ConnFilter(ev) {
+		metrics.NoteRejected()
 		return
 	}
 
@@ -70,6 +72,21 @@ func watchClose(ctx context.Context, ev *core.Event) func() {
 
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
+	metrics.RequestBegin()
+	started := time.Now()
+	defer func() {
+		metrics.ObserveDuration(time.Since(started))
+		line := ""
+		if ev != nil && ev.RR.Res != nil {
+			line = ev.RR.Res.FirstLine
+		}
+		metrics.RequestEnd(line)
+	}()
+	// keep-alive 复用同一个 Response：进入本请求前清掉上一条的状态行，
+	// 否则漏设 FirstLine 的路径会把上一请求的码算进本请求。
+	if ev.RR.Res != nil {
+		ev.RR.Res.FirstLine = ""
+	}
 
 	// 保留路径（如 ACME http-01 挑战）在 location 匹配之前应答：
 	// 挑战响应不能依赖站点根目录里是否恰好有那个文件。
@@ -162,7 +179,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	// read data (bytes and str) from socket
 	byte_row := ev.ReadRequestInto(readBuf)
 
-	if byte_row == nil { // client closed
+	if byte_row == nil { // 首次读到 EOF 或超时：只算连接结束，不计数
 		return 0
 	}
 
@@ -176,11 +193,13 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			// 畸形请求拒绝处理，不能带着空/半截头走进后续管线
 			ev.RR.Res = response.DefaultBadRequest()
 			ev.WriteResponseClose(nil)
+			metrics.NoteParseError()
 			return 0
 		}
 		ev.Conn.SetReadDeadline(time.Now().Add(time.Second * 30))
 		n, err := ev.Conn.Read(rr.ReqBuf)
 		if err != nil || n == 0 {
+			metrics.NoteAborted()
 			return 0
 		}
 		byte_row = append(byte_row, rr.ReqBuf[:n]...)
@@ -208,6 +227,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		}, maxBodySize())
 		if err != nil {
 			logging.ConsoleLog.Debug().Msgf("%s", color.Red(err.Error()))
+			metrics.NoteAborted()
 			return 0
 		}
 		rr.Req.Body.Reset()
@@ -219,6 +239,26 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		return 1
 	}
 
+	// 请求体可能随首个数据包完整到达（ParseBody 一次就读完了），此时下面的
+	// 增量读取循环不会执行——所以超限检查不能只放在循环里，否则「一次性发完
+	// 的超大 body」会完全绕过 max_body_size。
+	tooLarge := func() bool {
+		limit := maxBodySize()
+		return limit > 0 && rr.Req.Body.Len() > limit
+	}
+	// 超过 max_body_size 必须回 413 再关闭，不能静默断连：客户端只看到连接
+	// 被重置时，分不清「服务端拒绝」和「网络故障」。
+	rejectTooLarge := func() {
+		logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
+		ev.RR.Res = response.DefaultPayloadTooLarge()
+		ev.WriteResponseClose(nil)
+		metrics.NoteAborted()
+	}
+	if tooLarge() {
+		rejectTooLarge()
+		return 0
+	}
+
 	// headerOtherData := make([]byte, core.READ_BODY_BUF_LEN)
 	for {
 		if rr.Req.RequestBodyValid() {
@@ -228,13 +268,13 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			datasize, err := ev.Conn.Read(rr.ReqBuf)
 			if err != nil { // read error, like time out
 				logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body error"))
+				metrics.NoteAborted()
 				return 0
 			}
 			byte_row = append(byte_row, rr.ReqBuf[:datasize]...)
 			rr.Req.TryFixBody(rr.ReqBuf[:datasize])
-			if rr.Req.Body.Len() > config.Current().Limit.MaxBodySize {
-				// body bytes beyond config
-				logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
+			if tooLarge() {
+				rejectTooLarge()
 				return 0
 			}
 		}

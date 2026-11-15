@@ -56,6 +56,13 @@ type Cache struct {
 	MaxSize int      `json:"max_size"`
 }
 
+// IsZero 报告这个缓存配置是否等于「未配置」：没有 path 就没有缓存目录，
+// 此时删掉 proxy_cache 键。
+func (c Cache) IsZero() bool {
+	return strings.TrimSpace(c.Path) == "" && len(c.Valid) == 0 &&
+		strings.TrimSpace(c.Key) == "" && len(c.Methods) == 0 && c.MaxSize == 0
+}
+
 type PathAuth struct {
 	AuthType string `json:"type"`
 	User     string `json:"user"`
@@ -64,11 +71,23 @@ type PathAuth struct {
 	Realm string `json:"realm"`
 }
 
+// IsZero 报告这个 auth 是否等于「未配置」：四个字段全空。
+// 全空时 site update 删掉 auth 键，等于关闭该 location 的 Basic 认证。
+func (a PathAuth) IsZero() bool {
+	return a == PathAuth{}
+}
+
 type PathLimit struct {
 	Size    int  `json:"mem"`
 	Rate    int  `json:"rate"`
 	Burst   int  `json:"burst"`
 	Nodelay bool `json:"nodelay"`
+}
+
+// IsZero 报告这个 limit 是否等于「未配置」。全零时 site update 会删掉
+// limit 键而不是写一个 `"limit": {}`——后者会被校验当成配了限流但全是 0。
+func (l PathLimit) IsZero() bool {
+	return l == PathLimit{}
 }
 
 type ServerLimit struct {

@@ -20,6 +20,7 @@ import (
 // 匹配之前生效：命中后请求不再进入路由，也不会落到注册的处理器上。
 // ACME http-01 的应答依赖这个顺序（站点根目录里通常没有挑战文件）。
 func TestEventHandlerEarlyRequestShortCircuitsRouting(t *testing.T) {
+	resetMetrics(t)
 	var dispatched atomic.Int32
 	core.RegisterHandler(config.DEVMOD,
 		func(cfg *listener.ListenCfg, ev *core.Event) bool { return true },

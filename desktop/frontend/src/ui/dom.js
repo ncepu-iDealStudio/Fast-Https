@@ -16,8 +16,16 @@ export function toast(msg) {
   const el = $('#toast');
   el.textContent = msg;
   el.hidden = false;
+  // 先置为不可见再加 .is-visible，让 transition 真正触发淡入
+  el.classList.remove('is-visible');
+  void el.offsetWidth;
+  el.classList.add('is-visible');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.hidden = true; }, 3200);
+  toastTimer = setTimeout(() => {
+    el.classList.remove('is-visible');
+    // 等淡出动画结束再隐藏，避免瞬间消失
+    setTimeout(() => { if (!el.classList.contains('is-visible')) el.hidden = true; }, 240);
+  }, 3200);
 }
 
 export function store(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 忽略 */ } }

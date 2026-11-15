@@ -1,6 +1,6 @@
 # Fast-Https 当前架构地图与验证基线
 
-更新时间：2026-10-24。本文记录当前 package 盘点与依赖方向。目录和依赖关系以源码 import 及 `tests/arch` 的约束测试为准。
+更新时间：2026-11-08。本文记录当前 package 盘点与依赖方向。目录和依赖关系以源码 import 及 `tests/arch` 的约束测试为准。
 
 2026-10-24 数据面重构要点：`utils/*` 上移为 `infra/*`；`modules/core` 拆分为契约层 `core` 与数据面运行时 `runtime`；处理器注册表由定长数组改为 map；`core.Services` 补齐停机钩子；日志统一为 zerolog 单出口 JSON。
 
@@ -8,7 +8,7 @@
 
 ## 1. 分层结构与依赖方向
 
-`go list ./...` 当前枚举 49 个 package。分层与允许的依赖方向如下，任何反向边都会被 `tests/arch/layering_test.go` 拦下：
+`go list ./...` 当前枚举的 package 数以 `go list` 为准。分层与允许的依赖方向如下，任何反向边都会被 `tests/arch/layering_test.go` 拦下：
 
 | 层 | 包 | 允许依赖 | 说明 |
 | --- | --- | --- | --- |
@@ -16,7 +16,9 @@
 | 配置 | `config` | `infra/*` | 配置 schema、校验、快照与站点文件；JSONC 解析交给 `infra/jsonc`。`TestNoViperLeak` 保证配置库不外泄 |
 | 契约 | `core` | `infra/*`、`config`、`runtime/{listener,request,response}` | 只放 `Event`、处理器注册表与生命周期钩子；后三个是 `Event` 内嵌的数据模型，属登记例外 |
 | 数据面运行时 | `runtime/*` | `infra/*`、`config`、`core`、`runtime/*` | 不允许依赖 `modules` |
-| 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters}` |
+| 可插拔功能 | `modules/*` | 下层 + `runtime/{listener,request,response,dynlog}` | 不允许依赖 `runtime/{server,events,filters,metrics}` |
+| 管理核心 | `management/*` | `infra`、`config`、`modules/site`、`modules/certmanager`、`management` | 不允许依赖数据面运行时、`core` 或组合根。读 `/runtime` 只走标准库 HTTP（`management/rtclient`），不 import `runtime/metrics` |
+| 独立监控进程 | `monitor` | 仅 `monitor` 与标准库 | 只读本机 `GET /runtime` 与 PID 文件，自己写状态与事件文件；不依赖数据面、管理核心与组合根，也不被 Server 启动 |
 | 组合根 | `cmd`、`init`、根 `main` | 任意 | 唯一允许装配全部层的地方 |
 
 ## 2. Package 与生产职责
@@ -24,7 +26,7 @@
 | Package / 路径 | 职责和主要入口 | 默认服务器路径 |
 | --- | --- | --- |
 | 根 `fast-https` | 主服务器 `main`，调用 `cmd.RootCmd()` | 是 |
-| `cmd` | Cobra 命令、start/dev/stop/reload/check/status、`acme` 配置向导（`huh` 表单 + 参数模式）、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点 | 是 |
+| `cmd` | Cobra 命令、start/stop/reload/status、`service`/`runtime`/`config`/`site` 等管理命令、`acme` 配置向导（`huh` 表单 + 参数模式）、PID 和平台信号处理；`RegisterHandlers` / `RegisterServices` 是唯一的装配点；写完 PID 后在 `127.0.0.1:9088` 提供 `GET /runtime` | 是 |
 | `config` | 配置模型、JSON/include 读取、验证、路径和全局运行配置 | 是 |
 | `init` | 配置、日志、证书、缓存初始化 | 是 |
 | `infra/banner` | 彩色横幅、版本号与初始化阶段提示（版本由组合根注入） | 由组合根调用 |
@@ -34,6 +36,7 @@
 | `infra/files` | 原子写文件：先写 `.tmp` 再 rename，配置回写与 ACME PEM 落盘共用 | 是 |
 | `core` | `Event`、处理器注册表、默认命令变量、`Services` 生命周期钩子 | 是 |
 | `runtime/server` | 启停、信号、连接跟踪、listener 生命周期和 reload | 是 |
+| `runtime/metrics` | 进程内生命周期、连接/请求/状态码计数、耗时直方图、reload 生成号与监听端口原子副本；`TakeSnapshot()` 供组合根的 `/runtime` 读取 | 是 |
 | `runtime/listener` | 配置转 Listener/ListenCfg、虚拟主机表、TCP/TLS socket、端口 reload | 是 |
 | `runtime/events` | HTTP/1.x 连接事件、请求解析、统一事件分发；HTTP/2 走 `golang.org/x/net/http2`，这里只做 `http.Request`/`http.ResponseWriter` 与 `core.Event` 的适配 | 是 |
 | `runtime/filters` | 连接、监听、HTTP 解析、Host/Path 过滤 | 是。连接拒绝和监听分流调用 `core.Services` 钩子 |
@@ -45,7 +48,12 @@
 | `modules/auth`、`safe`、`appfirewall`、`cache`、`compress` | 认证、安全检查/限流、防火墙、代理缓存和静态压缩 | 配置或请求路径启用时 |
 | `modules/certmanager` | ACME 证书编排（certmagic + acmez）：账户、订单、续期调度、PEM 落盘与热替换；挑战应答通过 `core.Services.HandleEarlyRequest` 与 `listener.RegisterTLSALPNProvider` 注入数据面 | `acme.enabled` 为真时 |
 | `modules/site` | 站点文件（`conf.d/<name>.json`）的命名校验、原子落盘与目录扫描；合并与校验复用 `config`，不碰运行期对象 | `site` 命令组 |
-| `desktop/` | Wails v3 桌面管理端，独立 Go module | 独立可执行程序 |
+| `management/rtclient` | 本机 `GET /runtime` 的标准库 HTTP 客户端；校验 `schema_version == "1"`，自身复制 JSON 结构，不依赖 `runtime/metrics` | CLI `runtime *`、`service status/version`、reload 强验证、`diagnose` |
+| `management/svcctl` | 受控 reload：校验、新增端口预检、发信号；读得到快照时 `WaitRuntime`（生成号加一、pid/`started_at` 不变），否则 `WaitBasic` | `service reload`、`config apply` |
+| `management/diagnose` | 只读健康汇总。`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning） | `diagnose` |
+| `management/monview` | 只读 Monitor 的 `status.json` 与 `events.jsonl`。不连接 Monitor 进程；文件不存在视为未安装 | `monitor status` / `monitor events` |
+| `monitor` | 独立 Monitor 进程：周期读本机 `GET /runtime`，把原始快照追加到 `snapshots.jsonl`；`rules.go` 里的确定性规则（不可达/恢复、进程重启、5xx 比例、端口探测与疑似卡死，后两条可关）写事件到 `events.jsonl`，并原子更新 `status.json`；事件与快照按单文件上限自轮转 | 独立可执行程序，随 deb/rpm/apk 与归档发布，有独立的 systemd 单元；Server 不依赖它 |
+| `desktop/` | Wails v3 桌面管理端，独立 Go module；CLI 的图形前端，数据与操作全部转交 `fast-https <cmd> --json` | 独立可执行程序 |
 | `tests`、`tests/client_test`、`tests/unit_test/...`、`tests/arch` | 根测试入口、子进程 E2E、集中式单测、分层约束 | 测试专用 |
 
 ## 3. 请求 handler 注册机制
@@ -64,7 +72,7 @@
 
 | 输出 | 变量 | `kind` | 目的地 | 级别 |
 | --- | --- | --- | --- | --- |
-| 控制台 | `ConsoleLog` | `console` | stdout | 默认 `info` |
+| 控制台 | `ConsoleLog` | `console` | stdout；Warn/Error/Fatal 同时镜像到 `error.log`（`kind:error`，`source:console`） | 默认 `info` |
 | 系统 | `SystemLog` | `system` | `logs/system.log` + stdout | `debug` 及以上 |
 | 访问 | `AccessLog` | `access` | `logs/access.log` + stdout | `debug` 及以上 |
 | 错误 | `ErrorLog` | `error` | `logs/error.log` + stdout | `debug` 及以上 |
@@ -93,7 +101,7 @@
 | 产物/环境 | 当前入口与构建方式 |
 | --- | --- |
 | 主服务器本地构建 | 仓库根 package：`go build .`；主入口文件为 `fast-https.go` |
-| Docker | `build/Dockerfile` 使用 Go 1.27 Alpine，在 `/app` 执行 `go build -o fast-https .`；运行镜像复制配置、MIME 和默认静态文件 |
+| Docker | `build/docker/alpine.Dockerfile` 使用 `golang:1.27-alpine` 多阶段构建，以 `-tags=rpm` 编译主程序与 Monitor；运行镜像按 FHS 安装到 `/etc/fast-https`、`/usr/share/fast-https`、`/var/log/fast-https` 等，与 deb/rpm/apk 一致 |
 | GoReleaser | `build/goreleaser.yaml` 的主程序 `main` 为 `./fast-https.go`，构建 Linux/Darwin amd64/arm64 和 Windows amd64 |
 | 桌面端 | 独立 module `./desktop`，由 Wails v3 构建 |
 | RPM | `build/spec` 文件执行 `go build -tags=rpm .`，按 FHS 安装：配置到 `%{_sysconfdir}/fast-https`、站点到 `%{_datadir}/fast-https`、日志目录 `%{_localstatedir}/log/fast-https` |
@@ -108,7 +116,7 @@
 - 源码邻近的 `*_test.go`：`cmd/`、`config/`、`infra/*`、`init/`、`core/`、`runtime/*`、`modules/*`。
 - 集中单测：`tests/unit_test/`，只保留存量，新单测写在被测包旁。
 - 分层约束：`tests/arch/layering_test.go` 校验 `infra`↔`config`、`core`、`runtime`、`modules` 的依赖方向，并禁止 viper 泄漏与生产代码依赖 `tests/`。
-- 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`。
+- 子进程集成测试：`tests/client_test/`。`TestProxyHTTPIntegration` 默认会跑；`TestReloadPortSwitchE2E` 需要 `FASTHTTPS_E2E_RELOAD=1`；`TestRuntimeProcessRestartE2E`、`TestRuntimeStatsTotalsE2E` 需要 `FASTHTTPS_E2E_RUNTIME=1`。
 - 根目录 `tests/fast-https_test.go` 覆盖初始化路径。
 
 不进入 `go test` 的文件：`tests/scripts/dev-test.sh`、`dev-test.ps1`（手工前台拉起服务），`tests/single/workloop.go`（独立 `main` 演示）。
