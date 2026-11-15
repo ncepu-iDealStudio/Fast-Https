@@ -65,6 +65,37 @@ func TestEnvelopeVectors(t *testing.T) {
 	}
 }
 
+// TestEnvelopeErrorFromStdout 失败封套落在 stdout，命令行退出码非 0 时
+// 必须先把封套里的 error.message 取出来，否则界面只剩「exit status 10」。
+func TestEnvelopeErrorFromStdout(t *testing.T) {
+	out := []byte(`{"ok":false,"command":"site.add","request_id":null,` +
+		`"error":{"code":"CONFLICT","message":"site conflict: server_name localhost already used by default"},` +
+		`"warnings":[]}`)
+	err := envelopeError(out)
+	if err == nil {
+		t.Fatal("失败封套应解析出错误")
+	}
+	if !strings.Contains(err.Error(), "already used by default") {
+		t.Errorf("错误应带原始 message，得到 %q", err.Error())
+	}
+
+	cases := []struct {
+		name string
+		in   []byte
+		want bool
+	}{
+		{"空输出", nil, false},
+		{"纯文本", []byte("plain text output"), false},
+		{"截断的 JSON", []byte(`{"ok":false`), false},
+		{"成功封套", []byte(`{"ok":true,"data":{}}`), false},
+	}
+	for _, c := range cases {
+		if got := envelopeError(c.in) != nil; got != c.want {
+			t.Errorf("%s: envelopeError = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 // TestFatalMessage 旧命令失败时 zerolog 输出 JSON，Run 要把它翻译成
 // 人话错误，而不是把整行 JSON 甩给界面（曾表现为「点停止弹一堆 JSON」）。
 func TestFatalMessage(t *testing.T) {

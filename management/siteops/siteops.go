@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 
 	"fast-https/config"
@@ -236,11 +238,12 @@ func Add(dirs []string, in AddInput) (string, error) {
 	if _, ok := site.FindDisabled(dirs, name); ok {
 		return "", fmt.Errorf("%w: site %s already exists (disabled)", ErrConflict, name)
 	}
-	if err := rejectDuplicateServerName(dirs, "", strings.TrimSpace(in.Domain)); err != nil {
+	listens := resolveListens(in.TLS, in.Listens)
+	if err := rejectDuplicateServerName(dirs, "", strings.TrimSpace(in.Domain), listens); err != nil {
 		return "", err
 	}
 	si := config.SiteInput{
-		Listens:    resolveListens(in.TLS, in.Listens),
+		Listens:    listens,
 		ServerName: strings.TrimSpace(in.Domain),
 	}
 	if strings.TrimSpace(in.ProxyPass) != "" {
@@ -279,21 +282,27 @@ func Update(dirs []string, liveMain string, in UpdateInput) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrNotFound, in.Name)
 	}
 	path, err := site.Update(dirs, in.Name, func(cur *config.SiteInput) error {
+		// 先算出生效的 listen：server_name 冲突按「域名 + 端口」判，
+		// 需要知道改完之后这个站点实际监听哪些端口。
+		tls := in.TLS != nil && *in.TLS
+		effListens := cur.Listens
+		if in.Listens != nil {
+			effListens = resolveListens(tls, *in.Listens)
+		} else if in.TLS != nil {
+			effListens = resolveListens(*in.TLS, cur.Listens)
+		}
 		if in.ServerName != nil {
 			name := strings.TrimSpace(*in.ServerName)
 			if name == "" {
 				return fmt.Errorf("%w: --server-name must not be empty", ErrUsage)
 			}
-			if err := rejectDuplicateServerName(dirs, in.Name, name); err != nil {
+			if err := rejectDuplicateServerName(dirs, in.Name, name, effListens); err != nil {
 				return err
 			}
 			cur.ServerName = name
 		}
-		tls := in.TLS != nil && *in.TLS
-		if in.Listens != nil {
-			cur.Listens = resolveListens(tls, *in.Listens)
-		} else if in.TLS != nil {
-			cur.Listens = resolveListens(*in.TLS, cur.Listens)
+		if in.Listens != nil || in.TLS != nil {
+			cur.Listens = effListens
 		}
 		if in.Root != nil || in.ProxyPass != nil {
 			loc := primaryLoc(cur)
@@ -479,11 +488,18 @@ func inlineSite(liveMain, name string) bool {
 	return filepath.Clean(absMain) == filepath.Clean(absSrc)
 }
 
-func rejectDuplicateServerName(dirs []string, skipName, serverName string) error {
-	want := strings.ToLower(strings.TrimSpace(serverName))
-	if want == "" {
+// rejectDuplicateServerName 检查「同一端口上的 server_name 重复」。
+//
+// 冲突判据是 **域名 + 端口**，不是只看域名：运行时的 HostMap 键是
+// server_name:port（见 runtime/listener），同一个域名挂在 80 和 8080 上是
+// 两个互不干扰的 server 块，nginx 语义里也完全合法。只有同一端口上出现
+// 重复域名才会让请求归属变得不确定，那才需要拒绝。
+func rejectDuplicateServerName(dirs []string, skipName, serverName string, listens []string) error {
+	want := domainSet(serverName)
+	if len(want) == 0 {
 		return nil
 	}
+	wantPorts := listenPortSet(listens...)
 	entries, err := site.ListAll(dirs)
 	if err != nil {
 		return err
@@ -492,11 +508,99 @@ func rejectDuplicateServerName(dirs []string, skipName, serverName string) error
 		if skipName != "" && e.Name == skipName {
 			continue
 		}
-		if strings.ToLower(e.ServerName) == want {
-			return fmt.Errorf("%w: server_name %s already used by %s", ErrConflict, serverName, e.Name)
+		dup := sharedDomain(want, e.ServerName)
+		if dup == "" {
+			continue
 		}
+		// 端口集合解不出来时退回旧口径（只看域名），宁可多拦一次也不
+		// 放行一个连端口都读不懂的配置。
+		if len(wantPorts) == 0 {
+			return fmt.Errorf("%w: server_name %s already used by %s", ErrConflict, dup, e.Name)
+		}
+		shared := sharedPorts(wantPorts, listenPortSet(e.Listen))
+		if len(shared) == 0 {
+			continue
+		}
+		return fmt.Errorf("%w: server_name %s already used by %s on port %s",
+			ErrConflict, dup, e.Name, strings.Join(shared, ","))
 	}
 	return nil
+}
+
+// sharedDomain 返回两个 server_name 之间重复的域名（排序后取第一个，
+// 保证报错文案稳定）。没有交集时返回空串。
+func sharedDomain(want map[string]struct{}, serverName string) string {
+	var dup []string
+	for name := range domainSet(serverName) {
+		if _, ok := want[name]; ok {
+			dup = append(dup, name)
+		}
+	}
+	if len(dup) == 0 {
+		return ""
+	}
+	sort.Strings(dup)
+	return dup[0]
+}
+
+// domainSet 把「空格分隔的多域名 server_name」拆成小写集合。
+func domainSet(serverName string) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, name := range strings.Fields(serverName) {
+		if name = strings.ToLower(name); name != "" {
+			out[name] = struct{}{}
+		}
+	}
+	return out
+}
+
+// listenPortSet 取出 listen 串里的端口集合，兼容 "80"、"443 ssl h2"、
+// "80, 443 ssl h2" 以及 ":8080" / "127.0.0.1:8080" 这些写法。
+func listenPortSet(listens ...string) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, raw := range listens {
+		segs := strings.FieldsFunc(raw, func(r rune) bool {
+			return r == ',' || r == '\n' || r == '\r'
+		})
+		for _, seg := range segs {
+			seg = strings.TrimSpace(seg)
+			if seg == "" {
+				continue
+			}
+			port := strings.Fields(seg)[0]
+			if i := strings.LastIndex(port, ":"); i >= 0 {
+				port = port[i+1:]
+			}
+			if port == "" {
+				continue
+			}
+			// 归一化 "080" 这类写法，避免字符串比较误判。
+			if n, err := strconv.Atoi(port); err == nil {
+				port = strconv.Itoa(n)
+			}
+			out[port] = struct{}{}
+		}
+	}
+	return out
+}
+
+// sharedPorts 返回两个端口集合的交集，排序后给出稳定输出。
+func sharedPorts(a, b map[string]struct{}) []string {
+	var out []string
+	for port := range a {
+		if _, ok := b[port]; ok {
+			out = append(out, port)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		x, errX := strconv.Atoi(out[i])
+		y, errY := strconv.Atoi(out[j])
+		if errX == nil && errY == nil {
+			return x < y
+		}
+		return out[i] < out[j]
+	})
+	return out
 }
 
 func primaryLoc(in *config.SiteInput) *config.SiteLocation {

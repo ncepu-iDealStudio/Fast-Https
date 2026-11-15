@@ -224,8 +224,9 @@
     `--dry-run` 不需要 `--yes`。不带 `--domain` 进向导时向导末屏自己确认，不再要 `--yes`；
     stdin 非终端且无 `--domain` → `USAGE_ERROR`。
   - 纯 flag 模式 `--root` 与 `--proxy-pass` 至少一个（否则 `USAGE_ERROR`）。
-  - 站点名由域名规范化（小写、trim）得到；同名（含停用）或同 server_name 已存在 →
-    `CONFLICT`（10）。root 落在禁入目录（配置目录、证书目录、状态目录、日志根）→
+  - 站点名由域名规范化（小写、trim）得到；同名（含停用）已存在，或 server_name 在**同一监听端口**
+    已被别的站点占用 → `CONFLICT`（10）。同一域名挂在不同端口上是合法的（运行时 HostMap
+    按 `server_name:port` 匹配）。root 落在禁入目录（配置目录、证书目录、状态目录、日志根）→
     `USAGE_ERROR`（2），且发生在事务外（不产生 uncertain 状态）。
   - `--tls` 语义："至少一个 TLS 监听"，永不给 80 贴 ssl；给了 `--listen` 又 `--tls` 时
     443 升级成 TLS / 非 80 监听升级 / 全是 80 则补 `443 ssl h2`。
@@ -240,7 +241,8 @@
 - **行为要点**：白名单字段之外的任意 JSON 合并被拒绝（没有相应 flag）。至少要显式传一个
   变更 flag，否则 `USAGE_ERROR`。**非 dry-run 必须 `--yes`**（`update requires --yes; use --dry-run to preview`）。
   只改 URL 为 `/` 的 location，其余手写 location 保留。站点内联在主配置 `http.server[]` →
-  `NOT_SUPPORTED`（11）；站点不存在 → `NOT_FOUND`（9）；重复 server_name → `CONFLICT`（10）。
+  `NOT_SUPPORTED`（11）；站点不存在 → `NOT_FOUND`（9）；server_name 在同一监听端口重复 →
+  `CONFLICT`（10）。
 
 ### 1.5 `site delete <name>`
 

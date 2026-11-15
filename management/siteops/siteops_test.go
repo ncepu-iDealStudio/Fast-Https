@@ -127,6 +127,38 @@ func TestSiteAddDuplicate(t *testing.T) {
 	}
 }
 
+// TestSiteAddServerNameConflictByPort 冲突判据是「域名 + 端口」：
+// 同一 server_name 挂在不同端口上是两个独立 server 块（HostMap 键是
+// server_name:port），nginx 语义里也合法；只有同端口重复才拒绝。
+func TestSiteAddServerNameConflictByPort(t *testing.T) {
+	live, doc, _, _ := writeLive(t, "live.example")
+	dirs := []string{filepath.Join(filepath.Dir(live), "conf.d")}
+
+	// 已有 live.json：live.example @ 18080，这里换 18081 再加一个
+	if _, err := Add(dirs, AddInput{Domain: "live.example", Root: doc, Listens: []string{"18081"}}); err != nil {
+		t.Fatalf("同域名不同端口应允许：%v", err)
+	}
+
+	// 另一个站点文件声明了同一域名并占了 18081
+	other := `{"listen": [18081], "server_name": "taken.example",` +
+		`"location": [{"url": "/", "type": "local", "root": "."}]}`
+	if err := os.WriteFile(filepath.Join(dirs[0], "other.json"), []byte(other), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Add(dirs, AddInput{Domain: "taken.example", Root: doc, Listens: []string{"18081"}})
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("同域名同端口应拒绝，得到 %v", err)
+	}
+	if !strings.Contains(err.Error(), "on port 18081") {
+		t.Fatalf("报错应指出冲突端口：%v", err)
+	}
+
+	// 同域名换成没被占用的端口 → 允许
+	if _, err := Add(dirs, AddInput{Domain: "taken.example", Root: doc, Listens: []string{"18083"}}); err != nil {
+		t.Fatalf("同域名换端口应允许：%v", err)
+	}
+}
+
 func TestSiteAddInvalidDomainOrListen(t *testing.T) {
 	live, doc, eng, _ := writeLive(t, "live.example")
 	_, err := runAdd(t, eng, live, "../evil", doc, "bad", false)

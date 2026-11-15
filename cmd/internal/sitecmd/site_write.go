@@ -19,10 +19,10 @@ func addSiteWriteCommands(root *cobra.Command) {
 		Long: cli.T(
 			"复制当前配置树到候选目录、写入站点文件，再走 config apply 同一套事务（校验、恢复点、reload、可回滚）。\n"+
 				"带 --domain 时全部字段来自 flag；不带 --domain 且标准输入是终端时进向导。\n"+
-				"站点名由域名规范化得到。同名或同 server_name 已存在时退出码 10。纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
+				"站点名由域名规范化得到。同名站点，或同一监听端口上已存在的 server_name，都会以退出码 10 拒绝（同域名挂不同端口是合法的）。纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
 			"Copy the live config tree, write the site file on the candidate, then apply it with the same transaction\n"+
 				"as config apply. With --domain everything comes from flags; without it, an interactive terminal enters the wizard.\n"+
-				"A duplicate name or server_name exits with code 10. Flag mode requires --yes unless --dry-run; the wizard confirms at the end."),
+				"A duplicate name, or a server_name already served on the same listen port, exits with code 10 (the same domain on a different port is fine). Flag mode requires --yes unless --dry-run; the wizard confirms at the end."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         RunAdd,
