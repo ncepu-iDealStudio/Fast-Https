@@ -133,7 +133,9 @@ func (e *Engine) Apply(ctx context.Context, in Input) (Result, error) {
 		}
 	}
 
-	warnings, err := config.ValidateConfigTree(candRoot)
+	// 候选树只带 json，相对证书路径要以**线上配置目录**为基准解析：
+	// 桌面端从快捷方式启动时进程 CWD 未必是安装目录，靠 CWD 会误判成证书缺失。
+	warnings, err := config.ValidateConfigTree(candRoot, filepath.Dir(liveMain))
 	if err != nil {
 		if errors.Is(err, config.ErrCandidatePath) {
 			return Result{}, wrap(CodeUsage, err.Error(), err)
