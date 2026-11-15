@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 站点页编排壳：增删改启停，渲染交给 SiteList。 */
-import { computed, onMounted, ref } from 'vue';
-import { Plus, RefreshCw } from '@lucide/vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { Plus } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useSitesStore } from '../../stores/sites';
 import { useOverviewStore } from '../../stores/overview';
@@ -19,7 +19,12 @@ const notice = ref('');
 const dialogOpen = ref(false);
 const editingId = ref<string | undefined>(undefined);
 
-onMounted(() => { void sites.refresh(); });
+onMounted(() => {
+  void sites.refresh();
+  // 自动刷新：站点列表随配置事务变化，15 秒一次。
+  const timer = window.setInterval(() => { void sites.refresh(); }, 15000);
+  onUnmounted(() => window.clearInterval(timer));
+});
 
 /** 服务是否在运行：停止时链接灰化。 */
 const serverUp = computed(() => overview.data?.running ?? false);
@@ -81,7 +86,6 @@ async function onOpen(url: string): Promise<void> {
     <p class="lede" v-html="t('sites.lede')" />
 
     <div class="toolbar">
-      <button class="icon-btn" :title="t('common.refresh')" :disabled="sites.loading" @click="sites.refresh()"><RefreshCw :size="14" /></button>
       <FhButton variant="primary" @click="openAdd">
         <Plus :size="14" /><span>{{ t('sites.add') }}</span>
       </FhButton>

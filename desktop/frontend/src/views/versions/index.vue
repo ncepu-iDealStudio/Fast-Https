@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 配置版本页编排壳：列表 / 对比 / 回滚 / 漂移提示。 */
-import { onMounted, ref } from 'vue';
-import { RefreshCw, AlertTriangle } from '@lucide/vue';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { AlertTriangle } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { runCommand } from '../../services/api/command';
 import { messageOf } from '../../services/api/base';
@@ -65,13 +65,17 @@ async function rollback(version: string): Promise<void> {
   }
 }
 
-onMounted(() => { void load(); });
+onMounted(() => {
+  void load();
+  // 自动刷新：配置版本随事务新增，20 秒一次。
+  const timer = window.setInterval(() => { void load(); }, 20000);
+  onUnmounted(() => window.clearInterval(timer));
+});
 </script>
 
 <template>
   <div class="main__body versions-page">
     <div class="toolbar">
-      <button class="icon-btn" :title="t('common.refresh')" :disabled="loading" @click="load()"><RefreshCw :size="14" /></button>
       <span class="logs-count mono">{{ versions.length }}</span>
     </div>
 

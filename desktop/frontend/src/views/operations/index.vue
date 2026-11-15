@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** 操作记录编排壳：分页（递增 limit）/ 状态筛选 / 详情展开。 */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { runCommand } from '../../services/api/command';
 import { messageOf } from '../../services/api/base';
 import OpsTable from './components/OpsTable.vue';
@@ -52,7 +52,12 @@ function toggleDetail(id: string): void {
   openId.value = openId.value === id ? '' : id;
 }
 function pickStatus(): void { void load(true); }
-onMounted(() => { void load(); });
+onMounted(() => {
+  void load();
+  // 自动刷新：操作记录随事务追加，10 秒一次。
+  const timer = window.setInterval(() => { void load(true); }, 10000);
+  onUnmounted(() => window.clearInterval(timer));
+});
 </script>
 
 <template>

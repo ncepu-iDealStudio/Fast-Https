@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** 日志页工具栏：四类切换 / 刷新 / 重置 / 实时 / 筛选框 / 高级筛选。 */
-import { RefreshCw, RotateCcw, ChevronDown, Pause, Play, Search } from '@lucide/vue';
+import { RotateCcw, ChevronDown, Pause, Play, Search } from '@lucide/vue';
 import { useI18n } from '../../../composables/useI18n';
 
 interface Filters {
@@ -40,9 +40,6 @@ function set(key: keyof Filters, value: string): void {
         @click="emit('pick-kind', k.key)"
       >{{ t(k.label) }}</button>
     </div>
-    <button class="icon-btn" :title="t('common.refresh')" :disabled="loading" @click="emit('refresh')">
-      <RefreshCw :size="14" />
-    </button>
     <button class="icon-btn" :title="t('logs.reset')" @click="emit('reset')">
       <RotateCcw :size="14" />
     </button>

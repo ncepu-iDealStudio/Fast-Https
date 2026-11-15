@@ -1,6 +1,5 @@
 <script setup lang="ts">
 /** 操作记录表格：五列 + 点行展开详情 slot。 */
-import { RefreshCw } from '@lucide/vue';
 import { useI18n } from '../../../composables/useI18n';
 
 interface Op {
@@ -9,8 +8,10 @@ interface Op {
   result?: Record<string, unknown>;
 }
 defineProps<{ rows: Op[]; loading: boolean; filter: string; openId: string }>();
-const emit = defineEmits<{ refresh: []; 'update:filter': [v: string]; toggle: [id: string]; more: [] }>();
+const emit = defineEmits<{ 'update:filter': [v: string]; toggle: [id: string]; more: [] }>();
 const { t } = useI18n();
+
+const DASH = '\u2014';
 
 const STATUS: Record<string, [string, string]> = {
   succeeded: ['ok', 'ops.succeeded'], failed: ['err', 'ops.failed'],
@@ -19,9 +20,9 @@ const STATUS: Record<string, [string, string]> = {
 };
 function statusOf(op: Op): string {
   const key = STATUS[op.status ?? '']?.[1];
-  return key ? t(key) : (op.status ?? '—');
+  return key ? t(key) : (op.status || DASH);
 }
-function fmtTime(s?: string): string { return (s ?? '—').replace('T', ' ').slice(0, 19); }
+function fmtTime(s?: string): string { return (s || DASH).replace('T', ' ').slice(0, 19); }
 function field(op: Op, key: string): string {
   const v = op.result?.[key];
   if (v === undefined || v === null || v === '') return '';
@@ -31,7 +32,6 @@ function field(op: Op, key: string): string {
 
 <template>
   <div class="toolbar">
-    <button class="icon-btn" :title="t('common.refresh')" :disabled="loading" @click="emit('refresh')"><RefreshCw :size="14" /></button>
     <select class="ops-filter" :value="filter" @change="emit('update:filter', ($event.target as HTMLSelectElement).value)">
       <option value="">{{ t('ops.filterAll') }}</option>
       <option v-for="(v, k) in STATUS" :key="k" :value="k">{{ t(v[1]) }}</option>
@@ -50,10 +50,10 @@ function field(op: Op, key: string): string {
         <div class="opsrow" :class="{ 'opsrow--open': openId === op.operation_id }"
              @click="emit('toggle', op.operation_id ?? '')">
           <span class="opsrow__time mono">{{ fmtTime(op.created_at) }}</span>
-          <span class="opsrow__cmd mono">{{ op.command || '—' }}</span>
+          <span class="opsrow__cmd mono">{{ op.command || DASH }}</span>
           <span><span class="badge" :class="STATUS[op.status ?? '']?.[0] === 'ok' ? 'badge--ok' : 'badge--off'">{{ statusOf(op) }}</span></span>
-          <span class="opsrow__ver mono">{{ field(op, 'version') || op.version || '—' }}</span>
-          <span class="opsrow__restore mono">{{ field(op, 'restore_point') || op.restore_point || '—' }}</span>
+          <span class="opsrow__ver mono">{{ field(op, 'version') || op.version || DASH }}</span>
+          <span class="opsrow__restore mono">{{ field(op, 'restore_point') || op.restore_point || DASH }}</span>
         </div>
         <slot name="detail" :op="op" />
       </template>

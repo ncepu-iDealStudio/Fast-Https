@@ -4,7 +4,7 @@
  * 概览 / 状态矩阵 / 运行快照 三页合并于此，数据只拉一次、区块不重复。
  */
 import { computed, onMounted, ref } from 'vue';
-import { Activity, Globe, ShieldCheck, Server, Zap, AlertCircle, RefreshCw } from '@lucide/vue';
+import { Activity, Globe, ShieldCheck, Server, Zap, AlertCircle, FolderOpen } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { startServer, stopServer, reloadServer, openConfigDir } from '../../services/api/app';
 import { useMonitorData } from './composables/useMonitorData';
@@ -87,7 +87,7 @@ onMounted(() => { void load(); });
 
 <template>
   <div class="monitor-page">
-    <!-- 页头 -->
+    <!-- 妞ら潧銇?-->
     <div class="page-head">
       <div class="page-head__text">
         <div class="page-head__eyebrow">SERVICE CONTROL CENTER</div>
@@ -98,13 +98,10 @@ onMounted(() => { void load(); });
         <button class="icon-btn page-head__refresh" :title="t('overview.openConfig')" @click="openDir">
           <FolderOpen :size="14" />
         </button>
-        <button class="page-head__refresh" :title="t('common.refresh')" :disabled="loading" @click="load()">
-          <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
-        </button>
       </div>
     </div>
 
-    <!-- 服务状态卡 -->
+    <!-- 运行概览 -->
     <HeroCard
       :running="running"
       :pid="rt?.pid ?? ov.data?.pid"
@@ -118,11 +115,11 @@ onMounted(() => { void load(); });
 
     <p v-if="notice" class="notice">{{ notice }}</p>
 
-    <!-- 运行概览 -->
+    <!-- 鏉╂劘顢戝鍌濐潔 -->
     <div class="section-head"><span>{{ t('runtime.pageTitle') }}</span><small>{{ t('runtime.pageNote') }}</small></div>
     <MetricCards :metrics="metrics" />
 
-    <!-- 组件健康 -->
+    <!-- 缂佸嫪娆㈤崑銉ユ倣 -->
     <HealthPanel :items="health" :title="t('nav.matrix')" :note="t('runtime.pageNote')" @detail="notice = $event" />
 
     <!-- 明细 + 最近动态 -->
