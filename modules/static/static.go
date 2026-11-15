@@ -157,6 +157,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 			log.Size(0)
 			return 1
 		}
+		response.ApplySecurityHeaders(ev.RR.Res)
 		if _, err := ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes()); err != nil {
 			return -10
 		}
@@ -274,6 +275,8 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 		return 1
 	}
 
+	// 静态文件直接写连接，绕过了 core.WriteResponse，这里补一次安全响应头。
+	response.ApplySecurityHeaders(ev.RR.Res)
 	if _, err := ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes()); err != nil {
 		if file != nil {
 			file.Close()
