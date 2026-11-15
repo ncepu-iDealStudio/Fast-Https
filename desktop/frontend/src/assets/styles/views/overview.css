@@ -65,7 +65,7 @@
 .metric__k { font-size: 11px; color: var(--muted); }
 .metric__v { font-size: 15px; font-weight: 600; }
 
-/* 甯哥敤鎿嶄綔锛氬浘鏍?+ 鏍囬鐨勫叆鍙ｆ爡鏍?*/
+/* 常用操作：图标 + 标题的入口栅格 */
 .quick-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 10px;

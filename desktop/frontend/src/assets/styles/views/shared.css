@@ -80,7 +80,7 @@
 .kv-row {
   display: grid; grid-template-columns: 130px minmax(0, 1fr);
   gap: 12px; align-items: center;
-  min-height: 34px; border-bottom: 1px solid var(--line);
+  min-height: var(--input-h); border-bottom: 1px solid var(--line);
   font-size: 12px;
 }
 .kv-row .k { color: var(--muted); }
@@ -145,7 +145,7 @@
 .cfg-row__control input[type="email"],
 .cfg-row__control select,
 .cfg-row__control textarea {
-  width: 100%; max-width: 560px; height: 34px; padding: 0 10px;
+  width: 100%; max-width: 560px; height: var(--input-h); padding: 0 10px;
   border: 1px solid var(--line-strong); border-radius: 6px;
   background: var(--bg); color: var(--text); font: inherit; font-size: 13px;
 }
@@ -173,7 +173,7 @@
 .readonly-path {
   width: 100%;
   max-width: 560px;
-  height: 34px;
+  height: var(--input-h);
   line-height: 32px;
   padding: 0 10px;
   border: 1px dashed var(--line-strong);

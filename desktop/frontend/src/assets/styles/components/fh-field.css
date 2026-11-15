@@ -24,7 +24,7 @@
 .fh-field__control input[type="password"],
 .fh-field__control select,
 .fh-field__control textarea {
-  width: 100%; max-width: 560px; height: 34px;
+  width: 100%; max-width: 560px; height: var(--input-h);
   padding: 0 10px;
   border: 1px solid var(--line-strong); border-radius: 6px;
   background: var(--bg); color: var(--text);
