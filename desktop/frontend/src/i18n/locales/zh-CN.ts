@@ -146,6 +146,7 @@ export const zhCN: Record<string, string> = {
   'matrix.accessEmpty': '日志为空或文件不存在',
 
   // ---- 运行快照 / Monitor ----
+  'monitor.center': '监控中心',
   'monitor.loading': '正在读取 Monitor 状态…',
   'monitor.notInstalledBody': 'Monitor 未安装：没有采集到本机动态。',
   'monitor.notInstalled': 'Monitor 未安装',

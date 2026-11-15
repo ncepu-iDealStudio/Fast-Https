@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
-import { RefreshCw, RotateCcw, ChevronDown, Pause, Play } from '@lucide/vue';
+import { RefreshCw, RotateCcw, ChevronDown, Pause, Play, Search } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { queryLogs } from '../../services/api/log';
 import { messageOf } from '../../services/api/base';
-import FhButton from '../../components/ui/FhButton.vue';
 import type { LogEntry } from '../../types/model';
 
 const { t } = useI18n();
@@ -138,19 +137,18 @@ watch(() => filters.kind, () => nextTick(() => { if (viewport.value) viewport.va
           @click="pickKind(k.key)"
         >{{ t(k.label) }}</button>
       </div>
-      <FhButton :loading="loading" @click="load()">
-        <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
-      </FhButton>
-      <FhButton @click="reset">
-        <RotateCcw :size="14" /><span>{{ t('logs.reset') }}</span>
-      </FhButton>
+      <button class="icon-btn" :title="t('common.refresh')" :disabled="loading" @click="load()">
+        <RefreshCw :size="14" />
+      </button>
+      <button class="icon-btn" :title="t('logs.reset')" @click="reset">
+        <RotateCcw :size="14" />
+      </button>
       <button
-        class="live-btn" :class="{ 'live-btn--on': live }"
+        class="icon-btn live-btn" :class="{ 'live-btn--on': live }"
         :title="live ? t('logs.autoRefreshOn') : t('logs.autoRefreshOff')"
         @click="setLive(!live)"
       >
-        <component :is="live ? Pause : Play" :size="12" />
-        <span>{{ t('logs.autoRefresh') }}</span>
+        <component :is="live ? Pause : Play" :size="14" />
       </button>
       <span class="logs-count mono">{{ statusText }}</span>
     </div>
@@ -161,7 +159,7 @@ watch(() => filters.kind, () => nextTick(() => { if (viewport.value) viewport.va
       <input v-model="filters.host" type="text" :placeholder="t('logs.hostPh')" @keyup.enter="load()" />
       <input v-model="filters.method" type="text" :placeholder="t('logs.methodPh')" @keyup.enter="load()" />
       <input v-model="filters.pathPrefix" type="text" :placeholder="t('logs.pathPh')" @keyup.enter="load()" />
-      <FhButton size="small" @click="load()">{{ t('logs.apply') }}</FhButton>
+      <button class="icon-btn" :title="t('logs.apply')" @click="load()"><Search :size="14" /></button>
     </div>
 
     <button class="filter-toggle" @click="advanced = !advanced">
@@ -205,7 +203,7 @@ watch(() => filters.kind, () => nextTick(() => { if (viewport.value) viewport.va
           <span class="logrow__host mono">{{ e.host || '—' }}<template v-if="e.remoteAddr"> · {{ e.remoteAddr }}</template></span>
         </div>
         <div v-if="hasMore" class="logtable__more">
-          <FhButton :loading="loading" size="small" @click="load(true)">{{ t('logs.more') }}</FhButton>
+          <button class="icon-btn" :title="t('logs.more')" :disabled="loading" @click="load(true)"><ChevronDown :size="14" /></button>
         </div>
       </div>
     </div>

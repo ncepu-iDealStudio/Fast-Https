@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCw } from '@lucide/vue';
+import { RefreshCw, ChevronDown } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { runCommand } from '../../services/api/command';
 import { messageOf } from '../../services/api/base';
-import FhButton from '../../components/ui/FhButton.vue';
 
 const { t } = useI18n();
 
@@ -131,9 +130,7 @@ onMounted(() => { void load(); });
 <template>
   <div class="main__body ops-page">
     <div class="toolbar">
-      <FhButton :loading="loading" @click="load()">
-        <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
-      </FhButton>
+      <button class="icon-btn" :title="t('common.refresh')" :disabled="loading" @click="load()"><RefreshCw :size="14" /></button>
       <select v-model="filter" class="ops-filter" @change="pickStatus">
         <option value="">{{ t('ops.filterAll') }}</option>
         <option v-for="(v, k) in STATUS" :key="k" :value="k">{{ t(v[1]) }}</option>
@@ -197,7 +194,7 @@ onMounted(() => { void load(); });
           </div>
         </template>
         <div v-if="!allLoaded && shown.length" class="opstable__more">
-          <FhButton :loading="loading" size="small" @click="loadMore">{{ t('logs.more') }}</FhButton>
+          <button class="icon-btn" :title="t('logs.more')" :disabled="loading" @click="loadMore"><ChevronDown :size="14" /></button>
         </div>
         <div v-else-if="allLoaded && shown.length" class="opstable__end">{{ t('logs.statusOldest') }}</div>
       </div>

@@ -1,0 +1,35 @@
+/* 底部状态栏：矮栏、信息精简、右侧纯图标按钮。
+   参考桌面端状态栏惯例：左侧「状态 + 关键事实」，右侧「时间 + 操作图标」。 */
+.dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.dot.state-ok { background: var(--ok); }
+.dot.state-warn { background: var(--warn); }
+.dot.state-off { background: var(--faint); }
+
+.footbar {
+  flex: 0 0 40px;
+  height: 40px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px;
+  padding: 0 20px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  overflow: hidden;
+}
+.footbar__status { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.footbar__status strong { color: var(--text); font-weight: 600; }
+.footbar__sep { color: var(--line-strong); }
+.footbar__hint { color: var(--muted); font-size: var(--fs-xs); }
+.footbar__err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; }
+.footbar__actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.footbar__checked { color: var(--muted); font-size: var(--fs-xs); }
+
+@media (max-width: 900px) {
+  .footbar__hint, .footbar__checked { display: none; }
+}

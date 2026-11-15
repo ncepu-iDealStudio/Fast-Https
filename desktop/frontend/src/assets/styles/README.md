@@ -15,10 +15,14 @@ assets/styles/
 │   └── badge.css          状态徽标
 ├── layout/                窗口骨架与全局排版
 │   ├── index.css
-│   └── window.css         顶栏、侧边导航、主区
+│   ├── window.css         顶栏、侧边导航、主区
+│   └── footbar.css        底部状态栏
 └── views/                 按页面
     ├── index.css
-    └── overview.css       概览页卡片
+    ├── overview.css       共享卡片 / 告警条 / 事件列表（多页复用）
+    ├── monitor.css        监控中心（合并概览/状态矩阵/运行快照）
+    ├── icon-btn.css       图标按钮
+    └── ...                各页面专有样式
 ```
 
 ## 约定

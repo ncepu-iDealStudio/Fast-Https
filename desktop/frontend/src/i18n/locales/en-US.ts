@@ -146,6 +146,7 @@ export const enUS: Record<string, string> = {
   'matrix.accessEmpty': 'Log empty or file missing',
 
   // ---- Runtime snapshot / Monitor ----
+  'monitor.center': 'Monitor Center',
   'monitor.loading': 'Loading Monitor status…',
   'monitor.notInstalledBody': 'Monitor is not installed: no local activity collected.',
   'monitor.notInstalled': 'Monitor not installed',

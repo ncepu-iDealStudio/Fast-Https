@@ -9,15 +9,19 @@ export const useOverviewStore = defineStore('overview', () => {
   const loading = ref(false);
   const error = ref('');
 
-  async function refresh(): Promise<void> {
-    loading.value = true;
+  /**
+   * silent=true 用于 2 秒轮询：只更新数据，不碰 loading——
+   * 否则按钮每 2 秒闪一次 spinner，重载这类手动按钮看起来像在自动执行。
+   */
+  async function refresh(silent = false): Promise<void> {
+    if (!silent) loading.value = true;
     error.value = '';
     try {
       data.value = await getOverview();
     } catch (e) {
       error.value = messageOf(e);
     } finally {
-      loading.value = false;
+      if (!silent) loading.value = false;
     }
   }
 

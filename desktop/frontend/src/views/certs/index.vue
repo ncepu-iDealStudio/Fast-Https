@@ -35,9 +35,7 @@ function statusLabel(s: string): string {
     <p class="lede" v-html="t('certs.lede')" />
 
     <div class="toolbar">
-      <FhButton :loading="certs.loading" @click="certs.refresh()">
-        <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
-      </FhButton>
+      <button class="icon-btn" :title="t('common.refresh')" :disabled="certs.loading" @click="certs.refresh()"><RefreshCw :size="14" /></button>
       <FhButton @click="trustOpen = true">
         <ShieldCheck :size="14" /><span>{{ t('certs.trust') }}</span>
       </FhButton>

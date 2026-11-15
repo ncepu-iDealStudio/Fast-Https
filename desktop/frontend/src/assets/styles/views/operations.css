@@ -48,7 +48,7 @@
 .opsrow__time { color: var(--muted); }
 .opsrow__cmd { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .opsrow__ver { color: var(--text); }
-.opsrow__restore { color: var(--faint); }
+.opsrow__restore { color: var(--muted); }
 
 .opstable__more { display: flex; justify-content: center; padding: 12px 0 14px; }
 .opstable__end {

@@ -1,4 +1,4 @@
-/* 概览页：状态卡片网格与迁移占位块。卡片质感沿用旧版 components.css。 */
+/* 姒傝椤碉細鐘舵€佸崱鐗囩綉鏍间笌杩佺Щ鍗犱綅鍧椼€傚崱鐗囪川鎰熸部鐢ㄦ棫鐗?components.css銆?*/
 
 .cards {
   display: grid;
@@ -23,7 +23,7 @@
 
 .mono { font-family: var(--font-mono); }
 
-/* 未完成 pane 的占位块：虚线框保持与卡片一致的留白 */
+/* 鏈畬鎴?pane 鐨勫崰浣嶅潡锛氳櫄绾挎淇濇寔涓庡崱鐗囦竴鑷寸殑鐣欑櫧 */
 .placeholder {
   padding: 18px 20px;
   color: var(--muted);
@@ -37,7 +37,7 @@
   font-size: 11px; color: var(--faint);
 }
 
-/* ---------------------------------------------------------------- 概览页 */
+/* ---------------------------------------------------------------- 姒傝椤?*/
 .alert-strip {
   display: flex; flex-direction: column; gap: 4px;
   margin-bottom: 14px; padding: 11px 16px;
@@ -53,10 +53,6 @@
   font-size: 13px; margin-bottom: 14px;
 }
 .overview-state__text { font-size: 14px; }
-.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
-.dot.state-ok { background: var(--ok); }
-.dot.state-warn { background: var(--warn); }
-.dot.state-off { background: var(--faint); }
 
 .overview-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
@@ -66,10 +62,10 @@
   padding-top: 14px; border-top: 1px solid var(--line);
 }
 .metric { display: flex; flex-direction: column; gap: 2px; }
-.metric__k { font-size: 11px; color: var(--faint); }
+.metric__k { font-size: 11px; color: var(--muted); }
 .metric__v { font-size: 15px; font-weight: 600; }
 
-/* 常用操作：图标 + 标题的入口栅格 */
+/* 甯哥敤鎿嶄綔锛氬浘鏍?+ 鏍囬鐨勫叆鍙ｆ爡鏍?*/
 .quick-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 10px;
@@ -83,9 +79,9 @@
 }
 .quick-item:hover { border-color: var(--accent); color: var(--accent); background: var(--surface); }
 
-/* 本机动态时间线 */
+/* 鏈満鍔ㄦ€佹椂闂寸嚎 */
 .event-list { list-style: none; margin: 0; padding: 0; }
-.event-list__empty { padding: 16px 0; font-size: 12px; color: var(--faint); }
+.event-list__empty { padding: 16px 0; font-size: 12px; color: var(--muted); }
 .event-list__item {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 9px 0;

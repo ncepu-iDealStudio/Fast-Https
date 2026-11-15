@@ -9,11 +9,11 @@
   display: inline-flex;
   padding: 2px;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 .seg__item {
-  height: 28px; padding: 0 12px;
+  height: var(--btn-h-sm); padding: 0 12px;
   border: 0; border-radius: 6px;
   background: transparent; color: var(--muted);
   font-size: 12px; cursor: pointer;
@@ -24,16 +24,8 @@
   box-shadow: 0 1px 2px rgba(16, 20, 28, .06);
 }
 
-/* 实时开关：状态一眼可辨，开启时用强调色点提示「正在跟上」 */
-.live-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 30px; padding: 0 10px;
-  border: 1px solid var(--line-strong); border-radius: 6px;
-  background: var(--bg); color: var(--muted);
-  font-size: 12px; cursor: pointer;
-}
-.live-btn:hover { border-color: var(--accent); color: var(--accent); }
-.live-btn--on { color: var(--ok); border-color: var(--ok); }
+/* 实时开关：复用全局 .icon-btn 的尺寸，这里只补「运行中」的状态色 */
+.icon-btn.live-btn--on { color: var(--ok); border-color: var(--ok); }
 
 .logs-count { font-size: 11px; color: var(--faint); margin-left: auto; }
 
@@ -93,8 +85,8 @@
 .logrow__method { color: var(--text); font-weight: 500; }
 .logrow__path { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .logrow__status { color: var(--muted); }
-.logrow__size { color: var(--faint); text-align: right; }
-.logrow__host { color: var(--faint); overflow: hidden; text-overflow: ellipsis; }
+.logrow__size { color: var(--muted); text-align: right; }
+.logrow__host { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 
 .logtable__more {
   display: flex; justify-content: center;

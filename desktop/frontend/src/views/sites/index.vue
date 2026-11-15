@@ -102,9 +102,7 @@ async function onDelete(id: string): Promise<void> {
     <p class="lede" v-html="t('sites.lede')" />
 
     <div class="toolbar">
-      <FhButton :loading="sites.loading" @click="sites.refresh()">
-        <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
-      </FhButton>
+      <button class="icon-btn" :title="t('common.refresh')" :disabled="sites.loading" @click="sites.refresh()"><RefreshCw :size="14" /></button>
       <FhButton variant="primary" @click="openAdd">
         <Plus :size="14" /><span>{{ t('sites.add') }}</span>
       </FhButton>

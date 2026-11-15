@@ -6,8 +6,8 @@ import { switchLang } from '../i18n';
 import { translate } from '../composables/useI18n';
 
 export type PaneKey =
-  | 'overview' | 'matrix' | 'sites' | 'certs' | 'logs'
-  | 'runtime' | 'operations' | 'versions' | 'settings';
+  | 'monitor' | 'sites' | 'certs' | 'logs'
+  | 'operations' | 'versions' | 'settings';
 
 /** 外观三态：亮 / 暗 / 跟随系统。跟随模式下 data-mode 随系统实时切换。 */
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -19,12 +19,12 @@ const PANE_KEY = 'fast-https.pane';
 // 不进导航，也不该成为「上次停留的页面」——否则刷新后卡在设置页且
 // 侧栏没有任何高亮项，用户以为界面坏了。
 const NAV_PANES: readonly PaneKey[] = [
-  'overview', 'matrix', 'sites', 'certs', 'logs', 'runtime', 'operations', 'versions',
+  'monitor', 'sites', 'certs', 'logs', 'operations', 'versions',
 ];
 
 function initialPane(): PaneKey {
   const saved = localStorage.getItem(PANE_KEY) as PaneKey | null;
-  return saved && NAV_PANES.includes(saved) ? saved : 'overview';
+  return saved && NAV_PANES.includes(saved) ? saved : 'monitor';
 }
 
 function initialMode(): ThemeMode {

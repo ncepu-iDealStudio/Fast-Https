@@ -60,6 +60,14 @@ html[data-mode="dark"] {
   --field-row-gap: 14px;
   --control-h: 32px;
 
+  /* 控件尺寸：所有按钮/输入框/分段控件统一从这里取值，避免各页自己写宽高 */
+  --btn-h: 32px;
+  --btn-h-sm: 28px;
+  --btn-h-lg: 36px;
+  --btn-pad: 12px;
+  --icon-btn: 32px;
+  --icon-size: 14px;
+
   --font-ui: "Segoe UI Variable", "Segoe UI", "PingFang SC", "Microsoft YaHei UI",
              "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --font-mono: Consolas, "Courier New", monospace;

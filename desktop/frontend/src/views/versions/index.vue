@@ -114,9 +114,7 @@ onMounted(() => { void load(); });
 <template>
   <div class="main__body versions-page">
     <div class="toolbar">
-      <FhButton :loading="loading" @click="load()">
-        <RefreshCw :size="14" /><span>{{ t('common.refresh') }}</span>
-      </FhButton>
+      <button class="icon-btn" :title="t('common.refresh')" :disabled="loading" @click="load()"><RefreshCw :size="14" /></button>
       <span class="logs-count mono">{{ versions.length }}</span>
     </div>
 
@@ -161,9 +159,7 @@ onMounted(() => { void load(); });
         <h3>
           {{ t('settings.diff') }} · <span class="mono">{{ diffVersion }}</span>
         </h3>
-        <FhButton size="small" @click="diffVersion = ''; diff = null">
-          <X :size="12" /><span>{{ t('common.close') }}</span>
-        </FhButton>
+        <button class="icon-btn" :title="t('common.close')" @click="diffVersion = ''; diff = null"><X :size="14" /></button>
       </div>
 
       <div v-if="diffLoading" class="notice">{{ t('settings.diffRunning') }}</div>

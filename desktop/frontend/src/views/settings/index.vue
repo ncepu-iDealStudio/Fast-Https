@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCw, Save, CheckCircle2, Plus, X } from '@lucide/vue';
+import { RefreshCw, Save, CheckCircle2, Plus, X, FolderOpen } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { readConfigForm, saveConfigForm } from '../../services/api/log';
 import { runCommand } from '../../services/api/command';
@@ -141,12 +141,8 @@ onMounted(() => { void load(); });
 <template>
   <div class="main__body">
     <div class="toolbar">
-      <FhButton :loading="loading" @click="load()">
-        <RefreshCw :size="14" /><span>{{ t('settings.reloadFile') }}</span>
-      </FhButton>
-      <FhButton @click="validate">
-        <CheckCircle2 :size="14" /><span>{{ t('settings.validate') }}</span>
-      </FhButton>
+      <button class="icon-btn" :title="t('settings.reloadFile')" :disabled="loading" @click="load()"><RefreshCw :size="14" /></button>
+      <button class="icon-btn" :title="t('settings.validate')" @click="validate"><CheckCircle2 :size="14" /></button>
       <FhButton variant="primary" :loading="saving" :disabled="!dirty" @click="save">
         <Save :size="14" /><span>{{ t('settings.saveChanges') }}</span>
       </FhButton>
@@ -249,7 +245,7 @@ onMounted(() => { void load(); });
           <div v-else-if="f.browse" class="inline-fields">
             <input type="text" spellcheck="false" :value="values[f.path]"
                    @input="setValue(f.path, ($event.target as HTMLInputElement).value)" />
-            <FhButton size="small" @click="browse(f)">{{ t('settings.browse') }}</FhButton>
+            <button class="icon-btn" :title="t('settings.browse')" @click="browse(f)"><FolderOpen :size="13" /></button>
           </div>
           <!-- 鏅€氭枃鏈?/ 鏁板瓧 / 閭 -->
           <input

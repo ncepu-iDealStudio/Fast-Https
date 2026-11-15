@@ -1,5 +1,6 @@
 /* 视图层聚合：shared 先加载（各页通用元素），页面样式在其后覆盖。 */
 @import './shared.css';
+@import './monitor.css';
 @import './overview.css';
 @import './logs.css';
 @import './operations.css';
