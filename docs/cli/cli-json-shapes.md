@@ -213,6 +213,8 @@
   | `--listen` | []string（可重复） | 监听值，如 `80`、`"443 ssl h2"` | 空 → `["80"]`；`--tls` 时 `["80","443 ssl h2"]` |
   | `--proxy-pass` | string | 反代上游；设置后站点类型为 proxy | `""` |
   | `--tls` | bool | 启用 TLS（给监听补 `ssl h2`、补默认证书路径） | `false` |
+  | `--ssl-certificate` | string | 证书路径；留空走默认约定 `config/cert/<域名>.pem`（多站点可指向同一张证书） | `""` |
+  | `--ssl-certificate-key` | string | 私钥路径；留空走默认约定 `config/cert/<域名>-key.pem` | `""` |
   | `--config` | string | 主配置文件 | 编译期默认路径 |
   | `--dry-run` | bool | 只生成差异，不应用（不写文件、不 reload、不建恢复点、不记 operation） | `false` |
   | `--yes` | bool | 确认执行 | `false` |
@@ -230,27 +232,36 @@
     `USAGE_ERROR`（2），且发生在事务外（不产生 uncertain 状态）。
   - `--tls` 语义："至少一个 TLS 监听"，永不给 80 贴 ssl；给了 `--listen` 又 `--tls` 时
     443 升级成 TLS / 非 80 监听升级 / 全是 80 则补 `443 ssl h2`。
+  - **证书复用**：证书按域名命名（`config/cert/<域名>.pem`）。文件已存在时直接把路径写进
+    站点，**不重新签发、不覆盖**；不存在则留空，等首次 `start` 由本地 CA 生成。
+    想多个站点共用一张证书（如通配符）就显式传 `--ssl-certificate/--ssl-certificate-key`。
   - 事务失败错误码按 §0.5/§0.3；`request_id` 自动生成。
 
 ### 1.4 `site update <name>`
 
 - **命令标识**：`site.update`
 - **flags**：`--listen`（[]string）、`--server-name`（string）、`--root`（string）、
-  `--proxy-pass`（string）、`--tls`（bool，`false`）、`--config`、`--dry-run`（`false`）、`--yes`（`false`）。
+  `--proxy-pass`（string）、`--tls`（bool，`false`）、`--ssl-certificate`（string）、
+  `--ssl-certificate-key`（string）、`--config`、`--dry-run`（`false`）、`--yes`（`false`）。
 - **data JSON**：同 §0.5 事务结果。
 - **行为要点**：白名单字段之外的任意 JSON 合并被拒绝（没有相应 flag）。至少要显式传一个
   变更 flag，否则 `USAGE_ERROR`。**非 dry-run 必须 `--yes`**（`update requires --yes; use --dry-run to preview`）。
   只改 URL 为 `/` 的 location，其余手写 location 保留。站点内联在主配置 `http.server[]` →
   `NOT_SUPPORTED`（11）；站点不存在 → `NOT_FOUND`（9）；server_name 在同一监听端口重复 →
   `CONFLICT`（10）。
+- **证书路径跟随**：改 `--server-name` 时，若证书路径是「文件名等于旧主域名」的约定路径
+  （`<旧域名>.pem` / `<旧域名>-key.pem`，目录为 `cert`），路径会跟着改名为新域名；自定义路径
+  （通配符证书、多站点共享的证书）一律不动。显式传 `--ssl-certificate*` 时以传入值为准，
+  传空串表示交回默认约定（首次 start 重新生成）。
 
 ### 1.5 `site delete <name>`
 
 - **命令标识**：`site.delete`
 - **flags**：`--config`、`--dry-run`（`false`）、`--yes`（`false`）
 - **data JSON**：同 §0.5 事务结果。
-- **行为要点**：**非 dry-run 必须 `--yes`**。只删站点配置文件，不删内容目录与证书。
-  内联站点 → `NOT_SUPPORTED`（11）；不存在 → `NOT_FOUND`（9）。
+- **行为要点**：**非 dry-run 必须 `--yes`**。只删站点配置文件，不删内容目录与证书 ——
+  证书按域名落在 `config/cert` 下，重建同名站点可直接复用，文本模式会在 stderr 提示
+  保留了哪些证书文件。内联站点 → `NOT_SUPPORTED`（11）；不存在 → `NOT_FOUND`（9）。
 
 ### 1.6 `site enable <name>` / `site disable <name>`
 

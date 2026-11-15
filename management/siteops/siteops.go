@@ -37,6 +37,10 @@ type AddInput struct {
 	ProxyPass string
 	TLS       bool
 	Banned    []string
+	// SSLCertificate / SSLCertificateKey 留空表示走默认约定（config/cert/<域名>.pem）；
+	// 显式给出时按给定路径写入，用于多站点共享同一张证书（如通配符证书）。
+	SSLCertificate    string
+	SSLCertificateKey string
 }
 
 // UpdateInput 是 site update 的白名单字段。未设置的指针表示不改。
@@ -55,6 +59,9 @@ type UpdateInput struct {
 	Auth       *config.PathAuth
 	Cache      *config.Cache
 	Banned     []string
+	// 证书路径同样是三态：nil 不改；指向空串表示交回默认约定（首次 start 生成）。
+	SSLCertificate    *string
+	SSLCertificateKey *string
 }
 
 // RunInput 是一次站点写操作。
@@ -242,9 +249,14 @@ func Add(dirs []string, in AddInput) (string, error) {
 	if err := rejectDuplicateServerName(dirs, "", strings.TrimSpace(in.Domain), listens); err != nil {
 		return "", err
 	}
+	if (in.SSLCertificate != "" || in.SSLCertificateKey != "") && !hasSSL(listens) {
+		return "", fmt.Errorf("%w: --ssl-certificate requires a TLS listen (use --tls or \"443 ssl\" in --listen)", ErrUsage)
+	}
 	si := config.SiteInput{
-		Listens:    listens,
-		ServerName: strings.TrimSpace(in.Domain),
+		Listens:           listens,
+		ServerName:        strings.TrimSpace(in.Domain),
+		SSLCertificate:    strings.TrimSpace(in.SSLCertificate),
+		SSLCertificateKey: strings.TrimSpace(in.SSLCertificateKey),
 	}
 	if strings.TrimSpace(in.ProxyPass) != "" {
 		si.Locations = []config.SiteLocation{{URL: "/", Type: "proxy", ProxyPass: strings.TrimSpace(in.ProxyPass)}}
@@ -299,10 +311,21 @@ func Update(dirs []string, liveMain string, in UpdateInput) (string, error) {
 			if err := rejectDuplicateServerName(dirs, in.Name, name, effListens); err != nil {
 				return err
 			}
+			followCertRename(cur, name)
 			cur.ServerName = name
 		}
 		if in.Listens != nil || in.TLS != nil {
 			cur.Listens = effListens
+		}
+		// 显式指定证书放在改名跟随之后：同时给两者时以用户给的路径为准。
+		if in.SSLCertificate != nil {
+			cur.SSLCertificate = strings.TrimSpace(*in.SSLCertificate)
+		}
+		if in.SSLCertificateKey != nil {
+			cur.SSLCertificateKey = strings.TrimSpace(*in.SSLCertificateKey)
+		}
+		if (in.SSLCertificate != nil || in.SSLCertificateKey != nil) && !hasSSL(cur.Listens) {
+			return fmt.Errorf("%w: --ssl-certificate requires a TLS listen", ErrUsage)
 		}
 		if in.Root != nil || in.ProxyPass != nil {
 			loc := primaryLoc(cur)
@@ -435,19 +458,106 @@ func asInvalid(err error) error {
 	return &view.InvalidError{Message: err.Error()}
 }
 
-// Delete 只删站点配置文件。
-func Delete(dirs []string, liveMain, name string) (string, error) {
+// Delete 只删站点配置文件。返回被保留（未删除）的证书文件，供调用方提示。
+//
+// 证书与私钥按域名放在 config/cert 下、会被同名站点复用，所以删除站点时
+// 刻意不动它们：重建同名站点能直接拿回原来的证书，不需要重新签发。
+func Delete(dirs []string, liveMain, name string) (string, []string, error) {
 	if err := site.ValidateName(name); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrUsage, err)
+		return "", nil, fmt.Errorf("%w: %v", ErrUsage, err)
 	}
 	if inlineSite(liveMain, name) {
-		return "", fmt.Errorf("%w: site %s is inline in the main config", ErrNotSupported, name)
+		return "", nil, fmt.Errorf("%w: site %s is inline in the main config", ErrNotSupported, name)
 	}
+	kept := certFilesOf(dirs, name)
 	p, err := site.Remove(dirs, name)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrNotFound, err)
+		return "", nil, fmt.Errorf("%w: %v", ErrNotFound, err)
 	}
-	return p, nil
+	return p, kept, nil
+}
+
+// certFilesOf 读出站点文件里声明的、磁盘上确实存在的证书/私钥路径。
+func certFilesOf(dirs []string, name string) []string {
+	path, ok := site.Find(dirs, name)
+	if !ok {
+		path, ok = site.FindDisabled(dirs, name)
+	}
+	if !ok {
+		return nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	si, err := config.ParseSiteInput(raw)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, declared := range []string{si.SSLCertificate, si.SSLCertificateKey} {
+		declared = strings.TrimSpace(declared)
+		if declared == "" {
+			continue
+		}
+		for _, candidate := range []string{
+			declared,
+			filepath.Join(filepath.Dir(path), declared),
+			// 相对主配置根目录（conf.d 的上一级）解析：站点文件里常见 "./cert/x.pem"
+			filepath.Join(filepath.Dir(filepath.Dir(path)), declared),
+			filepath.Join(config.CERT_DIR, filepath.Base(declared)),
+		} {
+			if _, err := os.Stat(candidate); err != nil || seen[candidate] {
+				continue
+			}
+			seen[candidate] = true
+			out = append(out, candidate)
+			break
+		}
+	}
+	return out
+}
+
+// followCertRename 在站点改名时让「按域名自动命名」的证书路径跟着改名。
+//
+// 只跟随约定路径（文件名等于 <旧主域名>.pem / <旧主域名>-key.pem，且位于证书
+// 目录）：自定义路径可能是通配符证书或多站点共享的同一张证书，改名时不能动。
+func followCertRename(cur *config.SiteInput, newServerName string) {
+	oldPrimary, newPrimary := primaryName(cur.ServerName), primaryName(newServerName)
+	if oldPrimary == "" || newPrimary == "" || strings.EqualFold(oldPrimary, newPrimary) {
+		return
+	}
+	if conventionalCertPath(cur.SSLCertificate, oldPrimary) {
+		cur.SSLCertificate = filepath.Join(filepath.Dir(cur.SSLCertificate), newPrimary+".pem")
+	}
+	if conventionalCertPath(cur.SSLCertificateKey, oldPrimary) {
+		cur.SSLCertificateKey = filepath.Join(filepath.Dir(cur.SSLCertificateKey), newPrimary+"-key.pem")
+	}
+}
+
+// primaryName 取 server_name 的第一个域名（多域名写法空格分隔）。
+func primaryName(serverName string) string {
+	fields := strings.Fields(serverName)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
+// conventionalCertPath 判断 path 是否是「文件名就是主域名」的约定路径。
+func conventionalCertPath(path, primary string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" || primary == "" {
+		return false
+	}
+	base := strings.ToLower(filepath.Base(path))
+	want := strings.ToLower(primary)
+	if base != want+".pem" && base != want+"-key.pem" {
+		return false
+	}
+	dir := filepath.Dir(path)
+	return dir == "." || strings.EqualFold(filepath.Base(dir), "cert")
 }
 
 // SetEnabled 启用或停用。
