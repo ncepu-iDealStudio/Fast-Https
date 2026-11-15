@@ -450,6 +450,8 @@ export const enUS: Record<string, string> = {
   'settings.diffOpRemoved': 'Removed',
   'settings.diffOpModified': 'Modified',
   'settings.diffSensitive': 'Sensitive key changed (value hidden)',
+  'settings.diffOldHeader': 'Before',
+  'settings.diffNewHeader': 'After',
   'settings.diffPath': 'Setting',
   'settings.diffChange': 'Change',
   'settings.diffOld': 'old {v}',

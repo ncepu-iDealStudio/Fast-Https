@@ -23,7 +23,7 @@
 
 .mono { font-family: var(--font-mono); }
 
-/* 鏈畬鎴?pane 鐨勫崰浣嶅潡锛氳櫄绾挎淇濇寔涓庡崱鐗囦竴鑷寸殑鐣欑櫧 */
+/* 占位块：虚线框保持与卡片一致的留白 */
 .placeholder {
   padding: 18px 20px;
   color: var(--muted);

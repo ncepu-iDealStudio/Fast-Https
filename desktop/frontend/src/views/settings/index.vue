@@ -1,16 +1,18 @@
 <script setup lang="ts">
+/** 主配置页编排壳：读取/校验/保存，字段渲染交给 ConfigField。 */
 import { computed, onMounted, ref } from 'vue';
-import { RefreshCw, Save, CheckCircle2, Plus, X, FolderOpen } from '@lucide/vue';
+import { RefreshCw, Save, CheckCircle2 } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { readConfigForm, saveConfigForm } from '../../services/api/log';
 import { runCommand } from '../../services/api/command';
 import { pickPath, getRuntimePaths } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 import FhButton from '../../components/ui/FhButton.vue';
-import type { ConfigField, ConfigForm } from '../../types/config';
+import ConfigField from './components/ConfigField.vue';
+import RuntimePathRow from './components/RuntimePathRow.vue';
+import type { ConfigField as Field, ConfigForm } from '../../types/config';
 
 const { t } = useI18n();
-
 const form = ref<ConfigForm | null>(null);
 const initial = ref<Record<string, string>>({});
 const values = ref<Record<string, string>>({});
@@ -18,17 +20,12 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
 const notice = ref('');
-
-/** pid 与日志根是运行期派生路径，只读展示，不进表单也不参与保存。 */
 const runtimePid = ref('');
 const runtimeLog = ref('');
 
-
-  /** 字段按 group 分组，与后端 fieldSpec 的 group 一致。
-   *  pid / log_root 是运行期派生路径，不进可编辑表单，在「基础」组里只读展示。 */
 const groups = computed(() => {
-  if (!form.value) return [] as { name: string; fields: ConfigField[] }[];
-  const map = new Map<string, ConfigField[]>();
+  if (!form.value) return [] as { name: string; fields: Field[] }[];
+  const map = new Map<string, Field[]>();
   for (const f of form.value.fields) {
     if (f.path === 'pid' || f.path === 'log_root') continue;
     const list = map.get(f.group) ?? [];
@@ -47,6 +44,10 @@ const changed = computed(() => {
 });
 const dirty = computed(() => Object.keys(changed.value).length > 0);
 
+function setValue(path: string, v: string): void {
+  values.value = { ...values.value, [path]: v };
+}
+
 async function load(): Promise<void> {
   loading.value = true;
   error.value = '';
@@ -57,7 +58,6 @@ async function load(): Promise<void> {
     for (const fld of f.fields) init[fld.path] = fld.value ?? '';
     initial.value = init;
     values.value = { ...init };
-    // 运行期路径（pid / 日志根）单独拉，用于只读展示
     const p = await getRuntimePaths();
     runtimePid.value = p.pid || '';
     runtimeLog.value = p.log || '';
@@ -69,41 +69,11 @@ async function load(): Promise<void> {
   }
 }
 
-function setValue(path: string, v: string): void {
-  values.value = { ...values.value, [path]: v };
-}
-
-function multiChecked(f: ConfigField, opt: string): boolean {
-  return String(values.value[f.path] ?? '').split('\n').map((s) => s.trim()).includes(opt);
-}
-function toggleMulti(f: ConfigField, opt: string): void {
-  const cur = String(values.value[f.path] ?? '').split('\n').map((s) => s.trim()).filter(Boolean);
-  const next = cur.includes(opt) ? cur.filter((x) => x !== opt) : [...cur, opt];
-  setValue(f.path, next.join('\n'));
-}
-function pathRows(f: ConfigField): string[] {
-  const rows = String(values.value[f.path] ?? '').split('\n').map((s) => s.trim()).filter(Boolean);
-  return rows.length ? rows : [''];
-}
-function setPathRow(f: ConfigField, i: number, v: string): void {
-  const rows = pathRows(f);
-  rows[i] = v;
-  setValue(f.path, rows.filter(Boolean).join('\n'));
-}
-function addPathRow(f: ConfigField): void {
-  const rows = pathRows(f);
-  rows.push('');
-  setValue(f.path, rows.filter(Boolean).join('\n'));
-}
-function delPathRow(f: ConfigField, i: number): void {
-  const rows = pathRows(f).filter((_, idx) => idx !== i);
-  setValue(f.path, rows.filter(Boolean).join('\n'));
-}
-
-async function browse(f: ConfigField): Promise<void> {
+async function browse(path: string): Promise<void> {
+  const f = form.value?.fields.find((x) => x.path === path);
   try {
-    const p = await pickPath(f.browse === 'file' ? 'file' : 'dir');
-    if (p) setValue(f.path, p);
+    const p = await pickPath(f?.browse === 'file' ? 'file' : 'dir');
+    if (p) setValue(path, p);
   } catch (e) {
     error.value = messageOf(e);
   }
@@ -132,9 +102,6 @@ async function validate(): Promise<void> {
   }
 }
 
-
-
-
 onMounted(() => { void load(); });
 </script>
 
@@ -153,110 +120,33 @@ onMounted(() => { void load(); });
     <p v-else-if="notice" class="notice">{{ notice }}</p>
 
     <p v-if="form" class="dlg-source mono">
-      {{ form.path }} 路 {{ form.size }} B 路 {{ form.modified }}
-      <template v-if="!form.writable"> 路 {{ t('settings.readonly') }}</template>
+      {{ form.path }} · {{ form.size }} B · {{ form.modified }}
+      <template v-if="!form.writable"> · {{ t('settings.readonly') }}</template>
     </p>
 
     <div v-if="loading && !form" class="notice">{{ t('settings.readingConfig') }}</div>
-
-    <!-- 读取失败或拿不到字段时给明确结论，避免只剩一张空白页 -->
     <div v-if="!loading && !form" class="card">
       <div class="card-head"><h3>{{ t('settings.readFailedTitle') }}</h3></div>
       <p class="field-note">{{ t('settings.readFailedBody') }}</p>
     </div>
 
     <div v-for="g in groups" :key="g.name" class="card">
-      <div class="card-head">
-        <h3>{{ g.name }}</h3>
-      </div>
+      <div class="card-head"><h3>{{ g.name }}</h3></div>
 
-      <!-- 运行期路径：pid / 日志根，只读展示（派生自安装位置，改配置不改它们） -->
       <template v-if="g.name === '基础'">
-        <div class="cfg-row">
-          <label class="cfg-row__label">
-            <span>pid {{ t('settings.readonly') }}</span>
-            <small>{{ t('settings.pidReadonlyHint') }}</small>
-          </label>
-          <div class="cfg-row__control">
-            <div class="readonly-path mono" :title="runtimePid">{{ runtimePid || '—' }}</div>
-          </div>
-        </div>
-        <div class="cfg-row">
-          <label class="cfg-row__label">
-            <span>{{ t('settings.logRootLabel') }}</span>
-            <small>{{ t('settings.logRootHint') }}</small>
-          </label>
-          <div class="cfg-row__control">
-            <div class="readonly-path mono" :title="runtimeLog">{{ runtimeLog || '—' }}</div>
-          </div>
-        </div>
+        <RuntimePathRow
+          :label="`pid ${t('settings.readonly')}`" :hint="t('settings.pidReadonlyHint')" :value="runtimePid"
+        />
+        <RuntimePathRow
+          :label="t('settings.logRootLabel')" :hint="t('settings.logRootHint')" :value="runtimeLog"
+        />
       </template>
 
-      <div v-for="f in g.fields" :key="f.path" class="cfg-row" :class="{ 'cfg-row--missing': f.missing }">
-        <label class="cfg-row__label">
-          <span>{{ f.label }}</span>
-          <small v-if="f.help">{{ f.help }}</small>
-        </label>
-        <div class="cfg-row__control">
-          <!-- 多选 -->
-          <div v-if="f.type === 'multiselect'" class="choice-group">
-            <label v-for="o in (f.options ?? [])" :key="o" class="mini-field">
-              <input type="checkbox" :checked="multiChecked(f, o)" @change="toggleMulti(f, o)" />
-              <span>{{ o }}</span>
-            </label>
-          </div>
-          <!-- 寮€鍏?-->
-          <label v-else-if="f.type === 'bool'" class="mini-field">
-            <input
-              type="checkbox" :checked="values[f.path] === 'true'"
-              @change="setValue(f.path, ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
-            />
-            <span>{{ t('settings.formOn') }}</span>
-          </label>
-          <!-- 下拉 -->
-          <select
-            v-else-if="f.type === 'select'"
-            :value="values[f.path]"
-            @change="setValue(f.path, ($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="o in (f.options ?? [])" :key="o" :value="o">
-              {{ o === '' ? t('settings.formUnset') : o }}
-            </option>
-          </select>
-          <!-- 路径列表 -->
-          <div v-else-if="f.type === 'pathlist'" class="path-list">
-            <div v-for="(row, i) in pathRows(f)" :key="i" class="path-row">
-              <input type="text" :value="row" spellcheck="false"
-                     @input="setPathRow(f, i, ($event.target as HTMLInputElement).value)" />
-              <FhButton size="small" @click="browse(f)">…</FhButton>
-              <FhButton size="small" @click="delPathRow(f, i)"><X :size="12" /></FhButton>
-            </div>
-            <FhButton size="small" @click="addPathRow(f)">
-              <Plus :size="12" /><span>{{ t('settings.pathAdd') }}</span>
-            </FhButton>
-          </div>
-          <!-- 多行 -->
-          <textarea
-            v-else-if="f.type === 'list' || f.type === 'textarea'"
-            rows="3" spellcheck="false" :value="values[f.path]"
-            @input="setValue(f.path, ($event.target as HTMLTextAreaElement).value)"
-          />
-          <!-- 鍗曡矾寰?-->
-          <div v-else-if="f.browse" class="inline-fields">
-            <input type="text" spellcheck="false" :value="values[f.path]"
-                   @input="setValue(f.path, ($event.target as HTMLInputElement).value)" />
-            <button class="icon-btn" :title="t('settings.browse')" @click="browse(f)"><FolderOpen :size="13" /></button>
-          </div>
-          <!-- 鏅€氭枃鏈?/ 鏁板瓧 / 閭 -->
-          <input
-            v-else
-            :type="f.type === 'number' ? 'number' : (f.type === 'email' ? 'email' : 'text')"
-            :value="values[f.path]"
-            @input="setValue(f.path, ($event.target as HTMLInputElement).value)"
-          />
-        </div>
-      </div>
+      <ConfigField
+        v-for="f in g.fields" :key="f.path"
+        :field="f" :value="values[f.path] ?? ''"
+        @change="setValue(f.path, $event)" @browse="browse(f.path)"
+      />
     </div>
-
   </div>
 </template>

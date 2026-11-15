@@ -1,8 +1,22 @@
-/* 视图层聚合：shared 先加载（各页通用元素），页面样式在其后覆盖。 */
+/* 视图层聚合：样式统一放在 assets/styles/views/ 下，按组件拆分文件。
+   每个 .css 对应一个组件/页面区块，由这里统一 @import。 */
 @import './shared.css';
-@import './monitor.css';
 @import './overview.css';
 @import './logs.css';
 @import './operations.css';
 @import './versions.css';
 @import './sites.css';
+@import './monitor.css';
+@import './monitor-hero.css';
+@import './monitor-metrics.css';
+@import './monitor-health.css';
+@import './monitor-detail.css';
+@import './monitor-events.css';
+@import './logs-toolbar.css';
+@import './logs-table.css';
+@import './sites-list.css';
+@import './sites-panel.css';
+@import './operations-table.css';
+@import './operations-detail.css';
+@import './versions-list.css';
+@import './versions-diff.css';

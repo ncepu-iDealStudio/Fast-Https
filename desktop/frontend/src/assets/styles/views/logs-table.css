@@ -1,0 +1,72 @@
+.logtable {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  margin-top: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 列：时间 / 级别 / 方法 / 路径 / 状态 / 大小 / 主机。路径列吃掉剩余宽度 */
+.logtable__head,
+.logrow {
+  display: grid;
+  grid-template-columns: 96px 48px 62px minmax(0, 1fr) 54px 68px 190px;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 14px;
+}
+
+.logtable__head {
+  position: sticky; top: 0; z-index: 2;
+  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--faint);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.logtable__body {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.logrow {
+  font-size: 11.5px;
+  border-bottom: 1px solid var(--line);
+  border-left: 2px solid transparent;
+  white-space: nowrap;
+}
+.logrow:hover { background: var(--surface); }
+.logrow:last-child { border-bottom: 0; }
+
+/* 状态色只落在左侧细条与状态码上，不整行染色，避免长列表视觉噪点 */
+.logrow--err { border-left-color: var(--danger); }
+.logrow--warn { border-left-color: var(--warn); }
+.logrow--ok { border-left-color: transparent; }
+.logrow--err .logrow__status { color: var(--danger); font-weight: 600; }
+.logrow--warn .logrow__status { color: var(--warn); font-weight: 600; }
+
+.logrow__time { color: var(--muted); }
+.logrow__lvl { color: var(--faint); text-transform: uppercase; font-size: 10.5px; }
+.logrow__method { color: var(--text); font-weight: 500; }
+.logrow__path { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.logrow__status { color: var(--muted); }
+.logrow__size { color: var(--muted); text-align: right; }
+.logrow__host { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+
+.logtable__more {
+  display: flex; justify-content: center;
+  padding: 12px 0 14px;
+}
+
+/* 窄窗口时收起次要列，保证路径列仍可读 */
+@media (max-width: 1080px) {
+  .logtable__head, .logrow {
+    grid-template-columns: 90px 44px minmax(0, 1fr) 52px 60px;
+  }
+  .logrow__lvl, .logtable__head > span:nth-child(2) { display: none; }
+  .logrow__host, .logtable__head > span:nth-child(7) { display: none; }
+}
+

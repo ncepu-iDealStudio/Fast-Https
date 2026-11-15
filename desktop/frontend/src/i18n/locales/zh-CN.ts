@@ -450,6 +450,8 @@ export const zhCN: Record<string, string> = {
   'settings.diffOpRemoved': '删除',
   'settings.diffOpModified': '修改',
   'settings.diffSensitive': '敏感键已变更（不显示值）',
+  'settings.diffOldHeader': '旧值',
+  'settings.diffNewHeader': '新值',
   'settings.diffPath': '配置项',
   'settings.diffChange': '变更',
   'settings.diffOld': '旧 {v}',
