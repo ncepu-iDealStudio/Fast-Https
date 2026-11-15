@@ -4,7 +4,7 @@ import { useI18n } from '../../composables/useI18n';
 import FhDialog from '../ui/FhDialog.vue';
 import FhButton from '../ui/FhButton.vue';
 import { addSite, readSiteDetail, saveSiteDetail } from '../../services/api/site';
-import { pickPath } from '../../services/api/app';
+import { pickAbsPath } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 import type { SiteInput } from '../../services/api/types';
 
@@ -249,7 +249,7 @@ function normalizePath(v: string): string {
 
 async function browse(): Promise<void> {
   try {
-    const p = await pickPath('dir');
+    const p = await pickAbsPath('dir');
     // 选择器返回的已经是绝对路径，这里再统一一次分隔符与引号，
     // 保证填进输入框的就是最终要用的那个字符串。
     if (p) form.root = normalizePath(p);
@@ -270,7 +270,7 @@ function normalizeRoot(): void {
 /** 证书/私钥走文件选择器；留空则由首次启动按域名自动生成。 */
 async function browseCert(kind: 'cert' | 'certKey'): Promise<void> {
   try {
-    const p = await pickPath('file');
+    const p = await pickAbsPath('file');
     if (!p) return;
     const value = normalizePath(p);
     if (kind === 'cert') form.cert = value;
