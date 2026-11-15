@@ -10,7 +10,7 @@
 }
 .seg__item {
   height: var(--btn-h-sm); padding: 0 12px;
-  border: 0; border-radius: 6px;
+  border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--muted);
   font-size: 12px; cursor: pointer;
 }

@@ -1,8 +1,9 @@
 .sitelist {
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
+  box-shadow: var(--shadow-1);
 }
 
 .sitelist__row {
@@ -15,6 +16,7 @@
   border-bottom: 1px solid var(--line);
   cursor: pointer;
   user-select: none;
+  transition: background-color var(--dur-1) var(--ease);
 }
 .sitelist__row:hover { background: var(--surface); }
 .sitelist__row--open { background: var(--surface); }

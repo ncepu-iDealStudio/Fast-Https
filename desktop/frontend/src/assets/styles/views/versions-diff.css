@@ -1,7 +1,7 @@
 .difftable {
   margin-top: 4px;
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg);
 }
@@ -35,7 +35,7 @@
   font-size: 11px;
   line-height: 1.5;
   padding: 0 7px;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   border: 1px solid currentColor;
   font-weight: 600;
   white-space: nowrap;

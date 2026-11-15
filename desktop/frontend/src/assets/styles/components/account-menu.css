@@ -18,8 +18,13 @@
   padding: 6px 0;
   background: var(--bg);
   border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  box-shadow: 0 12px 36px rgba(16, 20, 28, .18);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  animation: menu-in var(--dur-2) var(--ease);
+}
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .menu-head {
@@ -30,7 +35,7 @@
 }
 .menu-logo {
   width: 26px; height: 26px; flex: 0 0 26px;
-  border-radius: 6px; object-fit: contain;
+  border-radius: var(--radius-sm); object-fit: contain;
 }
 .menu-head-text { display: flex; flex-direction: column; min-width: 0; }
 .menu-head-text b { font-size: 13px; font-weight: 600; }
@@ -44,9 +49,10 @@
   width: 100%;
   display: flex; align-items: center; gap: 8px;
   padding: 7px 10px;
-  border: 0; border-radius: 6px;
+  border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--text);
   font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease);
 }
 .menu-item:hover { background: var(--accent-soft); }
 .menu-item:disabled { opacity: .5; cursor: not-allowed; }
@@ -54,7 +60,6 @@
   margin-left: auto;
   color: var(--accent); font-size: 12px;
 }
-.menu-hint { padding: 0 10px 6px; font-size: 11px; line-height: 1.5; color: var(--faint); }
 .menu-sep { height: 1px; margin: 6px 0; background: var(--line); }
 
 /* ---------------------------------------------------------------- 标签行
@@ -77,14 +82,17 @@
   height: 34px;
   padding: 0 10px;
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
-.menu-select select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.menu-select select:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
+}
 
 /* ---------------------------------------------------------------- 外观卡片
    三张等宽卡片：图标在上、名称在下；当前项用 accent 描边 + 浅底。 */
@@ -99,11 +107,12 @@
   display: grid; place-items: center;
   padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--muted);
   cursor: pointer;
-  transition: background .15s, border-color .15s, color .15s;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease),
+              color var(--dur-1) var(--ease);
 }
 .mode-card:hover { border-color: var(--accent); color: var(--text); }
 .mode-card--on {

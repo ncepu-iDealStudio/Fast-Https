@@ -19,10 +19,16 @@ func addSiteWriteCommands(root *cobra.Command) {
 		Long: cli.T(
 			"复制当前配置树到候选目录、写入站点文件，再走 config apply 同一套事务（校验、恢复点、reload、可回滚）。\n"+
 				"带 --domain 时全部字段来自 flag；不带 --domain 且标准输入是终端时进向导。\n"+
-				"站点名由域名规范化得到。同名站点，或同一监听端口上已存在的 server_name，都会以退出码 10 拒绝（同域名挂不同端口是合法的）。纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
+				"站点名由域名规范化得到。同名站点，或同一监听端口上已存在的 server_name，都会以退出码 10 拒绝（同域名挂不同端口是合法的）。\n"+
+				"证书默认按域名命名（config/cert/<域名>.pem）：文件已存在就直接复用，不会覆盖；"+
+				"多个站点可以用 --ssl-certificate 指向同一张证书（如通配符证书）。"+
+				"纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
 			"Copy the live config tree, write the site file on the candidate, then apply it with the same transaction\n"+
 				"as config apply. With --domain everything comes from flags; without it, an interactive terminal enters the wizard.\n"+
-				"A duplicate name, or a server_name already served on the same listen port, exits with code 10 (the same domain on a different port is fine). Flag mode requires --yes unless --dry-run; the wizard confirms at the end."),
+				"A duplicate name, or a server_name already served on the same listen port, exits with code 10 (the same domain on a different port is fine).\n"+
+				"Certificates are named after the domain (config/cert/<domain>.pem) and reused when the file already exists, never overwritten;\n"+
+				"several sites may point at one certificate via --ssl-certificate (e.g. a wildcard certificate).\n"+
+				"Flag mode requires --yes unless --dry-run; the wizard confirms at the end."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         RunAdd,
@@ -32,19 +38,27 @@ func addSiteWriteCommands(root *cobra.Command) {
 	add.Flags().StringArray("listen", nil, cli.T("监听值，可重复", "listen value, repeatable"))
 	add.Flags().String("proxy-pass", "", cli.T("反代上游，设置后站点类型为 proxy", "proxy upstream; when set, the site type is proxy"))
 	add.Flags().Bool("tls", false, cli.T("启用 TLS", "enable TLS"))
+	add.Flags().String("ssl-certificate", "", cli.T(
+		"证书路径；留空用 config/cert/<域名>.pem（多个站点可指向同一张证书）",
+		"certificate path; defaults to config/cert/<domain>.pem (several sites may share one certificate)"))
+	add.Flags().String("ssl-certificate-key", "", cli.T(
+		"私钥路径；留空用 config/cert/<域名>-key.pem",
+		"private key path; defaults to config/cert/<domain>-key.pem"))
 
 	upd := &cobra.Command{
 		Use:   "update <name>",
 		Short: cli.T("受控更新站点的白名单字段", "update allow-listed fields of a site through the config transaction"),
 		Long: cli.T(
-			"只改 flag 点名的字段：--listen、--server-name、--root、--proxy-pass、--tls，"+
+			"只改 flag 点名的字段：--listen、--server-name、--root、--proxy-pass、--tls、--ssl-certificate*，"+
 				"以及主 location 上的高级配置 --zip、--limit-*、--auth-*、--cache-*。"+
 				"没写的字段（含未知键与注释）原样保留，不接受任意 JSON 合并。"+
+				"改 --server-name 时，按域名自动命名的证书路径会跟着改名；自定义证书路径不动。"+
 				"关闭某项：--zip= 清空压缩，--auth-type= 关闭认证，--cache-path= 关闭缓存。"+
 				"--auth-pass 留空或传 *** 表示沿用原口令。内联在主配置 http.server[] 里的站点返回 NOT_SUPPORTED。",
-			"Only the named flags change: --listen, --server-name, --root, --proxy-pass, --tls,\n"+
+			"Only the named flags change: --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate*,\n"+
 				"plus main-location advanced options --zip, --limit-*, --auth-*, --cache-*.\n"+
 				"Everything else, including unknown keys and comments, is preserved; arbitrary JSON merge is rejected.\n"+
+				"Renaming --server-name makes the auto-named certificate path follow; custom certificate paths are left alone.\n"+
 				"Disable with --zip=, --auth-type= or --cache-path=. An empty or *** --auth-pass keeps the current password.\n"+
 				"Sites inline in the main config http.server[] return NOT_SUPPORTED."),
 		Args:         cobra.ExactArgs(1),
@@ -56,6 +70,12 @@ func addSiteWriteCommands(root *cobra.Command) {
 	upd.Flags().String("root", "", cli.T("新的文档根目录", "new document root"))
 	upd.Flags().String("proxy-pass", "", cli.T("新的反代上游", "new proxy upstream"))
 	upd.Flags().Bool("tls", false, cli.T("启用 TLS", "enable TLS"))
+	upd.Flags().String("ssl-certificate", "", cli.T(
+		"证书路径；留空表示交回默认约定（config/cert/<域名>.pem），可指向共享证书",
+		"certificate path; empty falls back to config/cert/<domain>.pem, may point at a shared certificate"))
+	upd.Flags().String("ssl-certificate-key", "", cli.T(
+		"私钥路径；留空表示交回默认约定",
+		"private key path; empty falls back to the default convention"))
 	upd.Flags().StringSlice("zip", nil, cli.T("响应压缩编码，可重复：gzip / br；传空表示关闭", "response compression: gzip / br, repeatable; empty disables"))
 	upd.Flags().Int("limit-rate", -1, cli.T("限流 rate（每秒请求数），0 表示不限", "rate limit (requests per second); 0 disables"))
 	upd.Flags().Int("limit-burst", -1, cli.T("限流 burst（突发桶大小）", "rate limit burst bucket size"))
@@ -138,6 +158,8 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 	proxy, _ := cmd.Flags().GetString("proxy-pass")
 	listens, _ := cmd.Flags().GetStringArray("listen")
 	tls, _ := cmd.Flags().GetBool("tls")
+	cert, _ := cmd.Flags().GetString("ssl-certificate")
+	certKey, _ := cmd.Flags().GetString("ssl-certificate-key")
 
 	if strings.TrimSpace(domain) != "" {
 		if strings.TrimSpace(proxy) == "" && strings.TrimSpace(root) == "" {
@@ -153,7 +175,10 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 			}
 			root = abs
 		}
-		return siteops.AddInput{Domain: domain, Root: root, Listens: listens, ProxyPass: proxy, TLS: tls, Banned: banned}, nil
+		return siteops.AddInput{
+			Domain: domain, Root: root, Listens: listens, ProxyPass: proxy, TLS: tls, Banned: banned,
+			SSLCertificate: cert, SSLCertificateKey: certKey,
+		}, nil
 	}
 
 	// 没给 --domain：能交互就进向导（原 site init 的能力）。
@@ -183,6 +208,9 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 		Listens:   si.Listens,
 		TLS:       listensHaveSSL(si.Listens),
 		Banned:    banned,
+		// 向导里填过的证书路径照样带过去，不能因为换条路径就丢掉用户输入。
+		SSLCertificate:    si.SSLCertificate,
+		SSLCertificateKey: si.SSLCertificateKey,
 	}, nil
 }
 
@@ -218,6 +246,16 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 		in.TLS = &v
 		changed = true
 	}
+	if cmd.Flags().Changed("ssl-certificate") {
+		v, _ := cmd.Flags().GetString("ssl-certificate")
+		in.SSLCertificate = &v
+		changed = true
+	}
+	if cmd.Flags().Changed("ssl-certificate-key") {
+		v, _ := cmd.Flags().GetString("ssl-certificate-key")
+		in.SSLCertificateKey = &v
+		changed = true
+	}
 	if cmd.Flags().Changed("zip") {
 		v, _ := cmd.Flags().GetStringSlice("zip")
 		if len(v) == 1 && strings.TrimSpace(v[0]) == "" {
@@ -239,7 +277,7 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 		changed = true
 	}
 	if !changed {
-		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --zip, --limit-*, --auth-*, --cache-*"))
+		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate, --ssl-certificate-key, --zip, --limit-*, --auth-*, --cache-*"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	return cli.RunTxn(cmd, "site.update", "site update "+in.Name, map[string]string{"name": in.Name}, dry, func(_ string, dirs []string) error {
@@ -255,10 +293,21 @@ func RunDelete(cmd *cobra.Command, args []string) error {
 	name := strings.TrimSuffix(args[0], ".json")
 	live, _ := cmd.Flags().GetString("config")
 	dry, _ := cmd.Flags().GetBool("dry-run")
-	return cli.RunTxn(cmd, "site.delete", "site delete "+name, map[string]string{"name": name}, dry, func(_ string, dirs []string) error {
-		_, err := siteops.Delete(dirs, live, name)
+	// 证书按域名落在 config/cert 下，删除站点时刻意保留：重建同名站点能直接
+	// 复用，不必重新签发。这里把保留的文件报出来，免得用户以为被一起删了。
+	var kept []string
+	err := cli.RunTxn(cmd, "site.delete", "site delete "+name, map[string]string{"name": name}, dry, func(_ string, dirs []string) error {
+		_, certs, err := siteops.Delete(dirs, live, name)
+		kept = certs
 		return err
 	})
+	if err != nil {
+		return err
+	}
+	if len(kept) > 0 {
+		fmt.Fprintf(cmd.ErrOrStderr(), "提示：证书文件已保留，重建同名站点可直接复用：%s\n", strings.Join(kept, ", "))
+	}
+	return nil
 }
 
 func RunDisable(cmd *cobra.Command, args []string) error {

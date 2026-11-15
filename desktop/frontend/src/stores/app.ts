@@ -3,7 +3,6 @@ import { ref, computed, onUnmounted } from 'vue';
 import type { Lang } from '../types/i18n';
 import { readStoredLang, storeLang } from '../i18n/config';
 import { switchLang } from '../i18n';
-import { translate } from '../composables/useI18n';
 
 export type PaneKey =
   | 'monitor' | 'sites' | 'certs' | 'logs'
@@ -81,21 +80,14 @@ export const useAppStore = defineStore('app', () => {
     lang.value = next;
     switchLang(next);
     storeLang(next);
-    applyMissingToken();
   }
   function activate(next: PaneKey): void {
     pane.value = next;
     localStorage.setItem(PANE_KEY, next);
   }
 
-  /** 銆屾湭閰嶇疆銆嶈鏍囪蛋 CSS 浼厓绱狅紝鏂囨瑕侀潬 CSS 鍙橀噺鍠傝繘鍘伙紙鍘熺増鏈哄埗锛夈€?*/
-  function applyMissingToken(): void {
-    document.documentElement.style.setProperty('--i18n-missing', JSON.stringify(translate('settings.formMissing')));
-  }
-
   applyMode();
   document.documentElement.lang = lang.value === 'en-US' ? 'en' : lang.value;
-  applyMissingToken();
 
   return {
     mode, lang, pane, railCollapsed,

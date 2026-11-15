@@ -130,7 +130,7 @@
 .comp__name { font-size: 12.5px; font-weight: 600; flex: 1; }
 .badge {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 10px; padding: 1px 7px; border-radius: 10px; font-weight: 600; white-space: nowrap;
+  font-size: 10px; padding: 1px 8px; border-radius: var(--radius-pill); font-weight: 600; white-space: nowrap;
 }
 .badge__dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
 .badge--ok { background: rgba(22,121,74,.1); color: var(--ok); }

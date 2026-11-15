@@ -5,7 +5,7 @@
   overflow-y: auto;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .verlist__row {

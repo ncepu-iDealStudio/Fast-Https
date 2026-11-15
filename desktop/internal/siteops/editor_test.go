@@ -1,6 +1,8 @@
 package siteops
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -205,6 +207,108 @@ func TestPlanUpdateDiffsAgainstCurrent(t *testing.T) {
 	joined = strings.Join(args, " ")
 	if !strings.Contains(joined, "--proxy-pass http://127.0.0.1:9000") {
 		t.Fatalf("切到 proxy 应带 --proxy-pass：%s", joined)
+	}
+}
+
+// TestPlanAddWithSharedCert 弹窗里填了证书路径：直接带进 site add，
+// 让多个站点共用同一张证书（如通配符证书）。
+func TestPlanAddWithSharedCert(t *testing.T) {
+	plan, err := planAdd(model.SiteInput{
+		Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./www",
+		Cert: "./cert/wildcard.pem", CertKey: "./cert/wildcard-key.pem",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Join(plan[0], " ")
+	for _, want := range []string{
+		"--tls", "--ssl-certificate ./cert/wildcard.pem", "--ssl-certificate-key ./cert/wildcard-key.pem",
+	} {
+		if !strings.Contains(args, want) {
+			t.Errorf("参数缺少 %q：%s", want, args)
+		}
+	}
+}
+
+// TestParseSiteInputCertWithoutTLS 有证书却没有 ssl 监听 → 直接拒绝，
+// 不要写出自相矛盾的站点，也别等 CLI 返回费解的错误码。
+func TestParseSiteInputCertWithoutTLS(t *testing.T) {
+	cases := []model.SiteInput{
+		// 只有证书没有私钥
+		{Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./x", Cert: "./cert/a.pem"},
+		// 有证书但没有 ssl 监听
+		{Name: "a.example", Listen: "80", Type: "local", Root: "./x",
+			Cert: "./cert/a.pem", CertKey: "./cert/a-key.pem"},
+	}
+	for i, in := range cases {
+		if _, err := planAdd(in); err == nil {
+			t.Errorf("case %d 应被拒绝：%#v", i, in)
+		}
+	}
+}
+
+// TestPlanUpdateCertChanges 证书路径变化才带参数；清空用 --flag= 形式，
+// 让 CLI 把证书交回默认约定。
+func TestPlanUpdateCertChanges(t *testing.T) {
+	cur := SiteDetail{
+		Id: "a", Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./www",
+		Cert: "./cert/a.example.pem", CertKey: "./cert/a.example-key.pem",
+	}
+	// 换成共享证书
+	args, err := planUpdate("a", cur, model.SiteInput{
+		Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./www",
+		Cert: "./cert/wildcard.pem", CertKey: "./cert/wildcard-key.pem",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--ssl-certificate=./cert/wildcard.pem") ||
+		!strings.Contains(joined, "--ssl-certificate-key=./cert/wildcard-key.pem") {
+		t.Fatalf("应带共享证书参数：%s", joined)
+	}
+
+	// 清空 → 交回默认约定
+	args, err = planUpdate("a", cur, model.SiteInput{
+		Name: "a.example", Listen: "443 ssl h2", Type: "local", Root: "./www",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined = strings.Join(args, " ")
+	if !strings.Contains(joined, "--ssl-certificate= ") && !strings.HasSuffix(joined, "--ssl-certificate=") {
+		t.Fatalf("清空证书应传空值：%s", joined)
+	}
+}
+
+// TestRequireAbsRoot 根目录必须是已存在的绝对路径：相对写法（尤其带 ..）
+// 会按谁展开完全说不清，所以在桌面端入口就拦住，而不是算成 E:\front 这种怪路径。
+func TestRequireAbsRoot(t *testing.T) {
+	dir := t.TempDir()
+	if err := requireAbsRoot(dir); err != nil {
+		t.Fatalf("存在的绝对目录应通过：%v", err)
+	}
+	if err := requireAbsRoot(""); err != nil {
+		t.Fatalf("空值应放行（proxy 站点无 root）：%v", err)
+	}
+	for _, rel := range []string{
+		filepath.Join("..", "..", "front", "www"),
+		"www",
+		"./httpdoc/root",
+	} {
+		if err := requireAbsRoot(rel); err == nil {
+			t.Fatalf("相对路径应被拒绝：%s", rel)
+		}
+	}
+	if err := requireAbsRoot(filepath.Join(dir, "not-exist")); err == nil {
+		t.Fatal("不存在的目录应被拒绝")
+	}
+	file := filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := requireAbsRoot(file); err == nil {
+		t.Fatal("文件（非目录）应被拒绝")
 	}
 }
 

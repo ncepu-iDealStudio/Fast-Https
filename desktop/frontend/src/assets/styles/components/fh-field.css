@@ -26,9 +26,10 @@
 .fh-field__control textarea {
   width: 100%; max-width: 560px; height: var(--input-h);
   padding: 0 10px;
-  border: 1px solid var(--line-strong); border-radius: 6px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--text);
   font: inherit; font-size: 13px;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 .fh-field__control textarea {
   height: auto; min-height: 62px; padding: 8px 10px; resize: vertical;
@@ -37,28 +38,13 @@
 .fh-field__control input:focus,
 .fh-field__control select:focus,
 .fh-field__control textarea:focus {
-  outline: 2px solid var(--accent); outline-offset: 1px;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 .fh-field__control input[type="number"] { max-width: 180px; }
 .fh-field__control input[type="email"] { max-width: 340px; }
 .fh-field__control select { max-width: 340px; }
-
-.fh-field__control input[type="checkbox"] {
-  appearance: none; -webkit-appearance: none;
-  width: 16px; height: 16px; flex: 0 0 16px; margin: 0; position: relative;
-  border: 1px solid var(--line-strong); border-radius: 4px;
-  background: var(--bg); cursor: pointer;
-}
-.fh-field__control input[type="checkbox"]:checked {
-  background: var(--accent); border-color: var(--accent);
-}
-.fh-field__control input[type="checkbox"]::after {
-  content: ""; position: absolute; left: 5px; top: 1.5px;
-  width: 4px; height: 8px;
-  border: solid var(--accent-ink); border-width: 0 1.6px 1.6px 0;
-  transform: rotate(45deg); opacity: 0;
-}
-.fh-field__control input[type="checkbox"]:checked::after { opacity: 1; }
 
 /* 多列小字段与说明文字（旧版 .inline-fields / .mini-field / .field-note） */
 .fh-field__control .inline-fields {

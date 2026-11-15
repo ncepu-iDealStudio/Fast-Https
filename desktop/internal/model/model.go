@@ -86,6 +86,10 @@ type SiteInput struct {
 	Type      string `json:"type"`
 	Root      string `json:"root"`
 	ProxyPass string `json:"proxyPass"`
+	// Cert / CertKey 是 TLS 证书与私钥路径。留空表示走默认约定
+	// （config/cert/<域名>.pem，首次 start 生成）；填写可让多个站点共用一张证书。
+	Cert    string `json:"cert"`
+	CertKey string `json:"certKey"`
 
 	// 高级配置（主 location）：响应压缩、限流、Basic 认证、代理缓存。
 	// 编辑模式才提交；添加站点时 site add 不支持这些字段，前端不会带。

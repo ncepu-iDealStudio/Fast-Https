@@ -20,7 +20,7 @@
   margin-bottom: 4px;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .sitelist__url:last-child { margin-bottom: 0; }
 

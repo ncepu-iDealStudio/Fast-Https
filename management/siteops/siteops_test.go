@@ -227,6 +227,212 @@ func TestSiteAddOnFreshInstall(t *testing.T) {
 	}
 }
 
+// TestSiteAddWithSharedCertificate 显式指定证书路径：多站点共用同一张证书
+// （如通配符证书）时，--ssl-certificate 的路径要原样写进站点文件。
+func TestSiteAddWithSharedCertificate(t *testing.T) {
+	live, doc, _, _ := writeLive(t, "live.example")
+	dirs := []string{filepath.Join(filepath.Dir(live), "conf.d")}
+	certDir := filepath.Join(filepath.Dir(live), "cert")
+	if err := os.MkdirAll(certDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cert := filepath.Join(certDir, "wildcard.pem")
+	key := filepath.Join(certDir, "wildcard-key.pem")
+	if err := os.WriteFile(cert, []byte("cert"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(key, []byte("key"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	path, err := Add(dirs, AddInput{
+		Domain: "a.example", Root: doc, Listens: []string{"18443 ssl h2"}, TLS: true,
+		SSLCertificate: cert, SSLCertificateKey: key,
+	})
+	if err != nil {
+		t.Fatalf("显式证书路径应允许：%v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "wildcard.pem") || !strings.Contains(string(raw), "wildcard-key.pem") {
+		t.Fatalf("站点文件应写入给定证书路径：%s", raw)
+	}
+}
+
+// TestSiteUpdateServerNameFollowsCert 改 server_name 时，约定证书路径
+// （文件名就是主域名）要跟着改名，否则新域名握手会拿到一张 SAN 不含它的证书。
+func TestSiteUpdateServerNameFollowsCert(t *testing.T) {
+	live, _, _, _ := writeLive(t, "live.example")
+	dirs := []string{filepath.Join(filepath.Dir(live), "conf.d")}
+	site := `{
+  "listen": ["18443 ssl h2"],
+  "server_name": "old.example",
+  "ssl_certificate": "./cert/old.example.pem",
+  "ssl_certificate_key": "./cert/old.example-key.pem",
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	path := filepath.Join(dirs[0], "old.example.json")
+	if err := os.WriteFile(path, []byte(site), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sn := "new.example"
+	if _, err := Update(dirs, live, UpdateInput{Name: "old.example", ServerName: &sn}); err != nil {
+		t.Fatalf("改名应成功：%v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	if !strings.Contains(got, "new.example.pem") || !strings.Contains(got, "new.example-key.pem") {
+		t.Fatalf("约定证书路径应跟随改名：%s", got)
+	}
+	if strings.Contains(got, "old.example.pem") {
+		t.Fatalf("不应残留旧域名证书路径：%s", got)
+	}
+}
+
+// TestSiteUpdateServerNameKeepsCustomCert 自定义证书路径（通配符 / 多站点共享）
+// 在改名时不能被改写，否则会把别人的证书指错地方。
+func TestSiteUpdateServerNameKeepsCustomCert(t *testing.T) {
+	live, _, _, _ := writeLive(t, "live.example")
+	dirs := []string{filepath.Join(filepath.Dir(live), "conf.d")}
+	site := `{
+  "listen": ["18443 ssl h2"],
+  "server_name": "old.example",
+  "ssl_certificate": "./certs/wildcard.pem",
+  "ssl_certificate_key": "./certs/wildcard-key.pem",
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	path := filepath.Join(dirs[0], "old.example.json")
+	if err := os.WriteFile(path, []byte(site), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	sn := "new.example"
+	if _, err := Update(dirs, live, UpdateInput{Name: "old.example", ServerName: &sn}); err != nil {
+		t.Fatalf("改名应成功：%v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	if !strings.Contains(got, "wildcard.pem") || !strings.Contains(got, "wildcard-key.pem") {
+		t.Fatalf("自定义证书路径不应被改写：%s", got)
+	}
+}
+
+// TestSiteDeleteKeepsCerts 删除站点只删 json，证书文件要保留并能报出来，
+// 这样重建同名站点可以直接复用，不必重新签发。
+func TestSiteDeleteKeepsCerts(t *testing.T) {
+	live, _, _, _ := writeLive(t, "live.example")
+	dirs := []string{filepath.Join(filepath.Dir(live), "conf.d")}
+	certDir := filepath.Join(filepath.Dir(live), "cert")
+	if err := os.MkdirAll(certDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cert := filepath.Join(certDir, "keep.example.pem")
+	key := filepath.Join(certDir, "keep.example-key.pem")
+	for _, p := range []string{cert, key} {
+		if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	site := `{
+  "listen": ["18443 ssl h2"],
+  "server_name": "keep.example",
+  "ssl_certificate": "./cert/keep.example.pem",
+  "ssl_certificate_key": "./cert/keep.example-key.pem",
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	if err := os.WriteFile(filepath.Join(dirs[0], "keep.example.json"), []byte(site), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, kept, err := Delete(dirs, live, "keep.example")
+	if err != nil {
+		t.Fatalf("删除应成功：%v", err)
+	}
+	if len(kept) != 2 {
+		t.Fatalf("应报出两张保留的证书文件，得到 %v", kept)
+	}
+	for _, p := range []string{cert, key} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("证书文件不应被删除：%s", p)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dirs[0], "keep.example.json")); err == nil {
+		t.Fatal("站点 json 应已删除")
+	}
+}
+
+// TestSiteAddCertWithoutTLS 给了证书但监听里没有 ssl：参数互相矛盾，
+// 按用法错误拒绝，别写出一个带证书却不走 TLS 的怪站点。
+func TestSiteAddCertWithoutTLS(t *testing.T) {
+	live, doc, _, _ := writeLive(t, "live.example")
+	dirs := []string{filepath.Join(filepath.Dir(live), "conf.d")}
+	_, err := Add(dirs, AddInput{
+		Domain: "plain.example", Root: doc, Listens: []string{"8080"},
+		SSLCertificate: "./cert/plain.example.pem", SSLCertificateKey: "./cert/plain.example-key.pem",
+	})
+	if !errors.Is(err, ErrUsage) {
+		t.Fatalf("没有 TLS 监听却指定证书应报 Usage 错误，得到 %v", err)
+	}
+}
+
+// TestSiteAddSameNameDifferentPortOnShippedConfig 复刻装机现场：
+// 安装包自带 default.json（server_name localhost，监听 80），
+// 再建一个 localhost:8080 不应被判成冲突 —— 端口不同就是两个 server 块。
+func TestSiteAddSameNameDifferentPortOnShippedConfig(t *testing.T) {
+	work := t.TempDir()
+	cfg := filepath.Join(work, "config")
+	confd := filepath.Join(cfg, "conf.d")
+	doc := filepath.Join(work, "www")
+	for _, dir := range []string{confd, filepath.Join(cfg, "cert"), doc} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// 只留 80：这条用例只验「端口维度」，不引入「证书还没生成」的干扰。
+	shipped := `{
+  "listen": [80],
+  "server_name": "localhost",
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	if err := os.WriteFile(filepath.Join(confd, "default.json"), []byte(shipped), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	live := filepath.Join(cfg, "fast-https.json")
+	if err := os.WriteFile(live, []byte(`{"http":{"include":["conf.d"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(cfg)
+	eng := &txn.Engine{
+		State:    state.Dir{Root: filepath.Join(work, "state"), Alive: func(int, string) bool { return true }},
+		Reloader: &countReload{},
+		Probe:    func(int) bool { return true },
+		Bind:     func(int) error { return nil },
+	}
+	_, err := Run(context.Background(), eng, RunInput{
+		LiveMain: live, RequestID: "sameport", Command: "site.add", Summary: "add localhost:8080",
+		Args: map[string]string{"domain": "localhost", "listen": "8080"},
+		Mutate: func(_ string, dirs []string) error {
+			_, err := Add(dirs, AddInput{Domain: "localhost", Root: doc, Listens: []string{"8080"}})
+			return err
+		},
+	})
+	if err != nil {
+		t.Fatalf("localhost:8080 与 localhost:80/443 端口不同，不应冲突：%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(confd, "localhost.json")); err != nil {
+		t.Fatalf("站点文件应已写入：%v", err)
+	}
+}
+
 func TestSiteAddInvalidDomainOrListen(t *testing.T) {
 	live, doc, eng, _ := writeLive(t, "live.example")
 	_, err := runAdd(t, eng, live, "../evil", doc, "bad", false)
@@ -351,7 +557,7 @@ func TestSiteDeleteKeepsContent(t *testing.T) {
 	_, err := Run(context.Background(), eng, RunInput{
 		LiveMain: live, Command: "site.delete", RequestID: "del2",
 		Mutate: func(_ string, dirs []string) error {
-			_, err := Delete(dirs, live, "gone.example")
+			_, _, err := Delete(dirs, live, "gone.example")
 			return err
 		},
 	})

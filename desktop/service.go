@@ -267,6 +267,9 @@ func (s *DesktopService) CertTrustGuide() (model.CertTrustGuide, error) {
 
 // PickPath 调系统原生选择框，返回相对 config 目录的路径。
 // kind 为 "dir" 时选目录，否则选文件；用户取消返回空串。
+//
+// 相对写法是给配置字段用的（整目录搬迁不失效）。需要绝对路径的地方
+// （站点根目录）由前端 pickAbsPath 用同一个基准还原，别在这里改语义。
 func (s *DesktopService) PickPath(kind string) (string, error) {
 	if appRef == nil {
 		return "", fmt.Errorf("应用尚未就绪")
