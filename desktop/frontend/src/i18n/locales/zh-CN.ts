@@ -255,7 +255,7 @@ export const zhCN: Record<string, string> = {
   'dialog.site.typeLocal': '静态站点（本地文件）',
   'dialog.site.typeProxy': '反向代理（转发给后端）',
   'dialog.site.root': '站点根目录',
-  'dialog.site.rootHint': '网页文件放在这里',
+  'dialog.site.rootHint': '绝对路径，也可点右侧「浏览…」选择',
   'dialog.site.browse': '浏览…',
   'dialog.site.proxy': '反代地址',
   'dialog.site.proxyHint': '后端服务的地址，协议在这里选',

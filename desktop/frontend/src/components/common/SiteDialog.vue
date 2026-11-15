@@ -246,6 +246,18 @@ async function browse(): Promise<void> {
   }
 }
 
+/**
+ * 根目录统一成 Windows 绝对路径写法：去掉粘贴带上的引号、正斜杠转反斜杠。
+ * 相对路径一律不做「按当前目录展开」的猜测 —— 谁也说不清是相对哪个目录，
+ * 后端会直接拒绝并提示填绝对路径。
+ */
+function normalizeRoot(): void {
+  let v = form.root.trim();
+  if (!v) return;
+  v = v.replace(/^["']+|["']+$/g, '').trim();
+  form.root = v.replace(/\//g, '\\');
+}
+
 /** 证书/私钥走文件选择器；留空则由首次启动按域名自动生成。 */
 async function browseCert(kind: 'cert' | 'certKey'): Promise<void> {
   try {
@@ -298,7 +310,7 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
         </label>
         <div class="fset__ctrl">
           <div class="joined">
-            <input v-model="form.root" type="text" placeholder="./httpdoc/root" />
+            <input v-model="form.root" type="text" placeholder="D:\www\site" @blur="normalizeRoot" />
             <FhButton size="small" @click="browse">{{ t('dialog.site.browse') }}</FhButton>
           </div>
         </div>

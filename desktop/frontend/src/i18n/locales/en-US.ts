@@ -255,7 +255,7 @@ export const enUS: Record<string, string> = {
   'dialog.site.typeLocal': 'Static site (local files)',
   'dialog.site.typeProxy': 'Reverse proxy (forward to a backend)',
   'dialog.site.root': 'Site root',
-  'dialog.site.rootHint': 'Put your web files here',
+  'dialog.site.rootHint': 'Absolute path, or use Browse…',
   'dialog.site.browse': 'Browse…',
   'dialog.site.proxy': 'Proxy target',
   'dialog.site.proxyHint': 'Address of the backend service; pick the scheme here',

@@ -1,6 +1,7 @@
 package siteops
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -280,23 +281,34 @@ func TestPlanUpdateCertChanges(t *testing.T) {
 	}
 }
 
-// TestResolveRootExpandsRelative 输入框里粘 "..\..\www" 时先展开成绝对路径：
-// CLI 的路径守卫会拒绝含 ".." 的写法，直接透传就会报 invalid path。
-func TestResolveRootExpandsRelative(t *testing.T) {
+// TestRequireAbsRoot 根目录必须是已存在的绝对路径：相对写法（尤其带 ..）
+// 会按谁展开完全说不清，所以在桌面端入口就拦住，而不是算成 E:\front 这种怪路径。
+func TestRequireAbsRoot(t *testing.T) {
 	dir := t.TempDir()
-	got := resolveRoot(dir, filepath.Join("..", "www"))
-	if !filepath.IsAbs(got) {
-		t.Fatalf("应展开成绝对路径：%s", got)
+	if err := requireAbsRoot(dir); err != nil {
+		t.Fatalf("存在的绝对目录应通过：%v", err)
 	}
-	if strings.Contains(got, "..") {
-		t.Fatalf("展开后不应残留 ..：%s", got)
+	if err := requireAbsRoot(""); err != nil {
+		t.Fatalf("空值应放行（proxy 站点无 root）：%v", err)
 	}
-	abs := filepath.Join(dir, "www")
-	if keep := resolveRoot(dir, abs); keep != abs {
-		t.Fatalf("绝对路径应原样返回：%s", keep)
+	for _, rel := range []string{
+		filepath.Join("..", "..", "front", "www"),
+		"www",
+		"./httpdoc/root",
+	} {
+		if err := requireAbsRoot(rel); err == nil {
+			t.Fatalf("相对路径应被拒绝：%s", rel)
+		}
 	}
-	if empty := resolveRoot(dir, "  "); empty != "" {
-		t.Fatalf("空值应保持空：%q", empty)
+	if err := requireAbsRoot(filepath.Join(dir, "not-exist")); err == nil {
+		t.Fatal("不存在的目录应被拒绝")
+	}
+	file := filepath.Join(dir, "a.txt")
+	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := requireAbsRoot(file); err == nil {
+		t.Fatal("文件（非目录）应被拒绝")
 	}
 }
 
