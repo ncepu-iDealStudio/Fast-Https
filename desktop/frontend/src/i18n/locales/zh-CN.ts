@@ -40,6 +40,8 @@ export const zhCN: Record<string, string> = {
   'nav.sites': '站点',
   'nav.certs': '证书',
   'nav.logs': '日志',
+  'nav.collapse': '折叠侧栏',
+  'nav.expand': '展开侧栏',
   'nav.account': '本机管理',
   'nav.overviewTip': '本机实例',
   'nav.matrixTip': '状态矩阵',

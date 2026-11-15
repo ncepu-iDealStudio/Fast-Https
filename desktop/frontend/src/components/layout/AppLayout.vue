@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
  * 窗口骨架：顶栏 + 侧栏 + 主区 + 底部状态栏。
- * 状态栏常驻所有页面：状态点 / 运行状态 / pid / 端口 / 刷新时刻在左，
- * 服务启停与健康检查在右——启停是全局操作，不该只在概览页可用。
+ * 状态栏常驻所有页面：左段本机管理（宽=侧栏宽）、右段运行状态。
  */
 import { computed, onMounted, ref } from 'vue';
 import TitleBar from './TitleBar.vue';
 import Sidebar from './Sidebar.vue';
+import AccountMenu from '../common/AccountMenu.vue';
+import { useAppStore } from '../../stores/app';
 import { useOverviewStore } from '../../stores/overview';
 import { useI18n } from '../../composables/useI18n';
 import { usePolling } from '../../composables/usePolling';
@@ -14,6 +15,7 @@ import { startServer, stopServer } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 import { Play, Square, RotateCw } from '@lucide/vue';
 
+const app = useAppStore();
 const overview = useOverviewStore();
 const { t } = useI18n();
 
@@ -31,7 +33,6 @@ const uptimeText = computed(() => {
   const m = Math.floor(s / 60);
   return m > 0 ? t('status.uptimeMinutes', { m }) : t('status.uptimeLess');
 });
-
 
 async function toggleServer(): Promise<void> {
   busy.value = true;
@@ -51,7 +52,7 @@ onMounted(() => { void overview.refresh(true); });
 </script>
 
 <template>
-  <div class="window">
+  <div class="window" :class="{ 'window--rail': app.railCollapsed }">
     <TitleBar />
     <div class="app">
       <Sidebar />
@@ -60,7 +61,10 @@ onMounted(() => { void overview.refresh(true); });
       </main>
     </div>
 
+    <!-- 底部横带：左段本机管理（宽=侧栏宽），右段状态信息 -->
     <footer class="footbar">
+      <AccountMenu class="footbar__account" />
+
       <div class="footbar__status">
         <span class="dot" :class="overview.data?.running ? 'state-ok' : 'state-off'" />
         <strong>{{ overview.data?.running ? t('status.running') : t('status.stopped') }}</strong>
@@ -77,18 +81,16 @@ onMounted(() => { void overview.refresh(true); });
         <span class="footbar__sep">·</span>
         <span class="footbar__hint">{{ t('status.refreshing') }}</span>
         <span v-if="footError" class="footbar__err">{{ footError }}</span>
-      </div>
-
-      <div class="footbar__actions">
+        <span class="footbar__spacer" />
         <span class="footbar__checked mono">{{ overview.data?.checkedAt || '' }}</span>
         <button
-          class="icon-btn" :title="overview.data?.running ? t('overview.stop') : t('overview.start')"
+          class="fbtn" :title="overview.data?.running ? t('overview.stop') : t('overview.start')"
           :disabled="busy" @click="toggleServer"
         >
-          <component :is="overview.data?.running ? Square : Play" :size="14" />
+          <component :is="overview.data?.running ? Square : Play" :size="12" />
         </button>
-        <button class="icon-btn" :title="t('common.refresh')" @click="overview.refresh(true)">
-          <RotateCw :size="14" />
+        <button class="fbtn" :title="t('common.refresh')" @click="overview.refresh(true)">
+          <RotateCw :size="12" />
         </button>
       </div>
     </footer>

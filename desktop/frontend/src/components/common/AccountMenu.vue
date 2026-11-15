@@ -6,7 +6,7 @@
  * 新增语言只要在注册表加一行，这里不用改。
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { ChevronDown, Settings2, Sun, Moon, Monitor } from '@lucide/vue';
+import { Settings2, Sun, Moon, Monitor } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore, type ThemeMode } from '../../stores/app';
 import { LANGS } from '../../i18n/config';
@@ -100,16 +100,14 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="account-anchor">
-    <div class="side-foot-wrap">
-      <button
-        type="button" class="side-foot" aria-haspopup="menu" :aria-expanded="open"
-        @click="toggle"
-      >
-        <span class="avatar"><Settings2 :size="12" /></span>
-        <span class="acct-name">{{ t('nav.account') }}</span>
-        <ChevronDown :size="12" class="acct-caret" />
-      </button>
-    </div>
+    <!-- 无下拉箭头：点击整行弹出菜单 -->
+    <button
+      type="button" class="side-foot" aria-haspopup="menu" :aria-expanded="open"
+      @click="toggle"
+    >
+      <span class="avatar"><Settings2 :size="12" /></span>
+      <span class="acct-name">{{ t('nav.account') }}</span>
+    </button>
 
     <!-- 菜单内点击不冒泡到 document：外点关闭只处理菜单外的点击 -->
     <div v-if="open" class="account-menu" role="menu" @click.stop>

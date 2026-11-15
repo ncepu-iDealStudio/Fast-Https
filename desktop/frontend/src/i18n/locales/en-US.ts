@@ -40,6 +40,8 @@ export const enUS: Record<string, string> = {
   'nav.sites': 'Sites',
   'nav.certs': 'Certificates',
   'nav.logs': 'Logs',
+  'nav.collapse': 'Collapse sidebar',
+  'nav.expand': 'Expand sidebar',
   'nav.account': 'Local Console',
   'nav.overviewTip': 'Local instance',
   'nav.matrixTip': 'Status matrix',

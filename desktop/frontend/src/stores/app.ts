@@ -9,15 +9,16 @@ export type PaneKey =
   | 'monitor' | 'sites' | 'certs' | 'logs'
   | 'operations' | 'versions' | 'settings';
 
-/** 外观三态：亮 / 暗 / 跟随系统。跟随模式下 data-mode 随系统实时切换。 */
+/** 澶栬涓夋€侊細浜?/ 鏆?/ 璺熼殢绯荤粺銆傝窡闅忔ā寮忎笅 data-mode 闅忕郴缁熷疄鏃跺垏鎹€?*/
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 const MODE_KEY = 'fast-https.mode';
 const PANE_KEY = 'fast-https.pane';
+const RAIL_KEY = 'fast-https.railCollapsed';
 
-// 可从侧栏进入的页面。settings 不在此列：它由底部账户区打开，
-// 不进导航，也不该成为「上次停留的页面」——否则刷新后卡在设置页且
-// 侧栏没有任何高亮项，用户以为界面坏了。
+// 鍙粠渚ф爮杩涘叆鐨勯〉闈€俿ettings 涓嶅湪姝ゅ垪锛氬畠鐢卞簳閮ㄨ处鎴峰尯鎵撳紑锛?
+// 涓嶈繘瀵艰埅锛屼篃涓嶈鎴愪负銆屼笂娆″仠鐣欑殑椤甸潰銆嶁€斺€斿惁鍒欏埛鏂板悗鍗″湪璁剧疆椤典笖
+// 渚ф爮娌℃湁浠讳綍楂樹寒椤癸紝鐢ㄦ埛浠ヤ负鐣岄潰鍧忎簡銆?
 const NAV_PANES: readonly PaneKey[] = [
   'monitor', 'sites', 'certs', 'logs', 'operations', 'versions',
 ];
@@ -36,8 +37,15 @@ export const useAppStore = defineStore('app', () => {
   const mode = ref<ThemeMode>(initialMode());
   const lang = ref<Lang>(readStoredLang());
   const pane = ref<PaneKey>(initialPane());
+  /** 渚ф爮鎶樺彔锛氭姌鍙犲悗鍙暀鍥炬爣銆傝蹇嗗埌涓嬫鍚姩銆?*/
+  const railCollapsed = ref(localStorage.getItem(RAIL_KEY) === '1');
 
-  /** 系统当前的亮暗（跟随系统模式下用它）。 */
+  function toggleRail(): void {
+    railCollapsed.value = !railCollapsed.value;
+    localStorage.setItem(RAIL_KEY, railCollapsed.value ? '1' : '0');
+  }
+
+  /** 绯荤粺褰撳墠鐨勪寒鏆楋紙璺熼殢绯荤粺妯″紡涓嬬敤瀹冿級銆?*/
   const systemDark = ref(
     typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -54,7 +62,7 @@ export const useAppStore = defineStore('app', () => {
   mql?.addEventListener('change', onSystemChange);
   onUnmounted(() => mql?.removeEventListener('change', onSystemChange));
 
-  /** data-mode 是 CSS 的唯一开关；system 折算成实际的亮或暗。 */
+  /** data-mode 鏄?CSS 鐨勫敮涓€寮€鍏筹紱system 鎶樼畻鎴愬疄闄呯殑浜垨鏆椼€?*/
   function applyMode(): void {
     const effective = mode.value === 'system' ? (systemDark.value ? 'dark' : 'light') : mode.value;
     document.documentElement.setAttribute('data-mode', effective);
@@ -76,7 +84,7 @@ export const useAppStore = defineStore('app', () => {
     localStorage.setItem(PANE_KEY, next);
   }
 
-  /** 「未配置」角标走 CSS 伪元素，文案要靠 CSS 变量喂进去（原版机制）。 */
+  /** 銆屾湭閰嶇疆銆嶈鏍囪蛋 CSS 浼厓绱狅紝鏂囨瑕侀潬 CSS 鍙橀噺鍠傝繘鍘伙紙鍘熺増鏈哄埗锛夈€?*/
   function applyMissingToken(): void {
     document.documentElement.style.setProperty('--i18n-missing', JSON.stringify(translate('settings.formMissing')));
   }
@@ -86,10 +94,10 @@ export const useAppStore = defineStore('app', () => {
   applyMissingToken();
 
   return {
-    mode, lang, pane,
+    mode, lang, pane, railCollapsed,
     isDark: computed(() =>
       mode.value === 'system' ? systemDark.value : mode.value === 'dark',
     ),
-    setMode, changeLang, activate,
+    setMode, changeLang, activate, toggleRail,
   };
 });

@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { Activity, Globe, ShieldCheck, ScrollText, History, GitBranch } from '@lucide/vue';
+/** 左侧导航：可折叠为纯图标模式；底部账户区已移到底部横带，不在此处。 */
+import { Activity, Globe, ShieldCheck, ScrollText, History, GitBranch, ChevronsLeft, ChevronsRight } from '@lucide/vue';
 import type { Component } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore, type PaneKey } from '../../stores/app';
-import AccountMenu from '../common/AccountMenu.vue';
 
 const { t } = useI18n();
 const app = useAppStore();
 
-// 与旧版一致：导航只有 7 项，设置从底部账户菜单进入，不占导航位。
 interface NavItem { key: PaneKey; label: string; icon: Component }
 const items: NavItem[] = [
   { key: 'monitor', label: 'monitor.center', icon: Activity },
@@ -21,19 +20,27 @@ const items: NavItem[] = [
 </script>
 
 <template>
-  <aside class="sidebar">
-    <div class="group">{{ t('nav.group') }}</div>
-    <button
-      v-for="item in items" :key="item.key"
-      class="nav-item" :class="{ on: app.pane === item.key }"
-      :title="t(item.label)"
-      @click="app.activate(item.key)"
-    >
-      <component :is="item.icon" :size="16" />
-      <span>{{ t(item.label) }}</span>
-    </button>
+  <aside class="sidebar" :class="{ 'sidebar--rail': app.railCollapsed }">
+    <div class="sidebar__head">
+      <span v-if="!app.railCollapsed" class="group">{{ t('nav.group') }}</span>
+      <button
+        class="rail-toggle" :title="app.railCollapsed ? t('nav.expand') : t('nav.collapse')"
+        @click="app.toggleRail()"
+      >
+        <component :is="app.railCollapsed ? ChevronsRight : ChevronsLeft" :size="14" />
+      </button>
+    </div>
 
-    <!-- 底部账户区：主题/语言切换、设置、隐藏到托盘、帮助 -->
-    <AccountMenu />
+    <nav class="sidebar__nav">
+      <button
+        v-for="item in items" :key="item.key"
+        class="nav-item" :class="{ on: app.pane === item.key }"
+        :title="app.railCollapsed ? t(item.label) : undefined"
+        @click="app.activate(item.key)"
+      >
+        <component :is="item.icon" :size="16" class="nav-item__ico" />
+        <span v-if="!app.railCollapsed" class="nav-item__txt">{{ t(item.label) }}</span>
+      </button>
+    </nav>
   </aside>
 </template>
