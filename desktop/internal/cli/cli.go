@@ -73,6 +73,8 @@ func command(dir string, args []string) (*exec.Cmd, error) {
 	}
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
+	// 主程序是控制台子系统，桌面端每次调 CLI 都要隐藏窗口，否则频闪。
+	hideConsole(cmd)
 	return cmd, nil
 }
 
