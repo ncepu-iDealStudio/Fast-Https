@@ -57,7 +57,7 @@ go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/fast-h
 | Windows NSIS | `wails3 task windows:create:nsis:installer` | `bin/fast-https-desktop-amd64-installer.exe` |
 | Linux desktop deb | `wails3 task linux:create:deb` | `bin/fast-https-desktop_<version>_<arch>.deb` |
 
-- NSIS 的组件页里，**桌面快捷方式**与**开始菜单**是两个可勾选、可取消的 Section；`build/package.ps1` 会把对应架构的 `fast-https-desktop.exe` 一起打进安装包，快捷方式指向它。主程序 `fast-https.exe` 是 `-H=windowsgui` 的命令行服务端，双击没有窗口，图形入口只有桌面管理端。
+- NSIS 的组件页里，**桌面快捷方式**与**开始菜单**是两个可勾选、可取消的 Section；`build/package.ps1` 会把对应架构的 `fast-https-desktop.exe` 一起打进安装包，快捷方式指向它。主程序 `fast-https.exe` 是控制台子系统，在 cmd/PowerShell 里会正常等待并输出；双击（无参数）启动时自动隐藏控制台窗口，图形入口只有桌面管理端。
 - `MicrosoftEdgeWebview2Setup.exe` 是打包时由 `wails3 generate webview2bootstrapper` 生成的中间产物（已忽略、不入库），走 `wails3 task windows:package` 会自动重新生成；手工跑 `makensis` 前需要先生成它。
 - goreleaser 产出的 desktop deb / rpm / apk 是「主程序包 + 桌面端」的完整包：除 `/usr/bin/fast-https-desktop`、图标与 `.desktop` 外，还带 `/usr/bin/fast-https`（与独立主程序包同一个二进制）、`/etc/fast-https` 配置与站点片段、`/usr/share/fast-https` 站点资源、systemd unit、logrotate 与安装维护脚本。离线只装这一个包就能 `fast-https start`，装完在应用菜单可见。它与独立主程序包声明 `Conflicts: fast-https` / `Replaces: fast-https`，避免同一文件被两个包各装一份；实机验证见 `tests/packaging/distro/desktop-deb.sh`。
 - `build/package.ps1` 先准备前端与 `.desktop`，再由 goreleaser 用 `purego` 无 CGO 交叉编译 Linux 二进制，产出 `dist/fast-https-desktop_<version>_linux_{amd64,arm64}.{deb,rpm,apk}`；依赖名按格式分别用 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包。Linux 主机上仍可跑 `wails3 task linux:create:deb` 走原生 CGO 构建。`frontend/bindings/` 是 `wails3 generate bindings` 的生成物，已加入 git 忽略——走 `wails3 build` 会自动生成，手工只跑 `npm run build` 前要先执行一次生成命令。

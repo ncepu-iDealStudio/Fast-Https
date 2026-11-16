@@ -144,8 +144,9 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 	cli.SetLang(lang)
 
 	cmd := &cobra.Command{
-		Use:   "fast-https",
-		Short: cli.T("高性能 Web 服务器与反向代理服务器", "Fast-https is a high performance web server and proxy server"),
+		Use:     "fast-https",
+		Version: config.CURRENT_VERSION,
+		Short:   cli.T("高性能 Web 服务器与反向代理服务器", "Fast-https is a high performance web server and proxy server"),
 		Long: cli.T(
 			"Fast-https 是高性能 Web 服务器与反向代理服务器。\n\n不带子命令直接运行即启动服务。",
 			"Fast-https is a high performance web server and proxy server.\n\n"+
@@ -155,6 +156,8 @@ func RootCmdForLang(lang Lang) *cobra.Command {
 			return runCommand(args)
 		},
 	}
+	// --version 与 version 子命令输出同一行格式，便于脚本解析。
+	cmd.SetVersionTemplate("fast-https {{.Version}}\n")
 	// 语言在解析参数之前就要定下来，所以这个 flag 只作为显式入口记录在帮助里：
 	// 真正的取值发生在 RootCmd() 里扫 os.Args。默认值留空，避免 pflag 在
 	// 中文帮助里补一句英文的 (default "zh")。

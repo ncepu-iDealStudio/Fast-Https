@@ -214,8 +214,8 @@ if (-not $NoInstaller) {
         New-Item -ItemType Directory -Path $stage -Force | Out-Null
         Expand-Archive -Path $zip.FullName -DestinationPath $stage -Force
 
-        # 桌面管理端 exe 是安装包里的图形入口：fast-https.exe 是 -H=windowsgui
-        # 编译的命令行服务端，双击不会出现窗口，快捷方式应指向桌面管理端。
+        # 桌面管理端 exe 是安装包里的图形入口：fast-https.exe 是控制台子系统的
+        # 命令行服务端，双击（无参数）会自行隐藏窗口，快捷方式应指向桌面管理端。
         $desktopExe = Join-Path $root $(if ($arch -eq "arm64") { "desktop\bin\fast-https-desktop-arm64.exe" } else { "desktop\bin\fast-https-desktop.exe" })
         if (Test-Path $desktopExe) {
             $target = Join-Path $stage "fast-https-desktop.exe"

@@ -60,7 +60,7 @@ checksums.txt
 脚本在 `build/installer/windows/fast-https.nsi`，由 `build/package.ps1` 逐个 Windows zip 生成，产出 `dist/fast-https-<version>-windows-<arch>-setup.exe`。
 
 - 安装目录 `%ProgramFiles%\Fast-Https`，写入卸载信息与开始菜单快捷方式（使用文档、安装目录、卸载）
-- 安装包会带上对应架构的 `fast-https-desktop.exe`（桌面管理端，图形入口），桌面与开始菜单快捷方式指向它；`fast-https.exe` 是 `-H=windowsgui` 编译的命令行服务端，双击不会出现窗口，日常从桌面管理端启停
+- 安装包会带上对应架构的 `fast-https-desktop.exe`（桌面管理端，图形入口），桌面与开始菜单快捷方式指向它；`fast-https.exe` 是控制台子系统的命令行服务端，在终端里执行会正常等待并输出；双击（无参数）启动时自动隐藏控制台窗口，日常从桌面管理端启停
 - 升级时不覆盖用户改过的 `config/fast-https.json`；安装前会先 `taskkill` 掉在跑的 `fast-https-desktop.exe` / `fast-https.exe`
 - 卸载停止进程、清注册表、删快捷方式与安装目录
 
