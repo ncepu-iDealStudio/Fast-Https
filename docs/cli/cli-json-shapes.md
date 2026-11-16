@@ -480,9 +480,11 @@ systemd 依赖它们的文本输出。
   - flags：无专属。
   - 行为：启动前 `PreCheckHandler`（配置校验、自签证书生成、已有实例、端口占用；
     任一失败 `logging.ConsoleLog.Fatal` → 输出错误并退出 1）。
-    Unix 非容器/非 systemd 时后台化（重新 exec 自身），父进程等子进程报告端口就绪
+    非容器/非 systemd 时后台化（重新 exec 自身），父进程等子进程报告端口就绪
     （≤10s）后输出 `fast-https started in background, pid <pid>, logs in <LogRoot>`，退出 0。
-    Windows / `FASTHTTPS_FOREGROUND=1` / `INVOCATION_ID` / 容器标记（`/.dockerenv`、
+    Unix 用 `Setsid` 脱离会话，Windows 用 `DETACHED_PROCESS` 脱离控制台，控制台
+    输出落到 `logs/daemon.log`。
+    `FASTHTTPS_FOREGROUND=1` / `INVOCATION_ID` / 容器标记（`/.dockerenv`、
     `/run/.containerenv`）保持前台：输出 banner，随后 `server.Run()` 阻塞。
   - 无 JSON 输出。
 

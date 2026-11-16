@@ -18,7 +18,6 @@ import (
 	"fast-https/runtime/server"
 	"fmt"
 	"os"
-	"runtime"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -244,12 +243,16 @@ func StartHandler() error {
 	// fork 出来的子进程继承了父进程的多线程与运行时锁状态，可能直接卡在
 	// 启动阶段；而且 fork 出来的父进程只能写下自己的 pid，一退出就变成
 	// 死 pid，stop / reload / status 都找不到真正在服务的进程。
-	// 容器与 systemd 托管时保持前台（见 runInForeground）。
-	if runtime.GOOS != "windows" && !runInForeground() {
+	// 容器、systemd 托管或显式设置 FASTHTTPS_FOREGROUND=1 时保持前台
+	// （见 runInForeground）。
+	if !runInForeground() {
 		pid, isParent, err := servicecmd.Daemonize()
 		if err != nil {
 			logging.ConsoleLog.Warn().Msgf("run in background failed: %v, staying in foreground", err)
 		} else if isParent {
+			// 子进程已脱离控制台，logo 横幅和初始化日志都在 logs/daemon.log，
+			// 这里补打一次，终端上保持和前台启动一致的观感。
+			banner.PrintLogo(config.CURRENT_VERSION)
 			// 等子进程报告「端口已监听」再返回。只等 pid 文件是不够的：
 			// 子进程写完 pid 后绑端口失败会立刻退出，父进程却报启动成功，
 			// 调用方只看到一句 stale pid，真正的原因无处可查。
@@ -287,7 +290,7 @@ func StartHandler() error {
 	servicecmd.RegisterServices()
 	server := server.ServerInit()
 	// 监听已经建立（端口全部绑定成功）：通知父进程启动成功。
-	// 前台运行或 Windows 上没有父进程等待，这里是空操作。
+	// 前台运行（容器 / systemd / FASTHTTPS_FOREGROUND=1）时这里是空操作。
 	servicecmd.NotifyDaemonReady()
 	banner.PrintPortsListenerStart()
 	server.Run()
