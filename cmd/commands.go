@@ -508,7 +508,10 @@ func runInForeground() bool {
 // 所以下面这些必须由 cmd 包暴露。实现都在 internal 子包里，这里只做转发。
 
 // Run 执行根命令并返回进程退出码，供 main 使用。
-func Run() int { return cli.Run(RootCmd) }
+func Run() int {
+	anchorPortableLayout()
+	return cli.Run(RootCmd)
+}
 
 // Lang 是帮助信息的语言标识。tools/manpage 需要它来生成中英两版 man 页，
 // 而它不能 import cmd/internal/cli，所以在这里保留类型别名。
