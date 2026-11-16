@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 左下角「本机管理」账户菜单：外观（三张图标卡片）、语言（下拉框）、
- * 设置入口、隐藏到托盘、帮助文档。
+ * 设置入口、开机自启动、隐藏到托盘、帮助文档。
  * 语言列表从 i18n 的 LANGS 注册表生成，label 用各语言自己的写法；
  * 新增语言只要在注册表加一行，这里不用改。
  */
@@ -10,7 +10,7 @@ import { Settings2, Sun, Moon, Monitor } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore, type ThemeMode } from '../../stores/app';
 import { LANGS } from '../../i18n/config';
-import { hideWindow } from '../../services/api/app';
+import { hideWindow, getAutoStart, setAutoStart } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 import HelpDialog from './HelpDialog.vue';
 import type { Lang } from '../../types/i18n';
@@ -22,6 +22,8 @@ const open = ref(false);
 const helpOpen = ref(false);
 const error = ref('');
 const root = ref<HTMLElement | null>(null);
+const autoStart = ref(false);
+const autoStartBusy = ref(false);
 
 /** 语言项按注册表顺序展开，label 用各语言自称。 */
 const langItems = computed(() =>
@@ -40,6 +42,29 @@ function close(): void {
 function toggle(): void {
   open.value = !open.value;
   error.value = '';
+  // 自启动以注册表为准：每次打开菜单重新读一次，避免显示过期状态
+  if (open.value) void loadAutoStart();
+}
+
+async function loadAutoStart(): Promise<void> {
+  try {
+    autoStart.value = await getAutoStart();
+  } catch {
+    // 读失败不影响菜单其它项，保留上次状态
+  }
+}
+
+/** 点菜单项即切换；勾选态以服务端返回的注册表结果为准，菜单保持展开。 */
+async function toggleAutoStart(): Promise<void> {
+  autoStartBusy.value = true;
+  error.value = '';
+  try {
+    autoStart.value = await setAutoStart(!autoStart.value);
+  } catch (e) {
+    error.value = messageOf(e);
+  } finally {
+    autoStartBusy.value = false;
+  }
 }
 
 function setMode(mode: ThemeMode): void {
@@ -153,6 +178,13 @@ onBeforeUnmount(() => {
       <div class="menu-sep" />
       <button type="button" class="menu-item" @click="gotoSettings">
         <span>{{ t('menu.settings') }}</span>
+      </button>
+      <button
+        type="button" class="menu-item" role="menuitemcheckbox"
+        :aria-checked="autoStart" :disabled="autoStartBusy" @click="toggleAutoStart"
+      >
+        <span>{{ t('menu.autostart') }}</span>
+        <span v-if="autoStart" class="menu-check" aria-hidden="true">✓</span>
       </button>
       <button type="button" class="menu-item" @click="toTray">
         <span>{{ t('menu.tray') }}</span>

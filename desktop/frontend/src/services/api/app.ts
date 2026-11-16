@@ -73,6 +73,14 @@ function joinPath(base: string, rel: string): string {
 export function getRuntimePaths(): Promise<RuntimePaths> {
   return service.Paths();
 }
+/** 开机自启动状态：以注册表为准，返回设置是否生效。 */
+export function getAutoStart(): Promise<boolean> {
+  return service.GetAutoStart();
+}
+/** 开启/关闭开机自启动，返回设置后的实际状态。 */
+export function setAutoStart(enabled: boolean): Promise<boolean> {
+  return service.SetAutoStart(enabled);
+}
 export function startServer(): Promise<string> {
   return service.StartServer();
 }

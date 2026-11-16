@@ -84,6 +84,9 @@ export interface DesktopServiceContract {
   ListCerts(): Promise<Cert[]>;
   TailLog(name: string, lines: number): Promise<LogEntry[]>;
   Paths(): Promise<RuntimePaths>;
+  /** 开机自启动：Windows 读写 HKCU\...\Run，其它平台恒为 false。 */
+  GetAutoStart(): Promise<boolean>;
+  SetAutoStart(enabled: boolean): Promise<boolean>;
   StartServer(): Promise<string>;
   StopServer(): Promise<string>;
   ReloadServer(): Promise<string>;
