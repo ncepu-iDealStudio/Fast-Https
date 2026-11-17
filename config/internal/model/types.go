@@ -5,6 +5,7 @@ package model
 import (
 	"net/netip"
 	"strings"
+	"time"
 )
 
 const (
@@ -84,8 +85,34 @@ func (l PathLimit) IsZero() bool {
 type ServerLimit struct {
 	MaxBodySize   int `json:"max_body_size"`
 	MaxHeaderSize int `json:"max_header_size"`
+	// 超时单位为秒，0 表示用默认值（读 30s、写 30s、body 每轮 1s）。
+	ReadTimeout  int `json:"read_timeout"`
+	WriteTimeout int `json:"write_timeout"`
+	BodyTimeout  int `json:"body_timeout"`
 	Rate          int `json:"limit"`
 	Burst         int `json:"burst"`
+}
+
+// ReadTimeoutDuration 返回请求头读取超时；未配置时用默认值。
+func (l ServerLimit) ReadTimeoutDuration() time.Duration {
+	return timeoutDuration(l.ReadTimeout, DEFAULT_READ_TIMEOUT)
+}
+
+// WriteTimeoutDuration 返回响应写出超时；未配置时用默认值。
+func (l ServerLimit) WriteTimeoutDuration() time.Duration {
+	return timeoutDuration(l.WriteTimeout, DEFAULT_WRITE_TIMEOUT)
+}
+
+// BodyTimeoutDuration 返回读取 body 时单次读的超时；未配置时用默认值。
+func (l ServerLimit) BodyTimeoutDuration() time.Duration {
+	return timeoutDuration(l.BodyTimeout, DEFAULT_BODY_TIMEOUT)
+}
+
+func timeoutDuration(seconds, fallback int) time.Duration {
+	if seconds <= 0 {
+		seconds = fallback
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 type Try struct {

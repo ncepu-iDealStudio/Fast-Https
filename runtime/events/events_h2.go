@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/net/http2"
 
+	"fast-https/config"
 	"fast-https/core"
 	"fast-https/infra/logging"
 	"fast-https/runtime/filters"
@@ -29,7 +30,6 @@ const H2GracefulShutdownPeriod = 5 * time.Second
 
 const (
 	h2MaxConcurrentStreams = 250
-	h2ReadHeaderTimeout    = 30 * time.Second
 )
 
 // H2HandleEvent 接管一条已完成 TCP 接入的 HTTP/2 连接。
@@ -56,7 +56,7 @@ func H2HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 	headerLimit := maxHeaderSize()
 	srv := &http.Server{
 		Handler:           h,
-		ReadHeaderTimeout: h2ReadHeaderTimeout,
+		ReadHeaderTimeout: config.Current().Limit.ReadTimeoutDuration(),
 		MaxHeaderBytes:    headerLimit,
 		ErrorLog:          log.New(h2LogWriter{}, "", 0),
 		BaseContext:       func(net.Listener) context.Context { return ctx },

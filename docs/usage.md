@@ -108,6 +108,9 @@ logs/                       运行日志
     "servers_limit": {
       "max_header_size": 8192,
       "max_body_size": 8388608,
+      "read_timeout": 30,
+      "write_timeout": 30,
+      "body_timeout": 1,
       "limit": 0,
       "burst": 0
     },
@@ -270,16 +273,21 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `server` | 站点数组，每一项是一个虚拟主机 |
 | `include` | 额外加载的目录或 json 文件列表，默认 `config/conf.d` |
 | `default_type` | 未知扩展名的默认 Content-Type |
-| `servers_limit` | `max_body_size`、`max_header_size`、`limit`、`burst` |
+| `servers_limit` | `max_body_size`、`max_header_size`、`read_timeout`、`write_timeout`、`body_timeout`、`limit`、`burst` |
 | `blaklist` | IP 黑名单（键名是历史拼写，保持兼容） |
 | `log_format` | 访问日志字段顺序，见第 9 节 |
 
-`servers_limit` 的两个大小上限：
+`servers_limit` 的大小上限与超时：
 
-| 键 | 默认 | 超限行为 |
+| 键 | 默认 | 说明 |
 | --- | --- | --- |
 | `max_header_size` | 4096 | 431 Request Header Fields Too Large，关闭连接；HTTP/1.1 与 HTTP/2 共用 |
 | `max_body_size` | 524288 | 413 Payload Too Large，关闭连接；声明长度与流式正文都检查 |
+| `read_timeout` | 30 | 读取请求头/首包的秒数，HTTP/2 的读头超时也用它 |
+| `write_timeout` | 30 | 写出响应的秒数 |
+| `body_timeout` | 1 | 读取 body 时单次读的秒数（不是整个上传的总时长） |
+
+超时写 `0` 表示使用默认值；负数会在加载/校验时直接报错。
 
 ### 5.3 `server` 段
 

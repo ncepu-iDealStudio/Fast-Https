@@ -26,7 +26,8 @@
 - `Expect: 100-continue` 由协议栈在首次读 body 时自动回 100；无法满足的其它期望回 **417**。
   读取正文后从转发头里移除 `Expect`，避免上游再回一个 100。
 - reload/停机时对每条 h2 连接执行 5s 宽限的 `Shutdown`。
-- 约束：`MaxConcurrentStreams` 250、读头超时 30s；标准库内部日志经 `h2LogWriter` 转入项目日志。
+- 约束：`MaxConcurrentStreams` 250；读头超时复用 `servers_limit.read_timeout`；
+  标准库内部日志经 `h2LogWriter` 转入项目日志。
 
 ## 测试
 

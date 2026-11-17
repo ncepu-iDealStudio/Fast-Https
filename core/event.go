@@ -2,6 +2,7 @@
 package core
 
 import (
+	"fast-https/config"
 	"fast-https/infra/logging"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/request"
@@ -129,7 +130,7 @@ func PutReadBuf(b []byte) { readBufPool.Put(b) }
 // only for HTTP/1.1
 func (ev *Event) ReadRequestInto(buf []byte) []byte {
 	now := time.Now()
-	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
+	ev.Conn.SetReadDeadline(now.Add(config.Current().Limit.ReadTimeoutDuration()))
 	n, err := ev.Conn.Read(buf)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed

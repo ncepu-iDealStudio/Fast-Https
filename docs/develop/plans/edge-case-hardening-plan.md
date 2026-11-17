@@ -218,8 +218,9 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 - 用例：`runtime/events/connection_limits_test.go`（单测）、`connection_e2e_test.go`
   （真实 TCP：100、431、413、keep-alive，以及客户端 Expect → 代理 → 上游的完整链路）、
   `h2_helpers_test.go`（h2 431/413/417）；`-race` 下通过。
-- 超时口径不在本轮配置化：读写 30s、body 每轮 1s 仍为固定值，既有
-  `TestBodyTimeoutAndTooLarge` 继续锁定超时边界。
+- 超时可配置：`http.servers_limit.read_timeout` / `write_timeout` / `body_timeout`
+  （单位秒，0 用默认 30 / 30 / 1），负数在加载期报错；HTTP/2 的读头超时同样读
+  `read_timeout`。
 
 ## R-09 reload 的原子性与可见性
 

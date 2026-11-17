@@ -127,6 +127,9 @@ func validateConfigAt(configPath string, opts validateOpts) ([]string, error) {
 	if err := validateProxy(root.Proxy); err != nil {
 		return nil, err
 	}
+	if err := validateLimits(root.HTTP.Limit); err != nil {
+		return nil, err
+	}
 
 	serverCount := len(root.HTTP.Servers)
 	for i := range root.HTTP.Servers {
@@ -272,6 +275,24 @@ func validateProxy(proxy schema.Proxy) error {
 		}
 		if _, err := netip.ParseAddr(item); err != nil {
 			return fmt.Errorf("proxy.trusted_proxies[%d]: invalid IP or CIDR: %q", i, item)
+		}
+	}
+	return nil
+}
+
+// validateLimits 检查 http.servers_limit 的超时项：0 表示使用默认值，
+// 负数既不是「不限」也不是合法秒数，直接报配置错误。
+func validateLimits(l model.ServerLimit) error {
+	for _, item := range []struct {
+		name string
+		val  int
+	}{
+		{"read_timeout", l.ReadTimeout},
+		{"write_timeout", l.WriteTimeout},
+		{"body_timeout", l.BodyTimeout},
+	} {
+		if item.val < 0 {
+			return fmt.Errorf("http.servers_limit.%s must be >= 0, got %d", item.name, item.val)
 		}
 	}
 	return nil

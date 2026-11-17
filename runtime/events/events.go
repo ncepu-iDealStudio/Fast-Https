@@ -220,7 +220,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			rejectHeaderTooLarge(ev)
 			return 0
 		}
-		ev.Conn.SetReadDeadline(time.Now().Add(time.Second * 30))
+		ev.Conn.SetReadDeadline(time.Now().Add(config.Current().Limit.ReadTimeoutDuration()))
 		n, err := ev.Conn.Read(rr.ReqBuf)
 		if err != nil || n == 0 {
 			metrics.NoteAborted()
@@ -249,7 +249,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 
 	if request.HasToken(rr.Req.HeaderFold("Transfer-Encoding"), "chunked") {
 		body, err := request.ReadChunked(rr.Req.Body.Bytes(), func() ([]byte, error) {
-			ev.Conn.SetReadDeadline(time.Now().Add(time.Second))
+			ev.Conn.SetReadDeadline(time.Now().Add(config.Current().Limit.BodyTimeoutDuration()))
 			n, err := ev.Conn.Read(rr.ReqBuf)
 			if err != nil {
 				return nil, err
@@ -289,7 +289,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		if rr.Req.RequestBodyValid() {
 			break
 		} else {
-			ev.Conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+			ev.Conn.SetReadDeadline(time.Now().Add(config.Current().Limit.BodyTimeoutDuration()))
 			datasize, err := ev.Conn.Read(rr.ReqBuf)
 			if err != nil { // read error, like time out
 				logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body error"))
@@ -421,14 +421,14 @@ func declaredBodyLen(r *request.Request) int {
 
 // writeContinue 直接写 1xx 中间响应。它不是最终响应，不经过 Res，也不写访问日志。
 func writeContinue(ev *core.Event) bool {
-	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
+	ev.Conn.SetWriteDeadline(time.Now().Add(config.Current().Limit.WriteTimeoutDuration()))
 	_, err := ev.Conn.Write([]byte("HTTP/1.1 100 Continue\r\n\r\n"))
 	return err == nil
 }
 
 func EventWrite(ev *core.Event, _data []byte) error {
 	//fmt.Printf("%p", ev)
-	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
+	ev.Conn.SetWriteDeadline(time.Now().Add(config.Current().Limit.WriteTimeoutDuration()))
 	data := ev.ResponseBytes()
 	// data := []byte("HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nhello world")
 	for len(data) > 0 {

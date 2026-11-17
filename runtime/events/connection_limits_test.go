@@ -324,6 +324,25 @@ func TestHTTP10IgnoresExpect(t *testing.T) {
 	}
 }
 
+// TestReadTimeoutIsConfigurable 锁定 read_timeout 真的作用到读头上：
+// 只发半截头，配置成 1 秒后连接必须被放弃，而不是继续等 30 秒。
+func TestReadTimeoutIsConfigurable(t *testing.T) {
+	withLimit(t, func(c *config.Fast_Https) { c.Limit.ReadTimeout = 1 })
+
+	ev, client := newParseEvent(t)
+	go func() { _, _ = client.Write([]byte("GET / HTTP/1.1\r\nHost: example.com\r\n")) }()
+
+	start := time.Now()
+	code := parseRequest(ev, filters.NewFilter())
+	elapsed := time.Since(start)
+	if code != 0 {
+		t.Fatalf("parseRequest() = %d，读超时后应返回 0", code)
+	}
+	if elapsed < 700*time.Millisecond || elapsed > 5*time.Second {
+		t.Fatalf("耗时 %v，期望约 1 秒（read_timeout 生效）", elapsed)
+	}
+}
+
 // TestKeepAliveResetsRequestAndResponse 覆盖 keep-alive 复用同一个 RRcircle：
 // 上一请求的凭据、查询串、body，以及上一响应的头部都不能串到下一请求。
 // 静态层直接往 rr.Res.Headers 写头，不复位会让下一个响应带着

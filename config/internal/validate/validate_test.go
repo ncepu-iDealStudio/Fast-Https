@@ -463,6 +463,22 @@ func TestValidateIncludeAcceptsComments(t *testing.T) {
 	}
 }
 
+// 负的超时时长既不是「用默认值」也不是合法秒数，必须在加载期拒绝。
+func TestValidateLimitsRejectsNegativeTimeouts(t *testing.T) {
+	for name, l := range map[string]model.ServerLimit{
+		"read_timeout":  {ReadTimeout: -1},
+		"write_timeout": {WriteTimeout: -1},
+		"body_timeout":  {BodyTimeout: -1},
+	} {
+		if err := validateLimits(l); err == nil {
+			t.Fatalf("%s = -1 should be rejected", name)
+		}
+	}
+	if err := validateLimits(model.ServerLimit{}); err != nil {
+		t.Fatalf("zero limits should be accepted: %v", err)
+	}
+}
+
 func TestValidateSiteFileReportsFieldPath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad.json")

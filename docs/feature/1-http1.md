@@ -12,7 +12,13 @@
 
 ```json
 "http": {
-  "servers_limit": { "max_header_size": 4096, "max_body_size": 524288 }
+  "servers_limit": {
+    "max_header_size": 4096,
+    "max_body_size": 524288,
+    "read_timeout": 30,
+    "write_timeout": 30,
+    "body_timeout": 1
+  }
 }
 ```
 
@@ -40,7 +46,8 @@
 - keep-alive 复用 `Event`/`Request` 对象：`Request.Flush` 清理 Headers/Query/Body/扫描进度，
   同时重建 `Response` 并复位 `OriginPath`/`PathLocation`/`Upgrade`，避免上一请求的
   `Content-Encoding`、`Set-Cookie` 或路径匹配结果串到下一个响应。
-- 读缓冲 `sync.Pool`（4KB）；写超时 30s、读超时 30s（body 分块读 1s/轮）。
+- 读缓冲 `sync.Pool`（4KB）；超时由 `servers_limit.read_timeout` / `write_timeout` /
+  `body_timeout` 配置，单位秒，0 表示默认 30 / 30 / 1。
 - 畸形请求统一 400（`DefaultBadRequest`）并关闭。
 
 ### 停机（runtime/server/server.go）

@@ -333,6 +333,15 @@ func SetDefault(cfg *model.Fast_Https) {
 	if cfg.Limit.MaxBodySize == 0 {
 		cfg.Limit.MaxBodySize = model.DEFAULT_MAX_BODY_SIZE
 	}
+	if cfg.Limit.ReadTimeout == 0 {
+		cfg.Limit.ReadTimeout = model.DEFAULT_READ_TIMEOUT
+	}
+	if cfg.Limit.WriteTimeout == 0 {
+		cfg.Limit.WriteTimeout = model.DEFAULT_WRITE_TIMEOUT
+	}
+	if cfg.Limit.BodyTimeout == 0 {
+		cfg.Limit.BodyTimeout = model.DEFAULT_BODY_TIMEOUT
+	}
 	if cfg.DefaultType == "" {
 		cfg.DefaultType = model.HTTP_DEFAULT_CONTENT_TYPE
 	}

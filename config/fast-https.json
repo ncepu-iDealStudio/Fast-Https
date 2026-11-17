@@ -25,6 +25,9 @@
     "servers_limit": {
       "max_header_size": 8192,
       "max_body_size": 8388608,
+      "read_timeout": 30,
+      "write_timeout": 30,
+      "body_timeout": 1,
       "limit": 0,
       "burst": 0
     },
