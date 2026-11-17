@@ -111,20 +111,26 @@ logs/                       运行日志</code></pre>
     &#34;headers&#34;: {
       &#34;nosniff&#34;: true,
       &#34;hsts&#34;: &#34;&#34;,
-      &#34;x_frame_options&#34;: &#34;&#34;,
-      &#34;referrer_policy&#34;: &#34;&#34;,
+      &#34;x_frame_options&#34;: &#34;SAMEORIGIN&#34;,
+      &#34;referrer_policy&#34;: &#34;strict-origin-when-cross-origin&#34;,
       &#34;content_security_policy&#34;: &#34;&#34;
     }
   },
   &#34;waf&#34;: {
-    &#34;mode&#34;: &#34;disabled&#34;
+    &#34;mode&#34;: &#34;monitor&#34;
+  },
+  &#34;proxy&#34;: {
+    &#34;trusted_proxies&#34;: [&#34;127.0.0.1/32&#34;, &#34;::1/128&#34;],
+    &#34;forwarded_for&#34;: {
+      &#34;max_hops&#34;: 10
+    }
   },
   &#34;http&#34;: {
-    &#34;include&#34;: [&#34;./config/conf.d&#34;],
+    &#34;include&#34;: [&#34;./conf.d&#34;],
     &#34;default_type&#34;: &#34;application/octet-stream&#34;,
     &#34;servers_limit&#34;: {
-      &#34;max_header_size&#34;: 4096,
-      &#34;max_body_size&#34;: 524288,
+      &#34;max_header_size&#34;: 8192,
+      &#34;max_body_size&#34;: 8388608,
       &#34;limit&#34;: 0,
       &#34;burst&#34;: 0
     },
@@ -136,7 +142,23 @@ logs/                       运行日志</code></pre>
     &#34;email&#34;: &#34;&#34;
   }
 }</code></pre>
-<p>上面每一项的取值都等于内置默认值，写全是为了在文件里直接看到有哪些系统级开关（<code>waf.mode: disabled</code> 等价于不启用，引擎不构建，零开销）。</p>
+<p>随包配置在安全默认值之上预先打开了几项常用能力，不改也能直接跑：</p>
+<ul>
+<li><code>x_frame_options</code> 与 <code>referrer_policy</code> 默认给出 <code>SAMEORIGIN</code> 和</li>
+</ul>
+<p><code>strict-origin-when-cross-origin</code>；<code>hsts</code> 与 <code>content_security_policy</code> 保持留空， 前者要等全站 HTTPS 稳定后再开，后者与具体站点强相关。</p>
+<ul>
+<li><code>waf.mode</code> 为 <code>monitor</code>：命中只记录、不阻断；规则本身仍由 location 的</li>
+</ul>
+<p><code>appfirewall</code> 选择（见 15 节）。</p>
+<ul>
+<li><code>proxy.trusted_proxies</code> 信任本机回环，前置 nginx / Caddy 时能还原真实客户端 IP；</li>
+</ul>
+<p><code>forwarded_for.max_hops</code> 限制为 10，避免接受无上限的伪造链。</p>
+<ul>
+<li>请求头上限 8 KB、请求体上限 8 MB，覆盖带 Cookie 的页面与常见表单 / JSON 上传。</li>
+</ul>
+<p>要收紧或换掉哪一项，直接改对应字段即可；每一项的取值含义见本章各节。</p>
 <p>随包的 <code>config/conf.d/default.json</code> 是开箱即用的默认站点，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 <code>./httpdoc/root</code>：</p>
 <pre><code class="language-json">{
   &#34;listen&#34;: [80, &#34;443 ssl h2&#34;],
@@ -316,7 +338,7 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>headers.content_security_policy</code></td><td>空</td><td>写入 <code>Content-Security-Policy</code></td></tr>
 </tbody>
 </table>
-<p>安全头在响应写出的唯一出口统一补齐：模块自己设置过同名头时不覆盖，重复调用幂等。</p>
+<p>随包配置把 <code>x_frame_options</code> 设为 <code>SAMEORIGIN</code>、<code>referrer_policy</code> 设为 <code>strict-origin-when-cross-origin</code>；不写 <code>security</code> 段时则只加 <code>nosniff</code>。 安全头在响应写出的唯一出口统一补齐：模块自己设置过同名头时不覆盖，重复调用幂等。</p>
 <blockquote><p>请求路径在解析阶段就完成规范化：解一层 <code>%xx</code>、合并连续的 <code>/</code>、拒绝二次编码（<code>%252f</code>）、反斜杠、控制字符与超过 8192 字节的目标，非法请求直接 400。location 匹配、静态文件解析与日志看到的都是规范化后的路径。</p></blockquote>
 <h3 id="sec-20">5.6 <code>proxy</code> 段</h3>
 <p>全局代理转发策略，对所有 <code>type: proxy</code> 的 location 生效：</p>

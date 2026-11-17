@@ -88,20 +88,26 @@ logs/                       运行日志
     "headers": {
       "nosniff": true,
       "hsts": "",
-      "x_frame_options": "",
-      "referrer_policy": "",
+      "x_frame_options": "SAMEORIGIN",
+      "referrer_policy": "strict-origin-when-cross-origin",
       "content_security_policy": ""
     }
   },
   "waf": {
-    "mode": "disabled"
+    "mode": "monitor"
+  },
+  "proxy": {
+    "trusted_proxies": ["127.0.0.1/32", "::1/128"],
+    "forwarded_for": {
+      "max_hops": 10
+    }
   },
   "http": {
-    "include": ["./config/conf.d"],
+    "include": ["./conf.d"],
     "default_type": "application/octet-stream",
     "servers_limit": {
-      "max_header_size": 4096,
-      "max_body_size": 524288,
+      "max_header_size": 8192,
+      "max_body_size": 8388608,
       "limit": 0,
       "burst": 0
     },
@@ -115,7 +121,18 @@ logs/                       运行日志
 }
 ```
 
-上面每一项的取值都等于内置默认值，写全是为了在文件里直接看到有哪些系统级开关（`waf.mode: disabled` 等价于不启用，引擎不构建，零开销）。
+随包配置在安全默认值之上预先打开了几项常用能力，不改也能直接跑：
+
+- `x_frame_options` 与 `referrer_policy` 默认给出 `SAMEORIGIN` 和
+  `strict-origin-when-cross-origin`；`hsts` 与 `content_security_policy` 保持留空，
+  前者要等全站 HTTPS 稳定后再开，后者与具体站点强相关。
+- `waf.mode` 为 `monitor`：命中只记录、不阻断；规则本身仍由 location 的
+  `appfirewall` 选择（见 15 节）。
+- `proxy.trusted_proxies` 信任本机回环，前置 nginx / Caddy 时能还原真实客户端 IP；
+  `forwarded_for.max_hops` 限制为 10，避免接受无上限的伪造链。
+- 请求头上限 8 KB、请求体上限 8 MB，覆盖带 Cookie 的页面与常见表单 / JSON 上传。
+
+要收紧或换掉哪一项，直接改对应字段即可；每一项的取值含义见本章各节。
 
 随包的 `config/conf.d/default.json` 是开箱即用的默认站点，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 `./httpdoc/root`：
 
@@ -322,6 +339,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `headers.referrer_policy` | 空 | 写入 `Referrer-Policy` |
 | `headers.content_security_policy` | 空 | 写入 `Content-Security-Policy` |
 
+随包配置把 `x_frame_options` 设为 `SAMEORIGIN`、`referrer_policy` 设为
+`strict-origin-when-cross-origin`；不写 `security` 段时则只加 `nosniff`。
 安全头在响应写出的唯一出口统一补齐：模块自己设置过同名头时不覆盖，重复调用幂等。
 
 > 请求路径在解析阶段就完成规范化：解一层 `%xx`、合并连续的 `/`、拒绝二次编码（`%252f`）、反斜杠、控制字符与超过 8192 字节的目标，非法请求直接 400。location 匹配、静态文件解析与日志看到的都是规范化后的路径。
