@@ -178,8 +178,11 @@ woff/woff2 等）；`zip_skip_types` 非空时**整体替换**该清单，不追
 `site add` 新建 local 站点默认写入 br+gzip、1 KB 阈值与整类跳过清单，
 可用同名 flag 覆盖，`--zip=` 关闭。
 `TestAcceptEncodingCases` 逐条读取 `modules/static/testdata/accept-encoding.jsonl`
-的七个用例（`gzip;q=0`、`*` 回落、HEAD 长度、Range 跳过、已压缩类型、
-长度改写与 `Vary`、`min_length`）。
+的八个用例（`gzip;q=0`、`*` 回落、HEAD 长度、Range 跳过、已压缩类型、
+长度改写与 `Vary`、`min_length`、`type/*` 通配跳过）。
+
+**已知限制**：q 值只判断是否接受（`q>0`），两种编码都配置时固定优先 `br`，
+不按 q 大小做加权择优；客户端写 `br;q=0.1, gzip;q=1` 仍会拿到 br。
 
 ## R-08 连接与超时的边界行为
 
