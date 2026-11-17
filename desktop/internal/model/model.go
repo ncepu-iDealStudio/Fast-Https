@@ -202,9 +202,11 @@ type LogQuery struct {
 	Method     string `json:"method"`
 	PathPrefix string `json:"pathPrefix"` // --path-prefix
 	Reason     string `json:"reason"`
-	Since      string `json:"since"`  // 时长（1h）或 RFC3339
-	Until      string `json:"until"`  // 筛选条件：只看此刻之前的记录
-	Cursor     string `json:"cursor"` // 分页游标（上一页最早一条的时间）；有值时收窄 until
+	// RejectReason 对应 logs query --reject-reason（统一拒绝日志，R-10）。
+	RejectReason string `json:"rejectReason"`
+	Since        string `json:"since"`  // 时长（1h）或 RFC3339
+	Until        string `json:"until"`  // 筛选条件：只看此刻之前的记录
+	Cursor       string `json:"cursor"` // 分页游标（上一页最早一条的时间）；有值时收窄 until
 }
 
 // LogPage 是日志页一页结果。logs query 没有 offset 分页：

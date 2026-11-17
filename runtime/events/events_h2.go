@@ -125,6 +125,7 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 头上限：协议栈按 MaxHeaderBytes 设置的列表上限只是 DoS 兜底，
 	// 真正的 431 在这里按同一份配置判定，保证 h2 与 h1 的状态码一致。
 	if h2HeaderSize(r) > maxHeaderSize() {
+		logReject("header_too_large", "max_header_size", h.conn)
 		w.WriteHeader(http.StatusRequestHeaderFieldsTooLarge)
 		metrics.NoteParseError()
 		return
@@ -134,6 +135,7 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	// 声明的长度已超限：不读正文，直接 413（与 h1 的 Expect 前置检查一致）。
 	if limit := maxBodySize(); limit > 0 && r.ContentLength > int64(limit) {
+		logReject("body_too_large", "max_body_size", h.conn)
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		metrics.NoteAborted()
 		return
@@ -142,6 +144,7 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch fillRequest(ev.RR.Req, r) {
 	case 0:
 	case http.StatusRequestEntityTooLarge:
+		logReject("body_too_large", "max_body_size", h.conn)
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		metrics.NoteAborted()
 		return

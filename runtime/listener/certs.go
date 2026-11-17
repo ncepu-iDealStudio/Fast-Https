@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"net"
 	"slices"
 	"sync"
 
@@ -63,16 +64,22 @@ func (c *certSet) get(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		chosen := *c.defaultCert
 		return &chosen, nil
 	}
-	logUnknownSNI(name)
+	logUnknownSNI(name, hello)
 	chosen := c.certs[0]
 	return &chosen, nil
 }
 
 // logUnknownSNI 记录一次未知 SNI 回落。字段与统一拒绝日志对齐
 // （reject_reason=unknown_sni），便于按字段检索。
-func logUnknownSNI(sni string) {
+func logUnknownSNI(sni string, hello *tls.ClientHelloInfo) {
+	var conn net.Conn
+	if hello != nil {
+		conn = hello.Conn
+	}
 	logging.ConsoleLog.Warn().
-		Str("reject_reason", "unknown_sni").
+		Str(logging.FieldRejectReason, "unknown_sni").
+		Str(logging.FieldRule, "tls.sni").
+		Str(logging.FieldRemoteIP, logging.RemoteIP(conn)).
 		Str("sni", sni).
 		Msg("unknown TLS SNI: falling back to the first certificate " +
 			"(set tls.default_certificate to choose an explicit fallback)")

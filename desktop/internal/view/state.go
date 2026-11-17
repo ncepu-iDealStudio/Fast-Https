@@ -569,6 +569,7 @@ func logsQueryArgs(q LogQuery) []string {
 	addFlag("--method", q.Method)
 	addFlag("--path-prefix", q.PathPrefix)
 	addFlag("--reason", q.Reason)
+	addFlag("--reject-reason", q.RejectReason)
 	addFlag("--since", normalizeBound(q.Since, false))
 	until := normalizeBound(q.Until, true)
 	if q.Cursor != "" {

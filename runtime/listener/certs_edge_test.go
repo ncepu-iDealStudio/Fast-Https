@@ -1,4 +1,4 @@
-﻿package listener
+package listener
 
 import (
 	"bytes"
@@ -123,6 +123,9 @@ func TestCertSetUnknownSNILogsFallback(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, `"reject_reason":"unknown_sni"`) {
 		t.Fatalf("日志缺少 reject_reason：%s", out)
+	}
+	if !strings.Contains(out, `"rule":"tls.sni"`) {
+		t.Fatalf("日志缺少 rule：%s", out)
 	}
 	if !strings.Contains(out, `"sni":"nowhere.test"`) {
 		t.Fatalf("日志缺少 sni：%s", out)

@@ -92,6 +92,7 @@ func newLogsQueryCmd() *cobra.Command {
 	c.Flags().String("method", "", cli.T("按 method 字段过滤", "filter on the method field"))
 	c.Flags().String("path-prefix", "", cli.T("按 path 前缀过滤", "filter on a path prefix"))
 	c.Flags().String("reason", "", cli.T("按 reason 字段过滤", "filter on the reason field"))
+	c.Flags().String("reject-reason", "", cli.T("按 reject_reason 字段过滤", "filter on the reject_reason field"))
 	return c
 }
 
@@ -127,6 +128,9 @@ func runLogs(cmd *cobra.Command, id, kind string) error {
 	}
 	if cmd.Flags().Lookup("reason") != nil {
 		q.Reason, _ = cmd.Flags().GetString("reason")
+	}
+	if cmd.Flags().Lookup("reject-reason") != nil {
+		q.RejectReason, _ = cmd.Flags().GetString("reject-reason")
 	}
 
 	configPath, _ := cmd.Flags().GetString("config")

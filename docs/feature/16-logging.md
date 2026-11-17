@@ -21,6 +21,7 @@
 - **文件写入**：`syncWriter` 互斥串行化（多连接协程写同一文件不交错），`io.MultiWriter` 同时回显 stdout。
 - **访问日志**（dynlog）：按 `log_format` 配置的字段函数表（atomic 整体替换，reload 安全）直接往 zerolog 事件上追加字段，零中间结构；`DynLogger` 由处理过程暂存 status/size。
 - **安全日志**：限流/黑名单/WAF 类拒绝统一带 `reason` 字段。
+- **拒绝日志（R-10）**：数据面拒绝统一带 `reject_reason`（枚举）、`rule`（命中的配置项/规则名）、`remote_ip`（客户端 IP，不含端口）。真正拒绝用 warn：路径穿越（`path_traversal` / `static_root`）、隐藏路径（`hidden_path` / `hidden_path_segment`）、超限（`header_too_large` / `max_header_size`、`body_too_large` / `max_body_size`）、未知 SNI（`unknown_sni` / `tls.sni`，走控制台 warn 并镜像到 `error.log`）；压缩跳过用 debug（`compression_skipped` / `zip_min_length`、`zip_skip_types`），只在排障时打开。入口是 `infra/logging.RejectWarn` / `RejectDebug`，不记录原始请求路径。`logs query --reject-reason` 可按枚举过滤。
 - **reload**：先开新文件再关旧文件，新目录打不开时旧文件继续可写。
 
 ## 测试

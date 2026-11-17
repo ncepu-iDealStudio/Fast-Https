@@ -961,6 +961,9 @@ systemd 依赖它们的文本输出。
   | `records[].host` | string? | Host |
   | `records[].remote_addr` | string? | 客户端地址 |
   | `records[].reason` | string? | 安全日志拒绝原因（脱敏） |
+  | `records[].reject_reason` | string? | 统一拒绝日志的枚举原因（如 `path_traversal`、`header_too_large`） |
+  | `records[].rule` | string? | 拒绝时命中的配置项/规则名（如 `max_header_size`、`static_root`） |
+  | `records[].remote_ip` | string? | 拒绝日志里的客户端 IP（不含端口） |
   | `records[].truncated` | bool? | 本条 message/path 被截断 |
   | `source.file` | string | 固定文件名（`access.log`/`error.log`/`system.log`/`safe.log`） |
   | `source.scanned_bytes` | int64 | 实际扫描字节数 |
@@ -999,6 +1002,7 @@ systemd 依赖它们的文本输出。
   | `--method` | string | 按 `method` 精确过滤 | `""` |
   | `--path-prefix` | string | 按 `path` 前缀过滤 | `""` |
   | `--reason` | string | 按 `reason` 精确过滤 | `""` |
+  | `--reject-reason` | string | 按 `reject_reason` 精确过滤（统一拒绝日志） | `""` |
   | + 共同 flags | | `--config`、`--since`、`--limit`、`--domain`、`--status` | |
 
 - **data JSON**：与 7. 相同（一次只查一个文件；`source.file` 即该 kind 对应文件）。

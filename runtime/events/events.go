@@ -344,6 +344,7 @@ func headerLen(b []byte) int {
 // rejectHeaderTooLarge 回 431：请求头超过 max_header_size。
 func rejectHeaderTooLarge(ev *core.Event) {
 	logging.ConsoleLog.Debug().Msgf("%s", color.Red("request header too large"))
+	logReject("header_too_large", "max_header_size", ev.Conn)
 	ev.RR.Res = response.DefaultRequestHeaderFieldsTooLarge()
 	ev.WriteResponseClose(nil)
 	metrics.NoteParseError()
@@ -352,9 +353,16 @@ func rejectHeaderTooLarge(ev *core.Event) {
 // rejectTooLargeBody 回 413 并关闭连接：请求体超过 max_body_size。
 func rejectTooLargeBody(ev *core.Event) {
 	logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
+	logReject("body_too_large", "max_body_size", ev.Conn)
 	ev.RR.Res = response.DefaultPayloadTooLarge()
 	ev.WriteResponseClose(nil)
 	metrics.NoteAborted()
+}
+
+// logReject 写一条统一字段的拒绝日志（R-10）。只记客户端 IP，
+// 不记原始请求路径，避免把可能含敏感参数的编码带进日志。
+func logReject(reason, rule string, conn net.Conn) {
+	logging.RejectWarn(reason, rule, logging.RemoteIP(conn)).Msg("request rejected")
 }
 
 // handleExpectation 处理 Expect 头。返回 false 表示已经写出拒绝响应并

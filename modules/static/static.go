@@ -11,6 +11,7 @@ import (
 	"fast-https/runtime/response"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -52,6 +53,16 @@ func writeHeader(rr *core.RRcircle, firstLineCode int, reason string) {
 	rr.Res.SetFirstLine(firstLineCode, reason)
 	rr.Res.SetHeader("Server", "Fast-Https")
 	rr.Res.SetHeader("Date", response.CachedDate())
+}
+
+// logReject 写一条统一字段的拒绝日志（R-10）。只记客户端 IP 与规则名，
+// 不记原始请求路径，避免把可能含敏感参数的编码带进日志。
+func logReject(ev *core.Event, reason, rule string) {
+	var conn net.Conn
+	if ev != nil {
+		conn = ev.Conn
+	}
+	logging.RejectWarn(reason, rule, logging.RemoteIP(conn)).Msg("request rejected")
 }
 
 // fileReadWrite 把文件流式写给客户端。
@@ -120,6 +131,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	// 判定用请求路径而不是拼好的文件路径：站点根本身可能落在 .local 这类
 	// 带点目录下，拿文件路径判会把整个站点误杀。
 	if hiddenPathSegment(rr.Req.Path) {
+		logReject(ev, "hidden_path", "hidden_path_segment")
 		log.Status(404)
 		log.Size(50)
 		return -1
@@ -127,6 +139,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	// /../ 之类的逃逸路径按未找到处理，不读任何文件
 	realPath, inRoot := staticPathInRoot(lisdata.StaticRoot, realPath)
 	if !inRoot {
+		logReject(ev, "path_traversal", "static_root")
 		log.Status(404)
 		log.Size(50)
 		return -1
@@ -219,19 +232,27 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	// 压缩条件：无 Range（压缩后 Range 语义失效）、文件达到 min_length
 	// 阈值、Content-Type 不在已压缩类型清单里。三条任一不满足就流式
 	// 原样返回，避免为几字节的响应付出压缩成本或把已压缩内容再压一遍。
-	if rngStart == -1 && compressible(lisdata, contentType, file_size) {
-		encoding = compress.Wanted(lisdata.Zip, acceptEncoding(ev))
-		if encoding != "" {
-			// 按块从文件流式压缩，避免把原文整体读进内存；输出缓冲
-			// 是为了先拿到压缩体长度写 Content-Length。
-			compressed, err := compress.CompressReader(file, encoding)
-			file.Close()
-			file = nil
-			if err != nil {
-				return -10
+	// 跳过原因写 debug 级拒绝日志：不改响应，但在排障时能定位是哪条配置。
+	if rngStart == -1 {
+		if rule := compressibleReason(lisdata, contentType, file_size); rule != "" {
+			if lisdata.Zip != config.ZIP_NONE {
+				logger := logging.RejectDebug("compression_skipped", rule, logging.RemoteIP(ev.Conn))
+				logger.Msg("static response compression skipped by config")
 			}
-			payload = compressed
-			stream = false
+		} else {
+			encoding = compress.Wanted(lisdata.Zip, acceptEncoding(ev))
+			if encoding != "" {
+				// 按块从文件流式压缩，避免把原文整体读进内存；输出缓冲
+				// 是为了先拿到压缩体长度写 Content-Length。
+				compressed, err := compress.CompressReader(file, encoding)
+				file.Close()
+				file = nil
+				if err != nil {
+					return -10
+				}
+				payload = compressed
+				stream = false
+			}
 		}
 	}
 	payloadLen := file_size

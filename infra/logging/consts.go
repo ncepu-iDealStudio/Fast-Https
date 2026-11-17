@@ -46,4 +46,9 @@ const (
 	FieldUserAgent  = "user_agent"
 	// FieldReason 说明安全日志里拒绝的具体原因。
 	FieldReason = "reason"
+	// 拒绝日志的统一字段契约（R-10）：reject_reason 是枚举值，
+	// rule 是命中的配置项/规则名，remote_ip 只含客户端 IP（不带端口）。
+	FieldRejectReason = "reject_reason"
+	FieldRule         = "rule"
+	FieldRemoteIP     = "remote_ip"
 )

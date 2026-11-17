@@ -333,6 +333,38 @@ func TestQueryFieldsStayOnTheAllowList(t *testing.T) {
 	}
 }
 
+// reject_reason 是统一拒绝日志的枚举字段，按它精确过滤（R-10）。
+func TestRejectReasonFilter(t *testing.T) {
+	dir := t.TempDir()
+	writeLog(t, dir, logging.SafeLogName,
+		line(map[string]any{
+			"time": "2026-11-08T00:00:01.000Z", "level": "warn", "kind": "safe",
+			"message": "request rejected", "reject_reason": "header_too_large",
+			"rule": "max_header_size", "remote_ip": "1.2.3.4",
+		})+"\n"+
+			line(map[string]any{
+				"time": "2026-11-08T00:00:02.000Z", "level": "warn", "kind": "safe",
+				"message": "request rejected", "reject_reason": "body_too_large",
+				"rule": "max_body_size", "remote_ip": "1.2.3.4",
+			})+"\n"+
+			line(map[string]any{
+				"time": "2026-11-08T00:00:03.000Z", "level": "warn", "kind": "safe",
+				"message": "connection rejected", "reason": "blacklist",
+			})+"\n")
+
+	res, _, err := Run(Query{Dir: dir, Kind: "safe", RejectReason: "header_too_large", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Records) != 1 {
+		t.Fatalf("records = %+v", res.Records)
+	}
+	rec := res.Records[0]
+	if rec.RejectReason != "header_too_large" || rec.Rule != "max_header_size" || rec.RemoteIP != "1.2.3.4" {
+		t.Fatalf("record = %+v", rec)
+	}
+}
+
 func messages(t *testing.T, dir string, q Query) []string {
 	t.Helper()
 	q.Dir = dir

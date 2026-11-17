@@ -1,6 +1,6 @@
 # Fast-Https 边界加固功能需求
 
-状态：🚧 **部分实现**（R-01 ~ R-09 已完成，R-11、R-13 随 R-08 一并落地；R-10 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
+状态：🚧 **部分实现**（R-01 ~ R-11、R-13 已完成；R-12 待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
 目前有没有这些问题、修没修）在 [edge-case-coverage.md](../../test/reports/edge-case-coverage.md)。
 
 ## 需求来源
@@ -267,6 +267,15 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 归一化后的片段。
 
 **验收**：`logquery` 能按 `reject_reason` 过滤出这些记录。
+
+**状态**：✅ 已实现。统一字段由 `infra/logging.RejectWarn` / `RejectDebug`
+写入安全日志：路径穿越（`path_traversal` / `static_root`）、隐藏路径
+（`hidden_path` / `hidden_path_segment`）、超限（`header_too_large` /
+`max_header_size`、`body_too_large` / `max_body_size`，h1 与 h2 共用）、
+未知 SNI（`unknown_sni` / `tls.sni`）、压缩跳过（`compression_skipped` /
+`zip_min_length`、`zip_skip_types`，debug 级）。日志只保留客户端 IP 与规则名，
+不记原始请求路径。`logs query` 新增 `--reject-reason`，返回记录带
+`reject_reason`、`rule`、`remote_ip`；桌面端日志查询同步该参数。
 
 ## R-11 header 超限返回 431
 

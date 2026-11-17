@@ -209,12 +209,14 @@ func TestLogsQueryArgs(t *testing.T) {
 	args := strings.Join(logsQueryArgs(LogQuery{
 		Kind: "error", Limit: 30, Level: "warn", Status: "4xx",
 		Host: "blog.example.com", Method: "GET", PathPrefix: "/api", Reason: "blacklist",
-		Since: "1h", Until: "2026-11-08",
+		RejectReason: "header_too_large",
+		Since:        "1h", Until: "2026-11-08",
 	}), " ")
 	for _, want := range []string{
 		"logs query --kind error --limit 30",
 		"--level warn", "--status 4xx", "--domain blog.example.com",
 		"--method GET", "--path-prefix /api", "--reason blacklist",
+		"--reject-reason header_too_large",
 		"--since 1h",
 	} {
 		if !strings.Contains(args, want) {

@@ -1547,6 +1547,24 @@ func TestLogsQueryRequiresKind(t *testing.T) {
 	}
 }
 
+// 统一拒绝日志可按 reject_reason 过滤（R-10），输出保留 rule 与 remote_ip。
+func TestLogsQueryFiltersByRejectReason(t *testing.T) {
+	_, cfg := writeLogsFixture(t, logging.SafeLogName,
+		`{"time":"2026-11-08T00:00:00.000Z","level":"warn","kind":"safe","message":"request rejected","reject_reason":"path_traversal","rule":"static_root","remote_ip":"1.2.3.4"}`+"\n"+
+			`{"time":"2026-11-08T00:00:01.000Z","level":"warn","kind":"safe","message":"request rejected","reject_reason":"body_too_large","rule":"max_body_size","remote_ip":"1.2.3.4"}`+"\n")
+
+	out, _, code := runCLI(t, "logs", "query", "--config", cfg, "--kind", "safe", "--reject-reason", "path_traversal", "--json")
+	if code != 0 {
+		t.Fatalf("exit = %d\n%s", code, out)
+	}
+	if !strings.Contains(out, `"reject_reason":"path_traversal"`) || !strings.Contains(out, `"rule":"static_root"`) || !strings.Contains(out, `"remote_ip":"1.2.3.4"`) {
+		t.Fatalf("stdout = %s", out)
+	}
+	if strings.Contains(out, "body_too_large") {
+		t.Fatalf("不应命中其他拒绝原因：%s", out)
+	}
+}
+
 func TestNoFileFlag(t *testing.T) {
 	root := RootCmdForLang(LangZH)
 	var walk func(*cobra.Command)
