@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -347,9 +348,8 @@ func validateServerWith(s *schema.Server, certBaseDir, rootBaseDir, where string
 		}
 		for j, item := range loc.ZipSkipTypes {
 			v := strings.TrimSpace(item)
-			// 允许精确类型与整类通配：image/png、image/*。
-			major, sub, ok := strings.Cut(v, "/")
-			if !ok || major == "" || sub == "" || strings.ContainsAny(v, " \t") {
+			// 允许精确类型与通配：image/png、image/*、image/p*、*/*。
+			if !validMIMEPattern(v) {
 				return fmt.Errorf("%s: location[%d].zip_skip_types[%d]: want a MIME type like image/png or image/*, got %q",
 					where, i, j, item)
 			}
@@ -534,4 +534,25 @@ func anyFileExists(candidates []string) bool {
 		}
 	}
 	return false
+}
+
+// validMIMEPattern 校验 zip_skip_types 的一条规则：
+// 精确 MIME（image/png）、整类通配（image/*）、部分通配（image/p*）、
+// 全局通配（* 或 */*）。规则会交给 path.Match，语法必须合法。
+func validMIMEPattern(v string) bool {
+	if v == "" || strings.ContainsAny(v, " \t") {
+		return false
+	}
+	if v == "*" {
+		return true
+	}
+	if !strings.Contains(v, "/") {
+		return false
+	}
+	major, sub, ok := strings.Cut(v, "/")
+	if !ok || major == "" || sub == "" {
+		return false
+	}
+	_, err := path.Match(v, "")
+	return err == nil
 }

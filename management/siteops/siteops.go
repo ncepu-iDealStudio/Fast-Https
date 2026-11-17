@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -29,7 +30,7 @@ var (
 	ErrUsage        = errors.New("invalid site input")
 )
 
-// 新建 local 站点的压缩默认值：gzip 与 brotli 都开，1 KB 以下不压，
+// 新建站点的压缩默认值：gzip 与 brotli 都开，1 KB 以下不压，
 // 图片/音视频/字体与已压缩包整类跳过。CLI 的 site add 参数默认值与此一致。
 var (
 	DefaultZip          = []string{"br", "gzip"}
@@ -56,7 +57,7 @@ type AddInput struct {
 	// 显式给出时按给定路径写入，用于多站点共享同一张证书（如通配符证书）。
 	SSLCertificate    string
 	SSLCertificateKey string
-	// 压缩三项只对 local 站点生效：nil 表示写 DefaultZip* 默认值，
+	// 压缩三项对 local 与 proxy 站点都生效：nil 表示写 DefaultZip* 默认值，
 	// 指针指向空列表表示显式关闭压缩。
 	Zip          *[]string
 	ZipMinLength *int
@@ -288,14 +289,13 @@ func Add(dirs []string, in AddInput) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	loc := config.SiteLocation{URL: "/"}
 	if strings.TrimSpace(in.ProxyPass) != "" {
 		if policy != "" {
 			return "", fmt.Errorf("%w: --symlink-policy only applies to local locations", ErrUsage)
 		}
-		if in.Zip != nil || in.ZipMinLength != nil || in.ZipSkipTypes != nil {
-			return "", fmt.Errorf("%w: --zip* only applies to local sites", ErrUsage)
-		}
-		si.Locations = []config.SiteLocation{{URL: "/", Type: "proxy", ProxyPass: strings.TrimSpace(in.ProxyPass)}}
+		loc.Type = "proxy"
+		loc.ProxyPass = strings.TrimSpace(in.ProxyPass)
 	} else {
 		root := in.Root
 		if strings.TrimSpace(root) == "" {
@@ -305,26 +305,26 @@ func Add(dirs []string, in AddInput) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		loc := config.SiteLocation{
-			URL: "/", Type: "local", Root: abs,
-			Index:         []string{"index.html", "index.htm"},
-			SymlinkPolicy: policy,
-		}
-		zip, minLen, skip, err := addCompression(in)
-		if err != nil {
-			return "", err
-		}
-		if len(zip) > 0 {
-			loc.Zip = &zip
-			if minLen > 0 {
-				loc.ZipMinLength = &minLen
-			}
-			if len(skip) > 0 {
-				loc.ZipSkipTypes = &skip
-			}
-		}
-		si.Locations = []config.SiteLocation{loc}
+		loc.Type = "local"
+		loc.Root = abs
+		loc.Index = []string{"index.html", "index.htm"}
+		loc.SymlinkPolicy = policy
 	}
+	// 压缩同时作用于静态与代理响应，两种站点都写入默认值。
+	zip, minLen, skip, err := addCompression(in)
+	if err != nil {
+		return "", err
+	}
+	if len(zip) > 0 {
+		loc.Zip = &zip
+		if minLen > 0 {
+			loc.ZipMinLength = &minLen
+		}
+		if len(skip) > 0 {
+			loc.ZipSkipTypes = &skip
+		}
+	}
+	si.Locations = []config.SiteLocation{loc}
 	fillCerts(&si)
 	path, err := site.Create(dirs, name, si, false)
 	if err != nil {
@@ -424,7 +424,7 @@ func normalizeSymlinkPolicy(raw string) (string, error) {
 	}
 }
 
-// addCompression 决定新建 local 站点的压缩配置。
+// addCompression 决定新建站点的压缩配置。
 // 未显式给出时用 DefaultZip*；指针指向空列表表示显式关闭。
 func addCompression(in AddInput) (zip []string, minLen int, skip []string, err error) {
 	zip = DefaultZip
@@ -471,7 +471,7 @@ func normalizeZipList(raw []string) ([]string, error) {
 	return out, nil
 }
 
-// normalizeZipSkipTypes 小写、去重并校验 MIME 规则，支持 image/* 这类整类通配。
+// normalizeZipSkipTypes 小写、去重并校验 MIME 规则，支持 image/*、image/p* 与 */*。
 func normalizeZipSkipTypes(raw []string) ([]string, error) {
 	out := make([]string, 0, len(raw))
 	seen := make(map[string]bool, len(raw))
@@ -480,14 +480,33 @@ func normalizeZipSkipTypes(raw []string) ([]string, error) {
 		if v == "" || seen[v] {
 			continue
 		}
-		major, sub, ok := strings.Cut(v, "/")
-		if !ok || major == "" || sub == "" || strings.ContainsAny(v, " \t") {
+		if !validMIMEPattern(v) {
 			return nil, fmt.Errorf("%w: --zip-skip-types wants MIME types like image/png or image/*, got %q", ErrUsage, item)
 		}
 		seen[v] = true
 		out = append(out, v)
 	}
 	return out, nil
+}
+
+// validMIMEPattern 与 config/internal/validate 的规则保持一致：
+// 精确类型、整类/部分通配与全局通配都接受，语法必须能被 path.Match 解析。
+func validMIMEPattern(v string) bool {
+	if v == "" || strings.ContainsAny(v, " \t") {
+		return false
+	}
+	if v == "*" {
+		return true
+	}
+	if !strings.Contains(v, "/") {
+		return false
+	}
+	major, sub, ok := strings.Cut(v, "/")
+	if !ok || major == "" || sub == "" {
+		return false
+	}
+	_, err := path.Match(v, "")
+	return err == nil
 }
 
 // applyAdvanced 把 --zip / --limit-* / --auth-* / --cache-* / --symlink-policy

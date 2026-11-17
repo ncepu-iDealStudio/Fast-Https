@@ -32,8 +32,8 @@
 | B-10b | 大小写或结尾的点导致选不到证书 | ✅ 无此问题 | `TestCertSetNormalizesCaseAndTrailingDot` | `EXACT.EXAMPLE`、`exact.example.` 均命中同一张 |
 | B-11 | 客户端伪造 `X-Forwarded-For`，上游看到假链路 | 🔧 已修复 | `TestForwardedChainCases`、`TestForwardedForChainPolicy` | R-05：默认丢弃不受信对端自带的 XFF、只写真实来源；仅来自 `trusted_proxies` 的请求保留入站链并追加 |
 | B-12 | hop-by-hop 头（`Connection`、`TE`、`Proxy-Authorization`）被原样转发给上游 | 🔧 已修复 | `TestHopByHopHeaderCases`、`hop-by-hop-headers.json` | R-06：转发前剥离固定清单与 `Connection` 点名的扩展头；客户端要求关闭时给上游补 `Connection: close`，websocket 升级重建 `Connection: Upgrade` / `Upgrade` |
-| B-13 | `Accept-Encoding: gzip;q=0` 仍被压缩 | ✅ 无此问题 | `TestEncodingWantedVectors`（21 条向量）、`TestStaticQZeroIsNotCompressed` | `request.QValue` 解析 q 值，q=0 判为拒绝；端到端确认响应不带 `Content-Encoding` |
-| B-14 | 上游已带 `Content-Encoding` 时被二次压缩 | ✅ 不适用 | — | 压缩只发生在「读静态文件」这一步，不存在响应中间件链路，没有二次压缩的入口 |
+| B-13 | `Accept-Encoding: gzip;q=0` 仍被压缩 | ✅ 无此问题 | `TestEncodingWantedVectors`（27 条向量）、`TestStaticQZeroIsNotCompressed` | `request.QValue` 解析 q 值，q=0 判为拒绝；端到端确认响应不带 `Content-Encoding` |
+| B-14 | 上游已带 `Content-Encoding` 时被二次压缩 | ✅ 无此问题 | `TestProxyCompressResponse` 的「上游已压缩不二次压缩」 | 代理压缩前检查 `Content-Encoding`，已有编码时原样透传；静态层不存在上游响应 |
 | B-15 | keep-alive 复用连接时，请求间状态泄漏 | ✅ 无此问题 | `TestKeepAliveRequestIsFullyReset`、`TestFlushClearsAuxiliaryFields` | `Request.Flush` 清 Header/Query/Body；本轮补齐 `Encoding` / `HeaderLen` / `BodyLen` 三个此前未清的辅助字段 |
 | B-16 | reload 失败后旧配置失效，服务处于半死状态 | ✅ 无此问题 | `TestReloadInvalidKeepsPreviousConfig`、`TestReloadMissingFileKeepsPreviousConfig`；`management/txn` 的 `TestApplyValidationFails`、`TestApplyReloadFailsRollsBack`、`TestApplyCrashBetweenPhases` | `ReloadFile` 先校验再解析最后 `Store`，任一步失败都不触碰 `Current()` |
 | B-17 | `Accept-Encoding: *` 不生效，客户端声明接受任意编码却拿到未压缩响应 | 🔧 已修复 | `TestEncodingWantedVectors`（3 条通配符向量） | 原先只做显式 token 匹配；本轮 `encodingWanted` 增加回落：未显式声明的编码按 `*` 的 q 值决定，显式 `q=0` 仍优先于 `*` |
@@ -74,7 +74,7 @@ hop-by-hop 一项由 R-06 从「原样转发」改成「转发前剥离」，用
 
 ### 4.3.4 压缩协商（B-13、B-17 ~ B-20）
 
-`modules/static/testdata/accept-encoding.jsonl` 七条用例，`TestAcceptEncodingCases`
+`modules/static/testdata/accept-encoding.jsonl` 十条用例，`TestAcceptEncodingCases`
 逐条驱动真实的 `getResBytes` 响应链路：
 
 | 用例 | 断言 |
@@ -86,8 +86,16 @@ hop-by-hop 一项由 R-06 从「原样转发」改成「转发前剥离」，用
 | `compressed-type-skipped` | `logo.png` 默认跳过，`Content-Type: image/png` |
 | `length-rewritten` | 压缩后声明的 `Content-Length` 等于压缩体字节数，并带 `Vary: Accept-Encoding` |
 | `min-length` | 小于 `zip_min_length` 的响应不压 |
+| `skip-wildcard` | `application/*` 命中整类通配 |
+| `skip-partial-wildcard` | `application/j*` 命中部分通配 |
+| `skip-global-wildcard` | `*/*` 命中全局通配 |
 
-「响应已带 `Content-Encoding` 时跳过」不适用，理由见 B-14。
+「响应已带 `Content-Encoding` 时跳过」由代理压缩路径覆盖（B-14）：
+`modules/proxy/compress.go` 在压缩前检查该头，已有编码时原样透传。
+
+代理响应压缩另由 `modules/proxy/compress_test.go` 的 `TestProxyCompressResponse`
+覆盖：q 值择优、已压缩类型与部分通配跳过、阈值、HEAD、206、websocket、
+chunked 改为长度分帧。
 
 ### 4.3.5 静态路径（B-01 ~ B-07）
 
@@ -119,17 +127,16 @@ PASS: TestCertSetNormalizesCaseAndTrailingDot
 PASS: TestHopByHopHeaderCases                  (7 条 hop-by-hop 输入)
 PASS: TestForwardedChainCases                    (4 条 XFF 策略输入)
 PASS: TestForwardedForChainPolicy                (受信/不受信/上限/0 不限)
-PASS: TestEncodingWantedVectors                  (21 条协商向量)
-PASS: TestStaticQZeroIsNotCompressed
-PASS: TestStaticQZeroFallsBackToOtherEncoding
-PASS: TestAcceptEncodingCases                   (7 条压缩协商输入)
+PASS: TestEncodingWantedVectors                  (27 条协商向量)
+PASS: TestAcceptEncodingCases                    (10 条压缩协商输入)
+PASS: TestProxyCompressResponse                  (代理压缩/跳过/头部改写)
 PASS: TestKeepAliveRequestIsFullyReset
 PASS: TestFlushClearsAuxiliaryFields
 PASS: TestReloadInvalidKeepsPreviousConfig
 PASS: TestReloadMissingFileKeepsPreviousConfig
 ```
 
-核验结果：**21 条核验项里，14 条确认无此问题（含 1 条不适用），7 条已修复，待修项清零**。
+核验结果：**21 条核验项里，14 条确认无此问题，7 条已修复，待修项清零**。
 
 本轮修掉的两处：
 

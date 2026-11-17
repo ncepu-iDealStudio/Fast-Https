@@ -372,17 +372,35 @@ func TestValidateZipOptions(t *testing.T) {
 	}
 }
 
-// zip_skip_types 允许整类通配 image/*，不能按「必须含斜杠的精确 MIME」误拒。
+// zip_skip_types 允许整类与部分通配，不能按「必须含斜杠的精确 MIME」误拒。
 func TestValidateZipSkipWildcardAccepted(t *testing.T) {
+	for _, pattern := range []string{"image/*", "image/p*", "*/*", "*"} {
+		t.Run(pattern, func(t *testing.T) {
+			server := schema.Server{
+				Listen: schema.FlexList{"80"}, ServerName: "a.example",
+				Locations: []schema.Path{{
+					URL: "/", Type: "local", Root: ".",
+					Zip: []string{"br", "gzip"}, ZipSkipTypes: []string{pattern, "font/woff2"},
+				}},
+			}
+			if err := validateServer(&server, ".", ".", "site", false); err != nil {
+				t.Fatalf("%q 应被接受：%v", pattern, err)
+			}
+		})
+	}
+}
+
+// 语法错误的通配仍要拒绝，避免运行期 path.Match 静默返回不匹配。
+func TestValidateZipSkipWildcardSyntax(t *testing.T) {
 	server := schema.Server{
 		Listen: schema.FlexList{"80"}, ServerName: "a.example",
 		Locations: []schema.Path{{
 			URL: "/", Type: "local", Root: ".",
-			Zip: []string{"br", "gzip"}, ZipSkipTypes: []string{"image/*", "video/*", "font/woff2"},
+			Zip: []string{"gzip"}, ZipSkipTypes: []string{"image/["},
 		}},
 	}
-	if err := validateServer(&server, ".", ".", "site", false); err != nil {
-		t.Fatalf("通配规则应被接受：%v", err)
+	if err := validateServer(&server, ".", ".", "site", false); err == nil {
+		t.Fatal("非法通配语法应被拒绝")
 	}
 }
 

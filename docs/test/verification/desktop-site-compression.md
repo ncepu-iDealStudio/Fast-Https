@@ -15,7 +15,7 @@
 | 项 | 值 |
 | --- | --- |
 | 系统 | Windows 11 |
-| 源码 | 提交 `77ce5af`（site add 默认压缩 + 整类通配） |
+| 源码 | 提交 `77ce5af` + 本次代理压缩 / 宽通配改动 |
 | CLI | 从当前源码构建的 `fast-https.exe`，与配置放在同一临时工作目录 |
 | 工作目录 | `%TEMP%\fh-site-cmp-verify`，避免改动仓库内实际配置 |
 | 配置基线 | 最小主配置 `{"http":{"include":["conf.d"]}}`，`conf.d` 初始为空 |
@@ -28,7 +28,7 @@
 | D-CMP-01 | 使用弹窗默认值新增 local 站点 | 写入 br+gzip、1 KB 阈值、整类跳过清单 | ✅ |
 | D-CMP-02 | 只留 gzip，阈值 0，跳过 `image/png` | 只写 `zip: ["gzip"]` 与精确跳过项，不写阈值键 | ✅ |
 | D-CMP-03 | 取消两个压缩勾选 | 站点文件不含任何 `zip*` 键 | ✅ |
-| D-CMP-04 | 新增 proxy 站点 | 只写 `proxy_pass`，不带压缩参数 | ✅ |
+| D-CMP-04 | 新增 proxy 站点 | 写入同一个 `proxy_pass` 与压缩默认值 | ✅ |
 | D-CMP-05 | 跳过类型填 `png` | `USAGE_ERROR`，站点文件未创建 | ✅ |
 
 ### D-CMP-01 默认值
@@ -95,9 +95,32 @@
 
 ### D-CMP-04 代理站点
 
-- 提交字段：类型 `proxy`，上游 `http://127.0.0.1:9000`；压缩字段不参与。
-- 落盘：`"type": "proxy"`、`"proxy_pass": "http://127.0.0.1:9000"`，无 `zip*`。
-- `planAdd` 对 proxy 站点不生成压缩参数，`siteops.Add` 也会拒绝显式传入的压缩参数。
+- 提交字段：类型 `proxy`，上游 `http://127.0.0.1:9000`；压缩字段使用默认值。
+- 代理响应同样支持压缩，因此 `planAdd` 与 `siteops.Add` 对 proxy 站点也写入这组默认值。
+- 落盘：
+
+  ```json
+  {
+    "listen": 18091,
+    "server_name": "api.example",
+    "location": [
+      {
+        "url": "/",
+        "type": "proxy",
+        "proxy_pass": "http://127.0.0.1:9000",
+        "zip": ["br", "gzip"],
+        "zip_min_length": 1024,
+        "zip_skip_types": ["image/*", "video/*", "audio/*", "font/woff2",
+                            "application/zip", "application/gzip"]
+      }
+    ]
+  }
+  ```
+
+- 回读 `ReadSiteDetail`：`zip=[br gzip] min=1024`，跳过清单与新建 local 站点一致。
+
+> 说明：本条在代理压缩实现之前验证过一次（当时 proxy 站点不带压缩），
+> 代理响应压缩落地后重新跑过，期望与结果均已更新。
 
 ### D-CMP-05 非法跳过类型
 
@@ -114,9 +137,9 @@
 
 - 默认值有三层来源，最终结果一致：弹窗新增模式预填 → `planAdd` 在 `Zip == nil`
   时兜底 → `siteops.Add` 在参数未显式给出时补 `DefaultZip*`。任何一层拿到默认值，
-  新建 local 站点都会带压缩。
+  新建 local 与 proxy 站点都会带压缩。
 - 只有显式提交空列表才关闭压缩；阈值 0 会被省略而不是写成 0，配置保持最小。
-- 代理站点与压缩互斥：桌面端不生成参数，主程序侧也拒绝。
+- 代理站点同样写入默认值：代理响应压缩与静态压缩共用一套协商/跳过策略。
 - 非法 MIME 在生产站点文件之前被拦下，错误信息带具体取值，配置与恢复点不受影响。
 
 ## 复跑方式

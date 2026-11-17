@@ -146,6 +146,17 @@ func TestSiteAddCompressionDefaults(t *testing.T) {
 	if strings.Contains(string(raw), `"zip`) {
 		t.Fatalf("显式关闭压缩后不应写 zip 键：\n%s", raw)
 	}
+
+	// 代理站点同样写入压缩默认值。
+	if _, err := Add(dirs, AddInput{
+		Domain: "api.example", ProxyPass: "http://127.0.0.1:9000", Listens: []string{"18083"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	proxyLoc := readSiteLocation(t, filepath.Join(dirs[0], "api.example.json"))
+	if strings.Join(proxyLoc.Zip, ",") != "br,gzip" || proxyLoc.ZipMinLength != DefaultZipMinLength {
+		t.Fatalf("代理站点压缩默认值 = %+v", proxyLoc)
+	}
 }
 
 type siteLocationProbe struct {

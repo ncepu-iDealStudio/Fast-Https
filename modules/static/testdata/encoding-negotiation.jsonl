@@ -19,3 +19,9 @@
 {"zip":"br","accept":"*","want":"br","note":"同上，单配 brotli"}
 {"zip":"gzip+br","accept":"*","want":"br","note":"同上，两配置时按服务端偏好"}
 {"zip":"gzip","accept":"gzip ; q=0","want":"","note":"分号与空格混排"}
+{"zip":"gzip+br","accept":"gzip;q=1, br;q=0.1","want":"gzip","note":"q 高者优先"}
+{"zip":"gzip+br","accept":"br;q=0.9, gzip;q=0.2","want":"br","note":"q 高者优先，br"}
+{"zip":"gzip+br","accept":"br;q=0.5, gzip;q=0.5","want":"br","note":"q 相同按服务端偏好"}
+{"zip":"gzip+br","accept":"gzip, br;q=0.5","want":"gzip","note":"省略 q 视为 1"}
+{"zip":"gzip+br","accept":"*;q=0.2, gzip;q=0.5","want":"gzip","note":"通配 q 参与比较"}
+{"zip":"gzip+br","accept":"*;q=0.8, gzip;q=0.5","want":"br","note":"br 走通配 q 胜出"}

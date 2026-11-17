@@ -67,9 +67,9 @@ docs/test/
 - 2026-11-17 边缘加固 R-05 落地：顶层 `proxy` 段（`trusted_proxies`、`forwarded_for.max_hops`、`preserve_host`），默认只追加真实对端、丢弃客户端伪造的 `X-Forwarded-For`；`modules/proxy/testdata/forwarded-chain.jsonl` 覆盖无 XFF / 客户端伪造 / 多层代理 / 超跳数四类输入，CLI `config proxy` 与桌面端设置页同步。
 - 2026-11-17 边缘加固 R-06 落地：代理转发前剥离 `Connection` / `Keep-Alive` / `Proxy-Authenticate` / `Proxy-Authorization` / `Proxy-Connection` / `TE` / `Trailer` / `Transfer-Encoding` / `Upgrade` 及 `Connection` 点名的扩展头；客户端要求关闭时给上游补 `Connection: close`，HTTP/1.0 keep-alive 与 websocket 升级各自重建连接头。`modules/proxy/testdata/hop-by-hop-headers.json` 七类输入由 `TestHopByHopHeaderCases` 逐项核对上游实际收到的头。
 - 2026-11-17 桌面端代理来源配置验证：写入三项后 `proxy` 段落盘且 CLI 双入口一致，三项改回默认即删段，负 `max_hops` 与非法 CIDR 均在写盘前被拦下且配置哈希不变，详见 [verification/desktop-proxy-config.md](verification/desktop-proxy-config.md)。
-- 2026-11-17 边缘加固 R-07 落地：压缩协商补齐 `zip_min_length` 与 `zip_skip_types`（内置已压缩类型清单，配置后整体替换），修复压缩后 `Content-Length` 仍用原文件大小的问题；`modules/static/testdata/accept-encoding.jsonl` 七条用例由 `TestAcceptEncodingCases` 逐条驱动真实响应链路，CLI `site update --zip-min-length/--zip-skip-types` 与桌面端站点编辑同步。
+- 2026-11-17 边缘加固 R-07 落地：压缩协商补齐 `zip_min_length` 与 `zip_skip_types`（内置已压缩类型清单，配置后整体替换），修复压缩后 `Content-Length` 仍用原文件大小的问题；`modules/static/testdata/accept-encoding.jsonl` 十条用例由 `TestAcceptEncodingCases` 逐条驱动真实响应链路，CLI `site update --zip-min-length/--zip-skip-types` 与桌面端站点编辑同步。
 - 2026-11-17 桌面端开箱即用主配置验证：`ReadConfigForm` 读到十项预设值，保存四项后其余预设不被重置，改回预设后内容一致（JSON 被规范化重写），非法 WAF 模式在表单层拦截、负链长在配置校验层拦截且配置哈希不变，详见 [verification/desktop-default-config.md](verification/desktop-default-config.md)。
-- 2026-11-17 桌面端新增站点压缩默认值验证：默认值写入 br+gzip / 1 KB / 整类跳过清单，自定义只写显式项，取消勾选后无 `zip*` 键，代理站点不带压缩，非法跳过类型在写盘前被 `USAGE_ERROR` 拦下，详见 [verification/desktop-site-compression.md](verification/desktop-site-compression.md)。
+- 2026-11-17 桌面端新增站点压缩默认值验证：默认值写入 br+gzip / 1 KB / 整类跳过清单，自定义只写显式项，取消勾选后无 `zip*` 键，代理站点写入同一组默认值，非法跳过类型在写盘前被 `USAGE_ERROR` 拦下，详见 [verification/desktop-site-compression.md](verification/desktop-site-compression.md)。
 
 ## 旧文件名对照
 

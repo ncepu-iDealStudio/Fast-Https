@@ -217,7 +217,7 @@ fast-https site show blog
 fast-https site delete blog --yes
 ```
 
-- **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。local 站点默认开启 `br+gzip` 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。
+- **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。新建站点默认开启 `br+gzip` 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。
 - **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`、`--ssl-certificate*`，以及主 location 上的高级配置 `--zip`、`--zip-min-length`、`--zip-skip-types`、`--limit-*`、`--auth-*`、`--cache-*`、`--symlink-policy`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
 - **符号链接策略**：`site add/update` 的 `--symlink-policy` 取 `check-at-load`（默认）、`reject`、`allow`，只对 `local` 站点生效；`site update --symlink-policy=` 传空串表示删掉该键、回到默认。代理站点带此参数返回退出码 2。
 - **site disable / enable**：把 `<name>.json` 改名为 `<name>.json.disabled` 或改回（`include` 只加载 `*.json`）。`site list --json` 里停用站点为 `enabled: false`。
@@ -300,7 +300,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `proxy_cache` | 代理缓存，见 6.5 |
 | `zip` | 响应压缩，取值 `gzip`、`br`，可同时配置 |
 | `zip_min_length` | 最小压缩阈值（字节），`0` 表示不限制 |
-| `zip_skip_types` | 跳过压缩的 MIME 类型列表，支持 `image/*` 这类整类通配；留空使用内置的已压缩类型清单 |
+| `zip_skip_types` | 跳过压缩的 MIME 类型列表，支持 `image/*`、`image/p*`、`*/*`；留空使用内置的已压缩类型清单 |
 | `limit` | `mem`、`rate`、`burst`、`nodelay` |
 | `auth` | `{"type": "basic", "user": "...", "pswd": "...", "realm": "..."}`。只支持 `basic`，写了 `type` 就必须同时写 `user` 与 `pswd`（缺任何一项校验就报错）；`realm` 可选，留空时用站点名 |
 | `appfirewall` | 应用防火墙开关，例如 `["xss", "sqli"]` |
@@ -455,17 +455,21 @@ fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops
 }
 ```
 
-按 `Accept-Encoding` 协商：客户端同时支持时优先给 brotli；`gzip;q=0` 表示明确拒绝，
-显式条目优先于 `*` 通配符。响应统一带 `Vary: Accept-Encoding`，压缩后的
-`Content-Length` 是压缩体长度，`HEAD` 与 GET 的长度一致。
+按 `Accept-Encoding` 协商：q 值不同时取高者，q 相同时优先给 brotli；`gzip;q=0` 表示
+明确拒绝，显式条目优先于 `*` 通配符。静态文件与反向代理响应都按这组配置压缩。
+响应统一带 `Vary: Accept-Encoding`，压缩后的 `Content-Length` 是压缩体长度，
+`HEAD` 与 GET 的长度一致。
 
 - `zip_min_length`：小于该字节数的响应不压缩，`0` 表示不限制。
-- `zip_skip_types`：跳过压缩的 MIME 类型，支持精确类型（`image/png`）与整类通配
-  （`image/*`）。留空时使用内置的已压缩类型清单（jpeg/png/gif/webp/avif、
-  mp4/webm、mp3/ogg/aac、zip/gzip/7z/rar/bz2、woff/woff2 等）；配置后整体替换内置清单。
+- `zip_skip_types`：跳过压缩的 MIME 类型，支持精确类型（`image/png`）、整类通配
+  （`image/*`）、部分通配（`image/p*`）与全局通配（`*/*`）。留空时使用内置的
+  已压缩类型清单（jpeg/png/gif/webp/avif、mp4/webm、mp3/ogg/aac、
+  zip/gzip/7z/rar/bz2、woff/woff2 等）；配置后整体替换内置清单。
 - 带 `Range` 的请求跳过压缩，压缩后 Range 语义不成立。
-- `site add` 新建 local 站点时默认写入上面这组值，可用 `--zip`、`--zip-min-length`、
-  `--zip-skip-types` 覆盖，`--zip=` 关闭压缩。代理站点不带压缩配置。
+- 代理响应额外跳过：升级连接（websocket）、`HEAD`、上游已带 `Content-Encoding`、
+  `204` / `206` / `304`、带 `Content-Range` 的响应。
+- `site add` 新建站点时默认写入上面这组值（local 与 proxy 都适用），可用 `--zip`、
+  `--zip-min-length`、`--zip-skip-types` 覆盖，`--zip=` 关闭压缩。
 
 ### 6.5 代理缓存
 

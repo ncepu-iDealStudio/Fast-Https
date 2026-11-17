@@ -8,7 +8,6 @@ import (
 	"fast-https/modules/compress"
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/listener"
-	"fast-https/runtime/request"
 	"fast-https/runtime/response"
 	"io"
 	"io/fs"
@@ -220,7 +219,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	// 阈值、Content-Type 不在已压缩类型清单里。三条任一不满足就流式
 	// 原样返回，避免为几字节的响应付出压缩成本或把已压缩内容再压一遍。
 	if rngStart == -1 && compressible(lisdata, contentType, file_size) {
-		encoding = encodingWanted(lisdata.Zip, acceptEncoding(ev))
+		encoding = compress.Wanted(lisdata.Zip, acceptEncoding(ev))
 		if encoding != "" {
 			raw, err := io.ReadAll(file)
 			file.Close()
@@ -561,46 +560,6 @@ func defaultContentType() string {
  ****** Interfaces are as follows ****
  *************************************
  */
-
-// encodingWanted 按配置与客户端 Accept-Encoding 协商响应压缩编码。
-// ZIP_GZIP_BR 两种都配置时优先选压缩率更好的 br，客户端不认再回退
-// gzip；q 值只判断是否接受（q>0），不做加权择优。
-// 返回空串表示不压缩。
-func encodingWanted(zip uint16, accept string) string {
-	switch zip {
-	case config.ZIP_GZIP:
-		if acceptsEncoding(accept, "gzip") {
-			return "gzip"
-		}
-	case config.ZIP_BR:
-		if acceptsEncoding(accept, "br") {
-			return "br"
-		}
-	case config.ZIP_GZIP_BR:
-		if acceptsEncoding(accept, "br") {
-			return "br"
-		}
-		if acceptsEncoding(accept, "gzip") {
-			return "gzip"
-		}
-	}
-	return ""
-}
-
-// acceptsEncoding 判断客户端是否接受某个内容编码。
-//
-// 客户端显式列了这个编码，就按它的 q 值决定（q=0 为拒绝，此时不走通配符）；
-// 完全没提到它，才回落到 `*` 的 q 值。只看 q>0 而不做加权择优：这里的目标
-// 是「能压就压」，不是挑压缩率最优的那个。
-func acceptsEncoding(accept, token string) bool {
-	if q, mentioned := request.QValue(accept, token); mentioned {
-		return q > 0
-	}
-	if q, mentioned := request.QValue(accept, "*"); mentioned {
-		return q > 0
-	}
-	return false
-}
 
 func acceptEncoding(ev *core.Event) string {
 	if ev == nil || ev.RR.Req == nil {

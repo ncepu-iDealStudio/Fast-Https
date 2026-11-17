@@ -13,3 +13,5 @@
 {"name":"length-rewritten","file":"a.txt","body":"repeat:200:vary-body-","zip":"gzip","accept":"gzip","want_encoding":"gzip","note":"压缩后 Content-Length 改用压缩体长度，并带 Vary"}
 {"name":"min-length","file":"a.txt","body":"tiny","zip":"gzip","accept":"gzip","min_length":1024,"want_encoding":"","note":"小于 min_length 的响应不压"}
 {"name":"skip-wildcard","file":"a.json","body":"repeat:64:wildcard-skip-body-","zip":"gzip","accept":"gzip","skip_types":["application/*"],"want_encoding":"","want_content_type":"application/json","note":"exclude_types 支持 type/* 整类通配"}
+{"name":"skip-partial-wildcard","file":"a.json","body":"repeat:64:partial-skip-body-","zip":"gzip","accept":"gzip","skip_types":["application/j*"],"want_encoding":"","want_content_type":"application/json","note":"exclude_types 支持部分通配"}
+{"name":"skip-global-wildcard","file":"a.json","body":"repeat:64:global-skip-body-","zip":"gzip","accept":"gzip","skip_types":["*/*"],"want_encoding":"","want_content_type":"application/json","note":"exclude_types 支持 */*"}

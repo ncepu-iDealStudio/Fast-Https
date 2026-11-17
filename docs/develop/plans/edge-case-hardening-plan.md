@@ -150,15 +150,14 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 
 ## R-07 压缩协商的完整语义
 
-**现状**：`modules/compress` 只是字节压缩辅助（57 行），真正的协商在
-`modules/static` 的 `encodingWanted`。
+**现状**：`modules/compress` 提供字节压缩辅助，协商与跳过规则集中在
+`modules/compress/policy.go`，静态与代理共用。
 
 **需求**：
 
-- 按 q 值协商：`gzip;q=0` 必须不压，`q` 相同时按服务端偏好定序（已完成）
-- `*` 通配符：显式未命中时回落到 `*` 的 q 值；显式 `q=0` 优先于 `*`（已完成）
-- 响应已带 `Content-Encoding` 时跳过（不适用：压缩只发生在读静态文件时，
-  没有响应中间件链路）
+- 按 q 值协商：`gzip;q=0` 必须不压，`q` 不同取高者，相同按服务端偏好定序
+- `*` 通配符：显式未命中时回落到 `*` 的 q 值；显式 `q=0` 优先于 `*`
+- 响应已带 `Content-Encoding` 时跳过（代理响应路径）
 - `HEAD` 不产生 body，且 `Content-Length` 与 GET 一致
 - Range 请求跳过压缩（压缩后 Range 语义失效）
 - 已压缩类型（图片、zip、woff2、mp4）跳过，列表可配置
@@ -167,22 +166,27 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 
 **验收**：`accept-encoding.jsonl` 覆盖上述七条，每条一个用例。
 
-**状态**：✅ 已实现。`modules/static/compression.go` 新增内置已压缩类型清单
-（jpeg/png/gif/webp/avif、mp4/webm/quicktime、mp3/ogg/aac、zip/gzip/7z/rar/bz2、
-woff/woff2 等）；`zip_skip_types` 非空时**整体替换**该清单，不追加。
-`zip_min_length` 为 0 表示不限制，`Content-Type` 命中跳过类型或文件小于阈值时
-改为流式原样返回。`zip_skip_types` 支持精确类型与 `image/*` 这类整类通配。
-压缩后 `Content-Length` 改用压缩体长度（此前误用原文件大小）。
-配置项贯通 schema → loader → model → `listener.ListenCfg`，并同步
-`site update --zip-min-length` / `--zip-skip-types` 与桌面端站点编辑；
-`site add` 新建 local 站点默认写入 br+gzip、1 KB 阈值与整类跳过清单，
-可用同名 flag 覆盖，`--zip=` 关闭。
-`TestAcceptEncodingCases` 逐条读取 `modules/static/testdata/accept-encoding.jsonl`
-的八个用例（`gzip;q=0`、`*` 回落、HEAD 长度、Range 跳过、已压缩类型、
-长度改写与 `Vary`、`min_length`、`type/*` 通配跳过）。
+**状态**：✅ 已实现。协商与跳过规则抽到 `modules/compress/policy.go`，
+静态与代理共用同一套策略：
 
-**已知限制**：q 值只判断是否接受（`q>0`），两种编码都配置时固定优先 `br`，
-不按 q 大小做加权择优；客户端写 `br;q=0.1, gzip;q=1` 仍会拿到 br。
+- `Wanted` 按 q 值取高者，q 相同按服务端偏好 br > gzip；`q=0` 拒绝，
+  未显式列出的编码回落到 `*` 的 q。
+- `Skip` 内置已压缩类型清单（jpeg/png/gif/webp/avif、mp4/webm/quicktime、
+  mp3/ogg/aac、zip/gzip/7z/rar/bz2、woff/woff2 等）；`zip_skip_types` 非空时
+  **整体替换**该清单。规则支持精确类型、`image/*`、`image/p*` 与 `*/*`。
+- 静态层在 `zip_min_length` 不足、命中跳过类型或带 Range 时流式原样返回；
+  压缩后 `Content-Length` 改用压缩体长度。
+- 代理层在 `modules/proxy/compress.go` 压缩上游响应：跳过升级连接、HEAD、
+  已有 `Content-Encoding`、204/206/304、`Content-Range`、小于阈值与命中
+  跳过类型；压缩后移除 `Transfer-Encoding` 并改写 `Content-Length`。
+  缓存先存未压缩正文，命中时按各请求的 `Accept-Encoding` 重新协商。
+- 配置项贯通 schema → loader → model → `listener.ListenCfg`，并同步
+  `site update --zip-min-length` / `--zip-skip-types` 与桌面端站点编辑；
+  `site add` 新建站点默认写入 br+gzip、1 KB 阈值与整类跳过清单（local 与
+  proxy 都适用），可用同名 flag 覆盖，`--zip=` 关闭。
+- `TestAcceptEncodingCases` 读取 `modules/static/testdata/accept-encoding.jsonl`
+  的十个用例；`TestEncodingWantedVectors` 覆盖 27 条协商向量；
+  `TestProxyCompressResponse` 覆盖代理侧的压缩、跳过与头部改写。
 
 ## R-08 连接与超时的边界行为
 

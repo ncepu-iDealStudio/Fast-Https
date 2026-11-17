@@ -343,16 +343,15 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) (int, error) 
 
 	headCode := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
 	status, _ := strconv.Atoi(headCode)
-	logProxyAccess(ev, status, len(ev.RR.Res.Body))
-
 	return status, nil
 }
 
 /*  ====  这两个函数可以用 event ===== */
-func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
+func (p *Proxy) proxyNeedCache(cfg *listener.ListenCfg, pc *ProxyCache, req_data []byte, ev *core.Event) {
 	if status, ok := pc.Serve(ev); ok {
 		// 命中缓存：借来的上游连接没被使用，直接归还
 		releaseProxy(p)
+		compressResponse(cfg, ev)
 		logProxyAccess(ev, status, len(ev.RR.Res.Body))
 		writeProxyResponse(ev)
 		return
@@ -367,7 +366,10 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 		return
 	}
 	releaseProxy(p)
+	// 缓存先存未压缩正文：后续命中要按各自请求的 Accept-Encoding 重新协商。
 	pc.Store(ev, status)
+	compressResponse(cfg, ev)
+	logProxyAccess(ev, status, len(ev.RR.Res.Body))
 	writeProxyResponse(ev)
 }
 
@@ -389,9 +391,9 @@ func writeProxyResponse(ev *core.Event) {
 	ev.WriteResponseClose(nil)
 }
 
-func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
+func (p *Proxy) proxyNoCache(cfg *listener.ListenCfg, req_data []byte, ev *core.Event) {
 
-	_, err := p.getDataFromServer(ev, req_data)
+	status, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
 		// 上游连接状态未知，一律关闭不回收
@@ -405,6 +407,8 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 		}
 		return
 	}
+	compressResponse(cfg, ev)
+	logProxyAccess(ev, status, len(ev.RR.Res.Body))
 	// proxy server return valid data
 	if ev.RR.Req.IsKeepalive() && !p.ProxyNeedClose {
 		ev.WriteResponse(nil)
@@ -457,9 +461,9 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	if proxy.ProxyNeedCache {
 		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid,
 			cfg.ProxyCache.Path, cfg.ProxyCache.Methods, cfg.ProxyCache.MaxSize)
-		proxy.proxyNeedCache(proxyCache, req_data, ev)
+		proxy.proxyNeedCache(cfg, proxyCache, req_data, ev)
 	} else {
-		proxy.proxyNoCache(req_data, ev)
+		proxy.proxyNoCache(cfg, req_data, ev)
 	}
 }
 

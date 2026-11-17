@@ -140,8 +140,9 @@ func TestPlanAddProxy(t *testing.T) {
 	if !strings.Contains(args, "--proxy-pass http://127.0.0.1:9000") || strings.Contains(args, "--root") {
 		t.Fatalf("proxy 站点参数错误：%s", args)
 	}
-	if strings.Contains(args, "--zip") {
-		t.Fatalf("proxy 站点不应带压缩参数：%s", args)
+	// 代理响应同样支持压缩，新增时也带默认值。
+	if !strings.Contains(args, "--zip br") || !strings.Contains(args, "--zip-min-length 1024") {
+		t.Fatalf("proxy 站点应带压缩默认值：%s", args)
 	}
 }
 
@@ -150,7 +151,7 @@ func TestPlanAddWithAdvanced(t *testing.T) {
 	plan, err := planAdd(model.SiteInput{
 		Name: "blog.example.com", Listen: "80",
 		Type: "local", Root: "./httpdoc/root",
-		Zip:       []string{"gzip", "br"},
+		Zip: []string{"gzip", "br"},
 		// 新增弹窗会同时提交这三项；只给 Zip 时其余按 0/空处理，属于显式取值。
 		ZipMinLength: 1024, ZipSkipTypes: []string{"image/*"},
 		LimitRate: 100, LimitBurst: 50, LimitMem: 1024, LimitNodelay: true,

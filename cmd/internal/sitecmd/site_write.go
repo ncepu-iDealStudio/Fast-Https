@@ -22,7 +22,7 @@ func addSiteWriteCommands(root *cobra.Command) {
 				"站点名由域名规范化得到。同名站点，或同一监听端口上已存在的 server_name，都会以退出码 10 拒绝（同域名挂不同端口是合法的）。\n"+
 				"证书默认按域名命名（config/cert/<域名>.pem）：文件已存在就直接复用，不会覆盖；"+
 				"多个站点可以用 --ssl-certificate 指向同一张证书（如通配符证书）。"+
-				"local 站点默认开启 br+gzip 压缩（阈值 1 KB，自动跳过图片/音视频/字体/压缩包），"+
+				"新建站点默认开启 br+gzip 压缩（阈值 1 KB，自动跳过图片/音视频/字体/压缩包），"+
 				"可用 --zip、--zip-min-length、--zip-skip-types 覆盖，--zip= 关闭。"+
 				"纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
 			"Copy the live config tree, write the site file on the candidate, then apply it with the same transaction\n"+
@@ -30,7 +30,7 @@ func addSiteWriteCommands(root *cobra.Command) {
 				"A duplicate name, or a server_name already served on the same listen port, exits with code 10 (the same domain on a different port is fine).\n"+
 				"Certificates are named after the domain (config/cert/<domain>.pem) and reused when the file already exists, never overwritten;\n"+
 				"several sites may point at one certificate via --ssl-certificate (e.g. a wildcard certificate).\n"+
-				"Local sites get br+gzip compression by default (1 KB threshold, images/media/fonts/archives skipped);\n"+
+				"New sites get br+gzip compression by default (1 KB threshold, images/media/fonts/archives skipped);\n"+
 				"override with --zip, --zip-min-length, --zip-skip-types, or disable with --zip=.\n"+
 				"Flag mode requires --yes unless --dry-run; the wizard confirms at the end."),
 		Args:         cobra.NoArgs,

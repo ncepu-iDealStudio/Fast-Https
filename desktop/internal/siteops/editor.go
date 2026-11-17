@@ -141,17 +141,18 @@ func planAdd(in SiteInput) ([][]string, error) {
 		add = append(add, "--proxy-pass", p.pass)
 	} else {
 		add = append(add, "--root", p.root)
-		// 压缩默认值随建站一起写入，避免建好后再补一条 update。
-		// 前端新增模式会显式提交默认值；Zip 为 nil 时（旧前端或直接调用）
-		// 这里也补同一组默认值，与 CLI 的 site add 保持一致。
-		zip, minLen, skip := in.Zip, in.ZipMinLength, in.ZipSkipTypes
-		if zip == nil {
-			zip, minLen, skip = defaultZip, defaultZipMinLength, defaultZipSkipTypes
-		}
-		add = append(add, zipArgs(zip)...)
-		add = append(add, "--zip-min-length", strconv.Itoa(minLen))
-		add = append(add, zipSkipTypesArgs(skip)...)
 	}
+	// 压缩默认值随建站一起写入，避免建好后再补一条 update。
+	// 静态与代理响应都支持压缩，两种站点都带这组参数。
+	// 前端新增模式会显式提交默认值；Zip 为 nil 时（旧前端或直接调用）
+	// 这里也补同一组默认值，与 CLI 的 site add 保持一致。
+	zip, minLen, skip := in.Zip, in.ZipMinLength, in.ZipSkipTypes
+	if zip == nil {
+		zip, minLen, skip = defaultZip, defaultZipMinLength, defaultZipSkipTypes
+	}
+	add = append(add, zipArgs(zip)...)
+	add = append(add, "--zip-min-length", strconv.Itoa(minLen))
+	add = append(add, zipSkipTypesArgs(skip)...)
 	if p.tls {
 		add = append(add, "--tls")
 	}
