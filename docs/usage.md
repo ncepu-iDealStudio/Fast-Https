@@ -468,6 +468,16 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 - 配置后未知 SNI 属于预期流量，不再输出 `unknown_sni` 告警。
 - 执行 `reload` 后重新加载，不需要重启进程。
 
+也可以用命令写入，不必手改文件（只重写 `tls` 段，注释与其它字段保留）：
+
+```bash
+fast-https config tls --cert config/cert/default.pem --key config/cert/default-key.pem
+fast-https config tls show        # 查看当前兜底证书
+fast-https config tls --cert= --key=   # 清除，回到默认回落行为
+```
+
+写入前会按主配置完整校验（成对、文件存在），`--dry-run` 只打印改写结果。新配置同样在下次 `reload` 或启动时生效。
+
 ## 8. HTTP/2
 
 `listen` 加上 `h2` 即可，例如 `"listen": "443 ssl h2"`。
@@ -520,6 +530,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `runtime status` | 读取 `127.0.0.1:9088/runtime` 的瞬时连接与请求状态。连不上退出码 4；`schema_version` 不认识退出码 11。没有的字段（如 CPU、reading/writing/waiting）省略并在 `warnings` 说明 |
 | `runtime stats` | 进程启动以来的累计计数，响应里 `window` 为 `since_process_start`。`--since`、`--domain` 尚未支持，传入即退出码 11（`NOT_SUPPORTED`）。Monitor 只消费这份累计快照，不另算时间窗 |
 | `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`tls`、`waf`、`sites` |
+| `config tls` | 写入顶层 `tls.default_certificate`（`--cert` 与 `--key` 必须成对，文件必须存在）；只重写 `tls` 段、保留注释；两个参数传空清除；`--dry-run` 只打印；`config tls show` 查看 |
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
 | `config versions` | 列出状态目录里的配置版本快照。`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照不含证书与私钥 |
 | `config diff --candidate` | 比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |

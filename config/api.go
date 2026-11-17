@@ -6,6 +6,7 @@ import (
 	"fast-https/config/internal/paths"
 	"fast-https/config/internal/scan"
 	"fast-https/config/internal/sitefile"
+	"fast-https/config/internal/tlsconf"
 	"fast-https/config/internal/validate"
 )
 
@@ -40,6 +41,15 @@ func PreviewACMESection(path string, c *AcmeConfig) ([]byte, error) {
 }
 
 func WriteACMESection(path string, c *AcmeConfig) error { return acme.WriteACMESection(path, c) }
+
+// tls 段读写。
+func PreviewTLSSection(path string, c *TLSConfig) ([]byte, error) {
+	return tlsconf.PreviewTLSSection(path, c)
+}
+
+func WriteTLSSection(path string, c *TLSConfig) error { return tlsconf.WriteTLSSection(path, c) }
+
+func ReadTLSDefaults(path string) (TLSConfig, error) { return tlsconf.ReadTLSDefaults(path) }
 
 // 只读扫描。
 func ListenPortsFromFile(path string) ([]int, error) { return scan.ListenPortsFromFile(path) }

@@ -422,6 +422,11 @@ fast-https site delete blog --yes</code></pre>
 <li>配置后未知 SNI 属于预期流量，不再输出 <code>unknown_sni</code> 告警。</li>
 <li>执行 <code>reload</code> 后重新加载，不需要重启进程。</li>
 </ul>
+<p>也可以用命令写入，不必手改文件（只重写 <code>tls</code> 段，注释与其它字段保留）：</p>
+<pre><code class="language-bash">fast-https config tls --cert config/cert/default.pem --key config/cert/default-key.pem
+fast-https config tls show        # 查看当前兜底证书
+fast-https config tls --cert= --key=   # 清除，回到默认回落行为</code></pre>
+<p>写入前会按主配置完整校验（成对、文件存在），<code>--dry-run</code> 只打印改写结果。新配置同样在下次 <code>reload</code> 或启动时生效。</p>
 <h2 id="sec-30">8. HTTP/2</h2>
 <p><code>listen</code> 加上 <code>h2</code> 即可，例如 <code>&#34;listen&#34;: &#34;443 ssl h2&#34;</code>。</p>
 <ul>
@@ -472,6 +477,7 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>runtime status</code></td><td>读取 <code>127.0.0.1:9088/runtime</code> 的瞬时连接与请求状态。连不上退出码 4；<code>schema_version</code> 不认识退出码 11。没有的字段（如 CPU、reading/writing/waiting）省略并在 <code>warnings</code> 说明</td></tr>
 <tr><td><code>runtime stats</code></td><td>进程启动以来的累计计数，响应里 <code>window</code> 为 <code>since_process_start</code>。<code>--since</code>、<code>--domain</code> 尚未支持，传入即退出码 11（<code>NOT_SUPPORTED</code>）。Monitor 只消费这份累计快照，不另算时间窗</td></tr>
 <tr><td><code>config show</code></td><td>显示磁盘上的主配置与 <code>http.include</code> 站点，口令、令牌等敏感值一律脱敏；<code>--section</code> 可选 <code>http</code>、<code>acme</code>、<code>security</code>、<code>tls</code>、<code>waf</code>、<code>sites</code></td></tr>
+<tr><td><code>config tls</code></td><td>写入顶层 <code>tls.default_certificate</code>（<code>--cert</code> 与 <code>--key</code> 必须成对，文件必须存在）；只重写 <code>tls</code> 段、保留注释；两个参数传空清除；<code>--dry-run</code> 只打印；<code>config tls show</code> 查看</td></tr>
 <tr><td><code>config validate</code></td><td>校验当前配置，或用 <code>--candidate</code> 校验一棵候选目录（<code>fast-https.json</code> + <code>conf.d</code>）；只校验，不应用；失败退出码 5；路径含 <code>..</code> 或符号链接逃出目录时退出码 2</td></tr>
 <tr><td><code>config versions</code></td><td>列出状态目录里的配置版本快照。<code>active</code> 由当前磁盘配置树哈希决定，都不匹配则 <code>drift:true</code>。快照不含证书与私钥</td></tr>
 <tr><td><code>config diff --candidate</code></td><td>比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 <code>changed</code></td></tr>
