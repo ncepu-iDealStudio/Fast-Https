@@ -30,7 +30,7 @@
 | B-09 | 未配置证书的域名发起 TLS 握手，进程崩溃 | ✅ 无此问题 | `TestCertSetUnknownSNIFallsBack`、`TestCertSetEmptyReturnsError` | 未知 SNI 与空 SNI 都回落到第一张证书；证书列表为空时返回错误而非 panic |
 | B-10 | 通配符证书 `*.example.com` 匹配了 `a.b.example.com` | ✅ 无此问题 | `TestCertSetWildcardMatchesOneLabelOnly` | 走标准库 `VerifyHostname`，通配符只跨一层 |
 | B-10b | 大小写或结尾的点导致选不到证书 | ✅ 无此问题 | `TestCertSetNormalizesCaseAndTrailingDot` | `EXACT.EXAMPLE`、`exact.example.` 均命中同一张 |
-| B-11 | 客户端伪造 `X-Forwarded-For`，上游看到假链路 | ✅ 无此问题 | `TestProxyDoesNotAddXForwardedFor` | 代理不添加该头，伪造无从谈起；**代价是上游拿不到真实来源**，属功能缺失，见 R-05 |
+| B-11 | 客户端伪造 `X-Forwarded-For`，上游看到假链路 | 🔧 已修复 | `TestForwardedChainCases`、`TestForwardedForChainPolicy` | R-05：默认丢弃不受信对端自带的 XFF、只写真实来源；仅来自 `trusted_proxies` 的请求保留入站链并追加 |
 | B-12 | hop-by-hop 头（`Connection`、`TE`、`Proxy-Authorization`）被原样转发给上游 | ⚠️ 存在待修 | `TestProxyForwardsHopByHopHeadersVerbatim` | 代理按字节转发，未做剥离。用例先锁定现状，等 R-06 实现后改成反向断言 |
 | B-13 | `Accept-Encoding: gzip;q=0` 仍被压缩 | ✅ 无此问题 | `TestEncodingWantedVectors`（21 条向量）、`TestStaticQZeroIsNotCompressed` | `request.QValue` 解析 q 值，q=0 判为拒绝；端到端确认响应不带 `Content-Encoding` |
 | B-14 | 上游已带 `Content-Encoding` 时被二次压缩 | ✅ 不适用 | — | 压缩只发生在「读静态文件」这一步，不存在响应中间件链路，没有二次压缩的入口 |
@@ -61,11 +61,13 @@
 
 | 用例 | 结论 |
 | --- | --- |
-| `TestProxyForwardsHopByHopHeadersVerbatim` | `Connection`、`X-Hop`、`Proxy-Authorization`、`TE` **全部原样到达上游** |
-| `TestProxyDoesNotAddXForwardedFor` | 客户端自带的 XFF 原样透传，代理不追加真实来源 |
+| `TestProxyForwardsHopByHopHeadersVerbatim` | `Connection`、`X-Hop`、`Proxy-Authorization`、`TE` **全部原样到达上游**（R-06 待改） |
+| `TestForwardedChainCases` | 读 `testdata/forwarded-chain.jsonl`：无 XFF、客户端伪造、多层代理、超跳数四种输入的值符合 R-05 策略 |
 
-这两个是「锁定现状」的用例，不是期望行为。R-06 实现后第一个要改成反向
-断言；R-05 实现后第二个要改成断言「追加了真实地址」。
+`TestProxyForwardsHopByHopHeadersVerbatim` 仍是「锁定现状」的用例；R-06
+实现后要改成反向断言。XFF 一项已由 R-05 从「不追加」改成「按可信代理
+策略追加」，核心策略另有 `core/forwarded_test.go` 的
+`TestForwardedForChainPolicy` 逐条锁定。
 
 ### 4.3.3 静态路径（B-01 ~ B-07）
 
@@ -95,7 +97,8 @@ PASS: TestCertSetEmptyReturnsError
 PASS: TestCertSetWildcardMatchesOneLabelOnly
 PASS: TestCertSetNormalizesCaseAndTrailingDot
 PASS: TestProxyForwardsHopByHopHeadersVerbatim   (锁定现状：未剥离)
-PASS: TestProxyDoesNotAddXForwardedFor           (锁定现状：未追加)
+PASS: TestForwardedChainCases                    (4 条 XFF 策略输入)
+PASS: TestForwardedForChainPolicy                (受信/不受信/上限/0 不限)
 PASS: TestEncodingWantedVectors                  (21 条协商向量)
 PASS: TestStaticQZeroIsNotCompressed
 PASS: TestStaticQZeroFallsBackToOtherEncoding
@@ -105,7 +108,7 @@ PASS: TestReloadInvalidKeepsPreviousConfig
 PASS: TestReloadMissingFileKeepsPreviousConfig
 ```
 
-核验结果：**17 条反馈里，14 条确认无此问题，2 条存在待修，1 条已修复，0 条未验证**。
+核验结果：**18 条核验项里，13 条确认无此问题，4 条已修复，1 条存在待修（B-12 hop-by-hop 未剥离）**。
 
 本轮修掉的两处：
 
@@ -139,7 +142,7 @@ go test ./config/ ./modules/static/ -run 'TestCheckAtLoadRejectsSymlink|TestSyml
 # SNI 与通配符
 go test ./runtime/listener/ -run TestCertSet -v
 # 代理头
-go test ./modules/proxy/ -run 'TestProxyForwardsHopByHop|TestProxyDoesNotAddXForwardedFor' -v
+go test ./modules/proxy/ ./core/ -run 'TestProxyForwardsHopByHop|TestForwardedChainCases|TestForwardedForChainPolicy' -v
 # 内容编码协商
 go test ./modules/static/ -run 'TestEncodingWantedVectors|TestStaticQZero' -v
 # keep-alive 状态隔离

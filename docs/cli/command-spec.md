@@ -61,6 +61,8 @@
 | `runtime status` | `runtime.status` | 已实现（需本机 `/runtime`） |
 | `runtime stats` | `runtime.stats` | 已实现；`--since`/`--domain` → `NOT_SUPPORTED` |
 | `config show` | `config.show` | 已实现 |
+| `config tls` / `config tls show` | `config.tls` | 已实现（只重写 tls 段） |
+| `config proxy` / `config proxy show` | `config.proxy` | 已实现（只重写 proxy 段） |
 | `config validate` | `config.validate` | 已实现 |
 | `config diff` | `config.diff` | 已实现 |
 | `config apply` | `config.apply` | 已实现（事务 + operation） |

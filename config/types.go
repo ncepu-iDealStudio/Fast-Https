@@ -28,6 +28,8 @@ type (
 	SecurityHeaders = model.SecurityHeaders
 	TLSConfig       = model.TLSConfig
 	Certificate     = model.Certificate
+	ProxyConfig     = model.ProxyConfig
+	ForwardedFor    = model.ForwardedForConfig
 
 	SiteLocation = sitefile.SiteLocation
 	SiteInput    = sitefile.SiteInput

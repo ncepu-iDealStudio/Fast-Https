@@ -4,6 +4,7 @@ package loader
 
 import (
 	"fmt"
+	"net/netip"
 	"os"
 	"strings"
 
@@ -103,11 +104,50 @@ func processRoot(configPath string) (model.Fast_Https, error) {
 		Certificate: jc.TLS.DefaultCertificate.Certificate,
 		Key:         jc.TLS.DefaultCertificate.Key,
 	}}
+	proxy, err := convertProxy(jc.Proxy)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.Proxy = proxy
 	if err := processHttp(&cfg, jc.HTTP); err != nil {
 		return cfg, err
 	}
 	SetDefault(&cfg)
 	return cfg, nil
+}
+
+// convertProxy 把 proxy 段转成运行期策略：preserve_host 缺省为 true，
+// trusted_proxies 在这里编译成网段，运行期不再解析字符串。
+func convertProxy(jp schema.Proxy) (model.Proxy, error) {
+	proxy := model.Proxy{
+		ForwardedForMaxHops: jp.ForwardedFor.MaxHops,
+		PreserveHost:        jp.PreserveHost == nil || *jp.PreserveHost,
+	}
+	for i, raw := range jp.TrustedProxies {
+		item := strings.TrimSpace(raw)
+		prefix, err := parseTrustedProxy(item)
+		if err != nil {
+			return proxy, fmt.Errorf("proxy.trusted_proxies[%d]: %w", i, err)
+		}
+		proxy.TrustedProxies = append(proxy.TrustedProxies, item)
+		proxy.TrustedPrefixes = append(proxy.TrustedPrefixes, prefix)
+	}
+	return proxy, nil
+}
+
+// parseTrustedProxy 接受单地址或 CIDR：单地址补全 /32 或 /128。
+func parseTrustedProxy(item string) (netip.Prefix, error) {
+	if item == "" {
+		return netip.Prefix{}, fmt.Errorf("must not be empty")
+	}
+	if prefix, err := netip.ParsePrefix(item); err == nil {
+		return prefix.Masked(), nil
+	}
+	addr, err := netip.ParseAddr(item)
+	if err != nil {
+		return netip.Prefix{}, fmt.Errorf("invalid IP or CIDR: %q", item)
+	}
+	return netip.PrefixFrom(addr, addr.BitLen()), nil
 }
 
 func processHttp(cfg *model.Fast_Https, http schema.HTTP) error {

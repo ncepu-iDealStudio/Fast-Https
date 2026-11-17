@@ -2,7 +2,10 @@
 // 本包不读文件、不校验，只被 config 内部其他包与外部读取方使用。
 package model
 
-import "strings"
+import (
+	"net/netip"
+	"strings"
+)
 
 const (
 	ZIP_NONE    = 0
@@ -172,6 +175,34 @@ type Fast_Https struct {
 	Acme         *AcmeConfig
 	Security     *SecurityConfig
 	TLS          TLSConfig
+	Proxy        Proxy
+}
+
+// ForwardedForConfig 是 proxy.forwarded_for 段的原始配置。
+type ForwardedForConfig struct {
+	MaxHops int `json:"max_hops"`
+}
+
+// ProxyConfig 是顶层 proxy 段的原始写法，供命令行读写使用。
+// PreserveHost 用指针区分「没写」（默认 true）与显式 false。
+type ProxyConfig struct {
+	TrustedProxies []string           `json:"trusted_proxies"`
+	ForwardedFor   ForwardedForConfig `json:"forwarded_for"`
+	PreserveHost   *bool              `json:"preserve_host"`
+}
+
+// PreserveHostEnabled 报告是否透传客户端 Host。未配置时为 true。
+func (p ProxyConfig) PreserveHostEnabled() bool {
+	return p.PreserveHost == nil || *p.PreserveHost
+}
+
+// Proxy 是运行期代理策略。TrustedPrefixes 是 TrustedProxies 编译后的
+// 网段列表，只在进程内使用，不参与 JSON 序列化。
+type Proxy struct {
+	TrustedProxies      []string
+	ForwardedForMaxHops int
+	PreserveHost        bool
+	TrustedPrefixes     []netip.Prefix
 }
 
 // TLSConfig 是全局 TLS 段。DefaultCertificate 只在 SNI 未命中任何站点

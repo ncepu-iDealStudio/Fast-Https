@@ -716,6 +716,50 @@ func TestTreeValidateAcceptsRuntimeCert(t *testing.T) {
 	}
 }
 
+// TestValidateProxy 校验 proxy 段：trusted_proxies 每项是 IP 或 CIDR，
+// max_hops 不能为负。错误信息要能定位到具体字段。
+func TestValidateProxy(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig := func(t *testing.T, proxyBody string) string {
+		t.Helper()
+		body := `{"proxy": ` + proxyBody + `,
+  "http": {"server": [{"listen": 8080, "server_name": "proxy.local",
+    "location": [{"url": "/", "type": "local", "root": "."}]}]}}`
+		path := filepath.Join(dir, "fast-https.json")
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	cases := []struct {
+		name  string
+		proxy string
+		want  string
+	}{
+		{name: "未配置", proxy: `{}`},
+		{name: "CIDR 与单 IP", proxy: `{"trusted_proxies": ["10.0.0.0/8", "192.168.1.10", "2001:db8::/32"]}`},
+		{name: "链长不限制", proxy: `{"forwarded_for": {"max_hops": 0}}`},
+		{name: "非法 CIDR", proxy: `{"trusted_proxies": ["10.0.0.0/33"]}`, want: "proxy.trusted_proxies[0]"},
+		{name: "空项", proxy: `{"trusted_proxies": ["10.0.0.1", "  "]}`, want: "proxy.trusted_proxies[1]"},
+		{name: "负数链长", proxy: `{"forwarded_for": {"max_hops": -1}}`, want: "proxy.forwarded_for.max_hops"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := ValidateConfigFile(writeConfig(t, c.proxy))
+			if c.want == "" {
+				if err != nil {
+					t.Fatalf("应通过校验：%v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("err = %v, want containing %q", err, c.want)
+			}
+		})
+	}
+}
+
 // TestValidateDefaultCertificate 校验 tls.default_certificate：要么不配，
 // 要么证书/私钥成对且文件存在。
 func TestValidateDefaultCertificate(t *testing.T) {

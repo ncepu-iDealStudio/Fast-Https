@@ -241,6 +241,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `acme` | ACME 自动签发与续期，见 7.1。缺省即关闭，行为与老版本一致 |
 | `security` | Host 校验与安全响应头，见 5.5。缺省只加 `X-Content-Type-Options: nosniff` |
 | `tls` | 全局 TLS 兜底：`default_certificate` 指定未知 SNI 使用的证书，见 7.2。缺省回落到该端口第一张证书 |
+| `proxy` | 代理转发策略：可信代理、`X-Forwarded-For` 链长与 Host 透传，见 5.6 |
 
 ### 5.2 `http` 段
 
@@ -293,7 +294,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `$host` | 请求的 Host |
 | `$proxy_host` | 上游地址 |
 | `$remote_addr` | 客户端 IP |
-| `$proxy_add_x_forwarded_for` | 追加当前客户端 IP 后的 `X-Forwarded-For` |
+| `$proxy_add_x_forwarded_for` | 按 5.6 的代理策略计算出的 `X-Forwarded-For`（不受信客户端自带的链会被丢弃） |
 
 ### 5.5 `security` 段
 
@@ -322,6 +323,47 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 安全头在响应写出的唯一出口统一补齐：模块自己设置过同名头时不覆盖，重复调用幂等。
 
 > 请求路径在解析阶段就完成规范化：解一层 `%xx`、合并连续的 `/`、拒绝二次编码（`%252f`）、反斜杠、控制字符与超过 8192 字节的目标，非法请求直接 400。location 匹配、静态文件解析与日志看到的都是规范化后的路径。
+
+### 5.6 `proxy` 段
+
+全局代理转发策略，对所有 `type: proxy` 的 location 生效：
+
+```json
+"proxy": {
+  "trusted_proxies": ["10.0.0.0/8", "192.168.1.10"],
+  "forwarded_for": { "max_hops": 10 },
+  "preserve_host": true
+}
+```
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `trusted_proxies` | 空 | 可信代理的 IP 或 CIDR 列表。只有直连对端命中这里的请求，才保留客户端自带的 `X-Forwarded-For` |
+| `forwarded_for.max_hops` | `0` | 转发链长度上限，`0` 表示不限制。链已达到上限时不再追加客户端地址，并写一条含 `hops` / `max_hops` 的 Warn 日志 |
+| `preserve_host` | `true` | `true` 原样透传客户端 `Host`；`false` 时改写为上游 `host:port` |
+
+`X-Forwarded-For` 的生成规则：
+
+| 直连对端 | 入站 `X-Forwarded-For` | 转发给上游的值 |
+| --- | --- | --- |
+| 不在 `trusted_proxies` | 有（客户端伪造） | 丢弃整条，只写真实对端 IP |
+| 不在 `trusted_proxies` | 无 | 真实对端 IP |
+| 在 `trusted_proxies` | 有 | 入站链 + `, ` + 真实对端 IP |
+| 在 `trusted_proxies` | 无 | 真实对端 IP |
+
+达到 `forwarded_for.max_hops` 时保留入站链、不再追加。显式写了
+`proxy_set_header` 的 `X-Forwarded-For` 仍然覆盖自动值。
+
+命令行：
+
+```bash
+fast-https config proxy show
+fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops 10 --preserve-host=false
+```
+
+`--trusted-proxies` 传空表示清空；三项都回到默认值时删除整个 `proxy` 段。
+写盘前会做完整校验，`--dry-run` 只打印结果。新配置在下次 reload 或启动时生效。
+桌面端在「设置」页的「代理」分组里有同样三项，清空后保存与 CLI 的落盘结果一致。
 
 ## 6. 典型配置
 
@@ -531,8 +573,9 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `service reload` | 受控 reload：校验、预检新增端口、发信号，再用 `/runtime` 做强验证（pid/`started_at` 不变且 `config_generation` 加一）；读不到快照时退回弱验证。不改配置文件。`--dry-run` 只校验与预检。服务没在跑退出码 4。记 operation，支持 `--request-id` 幂等 |
 | `runtime status` | 读取 `127.0.0.1:9088/runtime` 的瞬时连接与请求状态。连不上退出码 4；`schema_version` 不认识退出码 11。没有的字段（如 CPU、reading/writing/waiting）省略并在 `warnings` 说明 |
 | `runtime stats` | 进程启动以来的累计计数，响应里 `window` 为 `since_process_start`。`--since`、`--domain` 尚未支持，传入即退出码 11（`NOT_SUPPORTED`）。Monitor 只消费这份累计快照，不另算时间窗 |
-| `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`tls`、`waf`、`sites` |
+| `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`tls`、`proxy`、`waf`、`sites` |
 | `config tls` | 写入顶层 `tls.default_certificate`（`--cert` 与 `--key` 必须成对，文件必须存在）；只重写 `tls` 段、保留注释；两个参数传空清除；`--dry-run` 只打印；`config tls show` 查看 |
+| `config proxy` | 写入顶层 `proxy` 段（`--trusted-proxies`、`--max-hops`、`--preserve-host`）；只重写 `proxy` 段、保留注释；全部传默认值删除该段；`--dry-run` 只打印；`config proxy show` 查看 |
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
 | `config versions` | 列出状态目录里的配置版本快照。`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照不含证书与私钥 |
 | `config diff --candidate` | 比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |

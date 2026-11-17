@@ -67,7 +67,7 @@ func NewConfigCmd() *cobra.Command {
 			return nil
 		},
 	}
-	root.AddCommand(pathCmd, newConfigShowCmd(), newConfigTLSCmd(), newConfigValidateCmd(), newConfigVersionsCmd(), newConfigDiffCmd(), newConfigApplyCmd(), newConfigRollbackCmd())
+	root.AddCommand(pathCmd, newConfigShowCmd(), newConfigTLSCmd(), newConfigProxyCmd(), newConfigValidateCmd(), newConfigVersionsCmd(), newConfigDiffCmd(), newConfigApplyCmd(), newConfigRollbackCmd())
 	return root
 }
 

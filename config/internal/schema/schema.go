@@ -163,7 +163,20 @@ type Config struct {
 	Acme     *model.AcmeConfig     `json:"acme"`
 	Security *model.SecurityConfig `json:"security"`
 	TLS      TLS                   `json:"tls"`
+	Proxy    Proxy                 `json:"proxy"`
 	HTTP     HTTP                  `json:"http"`
+}
+
+// Proxy 是全局代理策略段：可信代理、X-Forwarded-For 链长上限与 Host 透传。
+type Proxy struct {
+	TrustedProxies []string     `json:"trusted_proxies"`
+	ForwardedFor   ForwardedFor `json:"forwarded_for"`
+	PreserveHost   *bool        `json:"preserve_host"`
+}
+
+// ForwardedFor 是 X-Forwarded-For 链的配置。max_hops 为 0 表示不限制。
+type ForwardedFor struct {
+	MaxHops int `json:"max_hops"`
 }
 
 // TLS 是全局 TLS 段。default_certificate 只在 SNI 未命中任何站点证书时

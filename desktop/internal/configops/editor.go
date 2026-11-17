@@ -68,6 +68,10 @@ var configSpecs = []fieldSpec{
 	{"tls.default_certificate.certificate", "默认证书", "TLS", "text", "未知 SNI 时使用；与私钥成对配置，留空则回落该端口第一张证书", nil, "file"},
 	{"tls.default_certificate.key", "默认证书私钥", "TLS", "text", "与默认证书成对出现", nil, "file"},
 
+	{"proxy.trusted_proxies", "可信代理", "代理", "list", "只有来自这些 IP/CIDR 的请求才保留入站 X-Forwarded-For；每行一个", nil, ""},
+	{"proxy.forwarded_for.max_hops", "X-Forwarded-For 链长上限", "代理", "number", "0 表示不限制；达到上限后不再追加并记一条告警日志", nil, ""},
+	{"proxy.preserve_host", "透传客户端 Host", "代理", "bool", "默认开启；关闭时转发给上游的 Host 改成上游地址", nil, ""},
+
 	{"http.include", "include 目录 / 文件", "HTTP", "pathlist", "每行一个；站点文件通常放在 conf.d", nil, "dir"},
 	{"http.default_type", "默认 MIME 类型", "HTTP", "text", "", nil, ""},
 	{"http.servers_limit.max_header_size", "请求头上限（字节）", "HTTP", "number", "", nil, ""},
@@ -83,7 +87,7 @@ var configSpecs = []fieldSpec{
 // 若配置里仍带 engine 段，会列入 ConfigForm.Preserved 并在保存时原样保留。
 var configTopLevel = map[string]bool{
 	"pid": true, "log_root": true,
-	"waf": true, "acme": true, "security": true, "tls": true, "http": true,
+	"waf": true, "acme": true, "security": true, "tls": true, "proxy": true, "http": true,
 }
 
 // ReadConfigForm 转交 config show 取表单字段值（敏感值已脱敏）；
@@ -142,6 +146,7 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 	}
 	changed := 0
 	tlsSubmitted := false
+	proxySubmitted := false
 	for _, s := range configSpecs {
 		text, ok := values[s.path]
 		if !ok {
@@ -156,12 +161,18 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 		if strings.HasPrefix(s.path, "tls.default_certificate.") {
 			tlsSubmitted = true
 		}
+		if strings.HasPrefix(s.path, "proxy.") {
+			proxySubmitted = true
+		}
 	}
 	if changed == 0 {
 		return "", fmt.Errorf("没有需要保存的改动")
 	}
 	if tlsSubmitted {
 		pruneEmptyTLS(root)
+	}
+	if proxySubmitted {
+		pruneEmptyProxy(root)
 	}
 
 	cand, err := buildCandidate(paths, root)
@@ -211,6 +222,44 @@ func pruneEmptyTLS(root map[string]any) {
 	if len(tlsMap) == 0 {
 		delete(root, "tls")
 	}
+}
+
+// pruneEmptyProxy 在三项都是默认值时删掉整个 proxy 段，与
+// `config proxy set` 的落盘结果一致。只改其中一项时保留其余字段。
+func pruneEmptyProxy(root map[string]any) {
+	proxyMap, ok := root["proxy"].(map[string]any)
+	if !ok {
+		return
+	}
+	maxHops := 0
+	if ff, ok := proxyMap["forwarded_for"].(map[string]any); ok {
+		switch v := ff["max_hops"].(type) {
+		case json.Number:
+			if n, err := strconv.Atoi(v.String()); err == nil {
+				maxHops = n
+			}
+		case float64:
+			maxHops = int(v)
+		}
+	}
+	preserve := true
+	if v, ok := proxyMap["preserve_host"].(bool); ok {
+		preserve = v
+	}
+	if listLen(proxyMap["trusted_proxies"]) == 0 && maxHops == 0 && preserve {
+		delete(root, "proxy")
+	}
+}
+
+// listLen 统计列表元素个数；内存树里是 []string，JSON 往返后是 []any。
+func listLen(v any) int {
+	switch list := v.(type) {
+	case []string:
+		return len(list)
+	case []any:
+		return len(list)
+	}
+	return 0
 }
 
 // buildCandidate 复刻主程序 siteops.CloneLiveTree 搭一棵候选配置树：

@@ -8,6 +8,7 @@ import (
 	"fast-https/config"
 	"fast-https/infra/logging"
 	"net"
+	"net/netip"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -65,6 +66,12 @@ type ListenCfg struct {
 
 	// AllowMethods 非空时限定该 location 允许的 HTTP 方法，越界返回 405。
 	AllowMethods []string
+
+	// 全局 proxy 段的构建期快照。请求路径直接读这些字段，
+	// reload 时随整个 Cfg 快照一起替换。
+	ForwardedForMaxHops int
+	TrustedProxies      []netip.Prefix
+	PreserveHost        bool
 }
 
 // listenerSnapshot 是请求路径读取的配置快照。
@@ -270,6 +277,7 @@ func SortBySpecificPorts(ports []string, lisInfos *[]*Listener) {
 // sort configure from "path"
 func processListenData(lisInfos *[]*Listener) {
 	Id := 0
+	proxy := config.Current().Proxy
 	for _, server := range config.Current().Servers {
 		listen := strings.Split(server.Listen, " ")[0]
 		for _, paths := range server.Path {
@@ -325,6 +333,9 @@ func processListenData(lisInfos *[]*Listener) {
 				data.ReWrite = paths.Rewrite
 				data.ProxyCache = paths.ProxyCache
 				data.AllowMethods = paths.AllowMethods
+				data.ForwardedForMaxHops = proxy.ForwardedForMaxHops
+				data.TrustedProxies = proxy.TrustedPrefixes
+				data.PreserveHost = proxy.PreserveHost
 				eachlisten.Cfg = append(eachlisten.Cfg, data)
 				Id = Id + 1
 			}

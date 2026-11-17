@@ -45,7 +45,7 @@ docs/test/
 
 | 命令 | 结果 |
 | --- | --- |
-| `go test ./runtime/listener/ ./config/... ./management/... ./cmd/...` | 全部 `ok`（含 R-01 ~ R-04 边缘加固回归） |
+| `go test ./runtime/listener/ ./config/... ./management/... ./cmd/... ./core/... ./modules/proxy/...` | 全部 `ok`（含 R-01 ~ R-05 边缘加固回归） |
 | `cd desktop && go test ./internal/...` | `cli` / `configops` / `siteops` / `view` 全部 `ok` |
 | `go test ./tests/packaging` | `ok` |
 | `cd desktop/frontend && npm run typecheck` | 通过 |
@@ -58,6 +58,7 @@ docs/test/
 - 2026-11-05 发行版实机验证：ubuntu:24.04 / almalinux:9 / alpine:3.21 容器内装包各跑一遍，四个场景 ALL-PASS；同时补上 logrotate 配置与 `tests/packaging/distro/` 脚本，详见 [verification/distro-packages.md](verification/distro-packages.md)。
 - 2026-11-17 边缘加固 R-01 ~ R-04 落地：符号链接策略、Windows 保留名/尾点、TLS 兜底证书、同名证书按客户端能力选择；每项都有回归用例，CLI 与桌面端入口同步，见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)。
 - 2026-11-17 桌面端 TLS 默认证书配置手工验证：GUI 写入成功、两项清空即删 `tls` 段、只填一项被成对校验拦下且配置未改写，详见 [verification/desktop-tls-config.md](verification/desktop-tls-config.md)。
+- 2026-11-17 边缘加固 R-05 落地：顶层 `proxy` 段（`trusted_proxies`、`forwarded_for.max_hops`、`preserve_host`），默认只追加真实对端、丢弃客户端伪造的 `X-Forwarded-For`；`modules/proxy/testdata/forwarded-chain.jsonl` 覆盖无 XFF / 客户端伪造 / 多层代理 / 超跳数四类输入，CLI `config proxy` 与桌面端设置页同步。
 
 ## 旧文件名对照
 

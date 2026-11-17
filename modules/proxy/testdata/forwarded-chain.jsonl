@@ -1,0 +1,4 @@
+{"name":"no_xff","client_ip":"203.0.113.9","inbound_xff":"","trusted_proxies":[],"max_hops":0,"want_xff":"203.0.113.9"}
+{"name":"client_spoofed","client_ip":"203.0.113.9","inbound_xff":"10.0.0.1","trusted_proxies":[],"max_hops":0,"want_xff":"203.0.113.9"}
+{"name":"multi_proxy","client_ip":"10.0.0.5","inbound_xff":"198.51.100.7","trusted_proxies":["10.0.0.0/8"],"max_hops":0,"want_xff":"198.51.100.7, 10.0.0.5"}
+{"name":"max_hops_exceeded","client_ip":"10.0.0.5","inbound_xff":"198.51.100.7, 10.0.0.9","trusted_proxies":["10.0.0.0/8"],"max_hops":2,"want_xff":"198.51.100.7, 10.0.0.9"}

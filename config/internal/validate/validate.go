@@ -6,6 +6,7 @@ package validate
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -120,6 +121,9 @@ func validateConfigAt(configPath string, opts validateOpts) ([]string, error) {
 		return nil, err
 	}
 	if err := validateDefaultCertificate(root.TLS, baseDir, opts); err != nil {
+		return nil, err
+	}
+	if err := validateProxy(root.Proxy); err != nil {
 		return nil, err
 	}
 
@@ -247,6 +251,27 @@ func validateDefaultCertificate(tls schema.TLS, baseDir string, opts validateOpt
 	}
 	if !pathExistsWith(key, baseDir, baseDir, opts) {
 		return fmt.Errorf("tls.default_certificate.key not found: %s", key)
+	}
+	return nil
+}
+
+// validateProxy 校验全局代理策略：trusted_proxies 每项必须是 IP 或 CIDR，
+// max_hops 不能为负数（0 表示不限制）。
+func validateProxy(proxy schema.Proxy) error {
+	if proxy.ForwardedFor.MaxHops < 0 {
+		return fmt.Errorf("proxy.forwarded_for.max_hops must be >= 0: %d", proxy.ForwardedFor.MaxHops)
+	}
+	for i, raw := range proxy.TrustedProxies {
+		item := strings.TrimSpace(raw)
+		if item == "" {
+			return fmt.Errorf("proxy.trusted_proxies[%d]: must not be empty", i)
+		}
+		if _, err := netip.ParsePrefix(item); err == nil {
+			continue
+		}
+		if _, err := netip.ParseAddr(item); err != nil {
+			return fmt.Errorf("proxy.trusted_proxies[%d]: invalid IP or CIDR: %q", i, item)
+		}
 	}
 	return nil
 }

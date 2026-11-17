@@ -4,6 +4,7 @@ import (
 	"fast-https/config/internal/acme"
 	"fast-https/config/internal/loader"
 	"fast-https/config/internal/paths"
+	"fast-https/config/internal/proxyconf"
 	"fast-https/config/internal/scan"
 	"fast-https/config/internal/sitefile"
 	"fast-https/config/internal/tlsconf"
@@ -50,6 +51,17 @@ func PreviewTLSSection(path string, c *TLSConfig) ([]byte, error) {
 func WriteTLSSection(path string, c *TLSConfig) error { return tlsconf.WriteTLSSection(path, c) }
 
 func ReadTLSDefaults(path string) (TLSConfig, error) { return tlsconf.ReadTLSDefaults(path) }
+
+// proxy 段读写。
+func PreviewProxySection(path string, c *ProxyConfig) ([]byte, error) {
+	return proxyconf.PreviewProxySection(path, *c)
+}
+
+func WriteProxySection(path string, c *ProxyConfig) error {
+	return proxyconf.WriteProxySection(path, *c)
+}
+
+func ReadProxySection(path string) (ProxyConfig, error) { return proxyconf.ReadProxySection(path) }
 
 // 只读扫描。
 func ListenPortsFromFile(path string) ([]int, error) { return scan.ListenPortsFromFile(path) }

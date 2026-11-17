@@ -478,6 +478,18 @@ func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 }
 
 func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
+	// 先按全局 proxy 策略写入 X-Forwarded-For；下面 proxy_set_header 里的
+	// 显式配置仍然可以覆盖它（与 nginx 的「后写生效」一致）。
+	if ev != nil && ev.RR.Req != nil {
+		if xff := core.ForwardedForChain(cfg, ev); xff != "" {
+			ev.RR.Req.SetHeader("X-Forwarded-For", xff, cfg)
+		}
+		// preserve_host 默认 true 原样透传；显式关闭时用上游地址，
+		// 让按 Host 分虚拟主机的上游也能命中正确站点。
+		if cfg != nil && !cfg.PreserveHost && strings.TrimSpace(cfg.ProxyAddr) != "" {
+			ev.RR.Req.SetHeader("Host", upstreamHost(cfg.ProxyAddr), cfg)
+		}
+	}
 	for _, item := range cfg.ProxySetHeader {
 		ev.RR.Req.SetHeader(item.HeaderKey,
 			ev.GetCommandParsedStr(item.HeaderValue), cfg)
@@ -485,4 +497,20 @@ func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 	// ev.RR.Req_.SetHeader("Connection", "close", cfg)
 	// ev.RR.Req.SetHeader("Accept-Encoding", "", cfg)
+}
+
+// upstreamHost 从 proxy_pass 地址取 host:port，用于 preserve_host=false。
+// 接受带不带 scheme、带路径或 userinfo 的写法。
+func upstreamHost(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if i := strings.Index(addr, "://"); i >= 0 {
+		addr = addr[i+3:]
+	}
+	if i := strings.IndexAny(addr, "/?#"); i >= 0 {
+		addr = addr[:i]
+	}
+	if i := strings.LastIndex(addr, "@"); i >= 0 {
+		addr = addr[i+1:]
+	}
+	return addr
 }

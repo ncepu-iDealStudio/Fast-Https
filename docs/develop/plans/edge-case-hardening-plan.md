@@ -1,6 +1,6 @@
 # Fast-Https 边界加固功能需求
 
-状态：🚧 **部分实现**（R-01 ~ R-04 已完成，R-05 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
+状态：🚧 **部分实现**（R-01 ~ R-05 已完成，R-06 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
 目前有没有这些问题、修没修）在 [edge-case-coverage.md](../../test/reports/edge-case-coverage.md)。
 
 ## 需求来源
@@ -119,6 +119,16 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 
 **验收**：`forwarded-chain.jsonl` 覆盖「无 XFF / 客户端伪造 / 多层代理 /
 超跳数」四种输入。
+
+**状态**：✅ 已实现。顶层 `proxy` 段全局生效，构建期拷进每个
+`listener.ListenCfg`。`X-Forwarded-For` 只在直连对端命中 `trusted_proxies`
+时保留入站链并追加对端地址，否则整条丢弃、只写真实对端；链长达到
+`forwarded_for.max_hops`（0 表示不限）后停止追加并输出含 `hops` /
+`max_hops` 的 Warn。解析阶段的 `$proxy_add_x_forwarded_for` 与转发阶段共用
+同一策略，`proxy_set_header` 的显式配置仍可覆盖。`preserve_host=false`
+时 Host 改写为上游 `host:port`。CLI 提供 `config proxy show` /
+`config proxy set`，桌面端设置页有对应三项，全部回默认值时删除整段。
+`modules/proxy/testdata/forwarded-chain.jsonl` 覆盖四类输入。
 
 ## R-06 hop-by-hop 头的剥离
 
