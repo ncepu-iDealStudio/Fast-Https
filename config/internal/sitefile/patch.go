@@ -43,13 +43,13 @@ func siteDiffEdits(old, want SiteInput) []jsonc.Edit {
 	var edits []jsonc.Edit
 
 	if !sameStrings(old.Listens, want.Listens) {
-		edits = append(edits, setEdit("listen", listenEditValue(want.Listens)))
+		edits = append(edits, setEditAt(nil, "listen", listenEditValue(want.Listens)))
 	}
 	if !sameText(old.ServerName, want.ServerName) {
-		edits = append(edits, setEdit("server_name", mustJSON(want.ServerName)))
+		edits = append(edits, setEditAt(nil, "server_name", mustJSON(want.ServerName)))
 	}
-	edits = append(edits, stringFieldEdits("ssl_certificate", old.SSLCertificate, want.SSLCertificate)...)
-	edits = append(edits, stringFieldEdits("ssl_certificate_key", old.SSLCertificateKey, want.SSLCertificateKey)...)
+	edits = append(edits, stringFieldEditsAt(nil, "ssl_certificate", old.SSLCertificate, want.SSLCertificate)...)
+	edits = append(edits, stringFieldEditsAt(nil, "ssl_certificate_key", old.SSLCertificateKey, want.SSLCertificateKey)...)
 
 	for i := range old.Locations {
 		if i >= len(want.Locations) {
@@ -88,12 +88,6 @@ func siteDiffEdits(old, want SiteInput) []jsonc.Edit {
 		})
 	}
 	return edits
-}
-
-// stringFieldEdits 处理值可能被清空的字段：新值为空且旧值非空时删掉这个键，
-// 而不是留一个空字符串——空串会参与校验，删掉才是"回到未配置"。
-func stringFieldEdits(key, before, after string) []jsonc.Edit {
-	return stringFieldEditsAt(nil, key, before, after)
 }
 
 // locationAdvancedEdits 处理 location 上的高级配置：zip、limit、auth、proxy_cache。
@@ -222,6 +216,8 @@ func sameCache(a, b model.Cache) bool {
 		a.MaxSize == b.MaxSize
 }
 
+// stringFieldEditsAt 处理值可能被清空的字段：新值为空且旧值非空时删掉这个键，
+// 而不是留一个空字符串——空串会参与校验，删掉才是"回到未配置"。
 func stringFieldEditsAt(base []jsonc.Step, key, before, after string) []jsonc.Edit {
 	if sameText(before, after) {
 		return nil
@@ -230,10 +226,6 @@ func stringFieldEditsAt(base []jsonc.Step, key, before, after string) []jsonc.Ed
 		return []jsonc.Edit{delEditAt(base, key)}
 	}
 	return []jsonc.Edit{setEditAt(base, key, mustJSON(after))}
-}
-
-func setEdit(key string, value []byte) jsonc.Edit {
-	return jsonc.Edit{Path: []jsonc.Step{jsonc.Key(key)}, Value: value}
 }
 
 func setEditAt(base []jsonc.Step, key string, value []byte) jsonc.Edit {

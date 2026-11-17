@@ -102,7 +102,7 @@ func runConfigProxySet(cmd *cobra.Command, _ []string) error {
 	if err := config.WriteProxySection(path, &section); err != nil {
 		return configInvalid("config.proxy", err)
 	}
-	if isDefaultProxy(section) {
+	if config.IsDefaultProxy(section) {
 		fmt.Fprintf(cmd.OutOrStdout(), "已清除 proxy 配置（%s）；下次 reload 或启动时生效\n", path)
 		return nil
 	}
@@ -116,7 +116,7 @@ func runConfigProxyShow(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return configInvalid("config.proxy", err)
 	}
-	if isDefaultProxy(section) {
+	if config.IsDefaultProxy(section) {
 		fmt.Fprintln(cmd.OutOrStdout(), "proxy 未配置：只追加真实客户端地址，链长不限，Host 原样透传")
 		return nil
 	}
@@ -127,11 +127,6 @@ func runConfigProxyShow(cmd *cobra.Command, _ []string) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "trusted_proxies: %s\nmax_hops:         %d\npreserve_host:    %t\n",
 		trusted, section.ForwardedFor.MaxHops, section.PreserveHostEnabled())
 	return nil
-}
-
-// isDefaultProxy 与 proxyconf.IsDefault 同义，避免命令行直接引用内部包。
-func isDefaultProxy(c config.ProxyConfig) bool {
-	return len(c.TrustedProxies) == 0 && c.ForwardedFor.MaxHops == 0 && c.PreserveHostEnabled()
 }
 
 // splitList 解析逗号分隔的列表，忽略空白项。

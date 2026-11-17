@@ -63,6 +63,9 @@ func WriteProxySection(path string, c *ProxyConfig) error {
 
 func ReadProxySection(path string) (ProxyConfig, error) { return proxyconf.ReadProxySection(path) }
 
+// IsDefaultProxy 报告 proxy 段是否等价于未配置；与写入时的删段判断共用同一逻辑。
+func IsDefaultProxy(c ProxyConfig) bool { return proxyconf.IsDefault(c) }
+
 // 只读扫描。
 func ListenPortsFromFile(path string) ([]int, error) { return scan.ListenPortsFromFile(path) }
 
