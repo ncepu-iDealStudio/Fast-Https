@@ -61,6 +61,7 @@ docs/test/
 - 2026-11-17 边缘加固 R-01 ~ R-04 落地：符号链接策略、Windows 保留名/尾点、TLS 兜底证书、同名证书按客户端能力选择；每项都有回归用例，CLI 与桌面端入口同步，见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)。
 - 2026-11-17 桌面端 TLS 默认证书配置手工验证：GUI 写入成功、两项清空即删 `tls` 段、只填一项被成对校验拦下且配置未改写，详见 [verification/desktop-tls-config.md](verification/desktop-tls-config.md)。
 - 2026-11-17 边缘加固 R-05 落地：顶层 `proxy` 段（`trusted_proxies`、`forwarded_for.max_hops`、`preserve_host`），默认只追加真实对端、丢弃客户端伪造的 `X-Forwarded-For`；`modules/proxy/testdata/forwarded-chain.jsonl` 覆盖无 XFF / 客户端伪造 / 多层代理 / 超跳数四类输入，CLI `config proxy` 与桌面端设置页同步。
+- 2026-11-17 边缘加固 R-06 落地：代理转发前剥离 `Connection` / `Keep-Alive` / `Proxy-Authenticate` / `Proxy-Authorization` / `Proxy-Connection` / `TE` / `Trailer` / `Transfer-Encoding` / `Upgrade` 及 `Connection` 点名的扩展头；客户端要求关闭时给上游补 `Connection: close`，HTTP/1.0 keep-alive 与 websocket 升级各自重建连接头。`modules/proxy/testdata/hop-by-hop-headers.json` 七类输入由 `TestHopByHopHeaderCases` 逐项核对上游实际收到的头。
 - 2026-11-17 桌面端代理来源配置验证：写入三项后 `proxy` 段落盘且 CLI 双入口一致，三项改回默认即删段，负 `max_hops` 与非法 CIDR 均在写盘前被拦下且配置哈希不变，详见 [verification/desktop-proxy-config.md](verification/desktop-proxy-config.md)。
 
 ## 旧文件名对照

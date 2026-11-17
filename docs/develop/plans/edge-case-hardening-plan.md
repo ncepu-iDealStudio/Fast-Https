@@ -1,6 +1,6 @@
 # Fast-Https 边界加固功能需求
 
-状态：🚧 **部分实现**（R-01 ~ R-05 已完成，R-06 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
+状态：🚧 **部分实现**（R-01 ~ R-06 已完成，R-07 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
 目前有没有这些问题、修没修）在 [edge-case-coverage.md](../../test/reports/edge-case-coverage.md)。
 
 ## 需求来源
@@ -137,6 +137,16 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 以及 `Connection` 里点名的扩展头。
 
 **验收**：`hop-by-hop-headers.json` 逐项核对上游收到的头。
+
+**状态**：✅ 已实现。`modules/proxy/hopheaders.go` 在 `ChangeHead` 里先
+删除固定清单与 `Connection` 点名的扩展头，再应用 `proxy_set_header`；
+额外覆盖非标准的 `Proxy-Connection`。三个必要的重建：客户端要求关闭
+（HTTP/1.0 或 `Connection: close`）时给上游补 `Connection: close`，
+否则代理按「读到连接结束」读取响应会等到超时；HTTP/1.0 的 keep-alive
+客户端补回 `Connection: keep-alive`；websocket 升级时重建
+`Connection: Upgrade` 与 `Upgrade`，其余 token 仍剥离。
+`TestHopByHopHeaderCases` 读取 `testdata/hop-by-hop-headers.json` 的七类
+输入，逐项断言上游实际收到的头。
 
 ## R-07 压缩协商的完整语义
 

@@ -481,6 +481,8 @@ func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 	// 先按全局 proxy 策略写入 X-Forwarded-For；下面 proxy_set_header 里的
 	// 显式配置仍然可以覆盖它（与 nginx 的「后写生效」一致）。
 	if ev != nil && ev.RR.Req != nil {
+		// 先记下客户端连接是否复用：hop-by-hop 头剥掉后就读不到 Connection 了。
+		keepalive := ev.RR.Req.IsKeepalive()
 		if xff := core.ForwardedForChain(cfg, ev); xff != "" {
 			ev.RR.Req.SetHeader("X-Forwarded-For", xff, cfg)
 		}
@@ -488,6 +490,20 @@ func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 		// 让按 Host 分虚拟主机的上游也能命中正确站点。
 		if cfg != nil && !cfg.PreserveHost && strings.TrimSpace(cfg.ProxyAddr) != "" {
 			ev.RR.Req.SetHeader("Host", upstreamHost(cfg.ProxyAddr), cfg)
+		}
+		stripHopByHop(ev.RR.Req, ev.Upgrade, cfg)
+		// 剥掉 Connection 后要按客户端语义重建上游这一跳的连接头：
+		// 客户端要求关闭时不补会让上游保持 keep-alive，代理按「读到连接
+		// 结束」读取响应会等到超时；HTTP/1.0 的 keep-alive 则相反，默认
+		// 是短连接，必须显式补回。websocket 已由 stripHopByHop 处理。
+		if ev.Upgrade != "websocket" {
+			switch {
+			case !keepalive:
+				ev.RR.Req.SetHeader("Connection", "close", cfg)
+			case ev.RR.Req.Protocol == "HTTP/1.0":
+				// HTTP/1.0 默认短连接，剥离后必须把 keep-alive 显式补回去。
+				ev.RR.Req.SetHeader("Connection", "keep-alive", cfg)
+			}
 		}
 	}
 	for _, item := range cfg.ProxySetHeader {

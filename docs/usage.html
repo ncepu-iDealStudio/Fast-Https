@@ -342,6 +342,16 @@ fast-https site delete blog --yes</code></pre>
 </tbody>
 </table>
 <p>达到 <code>forwarded_for.max_hops</code> 时保留入站链、不再追加。显式写了 <code>proxy_set_header</code> 的 <code>X-Forwarded-For</code> 仍然覆盖自动值。</p>
+<p>转发前会剥掉只对单跳有意义的头：<code>Connection</code>、<code>Keep-Alive</code>、 <code>Proxy-Authenticate</code>、<code>Proxy-Authorization</code>、<code>Proxy-Connection</code>、<code>TE</code>、 <code>Trailer</code>、<code>Transfer-Encoding</code>、<code>Upgrade</code>，以及 <code>Connection</code> 里点名的 扩展头（例如 <code>Connection: X-Hop</code> 会连带删掉 <code>X-Hop</code>）。两类例外：</p>
+<ul>
+<li>客户端要求关闭连接（HTTP/1.0 或 <code>Connection: close</code>）时，给上游补一条</li>
+</ul>
+<p><code>Connection: close</code>，让上游按关闭连接结束响应，代理不必等读超时； HTTP/1.0 但显式带 <code>Connection: keep-alive</code> 的请求则补回 <code>keep-alive</code>。</p>
+<ul>
+<li>websocket 升级（<code>Connection: Upgrade</code> + <code>Upgrade: websocket</code>）会重建这</li>
+</ul>
+<p>两个头，否则 101 握手无法完成；<code>Connection</code> 里其余 token 仍然剥掉。</p>
+<p><code>proxy_set_header</code> 在剥离之后应用，因此显式配置可以重新加回某个头。</p>
 <p>命令行：</p>
 <pre><code class="language-bash">fast-https config proxy show
 fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops 10 --preserve-host=false</code></pre>

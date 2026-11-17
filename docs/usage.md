@@ -354,6 +354,19 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 达到 `forwarded_for.max_hops` 时保留入站链、不再追加。显式写了
 `proxy_set_header` 的 `X-Forwarded-For` 仍然覆盖自动值。
 
+转发前会剥掉只对单跳有意义的头：`Connection`、`Keep-Alive`、
+`Proxy-Authenticate`、`Proxy-Authorization`、`Proxy-Connection`、`TE`、
+`Trailer`、`Transfer-Encoding`、`Upgrade`，以及 `Connection` 里点名的
+扩展头（例如 `Connection: X-Hop` 会连带删掉 `X-Hop`）。两类例外：
+
+- 客户端要求关闭连接（HTTP/1.0 或 `Connection: close`）时，给上游补一条
+  `Connection: close`，让上游按关闭连接结束响应，代理不必等读超时；
+  HTTP/1.0 但显式带 `Connection: keep-alive` 的请求则补回 `keep-alive`。
+- websocket 升级（`Connection: Upgrade` + `Upgrade: websocket`）会重建这
+  两个头，否则 101 握手无法完成；`Connection` 里其余 token 仍然剥掉。
+
+`proxy_set_header` 在剥离之后应用，因此显式配置可以重新加回某个头。
+
 命令行：
 
 ```bash
