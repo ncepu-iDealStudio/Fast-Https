@@ -22,6 +22,7 @@ docs/test/
 | 报告 | [reports/edge-case-coverage.md](reports/edge-case-coverage.md) | **缺陷反馈核验（第一轮）**：按风险面自查 B-01 ~ B-17，逐条给证据与复跑命令 | 18 条核验：3 条已修复（B-05 / B-08 / B-17），1 条待修（B-12），其余有回归用例锁定 |
 | 报告 | [reports/upstream-feedback-coverage.md](reports/upstream-feedback-coverage.md) | **缺陷反馈核验（第二轮）**：对照主流 HTTP 服务器公开 issue/PR，过滤 C 层与 QUIC 专用条目 | 5 条核验、2 处修复 |
 | 报告 | [reports/r08-acceptance.md](reports/r08-acceptance.md) | **R-08 验收报告**：连接与超时边界（100-continue、keep-alive、431/413、限额与超时配置） | 5 条验收全部通过，扩展项与待修项清零 |
+| 报告 | [reports/r09-acceptance.md](reports/r09-acceptance.md) | **R-09 验收报告**：reload 的原子性与可见性（串行化、在途请求、失败保留旧配置、`in_flight_requests`） | 需求与验收全部通过；真实服务 E2E 受 Windows 平台限制，待 Linux/CI 补跑 |
 | 用例 | [cases/boundary-cases.md](cases/boundary-cases.md) | 边界测试用例集：协议边界、注入面、数值边界、并发边界、公开语料 | 用例已全部落库，见文内对应测试文件 |
 | 方案 | [cases/stress-test-plan.md](cases/stress-test-plan.md) | 压力测试方案：4C4G3M 环境下的反代与静态资源负载 | 仅方案，压测脚本未实现（见 [v1.5.0-plan](../develop/plans/v1.5.0-plan.md)） |
 | 实测 | [verification/distro-packages.md](verification/distro-packages.md) | 发行版安装包实机验证：deb / rpm / apk / 升级迁移 | 2026-11-05 四个场景 ALL-PASS |
@@ -73,6 +74,7 @@ docs/test/
 - 2026-11-17 桌面端新增站点压缩默认值验证：默认值写入 br+gzip / 1 KB / 整类跳过清单，自定义只写显式项，取消勾选后无 `zip*` 键，代理站点写入同一组默认值，非法跳过类型在写盘前被 `USAGE_ERROR` 拦下，详见 [verification/desktop-site-compression.md](verification/desktop-site-compression.md)。
 - 2026-11-17 边缘加固 R-08 验收：`Expect: 100-continue`（含 chunked / 列表 / 417 / HTTP1.0）、keep-alive 请求与响应状态隔离、header 431 与 body 413（Content-Length / chunked / h2）、限额与超时配置（`max_*`、`read/write/body_timeout`、`proxy.upstream_timeout`、`proxy.tunnel_idle_timeout`）全部落地；新增真实 TCP E2E 与 `-race` 用例，详见 [reports/r08-acceptance.md](reports/r08-acceptance.md)。
 - 2026-11-17 边缘加固 R-09 落地：并发 reload 串行化（`server.Reload` 与 loader 各持互斥锁），在途请求按端口变化区分「旧快照跑完」与「移除/重建时终止」，reload 日志带 `port` 与 `in_flight_requests`；新增 loader/server 并发 10 次 reload 的 `-race` 用例与在途计数用例，详见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md) 与 [4-reload.md](../feature/4-reload.md)。
+- 2026-11-17 边缘加固 R-09 验收：需求与两条验收项全部通过；`/runtime` 新增 `listeners[].in_flight_requests`，reload 与 graceful stop 共用锁并跳过停止后的 reload；真实服务 E2E 因 Windows 不支持定向投递 reload 信号未执行，待 Linux/CI 补跑，详见 [reports/r09-acceptance.md](reports/r09-acceptance.md)。
 
 ## 旧文件名对照
 

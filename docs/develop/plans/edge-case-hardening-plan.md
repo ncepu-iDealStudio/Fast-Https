@@ -249,7 +249,8 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 `TestConcurrentReloadsAreSerialized`（server，-race）并发 10 次 reload；
 `TestInFlightRequestsTrackedDuringHandler` 与
 `TestReloadLogsInFlightRequestsOnRemovedPort` 锁定在途请求计数与日志。
-详见 [4-reload.md](../../feature/4-reload.md)。
+验收报告：[r09-acceptance.md](../../test/reports/r09-acceptance.md)；
+实现细节见 [4-reload.md](../../feature/4-reload.md)。
 
 ## R-10 拒绝行为的可观测性
 
