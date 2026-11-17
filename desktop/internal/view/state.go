@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-const desktopVersion = "1.7.0"
+const desktopVersion = "1.7.1"
 
 // RuntimePaths 与 cmd/internal/configcmd/path.go 的 RuntimePaths 一致。
 type RuntimePaths = model.RuntimePaths

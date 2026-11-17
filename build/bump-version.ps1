@@ -55,7 +55,7 @@ function Update-TextFile {
 $edits = @(
     @{ File = 'README.md'; Pattern = 'version-\d+\.\d+\.\d+-0E7490'; Replacement = 'version-' + $Version + '-0E7490' },
     @{ File = 'README.en.md'; Pattern = 'version-\d+\.\d+\.\d+-0E7490'; Replacement = 'version-' + $Version + '-0E7490' },
-    @{ File = 'config/consts.go'; Pattern = 'CURRENT_VERSION string = "V\d+\.\d+\.\d+"'; Replacement = 'CURRENT_VERSION string = "V' + $Version + '"' },
+    @{ File = 'config/internal/model/consts.go'; Pattern = 'CURRENT_VERSION string = "V\d+\.\d+\.\d+"'; Replacement = 'CURRENT_VERSION string = "V' + $Version + '"' },
     @{ File = 'build/goreleaser.yaml'; Pattern = 'version_template: "\d+\.\d+\.\d+"'; Replacement = 'version_template: "' + $Version + '"' },
     @{ File = 'build/installer/windows/fast-https.nsi'; Pattern = '!define APP_VERSION "\d+\.\d+\.\d+"'; Replacement = '!define APP_VERSION "' + $Version + '"' },
     @{ File = 'build/installer/windows/fast-https.nsi'; Pattern = '!define APP_VERSION4 "\d+\.\d+\.\d+\.0"'; Replacement = '!define APP_VERSION4 "' + $version4 + '"' },
@@ -63,9 +63,8 @@ $edits = @(
     @{ File = 'desktop/build/config.yml'; Pattern = 'version: "\d+\.\d+\.\d+"'; Replacement = 'version: "' + $Version + '"' },
     # Linux 桌面包已移除（桌面端只发布 Windows），不再有 desktop/build/linux/nfpm/nfpm.yaml
     @{ File = 'desktop/build/windows/nsis/project.nsi'; Pattern = '!define INFO_PRODUCTVERSION "\d+\.\d+\.\d+"'; Replacement = '!define INFO_PRODUCTVERSION "' + $Version + '"' },
-    @{ File = 'desktop/build/windows/info.json'; Pattern = '"(file_version|product_version|FileVersion|ProductVersion)": "\d+\.\d+\.\d+"'; Replacement = '"$1": "' + $Version + '"'; Min = 4 },
-    # 版本号只在侧边栏显示一次：顶部状态行与账户菜单不再重复
-    @{ File = 'desktop/frontend/index.html'; Pattern = 'data-bind="version">\d+\.\d+\.\d+<'; Replacement = 'data-bind="version">' + $Version + '<'; Min = 1 }
+    @{ File = 'desktop/build/windows/info.json'; Pattern = '"(file_version|product_version|FileVersion|ProductVersion)": "\d+\.\d+\.\d+"'; Replacement = '"$1": "' + $Version + '"'; Min = 4 }
+    # Vue 重构后版本号由 Go 侧的 desktopVersion 下发，前端 index.html 不再有版本绑定。
 )
 
 foreach ($e in $edits) {
