@@ -171,9 +171,12 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 （jpeg/png/gif/webp/avif、mp4/webm/quicktime、mp3/ogg/aac、zip/gzip/7z/rar/bz2、
 woff/woff2 等）；`zip_skip_types` 非空时**整体替换**该清单，不追加。
 `zip_min_length` 为 0 表示不限制，`Content-Type` 命中跳过类型或文件小于阈值时
-改为流式原样返回。压缩后 `Content-Length` 改用压缩体长度（此前误用原文件大小）。
+改为流式原样返回。`zip_skip_types` 支持精确类型与 `image/*` 这类整类通配。
+压缩后 `Content-Length` 改用压缩体长度（此前误用原文件大小）。
 配置项贯通 schema → loader → model → `listener.ListenCfg`，并同步
-`site update --zip-min-length` / `--zip-skip-types` 与桌面端站点编辑。
+`site update --zip-min-length` / `--zip-skip-types` 与桌面端站点编辑；
+`site add` 新建 local 站点默认写入 br+gzip、1 KB 阈值与整类跳过清单，
+可用同名 flag 覆盖，`--zip=` 关闭。
 `TestAcceptEncodingCases` 逐条读取 `modules/static/testdata/accept-encoding.jsonl`
 的七个用例（`gzip;q=0`、`*` 回落、HEAD 长度、Range 跳过、已压缩类型、
 长度改写与 `Vary`、`min_length`）。

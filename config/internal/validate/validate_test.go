@@ -372,6 +372,20 @@ func TestValidateZipOptions(t *testing.T) {
 	}
 }
 
+// zip_skip_types 允许整类通配 image/*，不能按「必须含斜杠的精确 MIME」误拒。
+func TestValidateZipSkipWildcardAccepted(t *testing.T) {
+	server := schema.Server{
+		Listen: schema.FlexList{"80"}, ServerName: "a.example",
+		Locations: []schema.Path{{
+			URL: "/", Type: "local", Root: ".",
+			Zip: []string{"br", "gzip"}, ZipSkipTypes: []string{"image/*", "video/*", "font/woff2"},
+		}},
+	}
+	if err := validateServer(&server, ".", ".", "site", false); err != nil {
+		t.Fatalf("通配规则应被接受：%v", err)
+	}
+}
+
 func TestValidateConfigFileAcceptsComments(t *testing.T) {
 	dir := t.TempDir()
 	main := filepath.Join(dir, "fast-https.json")

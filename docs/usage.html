@@ -170,7 +170,10 @@ logs/                       运行日志</code></pre>
       &#34;url&#34;: &#34;/&#34;,
       &#34;type&#34;: &#34;local&#34;,
       &#34;root&#34;: &#34;./httpdoc/root&#34;,
-      &#34;index&#34;: [&#34;index.html&#34;, &#34;index.htm&#34;]
+      &#34;index&#34;: [&#34;index.html&#34;, &#34;index.htm&#34;],
+      &#34;zip&#34;: [&#34;br&#34;, &#34;gzip&#34;],
+      &#34;zip_min_length&#34;: 1024,
+      &#34;zip_skip_types&#34;: [&#34;image/*&#34;, &#34;video/*&#34;, &#34;audio/*&#34;, &#34;font/woff2&#34;, &#34;application/zip&#34;, &#34;application/gzip&#34;]
     }
   ]
 }</code></pre>
@@ -219,7 +222,7 @@ fast-https site update blog --symlink-policy= --yes   # 传空表示回到默认
 fast-https site show blog
 fast-https site delete blog --yes</code></pre>
 <ul>
-<li><strong>site add</strong>：<code>--domain</code> 必填，站点名由域名规范化得到；<code>--root</code> 或 <code>--proxy-pass</code> 二选一。同名或同 <code>server_name</code> 已存在时退出码 10。<code>--root</code> 必须是已存在的目录，不能含 <code>..</code>，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 <code>--yes</code>。</li>
+<li><strong>site add</strong>：<code>--domain</code> 必填，站点名由域名规范化得到；<code>--root</code> 或 <code>--proxy-pass</code> 二选一。同名或同 <code>server_name</code> 已存在时退出码 10。<code>--root</code> 必须是已存在的目录，不能含 <code>..</code>，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 <code>--yes</code>。local 站点默认开启 <code>br+gzip</code> 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。</li>
 <li><strong>site update</strong>：只允许 <code>--listen</code>、<code>--server-name</code>、<code>--root</code>、<code>--proxy-pass</code>、<code>--tls</code>、<code>--ssl-certificate*</code>，以及主 location 上的高级配置 <code>--zip</code>、<code>--zip-min-length</code>、<code>--zip-skip-types</code>、<code>--limit-*</code>、<code>--auth-*</code>、<code>--cache-*</code>、<code>--symlink-policy</code>。内联在主配置 <code>http.server[]</code> 里的站点返回退出码 11。注释与未建模字段由补丁保留。</li>
 <li><strong>符号链接策略</strong>：<code>site add/update</code> 的 <code>--symlink-policy</code> 取 <code>check-at-load</code>（默认）、<code>reject</code>、<code>allow</code>，只对 <code>local</code> 站点生效；<code>site update --symlink-policy=</code> 传空串表示删掉该键、回到默认。代理站点带此参数返回退出码 2。</li>
 <li><strong>site disable / enable</strong>：把 <code>&lt;name&gt;.json</code> 改名为 <code>&lt;name&gt;.json.disabled</code> 或改回（<code>include</code> 只加载 <code>*.json</code>）。<code>site list --json</code> 里停用站点为 <code>enabled: false</code>。</li>
@@ -296,7 +299,7 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>proxy_cache</code></td><td>代理缓存，见 6.5</td></tr>
 <tr><td><code>zip</code></td><td>响应压缩，取值 <code>gzip</code>、<code>br</code>，可同时配置</td></tr>
 <tr><td><code>zip_min_length</code></td><td>最小压缩阈值（字节），<code>0</code> 表示不限制</td></tr>
-<tr><td><code>zip_skip_types</code></td><td>跳过压缩的 MIME 类型列表；留空使用内置的已压缩类型清单</td></tr>
+<tr><td><code>zip_skip_types</code></td><td>跳过压缩的 MIME 类型列表，支持 <code>image/*</code> 这类整类通配；留空使用内置的已压缩类型清单</td></tr>
 <tr><td><code>limit</code></td><td><code>mem</code>、<code>rate</code>、<code>burst</code>、<code>nodelay</code></td></tr>
 <tr><td><code>auth</code></td><td><code>{&#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;...&#34;, &#34;pswd&#34;: &#34;...&#34;, &#34;realm&#34;: &#34;...&#34;}</code>。只支持 <code>basic</code>，写了 <code>type</code> 就必须同时写 <code>user</code> 与 <code>pswd</code>（缺任何一项校验就报错）；<code>realm</code> 可选，留空时用站点名</td></tr>
 <tr><td><code>appfirewall</code></td><td>应用防火墙开关，例如 <code>[&#34;xss&#34;, &#34;sqli&#34;]</code></td></tr>
@@ -410,19 +413,21 @@ fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops
 <h3 id="sec-25">6.4 压缩</h3>
 <pre><code class="language-json">{
   &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;local&#34;, &#34;root&#34;: &#34;./httpdoc/root&#34;,
-  &#34;zip&#34;: [&#34;gzip&#34;, &#34;br&#34;],
+  &#34;zip&#34;: [&#34;br&#34;, &#34;gzip&#34;],
   &#34;zip_min_length&#34;: 1024,
-  &#34;zip_skip_types&#34;: [&#34;image/png&#34;, &#34;font/woff2&#34;]
+  &#34;zip_skip_types&#34;: [&#34;image/*&#34;, &#34;video/*&#34;, &#34;audio/*&#34;, &#34;font/woff2&#34;, &#34;application/zip&#34;, &#34;application/gzip&#34;]
 }</code></pre>
 <p>按 <code>Accept-Encoding</code> 协商：客户端同时支持时优先给 brotli；<code>gzip;q=0</code> 表示明确拒绝， 显式条目优先于 <code>*</code> 通配符。响应统一带 <code>Vary: Accept-Encoding</code>，压缩后的 <code>Content-Length</code> 是压缩体长度，<code>HEAD</code> 与 GET 的长度一致。</p>
 <ul>
-<li><code>zip_min_length</code>：小于该字节数的响应不压缩，<code>0</code>（默认）表示不限制。</li>
-<li><code>zip_skip_types</code>：跳过压缩的 MIME 类型，逗号分隔的手写形式同样接受。留空时</li>
+<li><code>zip_min_length</code>：小于该字节数的响应不压缩，<code>0</code> 表示不限制。</li>
+<li><code>zip_skip_types</code>：跳过压缩的 MIME 类型，支持精确类型（<code>image/png</code>）与整类通配</li>
 </ul>
-<p>使用内置的已压缩类型清单（jpeg/png/gif/webp/avif、mp4/webm、mp3/ogg/aac、 zip/gzip/7z/rar/bz2、woff/woff2 等）；配置后整体替换内置清单。</p>
+<p>（<code>image/*</code>）。留空时使用内置的已压缩类型清单（jpeg/png/gif/webp/avif、 mp4/webm、mp3/ogg/aac、zip/gzip/7z/rar/bz2、woff/woff2 等）；配置后整体替换内置清单。</p>
 <ul>
 <li>带 <code>Range</code> 的请求跳过压缩，压缩后 Range 语义不成立。</li>
+<li><code>site add</code> 新建 local 站点时默认写入上面这组值，可用 <code>--zip</code>、<code>--zip-min-length</code>、</li>
 </ul>
+<p><code>--zip-skip-types</code> 覆盖，<code>--zip=</code> 关闭压缩。代理站点不带压缩配置。</p>
 <h3 id="sec-26">6.5 代理缓存</h3>
 <pre><code class="language-json">&#34;proxy_cache&#34;: {
   &#34;path&#34;: &#34;./cache&#34;,

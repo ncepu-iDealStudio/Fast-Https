@@ -22,12 +22,16 @@ func addSiteWriteCommands(root *cobra.Command) {
 				"站点名由域名规范化得到。同名站点，或同一监听端口上已存在的 server_name，都会以退出码 10 拒绝（同域名挂不同端口是合法的）。\n"+
 				"证书默认按域名命名（config/cert/<域名>.pem）：文件已存在就直接复用，不会覆盖；"+
 				"多个站点可以用 --ssl-certificate 指向同一张证书（如通配符证书）。"+
+				"local 站点默认开启 br+gzip 压缩（阈值 1 KB，自动跳过图片/音视频/字体/压缩包），"+
+				"可用 --zip、--zip-min-length、--zip-skip-types 覆盖，--zip= 关闭。"+
 				"纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
 			"Copy the live config tree, write the site file on the candidate, then apply it with the same transaction\n"+
 				"as config apply. With --domain everything comes from flags; without it, an interactive terminal enters the wizard.\n"+
 				"A duplicate name, or a server_name already served on the same listen port, exits with code 10 (the same domain on a different port is fine).\n"+
 				"Certificates are named after the domain (config/cert/<domain>.pem) and reused when the file already exists, never overwritten;\n"+
 				"several sites may point at one certificate via --ssl-certificate (e.g. a wildcard certificate).\n"+
+				"Local sites get br+gzip compression by default (1 KB threshold, images/media/fonts/archives skipped);\n"+
+				"override with --zip, --zip-min-length, --zip-skip-types, or disable with --zip=.\n"+
 				"Flag mode requires --yes unless --dry-run; the wizard confirms at the end."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
@@ -47,6 +51,15 @@ func addSiteWriteCommands(root *cobra.Command) {
 	add.Flags().String("symlink-policy", "", cli.T(
 		"静态根符号链接策略：check-at-load（默认）/ reject / allow；仅 local 生效",
 		"static root symlink policy: check-at-load (default) / reject / allow; local only"))
+	add.Flags().StringSlice("zip", siteops.DefaultZip, cli.T(
+		"响应压缩编码，可重复：gzip / br；默认 br,gzip；传空表示不压缩",
+		"response compression: gzip / br, repeatable; defaults to br,gzip; empty disables"))
+	add.Flags().Int("zip-min-length", siteops.DefaultZipMinLength, cli.T(
+		"最小压缩阈值（字节），0 表示不限制；默认 1024",
+		"minimum size to compress in bytes; 0 disables the threshold; default 1024"))
+	add.Flags().StringSlice("zip-skip-types", siteops.DefaultZipSkipTypes, cli.T(
+		"跳过压缩的 MIME 类型，支持 image/*；默认跳过图片/音视频/字体/压缩包",
+		"MIME types to skip, image/* wildcards supported; defaults skip images, media, fonts and archives"))
 
 	upd := &cobra.Command{
 		Use:   "update <name>",
@@ -185,10 +198,31 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 			}
 			root = abs
 		}
-		return siteops.AddInput{
+		in := siteops.AddInput{
 			Domain: domain, Root: root, Listens: listens, ProxyPass: proxy, TLS: tls, Banned: banned,
 			SSLCertificate: cert, SSLCertificateKey: certKey, SymlinkPolicy: policy,
-		}, nil
+		}
+		// 压缩默认值由 siteops 补齐；只有显式改过的 flag 才覆盖，
+		// 这样 --zip= 能关闭压缩，而没写 flag 时仍拿到默认值。
+		if cmd.Flags().Changed("zip") {
+			v, _ := cmd.Flags().GetStringSlice("zip")
+			if len(v) == 1 && strings.TrimSpace(v[0]) == "" {
+				v = nil
+			}
+			in.Zip = &v
+		}
+		if cmd.Flags().Changed("zip-min-length") {
+			v, _ := cmd.Flags().GetInt("zip-min-length")
+			in.ZipMinLength = &v
+		}
+		if cmd.Flags().Changed("zip-skip-types") {
+			v, _ := cmd.Flags().GetStringSlice("zip-skip-types")
+			if len(v) == 1 && strings.TrimSpace(v[0]) == "" {
+				v = nil
+			}
+			in.ZipSkipTypes = &v
+		}
+		return in, nil
 	}
 
 	// 没给 --domain：能交互就进向导（原 site init 的能力）。

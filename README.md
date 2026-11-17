@@ -177,7 +177,10 @@ go build -o fast-https . && ./fast-https start
   "ssl_certificate": "./config/cert/localhost.pem",
   "ssl_certificate_key": "./config/cert/localhost-key.pem",
   "location": [
-    { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ]
+    { "url": "/", "type": "local", "root": "./httpdoc/root",
+      "index": ["index.html", "index.htm"],
+      "zip": ["br", "gzip"], "zip_min_length": 1024,
+      "zip_skip_types": ["image/*", "video/*", "audio/*", "font/woff2", "application/zip", "application/gzip"] } ]
 }
 ```
 

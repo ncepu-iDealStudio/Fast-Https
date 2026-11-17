@@ -114,6 +114,18 @@ func txnMessage(data any, verb, name string) string {
 	return msg + view.WriteNote()
 }
 
+// 新建站点的压缩默认值，与 management/siteops.DefaultZip* 保持一致。
+// 前端新增模式也会预填同一组值；这里兜底直接调用或旧前端的场景。
+var (
+	defaultZip          = []string{"br", "gzip"}
+	defaultZipSkipTypes = []string{
+		"image/*", "video/*", "audio/*",
+		"font/woff2", "application/zip", "application/gzip",
+	}
+)
+
+const defaultZipMinLength = 1024
+
 // planAdd 把弹窗输入翻译成 CLI 参数：site add 建站（域名即文件名），
 // 多域名时再用 site update --server-name 补全 server_name。
 func planAdd(in SiteInput) ([][]string, error) {
@@ -129,6 +141,16 @@ func planAdd(in SiteInput) ([][]string, error) {
 		add = append(add, "--proxy-pass", p.pass)
 	} else {
 		add = append(add, "--root", p.root)
+		// 压缩默认值随建站一起写入，避免建好后再补一条 update。
+		// 前端新增模式会显式提交默认值；Zip 为 nil 时（旧前端或直接调用）
+		// 这里也补同一组默认值，与 CLI 的 site add 保持一致。
+		zip, minLen, skip := in.Zip, in.ZipMinLength, in.ZipSkipTypes
+		if zip == nil {
+			zip, minLen, skip = defaultZip, defaultZipMinLength, defaultZipSkipTypes
+		}
+		add = append(add, zipArgs(zip)...)
+		add = append(add, "--zip-min-length", strconv.Itoa(minLen))
+		add = append(add, zipSkipTypesArgs(skip)...)
 	}
 	if p.tls {
 		add = append(add, "--tls")
@@ -141,15 +163,14 @@ func planAdd(in SiteInput) ([][]string, error) {
 	add = append(add, "--yes")
 	plan := [][]string{add}
 
-	// site add 不接受 zip / limit / auth / cache，所以建好之后补一条
-	// site update 把它们写进去。与上面多域名补全是同一套路：先创建，
-	// 再用受控更新补齐；中途失败会明确告诉用户站点已建成。
+	// 压缩已随 site add 写入；其余高级字段（限流/认证/缓存/符号链接）
+	// 仍需建好后补一条 site update，与多域名补 server_name 同一套路。
 	var extra []string
 	if len(p.names) > 1 {
 		extra = append(extra, "--server-name", strings.Join(p.names, " "))
 	}
-	if hasAdvanced(in) {
-		extra = append(extra, advancedArgs(in)...)
+	if hasNonZipAdvanced(in) {
+		extra = append(extra, nonZipAdvancedArgs(in)...)
 	}
 	if len(extra) > 0 {
 		plan = append(plan, append([]string{"site", "update", p.names[0]}, append(extra, "--yes")...))
@@ -424,8 +445,8 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 
 // advancedArgs 把高级配置**全部**翻成参数，不做「和当前值比」的过滤。
 //
-// 新建站点要用它：site add 不接受这四个字段，只能在建好之后补一条
-// site update；那时没有「当前详情」可比，传什么就该写什么。
+// 编辑站点用它：没有「当前详情」可比时，传什么就该写什么。
+// 新建站点不走这里——压缩已随 site add 写入，其余字段由 nonZipAdvancedArgs 补齐。
 func advancedArgs(in SiteInput) []string {
 	var args []string
 	args = append(args, zipArgs(in.Zip)...)
@@ -444,8 +465,28 @@ func advancedArgs(in SiteInput) []string {
 	return args
 }
 
+// nonZipAdvancedArgs 是 advancedArgs 里除压缩以外的部分。
+// 新建站点时压缩直接随 site add 写入，剩下的字段才需要补 site update。
+func nonZipAdvancedArgs(in SiteInput) []string {
+	var args []string
+	if p := strings.TrimSpace(in.SymlinkPolicy); p != "" {
+		args = append(args, "--symlink-policy="+p)
+	}
+	args = append(args, limitArgs(in)...)
+	args = append(args, authArgs(in)...)
+	args = append(args, cacheArgs(in)...)
+	return args
+}
+
+// hasNonZipAdvanced 报告除压缩外是否还填了高级配置。
+func hasNonZipAdvanced(in SiteInput) bool {
+	return strings.TrimSpace(in.SymlinkPolicy) != "" ||
+		in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
+		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CachePath) != ""
+}
+
 // hasAdvanced 报告用户是否在弹窗里填过任何高级配置。
-// 新建站点据此决定要不要追加那条 site update。
+// 编辑站点据此决定要不要跑 site update。
 func hasAdvanced(in SiteInput) bool {
 	return len(in.Zip) > 0 || in.ZipMinLength > 0 || len(in.ZipSkipTypes) > 0 ||
 		strings.TrimSpace(in.SymlinkPolicy) != "" ||

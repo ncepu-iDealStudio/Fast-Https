@@ -347,8 +347,10 @@ func validateServerWith(s *schema.Server, certBaseDir, rootBaseDir, where string
 		}
 		for j, item := range loc.ZipSkipTypes {
 			v := strings.TrimSpace(item)
-			if v == "" || !strings.Contains(v, "/") {
-				return fmt.Errorf("%s: location[%d].zip_skip_types[%d]: want a MIME type like image/png, got %q",
+			// 允许精确类型与整类通配：image/png、image/*。
+			major, sub, ok := strings.Cut(v, "/")
+			if !ok || major == "" || sub == "" || strings.ContainsAny(v, " \t") {
+				return fmt.Errorf("%s: location[%d].zip_skip_types[%d]: want a MIME type like image/png or image/*, got %q",
 					where, i, j, item)
 			}
 		}

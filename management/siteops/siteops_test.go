@@ -2,6 +2,7 @@ package siteops
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -110,6 +111,65 @@ func TestSiteAddCreatesAndReloads(t *testing.T) {
 	if err != nil || len(list.Versions) < 1 {
 		t.Fatalf("versions = %+v err=%v", list, err)
 	}
+}
+
+// 新建 local 站点默认带压缩：br+gzip、1 KB 阈值、整类跳过媒体与压缩包。
+// 显式给空压缩列表时一个 zip 键都不写。
+func TestSiteAddCompressionDefaults(t *testing.T) {
+	live, doc, _, _ := writeLive(t, "live.example")
+	dirs := []string{filepath.Join(filepath.Dir(live), "conf.d")}
+
+	if _, err := Add(dirs, AddInput{Domain: "demo.example", Root: doc, Listens: []string{"18081"}}); err != nil {
+		t.Fatal(err)
+	}
+	loc := readSiteLocation(t, filepath.Join(dirs[0], "demo.example.json"))
+	if strings.Join(loc.Zip, ",") != "br,gzip" {
+		t.Fatalf("zip = %v", loc.Zip)
+	}
+	if loc.ZipMinLength != DefaultZipMinLength {
+		t.Fatalf("zip_min_length = %d", loc.ZipMinLength)
+	}
+	if strings.Join(loc.ZipSkipTypes, ",") != strings.Join(DefaultZipSkipTypes, ",") {
+		t.Fatalf("zip_skip_types = %v", loc.ZipSkipTypes)
+	}
+
+	off := []string{}
+	if _, err := Add(dirs, AddInput{
+		Domain: "plain.example", Root: doc, Listens: []string{"18082"}, Zip: &off,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dirs[0], "plain.example.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"zip`) {
+		t.Fatalf("显式关闭压缩后不应写 zip 键：\n%s", raw)
+	}
+}
+
+type siteLocationProbe struct {
+	Zip          []string `json:"zip"`
+	ZipMinLength int      `json:"zip_min_length"`
+	ZipSkipTypes []string `json:"zip_skip_types"`
+}
+
+func readSiteLocation(t *testing.T, path string) siteLocationProbe {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Location []siteLocationProbe `json:"location"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Location) == 0 {
+		t.Fatalf("站点缺少 location：\n%s", raw)
+	}
+	return got.Location[0]
 }
 
 func TestSiteAddDuplicate(t *testing.T) {

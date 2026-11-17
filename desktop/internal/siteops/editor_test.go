@@ -95,6 +95,8 @@ func TestPlanAddSingleDomain(t *testing.T) {
 		"site add --domain blog.example.com",
 		"--listen 80", "--listen 443 ssl h2",
 		"--root ./httpdoc/root", "--tls", "--yes",
+		"--zip br", "--zip gzip", "--zip-min-length 1024",
+		"--zip-skip-types image/*", "--zip-skip-types application/zip",
 	} {
 		if !strings.Contains(args, want) {
 			t.Errorf("参数缺少 %q：%s", want, args)
@@ -138,15 +140,19 @@ func TestPlanAddProxy(t *testing.T) {
 	if !strings.Contains(args, "--proxy-pass http://127.0.0.1:9000") || strings.Contains(args, "--root") {
 		t.Fatalf("proxy 站点参数错误：%s", args)
 	}
+	if strings.Contains(args, "--zip") {
+		t.Fatalf("proxy 站点不应带压缩参数：%s", args)
+	}
 }
 
-// 新建站点时填了高级配置，要在 site add 之后补一条 site update。
-// site add 本身不收这四个字段，用户不该因为「先建站点」就配不了。
+// 新建站点时压缩直接随 site add 写入；其余高级配置仍要补一条 site update。
 func TestPlanAddWithAdvanced(t *testing.T) {
 	plan, err := planAdd(model.SiteInput{
 		Name: "blog.example.com", Listen: "80",
 		Type: "local", Root: "./httpdoc/root",
 		Zip:       []string{"gzip", "br"},
+		// 新增弹窗会同时提交这三项；只给 Zip 时其余按 0/空处理，属于显式取值。
+		ZipMinLength: 1024, ZipSkipTypes: []string{"image/*"},
 		LimitRate: 100, LimitBurst: 50, LimitMem: 1024, LimitNodelay: true,
 		AuthOn: true, AuthUser: "u", AuthPass: "p", AuthRealm: "realm",
 		CachePath: "./cache", CacheValid: []string{"10s", "1m"}, CacheMaxSize: 4096,
@@ -157,12 +163,21 @@ func TestPlanAddWithAdvanced(t *testing.T) {
 	if len(plan) != 2 {
 		t.Fatalf("应产出 site add + site update 两条命令，得到 %d 条", len(plan))
 	}
+	add := strings.Join(plan[0], " ")
+	for _, want := range []string{"--zip gzip", "--zip br", "--zip-min-length 1024"} {
+		if !strings.Contains(add, want) {
+			t.Errorf("site add 缺少压缩参数 %q：%s", want, add)
+		}
+	}
+	if strings.Contains(add, "--limit-rate") || strings.Contains(add, "--auth-type") || strings.Contains(add, "--cache-path") {
+		t.Errorf("site add 不应带其他高级配置：%s", add)
+	}
+
 	upd := strings.Join(plan[1], " ")
 	if !strings.Contains(upd, "site update blog.example.com") {
 		t.Fatalf("第二条应是 site update：%s", upd)
 	}
 	for _, want := range []string{
-		"--zip gzip", "--zip br",
 		"--limit-rate 100", "--limit-burst 50", "--limit-mem 1024", "--limit-nodelay",
 		"--auth-type basic", "--auth-user u", "--auth-pass p", "--auth-realm realm",
 		"--cache-path ./cache", "--cache-valid 10s", "--cache-valid 1m", "--cache-max-size 4096",
@@ -172,9 +187,8 @@ func TestPlanAddWithAdvanced(t *testing.T) {
 			t.Errorf("补全命令缺少 %q：%s", want, upd)
 		}
 	}
-	// site add 那条不该被污染
-	if strings.Contains(strings.Join(plan[0], " "), "--zip") {
-		t.Errorf("site add 不应带高级配置：%s", strings.Join(plan[0], " "))
+	if strings.Contains(upd, "--zip") {
+		t.Errorf("压缩已随 site add 写入，update 不应重复：%s", upd)
 	}
 }
 
@@ -205,12 +219,16 @@ func TestPlanAddMultiDomainWithAdvancedMerges(t *testing.T) {
 	if len(plan) != 2 {
 		t.Fatalf("应合并成两条命令，得到 %d 条", len(plan))
 	}
+	add := strings.Join(plan[0], " ")
+	if !strings.Contains(add, "--zip gzip") {
+		t.Errorf("压缩应随 site add 写入：%s", add)
+	}
 	upd := strings.Join(plan[1], " ")
 	if !strings.Contains(upd, "--server-name a.example.com b.example.com") {
 		t.Errorf("缺 server-name：%s", upd)
 	}
-	if !strings.Contains(upd, "--zip gzip") {
-		t.Errorf("缺 zip：%s", upd)
+	if strings.Contains(upd, "--zip") {
+		t.Errorf("update 不应重复压缩参数：%s", upd)
 	}
 }
 

@@ -54,6 +54,7 @@ func compressible(cfg *listener.ListenCfg, contentType string, size int64) bool 
 
 // shouldSkipCompression 报告给定 Content-Type 是否应跳过压缩。
 // skip 非空时按它判断（整体替换内置清单）；为空时用内置的已压缩类型清单。
+// 配置项支持精确类型（image/png）与整类通配（image/*）。
 func shouldSkipCompression(contentType string, skip []string) bool {
 	base := mediaType(contentType)
 	if base == "" {
@@ -63,11 +64,28 @@ func shouldSkipCompression(contentType string, skip []string) bool {
 		return builtinCompressedTypes[base]
 	}
 	for _, item := range skip {
-		if strings.EqualFold(strings.TrimSpace(item), base) {
+		if matchMediaType(item, base) {
 			return true
 		}
 	}
 	return false
+}
+
+// matchMediaType 报告 mime 是否命中一条跳过规则。
+// 精确规则按整串比较；image/* 这类通配按主类型前缀匹配。
+func matchMediaType(pattern, mime string) bool {
+	p := strings.ToLower(strings.TrimSpace(pattern))
+	if p == "" || mime == "" {
+		return false
+	}
+	major, sub, ok := strings.Cut(p, "/")
+	if !ok || major == "" || sub == "" {
+		return false
+	}
+	if sub == "*" {
+		return strings.HasPrefix(mime, major+"/")
+	}
+	return p == mime
 }
 
 // mediaType 取 Content-Type 分号前的媒体类型并转小写，

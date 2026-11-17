@@ -29,6 +29,19 @@ var (
 	ErrUsage        = errors.New("invalid site input")
 )
 
+// 新建 local 站点的压缩默认值：gzip 与 brotli 都开，1 KB 以下不压，
+// 图片/音视频/字体与已压缩包整类跳过。CLI 的 site add 参数默认值与此一致。
+var (
+	DefaultZip          = []string{"br", "gzip"}
+	DefaultZipSkipTypes = []string{
+		"image/*", "video/*", "audio/*",
+		"font/woff2", "application/zip", "application/gzip",
+	}
+)
+
+// DefaultZipMinLength 是新建站点的最小压缩阈值（字节）。
+const DefaultZipMinLength = 1024
+
 // AddInput 是 site add 的参数。
 type AddInput struct {
 	Domain    string
@@ -43,6 +56,11 @@ type AddInput struct {
 	// 显式给出时按给定路径写入，用于多站点共享同一张证书（如通配符证书）。
 	SSLCertificate    string
 	SSLCertificateKey string
+	// 压缩三项只对 local 站点生效：nil 表示写 DefaultZip* 默认值，
+	// 指针指向空列表表示显式关闭压缩。
+	Zip          *[]string
+	ZipMinLength *int
+	ZipSkipTypes *[]string
 }
 
 // UpdateInput 是 site update 的白名单字段。未设置的指针表示不改。
@@ -274,6 +292,9 @@ func Add(dirs []string, in AddInput) (string, error) {
 		if policy != "" {
 			return "", fmt.Errorf("%w: --symlink-policy only applies to local locations", ErrUsage)
 		}
+		if in.Zip != nil || in.ZipMinLength != nil || in.ZipSkipTypes != nil {
+			return "", fmt.Errorf("%w: --zip* only applies to local sites", ErrUsage)
+		}
 		si.Locations = []config.SiteLocation{{URL: "/", Type: "proxy", ProxyPass: strings.TrimSpace(in.ProxyPass)}}
 	} else {
 		root := in.Root
@@ -284,11 +305,25 @@ func Add(dirs []string, in AddInput) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		si.Locations = []config.SiteLocation{{
+		loc := config.SiteLocation{
 			URL: "/", Type: "local", Root: abs,
 			Index:         []string{"index.html", "index.htm"},
 			SymlinkPolicy: policy,
-		}}
+		}
+		zip, minLen, skip, err := addCompression(in)
+		if err != nil {
+			return "", err
+		}
+		if len(zip) > 0 {
+			loc.Zip = &zip
+			if minLen > 0 {
+				loc.ZipMinLength = &minLen
+			}
+			if len(skip) > 0 {
+				loc.ZipSkipTypes = &skip
+			}
+		}
+		si.Locations = []config.SiteLocation{loc}
 	}
 	fillCerts(&si)
 	path, err := site.Create(dirs, name, si, false)
@@ -389,6 +424,72 @@ func normalizeSymlinkPolicy(raw string) (string, error) {
 	}
 }
 
+// addCompression 决定新建 local 站点的压缩配置。
+// 未显式给出时用 DefaultZip*；指针指向空列表表示显式关闭。
+func addCompression(in AddInput) (zip []string, minLen int, skip []string, err error) {
+	zip = DefaultZip
+	if in.Zip != nil {
+		zip = *in.Zip
+	}
+	zip, err = normalizeZipList(zip)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	minLen = DefaultZipMinLength
+	if in.ZipMinLength != nil {
+		minLen = *in.ZipMinLength
+	}
+	if minLen < 0 {
+		return nil, 0, nil, fmt.Errorf("%w: --zip-min-length must be >= 0, got %d", ErrUsage, minLen)
+	}
+	skip = DefaultZipSkipTypes
+	if in.ZipSkipTypes != nil {
+		skip = *in.ZipSkipTypes
+	}
+	skip, err = normalizeZipSkipTypes(skip)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	return zip, minLen, skip, nil
+}
+
+// normalizeZipList 小写、去重并校验压缩编码。
+func normalizeZipList(raw []string) ([]string, error) {
+	out := make([]string, 0, len(raw))
+	seen := make(map[string]bool, len(raw))
+	for _, item := range raw {
+		v := strings.ToLower(strings.TrimSpace(item))
+		if v == "" || seen[v] {
+			continue
+		}
+		if v != "gzip" && v != "br" {
+			return nil, fmt.Errorf("%w: --zip accepts only gzip or br, got %q", ErrUsage, item)
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// normalizeZipSkipTypes 小写、去重并校验 MIME 规则，支持 image/* 这类整类通配。
+func normalizeZipSkipTypes(raw []string) ([]string, error) {
+	out := make([]string, 0, len(raw))
+	seen := make(map[string]bool, len(raw))
+	for _, item := range raw {
+		v := strings.ToLower(strings.TrimSpace(item))
+		if v == "" || seen[v] {
+			continue
+		}
+		major, sub, ok := strings.Cut(v, "/")
+		if !ok || major == "" || sub == "" || strings.ContainsAny(v, " \t") {
+			return nil, fmt.Errorf("%w: --zip-skip-types wants MIME types like image/png or image/*, got %q", ErrUsage, item)
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out, nil
+}
+
 // applyAdvanced 把 --zip / --limit-* / --auth-* / --cache-* / --symlink-policy
 // 落到主 location 上。
 //
@@ -413,13 +514,9 @@ func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
 	}
 
 	if in.Zip != nil {
-		zip := make([]string, 0, len(*in.Zip))
-		for _, raw := range *in.Zip {
-			v := strings.ToLower(strings.TrimSpace(raw))
-			if v != "gzip" && v != "br" {
-				return fmt.Errorf("%w: --zip accepts only gzip or br, got %q", ErrUsage, raw)
-			}
-			zip = append(zip, v)
+		zip, err := normalizeZipList(*in.Zip)
+		if err != nil {
+			return err
 		}
 		loc.Zip = &zip
 	}
@@ -433,18 +530,9 @@ func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
 	}
 
 	if in.ZipSkipTypes != nil {
-		types := make([]string, 0, len(*in.ZipSkipTypes))
-		seen := make(map[string]bool, len(*in.ZipSkipTypes))
-		for _, raw := range *in.ZipSkipTypes {
-			v := strings.ToLower(strings.TrimSpace(raw))
-			if v == "" || seen[v] {
-				continue
-			}
-			if !strings.Contains(v, "/") {
-				return fmt.Errorf("%w: --zip-skip-types wants MIME types like image/png, got %q", ErrUsage, raw)
-			}
-			seen[v] = true
-			types = append(types, v)
+		types, err := normalizeZipSkipTypes(*in.ZipSkipTypes)
+		if err != nil {
+			return err
 		}
 		loc.ZipSkipTypes = &types
 	}

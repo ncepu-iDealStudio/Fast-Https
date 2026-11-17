@@ -152,7 +152,7 @@ func TestAcceptEncodingCases(t *testing.T) {
 	previous := *config.Current()
 	previousMIME := config.MIME()
 	t.Cleanup(func() { config.Store(&previous, previousMIME) })
-	config.Store(&config.Fast_Https{}, map[string]string{"txt": "text/plain", "png": "image/png"})
+	config.Store(&config.Fast_Https{}, map[string]string{"txt": "text/plain", "png": "image/png", "json": "application/json"})
 
 	for _, c := range loadAcceptEncodingCases(t) {
 		c := c
