@@ -117,22 +117,17 @@ go test ./tests/unit_test/runtime/server/...
 go test ./tests/unit_test/infra/logging/...
 ```
 
-#### Reload 端到端回归（可选）
+#### Reload 端到端回归（Linux / CI）
 
 该测试默认跳过，仅在需要验证 reload 端口切换时启用。它会临时改写 `config/fast-https.json`，结束时写回。
 
-Windows PowerShell:
+reload 依赖向进程定向投递 SIGINT，Windows 不支持（`reload` 命令会明确拒绝），请在 Linux 或 CI 中运行：
 
-```powershell
-$env:FASTHTTPS_E2E_RELOAD = "1"
-go test ./tests/client_test -run TestReloadPortSwitchE2E -v
+```bash
+FASTHTTPS_E2E_RELOAD=1 go test ./tests/client_test -run TestReloadPortSwitchE2E -v -count=1
 ```
 
-完成后可清理环境变量：
-
-```powershell
-Remove-Item Env:FASTHTTPS_E2E_RELOAD
-```
+Gitee Go 流水线 `.workflow/go-test.yml` 已把这条命令放进 `go test` 步骤。
 
 #### 进程重启与 `/runtime` 启停（可选）
 

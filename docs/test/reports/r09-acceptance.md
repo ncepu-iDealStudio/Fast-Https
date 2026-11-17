@@ -110,15 +110,19 @@ PASS: TestReplaceListenersCopies                (runtime/metrics)
 
 真实服务 E2E：
 
-- 命令：`$env:FASTHTTPS_E2E_RELOAD='1'; go test ./tests/client_test -run TestReloadPortSwitchE2E -v -count=1`
+- Windows 本机命令：`$env:FASTHTTPS_E2E_RELOAD='1'; go test ./tests/client_test -run TestReloadPortSwitchE2E -v -count=1`
 - 结果：**受平台限制未通过**。服务启动、初始端口访问均正常，`reload` 步骤返回：
   `fast-https reload failed: not supported by windows: 无法定向投递 reload 信号，请用重启代替`。
   Windows 上 `reload` 命令本身明确不支持，E2E 的端口切换断言无法完成。
-- 待办：在 Linux/CI 上补跑同一用例并回填本节。
+- CI：同一用例已加入 Gitee Go 流水线 `.workflow/go-test.yml` 的 `go test` 步骤
+  （Linux，push / PR 到 `main`、`master` 时执行）：
+  `FASTHTTPS_E2E_RELOAD=1 go test ./tests/client_test -run TestReloadPortSwitchE2E -v -count=1`；
+  首次流水线结果待回填本节。
 
 ## 5. 已知偏差与限制
 
-1. **E2E 平台限制**：如上，Windows 无法投递 reload 信号；热重载语义目前由包级测试锁定。
+1. **E2E 平台限制**：如上，Windows 无法投递 reload 信号；已将该用例加入 Gitee Go Linux
+   流水线，热重载语义在 Windows 本地仍由包级测试锁定。
 2. **在途计数不含隧道**：websocket/tcp 隧道是长连接，不计入 `in_flight_requests`；
    移除端口时它们同样会被终止，但不会出现在该计数里。
 3. **移除端口的协议差异**：h1 立即断连；h2 先发 GOAWAY，最多等 5s，超过后强制关闭。

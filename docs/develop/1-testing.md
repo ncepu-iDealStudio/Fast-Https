@@ -31,6 +31,15 @@ go vet ./...                  # 静态检查
 
 涉及 reload 或防火墙的改动必须跑对应 E2E；它们使用子进程 + 临时运行目录，不改仓库内 `config/fast-https.json`（铁律）。
 
+## CI
+
+Gitee Go 流水线 [.workflow/go-test.yml](../../.workflow/go-test.yml)（push / PR 到 `main`、`master`）的 `go test` 步骤依次执行：
+
+1. `go test ./...`
+2. `FASTHTTPS_E2E_RELOAD=1 go test ./tests/client_test -run TestReloadPortSwitchE2E -v -count=1`
+
+reload E2E 依赖向子进程定向投递 SIGINT，Windows 本机无法执行（`reload` 命令会明确拒绝），因此固定放在 Linux 流水线里。本地改过 reload 后仍建议在 Linux/CI 上跑同一命令，Windows 只能跑包级 `-race` 用例。
+
 ## 基准
 
 ```bash

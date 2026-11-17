@@ -26,3 +26,6 @@ stages:
         golangVersion: '1.27.1'
         commands:
           - go test ./...
+          # reload E2E 需要向进程定向投递 SIGINT，只有 Linux 支持；
+          # Windows 上 reload 命令会明确拒绝，因此放在本流水线执行。
+          - FASTHTTPS_E2E_RELOAD=1 go test ./tests/client_test -run TestReloadPortSwitchE2E -v -count=1
