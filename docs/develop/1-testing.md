@@ -26,6 +26,7 @@ go vet ./...                  # 静态检查
 | 变量 | 测试 | 说明 |
 | --- | --- | --- |
 | `FASTHTTPS_E2E_RELOAD=1` | TestReloadPortSwitchE2E | 真实进程切端口热重载 |
+| `FASTHTTPS_E2E_REJECT_LOG=1` | TestRejectLogE2E | 真实进程触发路径穿越 / header 超限 / body 超限 / 压缩跳过 / 未知 SNI，再用 `logs query --reject-reason` 查回 |
 | `FASTHTTPS_E2E_RUNTIME=1` | TestRuntimeProcessRestartE2E | 两个短生命周期进程：新 PID / `started_at`，`requests.total` 从 0 开始；`stop` 后 `/runtime` 不可达且 pid 文件被清理 |
 | （内部 helper 变量） | TestProxyHTTPIntegration / TestH2Integration | 默认随 `go test` 运行 |
 

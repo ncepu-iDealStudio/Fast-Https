@@ -14,8 +14,8 @@
 其他约定：
 
 - 生产代码不能导入 `tests/` 下的任何 package。测试辅助代码放在 `tests/unit_test/helpers`，只供测试使用。
-- 需要外部条件或会改写仓库文件的测试，默认 `t.Skip`，用环境变量开启。目前有 `FASTHTTPS_E2E_RELOAD=1`（reload 端到端）、`FASTHTTPS_E2E_RUNTIME=1`（进程重启与 `/runtime` 启停）；`FASTHTTPS_PROXY_HELPER` 只由 `TestProxyHTTPIntegration` 内部设置，不需要手工开启。
-- CI（`.workflow/go-test.yml`）运行 `go test ./...`，覆盖上表前三类中默认不跳过的测试。Windows 本地建议加 `-p 1`，避免并行测试 exe 出现 `Access is denied`。
+- 需要外部条件或会改写仓库文件的测试，默认 `t.Skip`，用环境变量开启。目前有 `FASTHTTPS_E2E_RELOAD=1`（reload 端到端）、`FASTHTTPS_E2E_REJECT_LOG=1`（拒绝日志端到端）、`FASTHTTPS_E2E_RUNTIME=1`（进程重启与 `/runtime` 启停）；`FASTHTTPS_PROXY_HELPER` 只由 `TestProxyHTTPIntegration` 内部设置，不需要手工开启。
+- CI（`.workflow/go-test.yml`）运行 `go test ./...`，覆盖上表前三类中默认不跳过的测试；另外显式跑 reload 与拒绝日志两个 E2E。Windows 本地建议加 `-p 1`，避免并行测试 exe 出现 `Access is denied`。
 
 存量文件的说明：
 
@@ -128,6 +128,16 @@ FASTHTTPS_E2E_RELOAD=1 go test ./tests/client_test -run TestReloadPortSwitchE2E 
 ```
 
 Gitee Go 流水线 `.workflow/go-test.yml` 已把这条命令放进 `go test` 步骤。
+
+#### 拒绝日志端到端（可选）
+
+默认跳过。在临时目录起真实服务（HTTP + TLS 两个端口），依次触发路径穿越、header 超限、body 超限、压缩跳过与未知 SNI，再用同一二进制的 `logs query --reject-reason` 从 `safe.log` / `error.log` 查回记录：
+
+```bash
+FASTHTTPS_E2E_REJECT_LOG=1 go test ./tests/client_test -run TestRejectLogE2E -v -count=1
+```
+
+该测试要求本机 `127.0.0.1:9088` 空闲（服务会启 `/runtime`），不改仓库内配置，流水线同样会跑。
 
 #### 进程重启与 `/runtime` 启停（可选）
 
