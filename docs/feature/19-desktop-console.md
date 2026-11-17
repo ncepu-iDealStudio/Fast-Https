@@ -16,7 +16,7 @@
 | 状态矩阵 | 运行态条（`service status` 四态 + pid、端口、站点数）、站点矩阵（`site list`）、访问日志栏（`logs access`）；「运行快照」卡片（`runtime status` / `runtime stats`）与「Monitor」卡片（`monitor status` / `monitor events`） |
 | 站点 | `site list` 的站点按监听逐端口展开，每行给出可点击的完整访问地址；添加/详情弹窗对应 `site add` / `site show` / `site update`，启停与删除对应 `site enable/disable` / `site delete`，全部走配置事务 |
 | 证书 | `cert list` 显示主题、签发者、到期时间与剩余天数；行内「检查」对应 `cert check`（存在性/有效期/域名覆盖/密钥配对）；「ACME 设置」展示 `acme show`；「信任本地 CA…」给出导入系统信任库的引导 |
-| 日志 | `logs query` 按白名单字段筛选（级别、状态码、Host、方法、路径前缀、原因、时间），倒序滚动分页（`--until` 游标），支持 access / error / system / safe 四路 |
+| 日志 | `logs query` 按白名单字段筛选（级别、状态码、Host、方法、路径前缀、原因、拒绝原因、时间），倒序滚动分页（`--until` 游标），支持 access / error / system / safe 四路；表格展示 R-10 的 `reject_reason` 与命中规则 |
 | 设置 | 主配置表单的字段值来自 `config show`（脱敏）；保存写候选配置树后转交 `config apply` 事务（校验、恢复点、切换、reload、失败回滚）；「校验配置」对应 `config validate`；「配置版本」卡片对应 `config versions` / `config diff` / `config rollback`；只读展示 `config path` 的运行时路径 |
 
 「启动／停止服务」（大按钮）与「重载配置」（`service reload` 受控重载）收在概览页「运行概况」卡片右上；底部状态栏固定在窗口下沿，只放运行状态、pid、监听探测结果、刷新时间与两个图标按钮（启停、重载）。状态每 2 秒刷新一次（`service status` + `site list`，证书与配置提示有短 TTL 缓存）。版本号只在侧边栏显示一次。站点／证书／日志页不重复页面标题，说明文字直接铺在卡片里；窗口不显示页面大标题，内容直接从顶部铺满。

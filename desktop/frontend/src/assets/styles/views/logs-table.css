@@ -8,11 +8,11 @@
   overflow: hidden;
 }
 
-/* 列：时间 / 级别 / 方法 / 路径 / 状态 / 大小 / 主机。路径列吃掉剩余宽度 */
+/* 列：时间 / 级别 / 方法 / 路径 / 拒绝原因 / 状态 / 大小 / 主机。路径列吃掉剩余宽度 */
 .logtable__head,
 .logrow {
   display: grid;
-  grid-template-columns: 96px 48px 62px minmax(0, 1fr) 54px 68px 190px;
+  grid-template-columns: 96px 48px 62px minmax(0, 1fr) 132px 54px 68px 190px;
   gap: 10px;
   align-items: baseline;
   padding: 5px 14px;
@@ -52,6 +52,8 @@
 .logrow__lvl { color: var(--faint); text-transform: uppercase; font-size: 10.5px; }
 .logrow__method { color: var(--text); font-weight: 500; }
 .logrow__path { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.logrow__reason { overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+.logrow__reason--hit { color: var(--text); font-weight: 500; }
 .logrow__status { color: var(--muted); }
 .logrow__size { color: var(--muted); text-align: right; }
 .logrow__host { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
@@ -67,6 +69,7 @@
     grid-template-columns: 90px 44px minmax(0, 1fr) 52px 60px;
   }
   .logrow__lvl, .logtable__head > span:nth-child(2) { display: none; }
-  .logrow__host, .logtable__head > span:nth-child(7) { display: none; }
+  .logrow__reason, .logtable__head > span:nth-child(5) { display: none; }
+  .logrow__host, .logtable__head > span:nth-child(8) { display: none; }
 }
 

@@ -245,23 +245,30 @@ func TestLogsQueryArgs(t *testing.T) {
 
 func TestLogEntryMapping(t *testing.T) {
 	rec := map[string]any{
-		"time":   "2026-01-02T03:04:05.123",
-		"kind":   "access",
-		"level":  "info",
-		"method": "GET",
-		"path":   "/index.html",
-		"status": float64(200),
-		"size":   float64(1234),
-		"host":   "blog.example.com",
+		"time":          "2026-01-02T03:04:05.123",
+		"kind":          "safe",
+		"level":         "warn",
+		"method":        "GET",
+		"path":          "/index.html",
+		"status":        float64(404),
+		"size":          float64(1234),
+		"host":          "blog.example.com",
+		"remote_addr":   "1.2.3.4",
+		"reject_reason": "path_traversal",
+		"rule":          "static_root",
+		"remote_ip":     "1.2.3.4",
 	}
 	e := logEntry(rec)
 	if e.Time != "2026-01-02T03:04:05.123" || e.Method != "GET" || e.Host != "blog.example.com" {
 		t.Fatalf("字段映射错误：%#v", e)
 	}
-	if e.Status != "200" || e.Size != "1234" {
+	if e.Status != "404" || e.Size != "1234" {
 		t.Fatalf("数字字段应收成字符串：status=%q size=%q", e.Status, e.Size)
 	}
-	if !strings.Contains(e.Raw, `"status":200`) {
+	if e.RejectReason != "path_traversal" || e.Rule != "static_root" || e.RemoteIP != "1.2.3.4" {
+		t.Fatalf("拒绝字段映射错误：%#v", e)
+	}
+	if !strings.Contains(e.Raw, `"status":404`) || !strings.Contains(e.Raw, `"reject_reason":"path_traversal"`) {
 		t.Fatalf("Raw 应是记录的紧凑 JSON：%q", e.Raw)
 	}
 }

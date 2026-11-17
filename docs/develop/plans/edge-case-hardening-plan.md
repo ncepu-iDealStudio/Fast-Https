@@ -279,7 +279,8 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 location 限流/WAF/host_check 也补了同一组字段（保留既有 `reason`，
 host_check 的 warn 与 enforce 都记）。日志只保留客户端 IP 与
 规则名，不记原始请求路径。`logs query` 新增 `--reject-reason`，返回记录带
-`reject_reason`、`rule`、`remote_ip`；桌面端日志查询同步该参数。
+`reject_reason`、`rule`、`remote_ip`；桌面端日志页提供拒绝原因枚举筛选，
+表格直接展示原因与命中规则。
 真实链路 E2E：`TestRejectLogE2E`（`FASTHTTPS_E2E_REJECT_LOG=1`）起真实进程触发
 穿越/超限/压缩跳过/未知 SNI，再按 `reject_reason` 查回记录；已加入 CI。
 验收报告：[r10-acceptance.md](../../test/reports/r10-acceptance.md)。

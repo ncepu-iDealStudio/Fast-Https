@@ -27,6 +27,13 @@ const emit = defineEmits<{
 }>();
 const { t } = useI18n();
 
+// 与 R-10 的 reject_reason 枚举保持一致；空值表示不过滤。
+const REJECT_REASONS = [
+  'path_traversal', 'hidden_path', 'symlink_rejected', 'header_too_large',
+  'body_too_large', 'unknown_sni', 'blacklist', 'rate_limit',
+  'location_limit', 'waf', 'host_check', 'compression_skipped',
+];
+
 function set(key: keyof Filters, value: string): void {
   emit('update:filters', { ...props.filters, [key]: value });
 }
@@ -76,8 +83,11 @@ function set(key: keyof Filters, value: string): void {
   <div v-if="advanced" class="filter-bar">
     <input :value="filters.reason" type="text" :placeholder="t('logs.reasonPh')"
            @input="set('reason', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
-    <input :value="filters.rejectReason" type="text" :placeholder="t('logs.rejectReasonPh')"
-           @input="set('rejectReason', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
+    <select :value="filters.rejectReason"
+            @change="set('rejectReason', ($event.target as HTMLSelectElement).value)">
+      <option value="">{{ t('logs.rejectReasonAll') }}</option>
+      <option v-for="r in REJECT_REASONS" :key="r" :value="r">{{ r }}</option>
+    </select>
     <input :value="filters.since" type="text" :placeholder="t('logs.sincePh')"
            @input="set('since', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
     <input :value="filters.until" type="text" :placeholder="t('logs.untilPh')"

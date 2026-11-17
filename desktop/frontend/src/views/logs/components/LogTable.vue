@@ -19,13 +19,21 @@ function tone(e: LogEntry): 'ok' | 'warn' | 'err' | '' {
   if (code >= 400) return 'warn';
   return 'ok';
 }
+// 拒绝原因、命中的规则与客户端 IP 压在一格里；完整内容交给 title。
+function reasonText(e: LogEntry): string {
+  if (!e.rejectReason) return '—';
+  return e.rule ? `${e.rejectReason} · ${e.rule}` : e.rejectReason;
+}
+function reasonTitle(e: LogEntry): string {
+  return [e.rejectReason, e.rule, e.remoteIp].filter(Boolean).join(' · ');
+}
 </script>
 
 <template>
   <div class="logtable">
     <div class="logtable__head">
       <span>time</span><span>lvl</span><span>method</span>
-      <span>path</span><span>status</span><span>size</span><span>host / peer</span>
+      <span>path</span><span>reason</span><span>status</span><span>size</span><span>host / peer</span>
     </div>
     <div class="logtable__body" @scroll.passive="emit('scroll', $event)">
       <div v-if="!rows.length && !loading" class="table__empty">{{ t('logs.empty') }}</div>
@@ -37,6 +45,9 @@ function tone(e: LogEntry): 'ok' | 'warn' | 'err' | '' {
         <span class="logrow__lvl mono">{{ e.level || '—' }}</span>
         <span class="logrow__method mono">{{ e.method || '—' }}</span>
         <span class="logrow__path mono">{{ e.path || e.message || '—' }}</span>
+        <span class="logrow__reason mono" :class="{ 'logrow__reason--hit': e.rejectReason }" :title="reasonTitle(e)">
+          {{ reasonText(e) }}
+        </span>
         <span class="logrow__status mono">{{ e.status || '—' }}</span>
         <span class="logrow__size mono">{{ e.size || '—' }}</span>
         <span class="logrow__host mono">{{ e.host || '—' }}<template v-if="e.remoteAddr"> · {{ e.remoteAddr }}</template></span>

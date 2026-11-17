@@ -606,14 +606,17 @@ func QueryLogs(dir string, q LogQuery) (LogPage, error) {
 // 仅作悬浮提示（CLI 不返回日志原始行）。
 func logEntry(rec map[string]any) LogEntry {
 	e := LogEntry{
-		Time:       cli.Str(rec, "time"),
-		Level:      cli.Str(rec, "level"),
-		Kind:       cli.Str(rec, "kind"),
-		Message:    cli.Str(rec, "message"),
-		Method:     cli.Str(rec, "method"),
-		Path:       cli.Str(rec, "path"),
-		Host:       cli.Str(rec, "host"),
-		RemoteAddr: cli.Str(rec, "remote_addr"),
+		Time:         cli.Str(rec, "time"),
+		Level:        cli.Str(rec, "level"),
+		Kind:         cli.Str(rec, "kind"),
+		Message:      cli.Str(rec, "message"),
+		Method:       cli.Str(rec, "method"),
+		Path:         cli.Str(rec, "path"),
+		Host:         cli.Str(rec, "host"),
+		RemoteAddr:   cli.Str(rec, "remote_addr"),
+		RejectReason: cli.Str(rec, "reject_reason"),
+		Rule:         cli.Str(rec, "rule"),
+		RemoteIP:     cli.Str(rec, "remote_ip"),
 	}
 	if v, ok := rec["status"]; ok && v != nil {
 		e.Status = fmt.Sprint(v)

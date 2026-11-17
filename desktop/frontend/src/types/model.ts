@@ -68,4 +68,7 @@ export interface LogEntry {
   size: string;
   host: string;
   remoteAddr: string;
+  rejectReason: string;
+  rule: string;
+  remoteIp: string;
 }
