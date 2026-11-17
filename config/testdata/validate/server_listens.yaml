@@ -1,0 +1,26 @@
+# 多监听站点的证书配对与端口校验。
+- name: 证书留空交给首次 start 生成
+  listen: ["80", "443 ssl h2"]
+  ssl_certificate: ""
+  ssl_certificate_key: ""
+  want_error: ""
+- name: 只写 ssl_certificate
+  listen: ["80", "443 ssl h2"]
+  ssl_certificate: multi.pem
+  ssl_certificate_key: ""
+  want_error: ssl_certificate and ssl_certificate_key must be set together
+- name: 完整证书对
+  listen: ["80", "443 ssl h2"]
+  ssl_certificate: multi.pem
+  ssl_certificate_key: multi-key.pem
+  want_error: ""
+- name: 列表内非法端口
+  listen: ["80", "not-a-port"]
+  ssl_certificate: multi.pem
+  ssl_certificate_key: multi-key.pem
+  want_error: invalid listen port
+- name: 空监听列表
+  listen: []
+  ssl_certificate: multi.pem
+  ssl_certificate_key: multi-key.pem
+  want_error: listen must be non-empty

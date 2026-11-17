@@ -1,0 +1,19 @@
+# acme 段非法配置：每项是一段 JSON 片段，拼接进最小主配置的 http 段之后。
+- name: invalid challenge
+  acme_json: '{"enabled": false, "challenge": ["dns-01"]}'
+  want: challenge[0] is invalid
+- name: auto mixed with explicit
+  acme_json: '{"enabled": false, "challenge": ["auto", "http-01"]}'
+  want: auto cannot be combined
+- name: enabled without email
+  acme_json: '{"enabled": true}'
+  want: acme.email is required
+- name: negative renew days
+  acme_json: '{"enabled": false, "renew_before_days": -1}'
+  want: renew_before_days
+- name: duplicate ca name
+  acme_json: '{"enabled": false, "cas": [{"name": "a", "directory": "https://a.test/d"}, {"name": "a", "directory": "https://b.test/d"}]}'
+  want: duplicated
+- name: ca without directory
+  acme_json: '{"enabled": false, "cas": [{"name": "a"}]}'
+  want: directory is required

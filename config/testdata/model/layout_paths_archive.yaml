@@ -1,0 +1,16 @@
+# 归档 / Docker 布局的编译期常量快照。这些字面量是旧版单前缀布局的原值，
+# 任何一个改动都会让 tar.gz 用户找不到配置文件或日志，必须逐字锁住。
+- name: CONFIG_FILE_PATH
+  want: ./config/fast-https.json
+- name: MIME_FILE_PATH
+  want: ./config/mime.json
+- name: CERT_DIR
+  want: ./config/cert
+- name: ROOT_CRT_DIR
+  want: ./httpdoc/root
+- name: PID_FILE
+  want: ./fast-https.pid
+- name: DEFAULT_LOG_ROOT
+  want: ./logs
+- name: STATE_DIR
+  want: ./state

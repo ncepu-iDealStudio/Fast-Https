@@ -1,0 +1,14 @@
+{
+  // 主配置示例
+  "http": {
+    "server": [
+      { "listen": 80, "server_name": "localhost" } // 行尾注释
+    ],
+    "include": ["./config/conf.d"]
+  }
+
+  // ACME 自动签发与续期。
+  // ,"acme": {
+  //   "enabled": false
+  // }
+}

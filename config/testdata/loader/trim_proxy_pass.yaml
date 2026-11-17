@@ -1,0 +1,7 @@
+# proxy_pass 去掉协议头，只保留 host:port。
+- in: http://1.2.3.4:80
+  want: 1.2.3.4:80
+- in: https://a.b
+  want: a.b
+- in: plain-host
+  want: plain-host

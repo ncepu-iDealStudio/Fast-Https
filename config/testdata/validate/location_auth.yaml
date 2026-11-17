@@ -1,0 +1,55 @@
+# auth 段：只支持 basic，且 user/pswd 必须写全，realm 不能破坏响应头。
+- name: absent
+  type: ""
+  user: ""
+  pswd: ""
+  realm: ""
+  want_error: ""
+- name: complete basic
+  type: basic
+  user: alice
+  pswd: s3cret
+  realm: ""
+  want_error: ""
+- name: scheme is case insensitive
+  type: BASIC
+  user: alice
+  pswd: s3cret
+  realm: ""
+  want_error: ""
+- name: realm is allowed
+  type: basic
+  user: alice
+  pswd: s3cret
+  realm: Private
+  want_error: ""
+- name: unsupported type
+  type: digest
+  user: alice
+  pswd: s3cret
+  realm: ""
+  want_error: must be basic
+- name: missing user
+  type: basic
+  user: ""
+  pswd: s3cret
+  realm: ""
+  want_error: auth.user is required
+- name: missing pswd
+  type: basic
+  user: alice
+  pswd: ""
+  realm: ""
+  want_error: auth.pswd is required
+- name: quoted realm
+  type: basic
+  user: alice
+  pswd: s3cret
+  realm: 'a"b'
+  want_error: auth.realm
+- name: realm with newline
+  type: basic
+  user: alice
+  pswd: s3cret
+  realm: "a\nb"
+  want_error: auth.realm
