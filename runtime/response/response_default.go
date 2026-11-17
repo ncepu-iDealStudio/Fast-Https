@@ -108,6 +108,24 @@ func DefaultRequestHeaderFieldsTooLarge() *Response {
 	return res
 }
 
+// DefaultExpectationFailed 是 417：Expect 头里的期望无法满足。
+//
+// 目前只支持 100-continue；其它期望按 RFC 7231 §5.1.1 回 417，
+// 让客户端知道不是服务端读超时或请求语法错误。
+func DefaultExpectationFailed() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(417, "EXPECTATIONFAILED")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", CachedDate())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("417 Expectation Failed",
+		"The expectation given in the Expect header cannot be met by this server."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
 func DefaultNotFound() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(404, "NOTFOUND")

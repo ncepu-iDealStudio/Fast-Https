@@ -40,6 +40,9 @@
 | B-18 | 压缩后 `Content-Length` 仍是原文件大小，客户端按错误的长度读正文 | 🔧 已修复 | `TestAcceptEncodingCases` 的 `length-rewritten` | R-07：压缩后 `Content-Length` 改用 `int64(len(payload))`；用例逐字节核对声明长度与实际正文 |
 | B-19 | 图片、字体、zip 等已压缩类型被二次压缩；几字节的小响应也压 | 🔧 已修复 | `TestAcceptEncodingCases` 的 `compressed-type-skipped`、`min-length` | R-07：内置已压缩类型清单 + `zip_min_length`；`zip_skip_types` 非空时整体替换清单 |
 | B-20 | `HEAD` 返回正文，或 `HEAD` 与 GET 的 `Content-Length` 不一致；Range 请求被压缩 | ✅ 无此问题 | `TestAcceptEncodingCases` 的 `head-length-matches-get`、`range-skips-compression`、`TestStaticHeadOmitsBody` | HEAD 只写响应头；压缩路径对 HEAD 同样先算出压缩体，长度与 GET 一致；Range 原本就不压缩 |
+| B-21 | 客户端带 `Expect: 100-continue` 等待，服务端不先回 100，双方互等到超时 | 🔧 已修复 | `TestExpectContinueSends100BeforeBody`、`TestExpectContinueChunkedBody`、`TestRealTCPExpectContinueAndKeepAlive` | R-08：读正文前先回 `100 Continue`；超限时不回 100、直接 413；HTTP/1.0 忽略 |
+| B-22 | 无法满足的 `Expect` 被静默忽略，客户端只能等到超时 | 🔧 已修复 | `TestUnknownExpectationReturns417`、`TestH2UnknownExpectationReturns417` | 回 417 Expectation Failed，转发前移除已在本地满足的期望 |
+| B-23 | HTTP/2 上 `max_header_size` / `max_body_size` 不生效 | 🔧 已修复 | `TestH2HeaderTooLargeReturns431`、`TestH2BodyTooLargeReturns413` | R-08：`MaxHeaderBytes` 接入配置，应用层按 RFC 7540 字段开销判 431；正文限额覆盖声明长度与流式正文 |
 
 ## 4.3 本轮新增的用例
 

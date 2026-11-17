@@ -39,6 +39,7 @@
 | chunked 单读/跨读 | 标准 chunk 流 | 解码为原始体 | ✅ chunked_test |
 | chunk 坏长度/超限 | `zz\r\n` / 超 max | ErrChunkedBody → 关闭 | ✅ |
 | chunked 截断 | 流中途 EOF | 错误 → 500 路径 | ✅ proxy_read_test |
+| **Expect: 100-continue** | 带 CL / chunked / 列表值 / 未知期望 / HTTP1.0 | 先 100 再读正文；未知期望 417；超限 413；1.0 忽略 | ✅(本轮) connection_limits_test、connection_e2e_test |
 | multipart 终止边界 | 分块到达 | 增量扫描判完成 | ✅（Flush 清进度已锁） |
 | CL 与实际不符 | 少发/多发 | RequestBodyValid false → 继续读/超时关 | 📋 |
 

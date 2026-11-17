@@ -30,8 +30,9 @@
 
 - Content-Length 按差额循环读；chunked 用自研 `ReadChunked` 解码（含终止块校验、上限保护）。
 - 超过 `max_body_size` 回 413 后关闭，不静默断连。
-- `Expect: 100-continue`：读正文前先回 `100 Continue`；声明的 Content-Length 已超限时
-  不回 100，直接 413，让客户端在上传前就知道被拒（HTTP/1.0 请求忽略该期望）。
+- `Expect: 100-continue`：读正文前先回 `100 Continue`；声明长度已超限时不回 100，直接 413；
+  头值是列表时只要包含 `100-continue` 即生效；其它无法满足的期望回 417；HTTP/1.0 请求忽略该期望。
+  期望在本机满足后从转发头里移除，避免上游再回一个 100。
 
 ### 连接（core/event.go、runtime/events/events.go）
 
@@ -49,7 +50,7 @@
 
 ## 测试
 
-`tests/unit_test/runtime/request`（解析/畸形/基准）、`runtime/server`（停机/accept 容错）、`runtime/events`（keep-alive/关闭/431/413/100-continue）、`tests/client_test`（E2E）。
+`tests/unit_test/runtime/request`（解析/畸形/基准）、`runtime/server`（停机/accept 容错）、`runtime/events`（keep-alive/关闭/431/413/417/100-continue，含真实 TCP 的 `connection_e2e_test.go`）、`tests/client_test`（E2E）。
 
 ## 已知限制
 

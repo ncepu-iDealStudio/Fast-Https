@@ -239,18 +239,8 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	// Expect: 100-continue：客户端在收到 100 之前不会发正文，必须在读 body
 	// 前先回中间响应。声明的 Content-Length 已超限时直接 413、不发 100，
 	// 让客户端在上传前就知道会被拒绝。
-	if expectsContinue(rr.Req) {
-		// 期望已在本机满足：转发给上游时去掉，避免上游再回一个 100，
-		// 被代理当成最终响应透传给客户端。
-		rr.Req.DelHeader("Expect")
-		if n := declaredBodyLen(rr.Req); n > 0 && maxBodySize() > 0 && n > maxBodySize() {
-			rejectTooLargeBody(ev)
-			return 0
-		}
-		if !writeContinue(ev) {
-			metrics.NoteAborted()
-			return 0
-		}
+	if !handleExpectation(ev) {
+		return 0
 	}
 
 	if err := rr.Req.ParseBody(byte_row); err != nil {
@@ -356,13 +346,64 @@ func rejectTooLargeBody(ev *core.Event) {
 	metrics.NoteAborted()
 }
 
-// expectsContinue 报告客户端是否在等 100 Continue。只对 HTTP/1.1 生效：
-// RFC 7231 §5.1.1 要求忽略 HTTP/1.0 请求里的这个期望。
-func expectsContinue(r *request.Request) bool {
-	if r == nil || r.Protocol != "HTTP/1.1" {
+// handleExpectation 处理 Expect 头。返回 false 表示已经写出拒绝响应并
+// 应当结束连接。
+//
+// HTTP/1.1 支持 100-continue：先回中间响应再读正文。其它期望按
+// RFC 7231 §5.1.1 回 417；HTTP/1.0 则按规范忽略整个期望。
+func handleExpectation(ev *core.Event) bool {
+	r := ev.RR.Req
+	values := expectTokens(r)
+	if len(values) == 0 {
+		return true
+	}
+	if r.Protocol != "HTTP/1.1" {
+		r.DelHeader("Expect")
+		return true
+	}
+
+	continueOK := false
+	for _, v := range values {
+		if strings.EqualFold(v, "100-continue") {
+			continueOK = true
+			break
+		}
+	}
+	if !continueOK {
+		ev.RR.Res = response.DefaultExpectationFailed()
+		ev.WriteResponseClose(nil)
+		metrics.NoteParseError()
 		return false
 	}
-	return strings.EqualFold(strings.TrimSpace(r.HeaderFold("Expect")), "100-continue")
+
+	// 期望已在本机满足：转发给上游时去掉，避免上游再回一个 100，
+	// 被代理当成最终响应透传给客户端。
+	r.DelHeader("Expect")
+	if n := declaredBodyLen(r); n > 0 && maxBodySize() > 0 && n > maxBodySize() {
+		rejectTooLargeBody(ev)
+		return false
+	}
+	if !writeContinue(ev) {
+		metrics.NoteAborted()
+		return false
+	}
+	return true
+}
+
+// expectTokens 把 Expect 头拆成 token 列表；头不存在时返回 nil。
+func expectTokens(r *request.Request) []string {
+	v := strings.TrimSpace(r.HeaderFold("Expect"))
+	if v == "" {
+		return nil
+	}
+	parts := strings.Split(v, ",")
+	out := parts[:0]
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // declaredBodyLen 返回 Content-Length 声明的长度；chunked 或无长度时返回 -1。

@@ -509,12 +509,16 @@ func TestH2FillRequestFailure(t *testing.T) {
 	long := "/" + strings.Repeat("a", request.MaxPathLength)
 	r.URL.Path = long
 	r.URL.RawPath = long
-	if fillRequest(request.RequestInit(true), r) {
-		t.Fatal("fillRequest should reject an oversized path")
+	if got := fillRequest(request.RequestInit(true), r); got != http.StatusBadRequest {
+		t.Fatalf("fillRequest() = %d, want 400", got)
 	}
+	// ServeHTTP 用短非法路径：超长路径本身会先撞上 max_header_size 判 431，
+	// 这里要锁的是「目标不合法 → 400」这条分支。
+	bad := httptest.NewRequest("GET", "http://example.com/", nil)
+	bad.URL.Path = "/bad\x01path"
 	rec := httptest.NewRecorder()
 	h := &h2Handler{lis: stubListener(), fif: filters.NewFilter()}
-	h.ServeHTTP(rec, r)
+	h.ServeHTTP(rec, bad)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}

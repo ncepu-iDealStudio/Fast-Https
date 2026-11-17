@@ -199,19 +199,27 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 
 **验收**：`runtime/listener` 新增一组，`-race` 下跑。
 
-**状态**：✅ 已实现，用例放在 `runtime/events/connection_limits_test.go`（解析逻辑所在包），
-`go test -race ./runtime/events` 通过。
+**状态**：✅ 已实现。
 
 - `Expect: 100-continue`：HTTP/1.1 请求在读正文前先写 `100 Continue`；声明的
-  Content-Length 已超限时不发 100，直接 413；HTTP/1.0 按 RFC 忽略该期望。
+  Content-Length 已超限时不发 100，直接 413；列表形式（`100-continue, x`）按包含关系识别；
+  其它无法满足的期望回 417；HTTP/1.0 按 RFC 忽略。期望在本机满足后从转发头里移除。
 - keep-alive 复用：请求侧 `Request.Flush` 清 Headers/Query/Body，响应侧重建
   `Response`，并复位 `OriginPath` / `PathLocation` / `Upgrade` / `ProxyConnInit` /
   `CircleData`。静态层直接往 `rr.Res.Headers` 写头，不重建会把上一响应的
   `Content-Encoding`、`Set-Cookie` 带给下一个响应。
 - header 超限回 431：既覆盖「整段头一次到齐」（按 `\r\n\r\n` 计算头段长度），
   也覆盖「分片到达」（累计字节超限）；畸形头仍回 400。body 超限回 413。
+- HTTP/2 对齐：`max_header_size` 写入 `http.Server.MaxHeaderBytes`（协议栈据此
+  设置 `SETTINGS_MAX_HEADER_LIST_SIZE`），应用层再按 RFC 7540 的字段开销判一次 431；
+  `max_body_size` 对声明长度与流式正文都生效（413）；未知期望回 417。
 - 配置沿用既有 `http.servers_limit.max_header_size` / `max_body_size`，默认
   4096 / 524288 字节。
+- 用例：`runtime/events/connection_limits_test.go`（单测）、`connection_e2e_test.go`
+  （真实 TCP：100、431、413、keep-alive，以及客户端 Expect → 代理 → 上游的完整链路）、
+  `h2_helpers_test.go`（h2 431/413/417）；`-race` 下通过。
+- 超时口径不在本轮配置化：读写 30s、body 每轮 1s 仍为固定值，既有
+  `TestBodyTimeoutAndTooLarge` 继续锁定超时边界。
 
 ## R-09 reload 的原子性与可见性
 

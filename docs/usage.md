@@ -278,8 +278,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 
 | 键 | 默认 | 超限行为 |
 | --- | --- | --- |
-| `max_header_size` | 4096 | 431 Request Header Fields Too Large，关闭连接 |
-| `max_body_size` | 524288 | 413 Payload Too Large，关闭连接 |
+| `max_header_size` | 4096 | 431 Request Header Fields Too Large，关闭连接；HTTP/1.1 与 HTTP/2 共用 |
+| `max_body_size` | 524288 | 413 Payload Too Large，关闭连接；声明长度与流式正文都检查 |
 
 ### 5.3 `server` 段
 

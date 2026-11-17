@@ -195,6 +195,135 @@ func TestMalformedHeaderStillReturns400(t *testing.T) {
 	}
 }
 
+// TestExpectContinueChunkedBody 覆盖没有 Content-Length 的 chunked 上传：
+// 同样先回 100，再按块解码正文。
+func TestExpectContinueChunkedBody(t *testing.T) {
+	ev, client := newParseEvent(t)
+	_ = client.SetReadDeadline(time.Now().Add(3 * time.Second))
+
+	headers := "POST /ok HTTP/1.1\r\nHost: example.com\r\n" +
+		"Transfer-Encoding: chunked\r\nExpect: 100-continue\r\n\r\n"
+	done := make(chan int, 1)
+	go func() { done <- parseRequest(ev, filters.NewFilter()) }()
+	if _, err := client.Write([]byte(headers)); err != nil {
+		t.Fatalf("write headers: %v", err)
+	}
+
+	r := bufio.NewReader(client)
+	if line, err := r.ReadString('\n'); err != nil || !strings.Contains(line, "100 Continue") {
+		t.Fatalf("状态行 = %q (err=%v)，期望 100 Continue", strings.TrimSpace(line), err)
+	}
+	if _, err := r.ReadString('\n'); err != nil {
+		t.Fatalf("read blank line: %v", err)
+	}
+	if _, err := client.Write([]byte("5\r\nhello\r\n0\r\n\r\n")); err != nil {
+		t.Fatalf("write chunked body: %v", err)
+	}
+
+	select {
+	case code := <-done:
+		if code != 1 {
+			t.Fatalf("parseRequest() = %d，期望 1", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("parseRequest 未返回")
+	}
+	if got := ev.RR.Req.Body.String(); got != "hello" {
+		t.Fatalf("body = %q，期望 hello", got)
+	}
+	// chunked 解码后统一改写为 Content-Length
+	if ev.RR.Req.GetHeader("Transfer-Encoding") != "" || ev.RR.Req.GetHeader("Content-Length") != "5" {
+		t.Fatalf("framing = TE:%q CL:%q",
+			ev.RR.Req.GetHeader("Transfer-Encoding"), ev.RR.Req.GetHeader("Content-Length"))
+	}
+}
+
+// TestExpectListAcceptsContinue 覆盖 RFC 7231 §5.1.1 的列表形式：
+// 只要列表里出现 100-continue 就应按该期望处理。
+func TestExpectListAcceptsContinue(t *testing.T) {
+	ev, client := newParseEvent(t)
+	_ = client.SetReadDeadline(time.Now().Add(3 * time.Second))
+
+	headers := "POST /ok HTTP/1.1\r\nHost: example.com\r\n" +
+		"Content-Length: 2\r\nExpect: 100-continue, x-foo\r\n\r\n"
+	done := make(chan int, 1)
+	go func() { done <- parseRequest(ev, filters.NewFilter()) }()
+	if _, err := client.Write([]byte(headers)); err != nil {
+		t.Fatalf("write headers: %v", err)
+	}
+
+	r := bufio.NewReader(client)
+	if line, err := r.ReadString('\n'); err != nil || !strings.Contains(line, "100 Continue") {
+		t.Fatalf("状态行 = %q (err=%v)，期望 100 Continue", strings.TrimSpace(line), err)
+	}
+	_, _ = r.ReadString('\n')
+	if _, err := client.Write([]byte("hi")); err != nil {
+		t.Fatalf("write body: %v", err)
+	}
+
+	select {
+	case code := <-done:
+		if code != 1 {
+			t.Fatalf("parseRequest() = %d，期望 1", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("parseRequest 未返回")
+	}
+}
+
+// TestUnknownExpectationReturns417 覆盖无法满足的期望：回 417，且不能先回 100。
+func TestUnknownExpectationReturns417(t *testing.T) {
+	ev, client := newParseEvent(t)
+	_ = client.SetReadDeadline(time.Now().Add(3 * time.Second))
+
+	headers := "POST /ok HTTP/1.1\r\nHost: example.com\r\n" +
+		"Content-Length: 1\r\nExpect: something-else\r\n\r\n"
+	done := make(chan int, 1)
+	go func() { done <- parseRequest(ev, filters.NewFilter()) }()
+	if _, err := client.Write([]byte(headers)); err != nil {
+		t.Fatalf("write headers: %v", err)
+	}
+
+	raw, err := io.ReadAll(client)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if !strings.Contains(string(raw), " 417 ") {
+		t.Fatalf("响应 = %q，期望 417", raw)
+	}
+	if strings.Contains(string(raw), "100 Continue") {
+		t.Fatalf("未知期望不应先回 100：%q", raw)
+	}
+
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Fatalf("parseRequest() = %d，期望 0", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("parseRequest 未返回")
+	}
+}
+
+// TestHTTP10IgnoresExpect 覆盖 HTTP/1.0：按 RFC 7231 §5.1.1 忽略期望，
+// 不回 100，也不能把 Expect 转给上游。
+func TestHTTP10IgnoresExpect(t *testing.T) {
+	ev, client := newParseEvent(t)
+
+	raw := "POST /ok HTTP/1.0\r\nHost: example.com\r\n" +
+		"Content-Length: 5\r\nExpect: 100-continue\r\n\r\nhello"
+	go func() { _, _ = client.Write([]byte(raw)) }()
+	if code := parseRequest(ev, filters.NewFilter()); code != 1 {
+		t.Fatalf("parseRequest() = %d，期望 1", code)
+	}
+	if got := ev.RR.Req.Body.String(); got != "hello" {
+		t.Fatalf("body = %q，期望 hello", got)
+	}
+	if v := ev.RR.Req.HeaderFold("Expect"); v != "" {
+		t.Fatalf("HTTP/1.0 的 Expect 应被忽略并移除，实际 %q", v)
+	}
+}
+
 // TestKeepAliveResetsRequestAndResponse 覆盖 keep-alive 复用同一个 RRcircle：
 // 上一请求的凭据、查询串、body，以及上一响应的头部都不能串到下一请求。
 // 静态层直接往 rr.Res.Headers 写头，不复位会让下一个响应带着
