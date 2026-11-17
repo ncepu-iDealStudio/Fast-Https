@@ -127,7 +127,7 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 ## 日志页：筛选与滚动分页
 
-日志页转交 `logs query`（`QueryLogs`）：可切 `access` / `error` / `system` / `safe` 四路（`--kind`），按白名单字段筛选——级别（`--level`）、状态码（`--status`，支持 `500` / `4xx` / `400-499`）、Host（`--domain`）、方法（`--method`）、路径前缀（`--path-prefix`）、拒绝原因（`--reason`）与起止时间（`--since` / `--until`，接受时长 `1h` 或 RFC3339，纯日期自动补全）。结果**由新到旧**，每页 30 条，滚到列表底部自动加载更早的一页，也有「加载更多」按钮兜底；切换日志类型、改筛选或点「刷新」会重置分页。
+日志页转交 `logs query`（`QueryLogs`）：可切 `access` / `error` / `system` / `safe` 四路（`--kind`），按白名单字段筛选——级别（`--level`）、状态码（`--status`）、Host（`--domain`）、方法（`--method`）、路径前缀（`--path-prefix`）、拒绝原因（`--reason` / `--reject-reason`）与起止时间（`--since` / `--until`，接受时长 `1h` 或 RFC3339，纯日期自动补全）。级别、状态码（`2xx` / `4xx` 等类别与常见单值）、方法、原因、拒绝原因都是**固定枚举下拉**，选完立即查询，不需要手输；Host、路径前缀与时间是自由输入。筛选框的选项按当前语言显示（如「路径穿越」），表格里的日志数据保持原始值（`path_traversal`、`INFO` 等）不做翻译；级别列按等级着色——info 绿、warn 橙、error 红、debug 灰。悬浮原因列可看原始代码、命中规则与 `remote_ip`。结果**由新到旧**，每页 30 条，滚到列表底部自动加载更早的一页，也有「加载更多」按钮兜底；切换日志类型、改筛选或点「刷新」会重置分页。
 
 `logs query` **没有 offset 分页**：「加载更早」把上一页最早一条的时间当下一页的 `--until` 游标（`LogPage.NextUntil`），与游标同刻的记录自动剔重。每条记录是白名单字段（`LogEntry`：time / level / kind / message / method / path / status / size / host / remote_addr），**不含原始行**（悬浮提示展示记录的紧凑 JSON），message / path 由主程序脱敏并截断。矩阵页的访问日志栏走 `logs access` 尾部。
 

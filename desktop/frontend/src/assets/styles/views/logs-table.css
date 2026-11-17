@@ -50,6 +50,11 @@
 
 .logrow__time { color: var(--muted); }
 .logrow__lvl { color: var(--faint); text-transform: uppercase; font-size: 10.5px; }
+/* 级别只改字体颜色，便于扫读；未知级别保持默认灰。 */
+.logrow__lvl--debug { color: var(--faint); }
+.logrow__lvl--info { color: var(--ok); }
+.logrow__lvl--warn { color: var(--warn); }
+.logrow__lvl--error { color: var(--danger); }
 .logrow__method { color: var(--text); font-weight: 500; }
 .logrow__path { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .logrow__reason { overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
