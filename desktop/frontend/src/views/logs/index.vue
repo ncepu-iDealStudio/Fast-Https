@@ -15,7 +15,7 @@ const KINDS = [
 ];
 const filters = reactive({
   kind: 'access', level: '', status: '', host: '', method: '',
-  pathPrefix: '', reason: '', since: '', until: '',
+  pathPrefix: '', reason: '', rejectReason: '', since: '', until: '',
 });
 const advanced = ref(false);
 const rows = ref<LogEntry[]>([]);
@@ -41,7 +41,8 @@ async function load(append = false): Promise<void> {
     const page = await queryLogs({
       kind: filters.kind, limit: 100, level: filters.level, status: filters.status,
       host: filters.host, method: filters.method, pathPrefix: filters.pathPrefix,
-      reason: filters.reason, since: filters.since, until: filters.until,
+      reason: filters.reason, rejectReason: filters.rejectReason,
+      since: filters.since, until: filters.until,
       cursor: append ? cursor.value : '',
     });
     rows.value = append ? [...rows.value, ...page.lines] : page.lines;
@@ -66,7 +67,7 @@ function pickKind(k: string): void {
   void nextTick(() => { const b = document.querySelector('.logtable__body'); if (b) b.scrollTop = 0; });
 }
 function reset(): void {
-  Object.assign(filters, { level: '', status: '', host: '', method: '', pathPrefix: '', reason: '', since: '', until: '' });
+  Object.assign(filters, { level: '', status: '', host: '', method: '', pathPrefix: '', reason: '', rejectReason: '', since: '', until: '' });
   void load();
 }
 function setLive(on: boolean): void {

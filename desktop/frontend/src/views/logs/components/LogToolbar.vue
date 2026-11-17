@@ -5,7 +5,8 @@ import { useI18n } from '../../../composables/useI18n';
 
 interface Filters {
   kind: string; level: string; status: string; host: string;
-  method: string; pathPrefix: string; reason: string; since: string; until: string;
+  method: string; pathPrefix: string; reason: string; rejectReason: string;
+  since: string; until: string;
 }
 const props = defineProps<{
   filters: Filters;
@@ -75,6 +76,8 @@ function set(key: keyof Filters, value: string): void {
   <div v-if="advanced" class="filter-bar">
     <input :value="filters.reason" type="text" :placeholder="t('logs.reasonPh')"
            @input="set('reason', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
+    <input :value="filters.rejectReason" type="text" :placeholder="t('logs.rejectReasonPh')"
+           @input="set('rejectReason', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
     <input :value="filters.since" type="text" :placeholder="t('logs.sincePh')"
            @input="set('since', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
     <input :value="filters.until" type="text" :placeholder="t('logs.untilPh')"

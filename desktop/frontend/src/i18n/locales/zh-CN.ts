@@ -451,6 +451,7 @@ export const zhCN: Record<string, string> = {
   'logs.methodPh': '方法：GET',
   'logs.pathPh': '路径前缀：/api',
   'logs.reasonPh': '原因（safe）：blacklist',
+  'logs.rejectReasonPh': '拒绝原因：path_traversal / header_too_large',
   'logs.sincePh': '起：1h / 30m 或 RFC3339',
   'logs.untilPh': '止：10m / 1h 或 RFC3339',
   'logs.loading': '正在读取日志…',

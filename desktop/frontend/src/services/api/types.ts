@@ -56,6 +56,7 @@ export interface LogQuery {
   method: string;
   pathPrefix: string;
   reason: string;
+  rejectReason: string;
   since: string;
   until: string;
   cursor: string;

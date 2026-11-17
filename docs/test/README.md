@@ -54,7 +54,7 @@ docs/test/
 | `cd desktop && go test ./internal/...` | `cli` / `configops` / `siteops` / `view` 全部 `ok` |
 | `go test ./tests/packaging` | `ok` |
 | `cd desktop/frontend && npm run typecheck` | 通过 |
-| `cd desktop/frontend && npm run i18n:check` | 两份字典各 623 键，代码引用 290 键，全部覆盖 |
+| `cd desktop/frontend && npm run i18n:check` | 两份字典各 624 键，代码引用 291 键，全部覆盖 |
 | 桌面端 TLS 配置手工验证 | 写入 / 清除 / 只填一项报错 三项符合预期，见 [verification/desktop-tls-config.md](verification/desktop-tls-config.md) |
 | 桌面端代理来源配置验证 | 写入 / 恢复默认 / 非法网段 / 负链长 四项符合预期，见 [verification/desktop-proxy-config.md](verification/desktop-proxy-config.md) |
 | 桌面端开箱即用主配置验证 | 十项预设读取 / 改四项保存 / 改回预设 / 非法枚举 / 负链长 五项符合预期，见 [verification/desktop-default-config.md](verification/desktop-default-config.md) |

@@ -451,6 +451,7 @@ export const enUS: Record<string, string> = {
   'logs.methodPh': 'Method: GET',
   'logs.pathPh': 'Path prefix: /api',
   'logs.reasonPh': 'Reason (safe): blacklist',
+  'logs.rejectReasonPh': 'Reject reason: path_traversal / header_too_large',
   'logs.sincePh': 'From: 1h / 30m or RFC3339',
   'logs.untilPh': 'To: 10m / 1h or RFC3339',
   'logs.loading': 'Loading logs…',
