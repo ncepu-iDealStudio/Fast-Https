@@ -321,8 +321,10 @@ host_check 的 warn 与 enforce 都记）。日志只保留客户端 IP 与
 **状态**：✅ 已实现（2026-11-17）。`ReadKeepAlive.tryToParse` 先判 HEAD（忽略
 `Content-Length`），再判 204/304；无 CL/TE 的普通响应仍读到 EOF。空 body 响应
 经 `Proxy.respEmptyBody` 传给 `ChangeHeader`，HTTP/1.1 上游未显式 `close` 时
-清掉 `ProxyNeedClose`，连接归还池。1xx interim 未纳入（代理不透传 `Expect`，
-需要跳过中间响应的独立改动）。验收报告：[r12-acceptance.md](../../test/reports/r12-acceptance.md)。
+清掉 `ProxyNeedClose`，连接归还池。1xx interim 已纳入：100 Continue / 103
+Early Hints 等中间响应丢弃后继续读最终响应（同一段数据里已到达的最终响应
+不会因再读一次而超时），101 保持协议升级语义。
+验收报告：[r12-acceptance.md](../../test/reports/r12-acceptance.md)。
 
 ## R-13 请求体限额与 100-continue 配合
 
