@@ -268,6 +268,9 @@ func validateProxy(proxy schema.Proxy) error {
 	if proxy.UpstreamTimeout < 0 {
 		return fmt.Errorf("proxy.upstream_timeout must be >= 0, got %d", proxy.UpstreamTimeout)
 	}
+	if proxy.TunnelIdleTimeout < 0 {
+		return fmt.Errorf("proxy.tunnel_idle_timeout must be >= 0, got %d", proxy.TunnelIdleTimeout)
+	}
 	for i, raw := range proxy.TrustedProxies {
 		item := strings.TrimSpace(raw)
 		if item == "" {

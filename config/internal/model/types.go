@@ -217,10 +217,11 @@ type ForwardedForConfig struct {
 // ProxyConfig 是顶层 proxy 段的原始写法，供命令行读写使用。
 // PreserveHost 用指针区分「没写」（默认 true）与显式 false。
 type ProxyConfig struct {
-	TrustedProxies  []string           `json:"trusted_proxies"`
-	ForwardedFor    ForwardedForConfig `json:"forwarded_for"`
-	PreserveHost    *bool              `json:"preserve_host"`
-	UpstreamTimeout int                `json:"upstream_timeout"`
+	TrustedProxies    []string           `json:"trusted_proxies"`
+	ForwardedFor      ForwardedForConfig `json:"forwarded_for"`
+	PreserveHost      *bool              `json:"preserve_host"`
+	UpstreamTimeout   int                `json:"upstream_timeout"`
+	TunnelIdleTimeout int                `json:"tunnel_idle_timeout"`
 }
 
 // PreserveHostEnabled 报告是否透传客户端 Host。未配置时为 true。
@@ -235,6 +236,7 @@ type Proxy struct {
 	ForwardedForMaxHops int
 	PreserveHost        bool
 	UpstreamTimeout     int
+	TunnelIdleTimeout   int
 	TrustedPrefixes     []netip.Prefix
 }
 
@@ -244,6 +246,15 @@ func (p Proxy) UpstreamTimeoutDuration() time.Duration {
 		return DEFAULT_UPSTREAM_TIMEOUT * time.Second
 	}
 	return time.Duration(p.UpstreamTimeout) * time.Second
+}
+
+// TunnelIdleTimeoutDuration 返回 websocket / tcp 隧道的空闲断开时间；
+// 0 表示不启用（保持历史行为：一直保持连接）。
+func (p Proxy) TunnelIdleTimeoutDuration() time.Duration {
+	if p.TunnelIdleTimeout <= 0 {
+		return 0
+	}
+	return time.Duration(p.TunnelIdleTimeout) * time.Second
 }
 
 // TLSConfig 是全局 TLS 段。DefaultCertificate 只在 SNI 未命中任何站点

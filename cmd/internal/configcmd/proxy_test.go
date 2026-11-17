@@ -41,14 +41,14 @@ func runProxy(t *testing.T, args ...string) (string, error) {
 
 func TestConfigProxySetShowAndClear(t *testing.T) {
 	main := proxyFixture(t)
-	if _, err := runProxy(t, "--config", main, "--trusted-proxies", "10.0.0.0/8, 192.168.1.10", "--max-hops", "10", "--preserve-host=false", "--upstream-timeout", "45"); err != nil {
+	if _, err := runProxy(t, "--config", main, "--trusted-proxies", "10.0.0.0/8, 192.168.1.10", "--max-hops", "10", "--preserve-host=false", "--upstream-timeout", "45", "--tunnel-idle-timeout", "30"); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(main)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"proxy"`, "10.0.0.0/8", "192.168.1.10", `"max_hops": 10`, `"preserve_host": false`, `"upstream_timeout": 45`, "// 主配置"} {
+	for _, want := range []string{`"proxy"`, "10.0.0.0/8", "192.168.1.10", `"max_hops": 10`, `"preserve_host": false`, `"upstream_timeout": 45`, `"tunnel_idle_timeout": 30`, "// 主配置"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("配置缺少 %s:\n%s", want, raw)
 		}
@@ -58,7 +58,7 @@ func TestConfigProxySetShowAndClear(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"10.0.0.0/8, 192.168.1.10", "max_hops:         10", "preserve_host:    false", "upstream_timeout: 45"} {
+	for _, want := range []string{"10.0.0.0/8, 192.168.1.10", "max_hops:         10", "preserve_host:    false", "upstream_timeout: 45", "tunnel_idle_timeout: 30"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("show 缺少 %q:\n%s", want, out)
 		}
@@ -76,7 +76,7 @@ func TestConfigProxySetShowAndClear(t *testing.T) {
 		t.Fatalf("补丁覆盖了其它字段:\n%s", out)
 	}
 
-	if _, err := runProxy(t, "--config", main, "--trusted-proxies=", "--max-hops", "0", "--preserve-host", "--upstream-timeout", "0"); err != nil {
+	if _, err := runProxy(t, "--config", main, "--trusted-proxies=", "--max-hops", "0", "--preserve-host", "--upstream-timeout", "0", "--tunnel-idle-timeout", "0"); err != nil {
 		t.Fatal(err)
 	}
 	raw, err = os.ReadFile(main)

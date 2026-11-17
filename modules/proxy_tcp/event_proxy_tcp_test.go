@@ -1,6 +1,7 @@
 package proxy_tcp
 
 import (
+	"fast-https/config"
 	"fast-https/core"
 	"io"
 	"net"
@@ -65,6 +66,61 @@ func TestProxyEventTcpEcho(t *testing.T) {
 	case <-done:
 	case <-time.After(3 * time.Second):
 		t.Fatal("tcp proxy did not return after the upstream closed")
+	}
+}
+
+// 配置 tunnel_idle_timeout 后，双向静默超过阈值必须关闭连接并退出。
+func TestProxyEventTcpIdleTimeout(t *testing.T) {
+	prev := config.Current()
+	t.Cleanup(func() { config.Store(prev, map[string]string{}) })
+	cfg := *prev
+	cfg.Proxy.TunnelIdleTimeout = 1
+	config.Store(&cfg, map[string]string{})
+
+	upstream, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = upstream.Close() })
+	go func() {
+		conn, err := upstream.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		buf := make([]byte, 1)
+		_, _ = conn.Read(buf)
+	}()
+
+	clientSide, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = clientSide.Close() })
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, err := clientSide.Accept()
+		if err != nil {
+			return
+		}
+		ProxyEventTcp(core.NewEvent(nil, conn), upstream.Addr().String())
+	}()
+
+	client, err := net.Dial("tcp", clientSide.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	select {
+	case <-done:
+	case <-time.After(4 * time.Second):
+		t.Fatal("idle tcp tunnel was not closed")
+	}
+	_ = client.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := client.Read(make([]byte, 1)); err == nil {
+		t.Fatal("client side should be closed after idle timeout")
 	}
 }
 

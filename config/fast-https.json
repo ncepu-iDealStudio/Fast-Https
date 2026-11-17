@@ -18,7 +18,8 @@
     "forwarded_for": {
       "max_hops": 10
     },
-    "upstream_timeout": 20
+    "upstream_timeout": 20,
+    "tunnel_idle_timeout": 0
   },
   "http": {
     "include": ["./conf.d"],

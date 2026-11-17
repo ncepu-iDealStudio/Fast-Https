@@ -39,3 +39,13 @@ func TestProxyUpstreamTimeoutDuration(t *testing.T) {
 		t.Fatalf("upstream timeout = %v, want 5s", got)
 	}
 }
+
+// 隧道空闲断开：0 表示不启用，正数按秒换算。
+func TestProxyTunnelIdleTimeoutDuration(t *testing.T) {
+	if got := (Proxy{}).TunnelIdleTimeoutDuration(); got != 0 {
+		t.Fatalf("tunnel idle timeout = %v, want 0 (disabled)", got)
+	}
+	if got := (Proxy{TunnelIdleTimeout: 60}).TunnelIdleTimeoutDuration(); got != time.Minute {
+		t.Fatalf("tunnel idle timeout = %v, want 1m", got)
+	}
+}

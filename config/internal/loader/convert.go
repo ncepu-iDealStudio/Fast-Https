@@ -123,6 +123,7 @@ func convertProxy(jp schema.Proxy) (model.Proxy, error) {
 		ForwardedForMaxHops: jp.ForwardedFor.MaxHops,
 		PreserveHost:        jp.PreserveHost == nil || *jp.PreserveHost,
 		UpstreamTimeout:     jp.UpstreamTimeout,
+		TunnelIdleTimeout:   jp.TunnelIdleTimeout,
 	}
 	for i, raw := range jp.TrustedProxies {
 		item := strings.TrimSpace(raw)
