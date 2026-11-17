@@ -129,6 +129,7 @@ E2E 在临时目录起真实进程（HTTP + TLS），触发路径穿越、header
 3. **未知 SNI 双写**：safe.log 一条 + 控制台 warn（镜像到 error.log）一条；这是为了保留原有运维可见性，代价是同一次握手在两个文件各有一行。
 4. **`remote_addr` 保留**：安全类日志同时保留 `remote_addr`（既有字段）与 `remote_ip`（R-10 契约），两者内容相同。
 5. **字段与路径**：日志只记 `reject_reason` / `rule` / `remote_ip`，不记原始请求路径；排查具体 URI 仍需结合访问日志。
+6. **平台覆盖**：Windows 保留名/尾点规范化的 `invalid_path` 用例只在 Windows 执行，Linux CI 会跳过该分支；其余拒绝类型跨平台覆盖。
 
 ## 7. 提交记录
 
@@ -142,6 +143,8 @@ E2E 在临时目录起真实进程（HTTP + TLS），触发路径穿越、header
 | `680e621` | 桌面端日志表展示拒绝原因与规则，筛选改为枚举下拉 |
 | `308bbfd` | CLI 文本模式展示拒绝原因/规则；桌面端旧 `reason` 回退与 `remote_ip` 展示 |
 | `659b3e2` | rule 对齐实际配置项；Windows 非法路径改用 `invalid_path` |
+| `cfed24a` | WAF 拒绝日志字段用例 |
+| `8630ead` | CLI 文本模式补充 `remote_ip` |
 
 ## 8. 关键文件
 

@@ -26,7 +26,7 @@
 
 ## 测试
 
-`tests/unit_test/infra/logging`（五路格式、目录切换、失败保持旧文件、控制台 Warn/Error 镜像到 error.log）。
+`tests/unit_test/infra/logging`（五路格式、目录切换、失败保持旧文件、控制台 Warn/Error 镜像到 error.log）。拒绝日志字段与查询的用例分布在 `modules/{static,proxy,safe,appfirewall}`、`runtime/{events,filters}`、`management/logquery` 与 `cmd`；真实进程见 `tests/client_test/reject_log_e2e_test.go`。
 
 ## 已知限制
 
