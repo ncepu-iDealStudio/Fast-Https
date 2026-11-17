@@ -138,7 +138,7 @@ func IsInBlacklist(ev *core.Event) bool {
 	ev.RR.Res = response.DefaultBlackBan()
 	log := dynlog.DynLogger{}
 	dynlog.Log(&log, ev)
-	logReject(ev, ReasonBlacklist, "security.blacklist")
+	logReject(ev, ReasonBlacklist, "http.blaklist")
 	ev.WriteResponseClose(nil)
 	return true
 }

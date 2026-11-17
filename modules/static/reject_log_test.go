@@ -3,6 +3,7 @@ package static
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -81,6 +82,39 @@ func TestSymlinkRejectLogCarriesUnifiedFields(t *testing.T) {
 		`"reject_reason":"symlink_rejected"`,
 		`"rule":"symlink_policy"`,
 		`"remote_ip":"pipe"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("拒绝日志缺少 %s：%s", want, out)
+		}
+	}
+}
+
+// Windows 保留设备名不是路径穿越，日志用 invalid_path + 精确规则名。
+func TestWindowsReservedNameRejectLog(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("仅 Windows 有保留设备名语义")
+	}
+	dir := t.TempDir()
+	t.Cleanup(logging.CloseLogFiles)
+	if err := logging.Open(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	cfg := &listener.ListenCfg{StaticRoot: root}
+	ev, _ := newStaticEvent(t, "GET", "/CON")
+	if got := getResBytes(&dynlog.DynLogger{}, cfg, filepath.Join(root, "CON"), "close", ev); got != -1 {
+		t.Fatalf("保留设备名 getResBytes = %d, want -1", got)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, logging.SafeLogName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(raw)
+	for _, want := range []string{
+		`"reject_reason":"invalid_path"`,
+		`"rule":"windows_reserved_name"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("拒绝日志缺少 %s：%s", want, out)

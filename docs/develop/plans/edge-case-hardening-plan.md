@@ -269,7 +269,9 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 **验收**：`logquery` 能按 `reject_reason` 过滤出这些记录。
 
 **状态**：✅ 已实现。统一字段由 `infra/logging.RejectWarn` / `RejectDebug`
-写入安全日志：路径穿越（`path_traversal` / `static_root`）、隐藏路径
+写入安全日志：路径穿越（`path_traversal` / `static_root`）、Windows 保留名与
+尾点规范化（`invalid_path` / `windows_reserved_name`、
+`windows_path_normalization`）、隐藏路径
 （`hidden_path` / `hidden_path_segment`）、超限（`header_too_large` /
 `max_header_size`、`body_too_large` / `max_body_size`，h1 与 h2 共用）、
 未知 SNI（`unknown_sni` / `tls.sni`，同时写 safe.log 与控制台/error.log）、

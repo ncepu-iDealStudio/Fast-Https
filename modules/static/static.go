@@ -141,13 +141,20 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 		return -1
 	}
 	// /../ 之类的逃逸路径按未找到处理，不读任何文件
-	realPath, inRoot := staticPathInRoot(lisdata.StaticRoot, realPath)
+	cleanPath, inRoot := staticPathInRoot(lisdata.StaticRoot, realPath)
 	if !inRoot {
-		logReject(ev, "path_traversal", "static_root")
+		reason, rule := "path_traversal", "static_root"
+		// Windows 上保留设备名、尾点/尾空格规范化后的空段不是“逃逸”，
+		// 用更准确的枚举，避免把 /CON 误报成路径穿越。
+		if r := windowsPathRejectRule(filepath.Clean(realPath)); r != "" {
+			reason, rule = "invalid_path", r
+		}
+		logReject(ev, reason, rule)
 		log.Status(404)
 		log.Size(50)
 		return -1
 	}
+	realPath = cleanPath
 	// var file_data = cache.Get_data_from_cache(realPath)
 	// var file_data = []byte("cache.Get_data_from_cache(realPath)")
 
@@ -477,6 +484,27 @@ func hiddenPathSegment(target string) bool {
 		}
 	}
 	return false
+}
+
+// windowsPathRejectRule 返回 Windows 路径被拒绝时命中的规则；不需要
+// 特殊处理时返回空串。只影响日志的 rule 字段，不改变拒绝行为。
+func windowsPathRejectRule(full string) string {
+	if runtime.GOOS != "windows" {
+		return ""
+	}
+	for _, part := range strings.Split(full, string(filepath.Separator)) {
+		if part == "" || part == "." || part == ".." {
+			continue
+		}
+		trimmed := strings.TrimRight(part, ". ")
+		if trimmed == "" {
+			return "windows_path_normalization"
+		}
+		if reservedDeviceName(trimmed) {
+			return "windows_reserved_name"
+		}
+	}
+	return ""
 }
 
 // staticPathInRoot 清洗拼接后的文件路径并校验没有逃出站点根目录。

@@ -36,15 +36,16 @@
 | 场景 | reject_reason | rule | 级别 | 日志流 |
 | --- | --- | --- | --- | --- |
 | 路径穿越 | `path_traversal` | `static_root` | warn | safe |
+| Windows 保留名/尾点规范化 | `invalid_path` | `windows_reserved_name` / `windows_path_normalization` | warn | safe |
 | 隐藏路径 | `hidden_path` | `hidden_path_segment` | warn | safe |
 | 符号链接策略（reject） | `symlink_rejected` | `symlink_policy` | warn | safe |
 | header 超限（h1/h2） | `header_too_large` | `max_header_size` | warn | safe |
 | body 超限（h1/h2） | `body_too_large` | `max_body_size` | warn | safe |
 | 未知 SNI | `unknown_sni` | `tls.sni` | warn | safe + error |
-| 黑名单 | `blacklist` | `security.blacklist` | warn | safe |
-| 限流 | `rate_limit` | `security.rate_limit` | warn | safe |
+| 黑名单 | `blacklist` | `http.blaklist` | warn | safe |
+| 限流 | `rate_limit` | `servers_limit.limit` | warn | safe |
 | location 限流 | `location_limit` | `location.limit` | warn | safe |
-| WAF | `waf` | `security.waf` | warn | safe |
+| WAF | `waf` | `waf` | warn | safe |
 | Host 校验（warn/enforce） | `host_check` | `security.host_check` | warn | safe |
 | 压缩跳过：文件太小 | `compression_skipped` | `zip_min_length` | debug | safe |
 | 压缩跳过：已压缩类型 | `compression_skipped` | `zip_skip_types` | debug | safe |
@@ -74,7 +75,7 @@ CLI 文本模式（不加 `--json`）也增加一列：优先显示 `reject_reas
 
 桌面端日志页：
 
-- 高级筛选的「拒绝原因」是枚举下拉：`全部` + 12 个 `reject_reason`，选中后翻译为 `--reject-reason`。
+- 高级筛选的「拒绝原因」是枚举下拉：`全部` + 13 个 `reject_reason`，选中后翻译为 `--reject-reason`。
 - 表格新增 reason 列，显示 `reject_reason · rule`（旧日志回退到 `reason`）；悬浮 `title` 显示 `remote_ip`。
 - host/peer 列在没有 `remote_addr` 时显示 `remote_ip`，拒绝日志也能看到来源。
 - `logEntry` 映射四个字段，`LogEntry`（Go/TS）同步；窄窗口自动收起 reason 列。
@@ -87,6 +88,7 @@ CLI 文本模式（不加 `--json`）也增加一列：优先显示 `reject_reas
 PASS: TestRejectLogsCarryUnifiedFields              (runtime/events)
 PASS: TestPathRejectLogsCarryUnifiedFields          (modules/static)
 PASS: TestSymlinkRejectLogCarriesUnifiedFields      (modules/static)
+PASS: TestWindowsReservedNameRejectLog (Windows)    (modules/static)
 PASS: TestCompressibleReason                        (modules/static)
 PASS: TestCompressionSkipLogs                       (modules/proxy)
 PASS: TestLogRejectCarriesUnifiedFields             (modules/safe)

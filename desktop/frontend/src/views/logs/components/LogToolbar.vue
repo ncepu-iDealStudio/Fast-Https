@@ -29,9 +29,9 @@ const { t } = useI18n();
 
 // 与 R-10 的 reject_reason 枚举保持一致；空值表示不过滤。
 const REJECT_REASONS = [
-  'path_traversal', 'hidden_path', 'symlink_rejected', 'header_too_large',
-  'body_too_large', 'unknown_sni', 'blacklist', 'rate_limit',
-  'location_limit', 'waf', 'host_check', 'compression_skipped',
+  'path_traversal', 'invalid_path', 'hidden_path', 'symlink_rejected',
+  'header_too_large', 'body_too_large', 'unknown_sni', 'blacklist',
+  'rate_limit', 'location_limit', 'waf', 'host_check', 'compression_skipped',
 ];
 
 function set(key: keyof Filters, value: string): void {

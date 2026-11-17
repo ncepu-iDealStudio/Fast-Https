@@ -25,7 +25,7 @@ func TestLogRejectCarriesUnifiedFields(t *testing.T) {
 	t.Cleanup(func() { _ = client.Close(); _ = server.Close() })
 	ev := core.NewEvent(&listener.Listener{Port: "18080"}, server)
 
-	logReject(ev, ReasonBlacklist, "security.blacklist")
+	logReject(ev, ReasonBlacklist, "http.blaklist")
 
 	raw, err := os.ReadFile(filepath.Join(dir, logging.SafeLogName))
 	if err != nil {
@@ -35,7 +35,7 @@ func TestLogRejectCarriesUnifiedFields(t *testing.T) {
 	for _, want := range []string{
 		`"reason":"blacklist"`,
 		`"reject_reason":"blacklist"`,
-		`"rule":"security.blacklist"`,
+		`"rule":"http.blaklist"`,
 		`"remote_ip":"pipe"`,
 		`"remote_addr":"pipe"`,
 	} {
