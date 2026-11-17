@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -141,46 +140,10 @@ func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 	}
 }
 
-// restartService 停止并重新启动服务进程，让新配置生效（Windows 专用路径）。
-//
-// 用于替代热重载：Windows 无法定向投递 reload 信号，重启是唯一可靠的
-// 应用方式。通过子进程调用自身的 stop / start 子命令实现——不直接调
-// 父包的 Handler（会循环依赖），也复用了已有的停止/启动语义。
-func restartService(pidPath string) error {
-	self, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("取程序路径失败：%w", err)
-	}
-	dir := filepath.Dir(pidPath)
-
-	// 1. stop：等它真正退出，避免端口占用导致新进程起不来
-	stopCmd := exec.Command(self, "stop")
-	stopCmd.Dir = dir
-	_ = stopCmd.Run() // stop 在服务未运行时返回非零，这里不视为失败
-	for i := 0; i < 30; i++ {
-		if st, _, err := procctl.InspectProcess(pidPath); err != nil || st != procctl.ProcessRunning {
-			break
-		}
-		time.Sleep(150 * time.Millisecond)
-	}
-
-	// 2. start：派生后台进程，不等待它退出
-	startCmd := exec.Command(self, "start")
-	startCmd.Dir = dir
-	if err := startCmd.Start(); err != nil {
-		return fmt.Errorf("启动服务失败：%w", err)
-	}
-	go func() { _ = startCmd.Wait() }()
-
-	// 3. 确认新进程在跑（最多等 6 秒）
-	for i := 0; i < 20; i++ {
-		time.Sleep(300 * time.Millisecond)
-		if st, _, err := procctl.InspectProcess(pidPath); err == nil && st == procctl.ProcessRunning {
-			return nil
-		}
-	}
-	return fmt.Errorf("服务启动超时")
-}
+// restartService 定义在平台文件里：Windows 用子进程调用自身 stop/start
+// 让新配置生效（无法定向投递 reload 信号）；其余平台不会被调用。
+// 这样 os/exec 只出现在明确标注为「重执行自身」的文件里，
+// 不会混进通用的 CLI 工具代码（arch 守卫会检查）。
 
 // RunTxn 是站点写命令的公共入口：读 --config、按 --timeout 建上下文、
 // 跑事务并输出结果。

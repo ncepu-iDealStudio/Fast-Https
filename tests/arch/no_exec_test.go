@@ -10,8 +10,8 @@ import (
 )
 
 // TestNoExecInProduction 守住「管理命令不执行任意 Shell」。
-// cmd 与 management 的生产代码不得引用 os/exec；唯一的例外是
-// cmd/daemon_unix.go，它用 exec 拉起本进程的后台子进程，不是执行日志或参数里的命令。
+// cmd 与 management 的生产代码不得引用 os/exec。允许的例外都只重执行
+// 自身进程、参数写死、不经过 Shell，见 allowedSelfExec。
 func TestNoExecInProduction(t *testing.T) {
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -26,7 +26,7 @@ func TestNoExecInProduction(t *testing.T) {
 			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 				return nil
 			}
-			if filepath.Base(path) == "daemon_unix.go" {
+			if _, ok := allowedSelfExec[filepath.Base(path)]; ok {
 				return nil
 			}
 			file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
@@ -38,7 +38,8 @@ func TestNoExecInProduction(t *testing.T) {
 				p := strings.Trim(imp.Path.Value, `"`)
 				if p == "os/exec" {
 					rel, _ := filepath.Rel(root, path)
-					t.Errorf("%s 引用了 os/exec；管理与命令代码不能执行任意 Shell", rel)
+					t.Errorf("%s 引用了 os/exec；管理与命令代码不能执行任意 Shell"+
+						"（若确实只重执行自身，请加入 allowedSelfExec 并写明理由）", rel)
 				}
 			}
 			return nil
@@ -47,4 +48,12 @@ func TestNoExecInProduction(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// allowedSelfExec 是 os/exec 的白名单：文件只重新执行自身进程，
+// 参数是写死的子命令，不读取日志/配置/用户输入，不经过 Shell。
+var allowedSelfExec = map[string]string{
+	"daemon_unix.go":     "Unix 后台化：exec 自身并移交监听套接字",
+	"daemon_windows.go":  "Windows 后台化：DETACHED_PROCESS 拉起自身",
+	"restart_windows.go": "Windows 热重载回退：顺序执行自身的 stop / start",
 }
