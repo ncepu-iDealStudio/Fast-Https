@@ -65,7 +65,7 @@ func (s *DesktopService) QuitApp() {
 	appQuitting.Store(true)
 	// 先停服务再退出：桌面端拉起服务后，关掉窗口不应该把端口一直占着。
 	// 服务若不是本端启动（例如用 CLI 起的），stop 找不到 pid，属于空操作。
-	_, _ = view.RunServerCommand(s.baseDir, "stop")
+	_, _ = cli.Run(s.baseDir, "stop")
 	if appRef != nil {
 		appRef.Quit()
 	}
@@ -244,7 +244,7 @@ func (s *DesktopService) restartForReload() (string, error) {
 }
 
 func (s *DesktopService) ServerStatus() (string, error) {
-	return view.RunServerCommand(s.baseDir, "status")
+	return cli.Run(s.baseDir, "status")
 }
 
 func (s *DesktopService) OpenPath(path string) (string, error) {

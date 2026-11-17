@@ -144,12 +144,6 @@ func resolvePaths(dir string) RuntimePaths {
 
 // ------------------------------------------------------------ 服务操作
 
-// RunServerCommand 把纯文本命令（status / version / start / stop / reload）
-// 交给主程序，桌面端不自己实现进程管理。
-func RunServerCommand(dir string, args ...string) (string, error) {
-	return cli.Run(dir, args...)
-}
-
 // EnsureServerRunning 复核服务状态，掉了就自动拉起，返回给用户看的补充说明。
 //
 // 用在配置事务之后：Windows 上事务的 reload 阶段用 GenerateConsoleCtrlEvent

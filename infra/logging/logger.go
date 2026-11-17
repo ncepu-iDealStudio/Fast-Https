@@ -217,7 +217,7 @@ func openLogSet(path string) ([]*os.File, *syncWriter, error) {
 	acc := fileLogger(opened[1], KindAccess)
 	accessLog.Store(&acc)
 	errFile := &syncWriter{w: opened[2]}
-	errL := fileLoggerFrom(errFile, KindError)
+	errL := fileLogger(errFile, KindError)
 	errorLog.Store(&errL)
 	saf := fileLogger(opened[3], KindSafe)
 	safeLog.Store(&saf)
@@ -226,11 +226,7 @@ func openLogSet(path string) ([]*os.File, *syncWriter, error) {
 
 // fileLogger 构造一路文件日志器。默认同时回显到标准输出；
 // 后台子进程关掉回显后只写文件。
-func fileLogger(file *os.File, kind string) zerolog.Logger {
-	return fileLoggerFrom(file, kind)
-}
-
-func fileLoggerFrom(file io.Writer, kind string) zerolog.Logger {
+func fileLogger(file io.Writer, kind string) zerolog.Logger {
 	var out io.Writer = file
 	if consoleEcho.Load() {
 		out = io.MultiWriter(os.Stdout, file)

@@ -68,7 +68,7 @@ func List(dir state.Dir, mainPath string) (ListData, error) {
 	if _, err := os.Stat(dir.VersionsDir()); os.IsNotExist(err) {
 		return ListData{Versions: []Info{}}, nil
 	}
-	current, err := treeHash(mainPath)
+	current, err := TreeHash(mainPath)
 	if err != nil {
 		current = ""
 	}
@@ -144,11 +144,6 @@ func Snapshot(dir state.Dir, mainPath, summary string, now time.Time) (Manifest,
 		return Manifest{}, err
 	}
 	return man, nil
-}
-
-// TreeHash 是当前磁盘配置树（主文件 + include 下的 json）的哈希。
-func TreeHash(mainPath string) (string, error) {
-	return treeHash(mainPath)
 }
 
 // VersionDir 返回某个版本快照目录。
@@ -227,7 +222,8 @@ func collect(mainPath string) ([]diskFile, error) {
 	return files, nil
 }
 
-func treeHash(mainPath string) (string, error) {
+// TreeHash 是当前磁盘配置树（主文件 + include 下的 json）的哈希。
+func TreeHash(mainPath string) (string, error) {
 	files, err := collect(mainPath)
 	if err != nil {
 		return "", err
