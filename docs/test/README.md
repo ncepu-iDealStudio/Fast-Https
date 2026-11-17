@@ -49,7 +49,7 @@ docs/test/
 
 | 命令 | 结果 |
 | --- | --- |
-| `go test ./...` | 全部 `ok`（含 R-01 ~ R-07 边缘加固回归） |
+| `go test ./...` | 全部 `ok`（含 R-01 ~ R-09 边缘加固回归） |
 | `cd desktop && go test ./internal/...` | `cli` / `configops` / `siteops` / `view` 全部 `ok` |
 | `go test ./tests/packaging` | `ok` |
 | `cd desktop/frontend && npm run typecheck` | 通过 |
@@ -72,6 +72,7 @@ docs/test/
 - 2026-11-17 桌面端开箱即用主配置验证：`ReadConfigForm` 读到十项预设值，保存四项后其余预设不被重置，改回预设后内容一致（JSON 被规范化重写），非法 WAF 模式在表单层拦截、负链长在配置校验层拦截且配置哈希不变，详见 [verification/desktop-default-config.md](verification/desktop-default-config.md)。
 - 2026-11-17 桌面端新增站点压缩默认值验证：默认值写入 br+gzip / 1 KB / 整类跳过清单，自定义只写显式项，取消勾选后无 `zip*` 键，代理站点写入同一组默认值，非法跳过类型在写盘前被 `USAGE_ERROR` 拦下，详见 [verification/desktop-site-compression.md](verification/desktop-site-compression.md)。
 - 2026-11-17 边缘加固 R-08 验收：`Expect: 100-continue`（含 chunked / 列表 / 417 / HTTP1.0）、keep-alive 请求与响应状态隔离、header 431 与 body 413（Content-Length / chunked / h2）、限额与超时配置（`max_*`、`read/write/body_timeout`、`proxy.upstream_timeout`、`proxy.tunnel_idle_timeout`）全部落地；新增真实 TCP E2E 与 `-race` 用例，详见 [reports/r08-acceptance.md](reports/r08-acceptance.md)。
+- 2026-11-17 边缘加固 R-09 落地：并发 reload 串行化（`server.Reload` 与 loader 各持互斥锁），在途请求按端口变化区分「旧快照跑完」与「移除/重建时终止」，reload 日志带 `port` 与 `in_flight_requests`；新增 loader/server 并发 10 次 reload 的 `-race` 用例与在途计数用例，详见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md) 与 [4-reload.md](../feature/4-reload.md)。
 
 ## 旧文件名对照
 
