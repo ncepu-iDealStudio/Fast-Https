@@ -28,11 +28,37 @@ func LoadFile(path string) error {
 	if err != nil {
 		return err
 	}
+	if err := checkLoadTimeSymlinks(&cfg); err != nil {
+		return err
+	}
 	mime, err := source.LoadContentTypes(path)
 	if err != nil {
 		return err
 	}
 	model.Store(&cfg, mime)
+	return nil
+}
+
+// checkLoadTimeSymlinks 在加载层兜底执行 check-at-load 策略。
+// 默认策略不能只靠 validate 生效：直接调用 LoadFile/Init 的入口
+// （InitSystem、acme/管理命令）同样要拒绝带符号链接的静态根。
+// 根不存在或不可读时跳过，交给运行期报错。
+func checkLoadTimeSymlinks(cfg *model.Fast_Https) error {
+	for i := range cfg.Servers {
+		server := &cfg.Servers[i]
+		for j := range server.Path {
+			path := &server.Path[j]
+			if path.PathType != model.LOCAL || path.SymlinkPolicy != model.SYMLINK_CHECK_AT_LOAD {
+				continue
+			}
+			link, err := paths.FirstSymlinkUnder(path.Root)
+			if err != nil || link == "" {
+				continue
+			}
+			return fmt.Errorf("server %q location %q: symlink found under root: %s (symlink_policy=check-at-load; remove the link or set symlink_policy to allow/reject)",
+				server.ServerName, path.PathName, link)
+		}
+	}
 	return nil
 }
 

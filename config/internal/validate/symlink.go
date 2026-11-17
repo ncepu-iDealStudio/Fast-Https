@@ -2,9 +2,6 @@ package validate
 
 import (
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"fast-https/config/internal/model"
@@ -31,36 +28,9 @@ func validateSymlinkPolicy(policy, root, where string) error {
 	if policy != model.SYMLINK_CHECK_AT_LOAD || strings.TrimSpace(root) == "" {
 		return nil
 	}
-	link, err := firstSymlinkUnder(paths.DataPath(root))
+	link, err := paths.FirstSymlinkUnder(paths.DataPath(root))
 	if err != nil || link == "" {
 		return nil
 	}
 	return fmt.Errorf("%s: symlink found under root: %s (symlink_policy=check-at-load; remove the link or set symlink_policy to allow/reject)", where, link)
-}
-
-// firstSymlinkUnder 返回 root 下（不含 root 自身）第一个符号链接的路径。
-// root 本身是链接时先解析，避免把部署方故意链接的站点目录当成违规。
-func firstSymlinkUnder(root string) (string, error) {
-	realRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		return "", err
-	}
-	var found string
-	err = filepath.WalkDir(realRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if path == realRoot {
-			return nil
-		}
-		if d.Type()&os.ModeSymlink != 0 {
-			found = path
-			return filepath.SkipAll
-		}
-		return nil
-	})
-	if err != nil {
-		return "", err
-	}
-	return found, nil
 }

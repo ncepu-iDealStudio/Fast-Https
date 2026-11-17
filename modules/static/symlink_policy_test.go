@@ -2,6 +2,7 @@ package static
 
 import (
 	"fast-https/config"
+	"fast-https/runtime/listener"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -69,4 +70,57 @@ func TestSymlinkPolicyRejectPlainFile(t *testing.T) {
 	if symlinkBlocked(config.SYMLINK_REJECT, root, file) {
 		t.Error("普通文件不应被 reject 拦截")
 	}
+}
+
+// TestSymlinkPolicyRejectBlocksIndexLink 目录请求会退到索引文件，
+// 索引文件是链接时也必须重新过策略，否则请求路径本身不越界就能读到外部文件。
+func TestSymlinkPolicyRejectBlocksIndexLink(t *testing.T) {
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.html")
+	if err := os.WriteFile(secret, []byte("top-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.Symlink(secret, filepath.Join(root, "index.html")); err != nil {
+		t.Skipf("创建符号链接失败：%v", err)
+	}
+	try := &listener.Try{Files: []string{"index.html"}}
+
+	found, file, _, _ := dofind(root, try, root, config.SYMLINK_REJECT)
+	if found {
+		file.Close()
+		t.Fatal("reject 应拦截指向 root 之外的索引链接")
+	}
+
+	found, file, _, _ = dofind(root, try, root, config.SYMLINK_ALLOW)
+	if !found {
+		t.Fatal("allow 应能读到索引链接")
+	}
+	file.Close()
+}
+
+// TestSymlinkPolicyRejectBlocksTryNextLink try.Next 同样是请求路径的延伸。
+func TestSymlinkPolicyRejectBlocksTryNextLink(t *testing.T) {
+	outside := t.TempDir()
+	secret := filepath.Join(outside, "secret.html")
+	if err := os.WriteFile(secret, []byte("top-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.Symlink(secret, filepath.Join(root, "index.html")); err != nil {
+		t.Skipf("创建符号链接失败：%v", err)
+	}
+	try := &listener.Try{Next: "index.html"}
+
+	found, file, _, _ := dofind(root, try, root, config.SYMLINK_REJECT)
+	if found {
+		file.Close()
+		t.Fatal("reject 应拦截指向 root 之外的 try.Next 链接")
+	}
+
+	found, file, _, _ = dofind(root, try, root, config.SYMLINK_ALLOW)
+	if !found {
+		t.Fatal("allow 应能读到 try.Next 链接")
+	}
+	file.Close()
 }

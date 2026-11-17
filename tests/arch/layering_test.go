@@ -39,8 +39,10 @@ var layers = []layer{
 	{
 		name:  "config",
 		match: prefix("config"),
-		allow: []string{"infra"},
-		why:   "配置层只能依赖基础设施层",
+		// internal 子包之间按域分层（model/paths/schema → 域包 → loader），
+		// 允许 config 内部互相依赖；跨层依赖仍然只放行 infra。
+		allow: []string{"infra", "config"},
+		why:   "配置层只能依赖基础设施层与自身内部子包",
 	},
 	{
 		name:  "core",

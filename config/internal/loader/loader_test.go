@@ -1,8 +1,10 @@
 package loader
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"fast-https/config/internal/model"
@@ -223,5 +225,53 @@ func TestReloadMissingFileKeepsSnapshot(t *testing.T) {
 	}
 	if model.Current() != before {
 		t.Fatal("failed reload must leave the snapshot untouched")
+	}
+}
+
+// 默认 check-at-load 在加载层生效：不经过 Reload/validate 直接调用 LoadFile
+// （InitSystem、acme/管理命令）也要拒绝带符号链接的静态根。
+func TestLoadFileRejectsSymlinkRootByDefault(t *testing.T) {
+	before := model.Current()
+	beforeMIME := model.MIME()
+	t.Cleanup(func() { model.Store(before, beforeMIME) })
+
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "index.html"), []byte("ok"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("创建符号链接失败：%v", err)
+	}
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "mime.json"), []byte(`{"html": "text/html"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeConfig := func(name, policy string) string {
+		extra := ""
+		if policy != "" {
+			extra = fmt.Sprintf(`, "symlink_policy": %q`, policy)
+		}
+		body := fmt.Sprintf(`{"http": {"server": [{"listen": 8080, "server_name": "link.local",
+  "location": [{"url": "/", "type": "local", "root": %q%s}]}]}}`, root, extra)
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	err := LoadFile(writeConfig("default.json", ""))
+	if err == nil || !strings.Contains(err.Error(), "symlink found under root") {
+		t.Fatalf("默认策略应拒绝带符号链接的 root，err = %v", err)
+	}
+
+	if err := LoadFile(writeConfig("allow.json", model.SYMLINK_ALLOW)); err != nil {
+		t.Fatalf("allow 应正常加载：%v", err)
+	}
+	servers := model.Current().Servers
+	if len(servers) != 1 || servers[0].Path[0].SymlinkPolicy != model.SYMLINK_ALLOW {
+		t.Fatalf("快照未按 allow 更新：%+v", servers)
 	}
 }

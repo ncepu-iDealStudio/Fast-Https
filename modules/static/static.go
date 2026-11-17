@@ -66,7 +66,13 @@ func fileReadWrite(file *os.File, ev *core.Event) int {
 	return 0
 }
 
-func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool, file *os.File, file_size int64, modtime time.Time) {
+// dofind 在 path 上查找可直接返回的文件：路径本身、索引数组、try.Next。
+// 每个真正要打开的候选都过一遍 symlink_policy：索引文件和 try.Next 是
+// 请求路径的延伸，只在入口检查 realPath 会漏掉它们的符号链接。
+func dofind(path string, try *listener.Try, staticRoot, policy string) (found bool, file *os.File, file_size int64, modtime time.Time) {
+	if symlinkBlocked(policy, staticRoot, path) {
+		return false, nil, -1, time.Time{}
+	}
 	file, file_size, modtime = fileFdSize(path)
 
 	if file == nil { // Not Found
@@ -75,6 +81,9 @@ func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool
 			// 结尾的 "/"，靠请求路径的结尾斜杠拼索引文件会拼出
 			// "rootindex.html" 这样的路径
 			p := filepath.Join(path, item)
+			if symlinkBlocked(policy, staticRoot, p) {
+				continue
+			}
 			file, file_size, modtime = fileFdSize(p)
 			if file != nil {
 				found = true
@@ -86,9 +95,12 @@ func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool
 	}
 
 	if !found && try.Next != "" {
-		file, file_size, modtime = fileFdSize(cfg.StaticRoot + "/" + try.Next)
-		if file != nil {
-			found = true
+		next := staticRoot + "/" + try.Next
+		if !symlinkBlocked(policy, staticRoot, next) {
+			file, file_size, modtime = fileFdSize(next)
+			if file != nil {
+				found = true
+			}
 		}
 	}
 
@@ -119,12 +131,6 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 		log.Size(50)
 		return -1
 	}
-	// symlink_policy=reject：链接指向 root 之外按未找到处理。
-	if symlinkBlocked(lisdata.SymlinkPolicy, lisdata.StaticRoot, realPath) {
-		log.Status(404)
-		log.Size(50)
-		return -1
-	}
 	// var file_data = cache.Get_data_from_cache(realPath)
 	// var file_data = []byte("cache.Get_data_from_cache(realPath)")
 
@@ -137,14 +143,15 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 		if mathed := try.UriRe.Match([]byte(rr.Req.Path)); !mathed && try.Next == "" {
 			continue
 		}
-		found, file, file_size, modtime = dofind(realPath, &try, lisdata)
+		found, file, file_size, modtime = dofind(realPath, &try, lisdata.StaticRoot, lisdata.SymlinkPolicy)
 		if found || try.Next != "" {
 			break
 		}
 	}
 
 	if lisdata.Trys == nil {
-		found, file, file_size, modtime = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex}, nil)
+		found, file, file_size, modtime = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex},
+			lisdata.StaticRoot, lisdata.SymlinkPolicy)
 	}
 
 	if !found {
