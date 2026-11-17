@@ -120,15 +120,18 @@ PASS: TestReloadMissingFileKeepsPreviousConfig
   这个前提——若将来在解析层改成延迟解码，需要重跑这组向量。
 - **反斜杠**在 Windows 上被 `filepath.Clean` 当作分隔符，裸 `\..\..\` 会被
   正确拒绝；编码形式 `%5c` 不会，落到普通文件名分支。
-- **两个待修项**（B-05 尾点尾空格、B-08 符号链接）都涉及「配置者自己放进
-  root 的东西」或「Windows 文件系统行为」，没有明确的产品判断，先记录，
-  处理方式见 [计划里的 R-01 / R-02](../develop/plans/edge-case-hardening-plan.md)。
+- **B-08 符号链接**：已由 R-01 落地 `location.symlink_policy`，默认
+  `check-at-load`（加载时拒绝 root 下的链接），可切 `reject` / `allow`，
+  见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)。
+- **B-05 尾点尾空格**：仍待 R-02 定产品判断（显式拒绝还是规范化后重查）。
 
 ## 4.5 复跑方式
 
 ```bash
 # 静态路径
 go test ./modules/static/ -run 'TestStaticPathTraversalVectors|TestStaticSymlinkEscape' -v
+# 符号链接策略（R-01）
+go test ./config/ ./modules/static/ -run 'TestCheckAtLoadRejectsSymlink|TestSymlinkPolicy' -v
 # SNI 与通配符
 go test ./runtime/listener/ -run TestCertSet -v
 # 代理头
@@ -150,9 +153,9 @@ B-05、B-08 需要在 Windows / Linux 各跑一次，结果才有意义（`EvalS
 
 当前收集到的反馈已全部核验完毕，没有 ❓ 项。
 
-两个 ⚠️ 待修（B-05 Windows 尾点尾空格、B-08 符号链接逃逸）需要先定产品判断：
-「拒绝」还是「配置期校验」，方案见
-[edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md) 的 R-01 / R-02。
+B-08 符号链接逃逸已通过 R-01 的 `symlink_policy` 处理（默认 `check-at-load`）；
+B-05 Windows 尾点尾空格仍待 R-02 定产品判断，方案见
+[edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)。
 
 后续再收到新的问题反馈，按同样节奏处理：
 

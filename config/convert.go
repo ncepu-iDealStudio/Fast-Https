@@ -114,6 +114,7 @@ func convertPath(jl jsonPath) Path {
 		PathName:       jl.URL,
 		PathType:       parsePathType(jl.Type, jl.ProxyPass),
 		Root:           jl.Root,
+		SymlinkPolicy:  normalizeSymlinkPolicy(jl.SymlinkPolicy),
 		Index:          jl.Index,
 		Rewrite:        jl.Rewrite,
 		Trys:           jl.Try,

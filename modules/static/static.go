@@ -119,6 +119,12 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 		log.Size(50)
 		return -1
 	}
+	// symlink_policy=reject：链接指向 root 之外按未找到处理。
+	if symlinkBlocked(lisdata.SymlinkPolicy, lisdata.StaticRoot, realPath) {
+		log.Status(404)
+		log.Size(50)
+		return -1
+	}
 	// var file_data = cache.Get_data_from_cache(realPath)
 	// var file_data = []byte("cache.Get_data_from_cache(realPath)")
 

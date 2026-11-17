@@ -348,7 +348,13 @@ func validateServerWith(s *jsonServer, certBaseDir, rootBaseDir, where string, r
 			if strings.TrimSpace(loc.Root) == "" {
 				return fmt.Errorf("%s: location[%d].root is required for local type", where, i)
 			}
+			if err := validateSymlinkPolicy(loc.SymlinkPolicy, loc.Root, fmt.Sprintf("%s: location[%d]", where, i)); err != nil {
+				return err
+			}
 		case "proxy":
+			if strings.TrimSpace(loc.SymlinkPolicy) != "" {
+				return fmt.Errorf("%s: location[%d].symlink_policy only applies to local type", where, i)
+			}
 			pass := strings.TrimSpace(loc.ProxyPass)
 			if pass == "" {
 				return fmt.Errorf("%s: location[%d].proxy_pass is required for proxy type", where, i)

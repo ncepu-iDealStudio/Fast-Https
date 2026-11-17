@@ -51,7 +51,7 @@ footer{max-width:1180px;margin:0 auto;padding:16px 24px 40px;color:var(--muted);
 <main>
 <h1 id="sec-1">Fast-Https 使用文档</h1>
 <p>本文面向部署与运维人员，只讲&#34;怎么装、怎么配、怎么跑、怎么排错&#34;。开发、架构与测试相关内容在仓库 <code>docs/</code> 下的其他目录，不随发行包分发。</p>
-<blockquote><p>文档中的路径都相对于解压后的程序根目录。配置里的相对路径按<strong>进程工作目录</strong>解析，因此请始终在根目录启动程序，或改用绝对路径。</p></blockquote>
+<blockquote><p>文档中的路径都相对于解压后的程序根目录。把根目录加入 <code>PATH</code> 后可以从任意目录执行：当前目录没有 <code>config/fast-https.json</code>、而程序所在目录有时，程序会自动切到安装目录。此时命令行里传的相对路径也按安装目录解析，需要固定位置请用绝对路径。</p></blockquote>
 <h2 id="sec-2">1. 能力一览</h2>
 <table>
 <thead><tr><th>能力</th><th>说明</th><th>关键配置</th></tr></thead>
@@ -260,6 +260,7 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>url</code></td><td>匹配规则，支持正则，例如 <code>/</code>、<code>/api/</code>、<code>\.php$</code></td></tr>
 <tr><td><code>type</code></td><td><code>local</code>（静态）、<code>proxy</code>（反向代理）、<code>rewrite</code>（重定向）、<code>devmod</code>（开发模式）</td></tr>
 <tr><td><code>root</code></td><td><code>local</code> 的站点根目录</td></tr>
+<tr><td><code>symlink_policy</code></td><td><code>local</code> 站点根的符号链接策略，只对 <code>local</code> 生效。<code>check-at-load</code>（默认）：加载/重载配置时扫描 root，发现符号链接就拒绝加载；<code>reject</code>：加载放行，但请求经链接解析后落在 root 之外时返回 404（root 内部的链接仍可读）；<code>allow</code>：保持旧行为，链接照常解析</td></tr>
 <tr><td><code>index</code></td><td>默认索引文件名列表</td></tr>
 <tr><td><code>try</code></td><td><code>try_files</code> 语义：<code>[{&#34;uri&#34;: &#34;/&#34;, &#34;file&#34;: [&#34;index.html&#34;], &#34;next&#34;: &#34;@backend&#34;}]</code></td></tr>
 <tr><td><code>rewrite</code></td><td><code>type: rewrite</code> 时的目标地址</td></tr>

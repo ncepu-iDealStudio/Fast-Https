@@ -1,6 +1,6 @@
 # Fast-Https 边界加固功能需求
 
-状态：📋 **待实现**。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
+状态：🚧 **部分实现**（R-01 已完成，其余待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
 目前有没有这些问题、修没修）在 [4-edge-case-coverage.md](../../test/4-edge-case-coverage.md)。
 
 ## 需求来源
@@ -15,8 +15,10 @@
 **需求**：提供显式策略，让部署方选择——
 
 ```json
-{"static_root": "./httpdoc", "symlink_policy": "reject" | "allow" | "check-at-load"}
+{"root": "./httpdoc", "symlink_policy": "reject" | "allow" | "check-at-load"}
 ```
+
+策略写在 location 里，与 `root` 同级；只对 `type: local` 生效。
 
 | 取值 | 行为 |
 | --- | --- |
@@ -29,6 +31,11 @@
 
 **验收**：三种取值各一个用例；`reject` 在 Linux/macOS 实跑（Windows 上
 创建链接需权限，Skip）。
+
+**状态**：✅ 已实现。`symlink_policy` 转小写后校验，空值取 `check-at-load`；
+`check-at-load` 在配置校验阶段扫描 root（扫描的是 `EvalSymlinks` 后的真实目录，
+root 自身是链接不算违规）；`reject` 在静态层用 `EvalSymlinks` 比对真实路径，
+逃出 root 才 404。
 
 ## R-02 Windows 保留名与尾点尾空格的显式拒绝
 

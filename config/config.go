@@ -104,10 +104,12 @@ type Try struct {
 }
 
 type Path struct {
-	PathName       string
-	PathType       uint16
-	Zip            uint16
-	Root           string
+	PathName string
+	PathType uint16
+	Zip      uint16
+	Root     string
+	// SymlinkPolicy 控制站点根下符号链接的处理方式，见 config/symlink_policy.go。
+	SymlinkPolicy  string
 	Index          []string
 	Rewrite        string
 	Trys           []Try

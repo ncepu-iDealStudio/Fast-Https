@@ -94,6 +94,7 @@ type jsonPath struct {
 	URL            string        `json:"url"`
 	Type           string        `json:"type"`
 	Root           string        `json:"root"`
+	SymlinkPolicy  string        `json:"symlink_policy,omitempty"`
 	Index          []string      `json:"index"`
 	Rewrite        string        `json:"rewrite"`
 	ProxyPass      string        `json:"proxy_pass"`
