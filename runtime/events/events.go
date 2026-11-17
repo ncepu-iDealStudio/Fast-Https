@@ -2,6 +2,7 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"fast-https/config"
 	"fast-https/core"
@@ -13,6 +14,8 @@ import (
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
 	"net"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -171,6 +174,15 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		rr.ReqBuf = make([]byte, core.READ_BODY_BUF_LEN)
 	} else {
 		rr.Req.Flush()
+		// 响应对象同样按请求重建：静态层直接往 rr.Res.Headers 写头部，
+		// 不清会把上一请求的 Content-Encoding / Content-Range / Set-Cookie
+		// 原样带给下一个响应（keep-alive 下表现为「正文与编码对不上」）。
+		rr.Res = response.ResponseInit()
+		rr.OriginPath = ""
+		rr.PathLocation = nil
+		rr.ProxyConnInit = false
+		rr.CircleData = nil
+		ev.Upgrade = ""
 	}
 
 	// 读缓冲从池里取：byte_row 可能别名这段缓冲，但 parseRequest
@@ -185,17 +197,27 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		return 0
 	}
 
-	// 头可能分多次到达：读完整或判非法为止，超过头长度上限按 400 拒绝
+	// 头可能分多次到达：读完整或判非法为止。
 	for {
 		parse := rr.Req.ParseHeader(byte_row)
 		if parse == request.RequestOk {
+			// 头部完整也要检查大小：整段头一次到齐时不会走下面的
+			// NeedReadMore 分支，漏掉检查就等于 max_header_size 失效。
+			if headerLen(byte_row) > maxHeaderSize() {
+				rejectHeaderTooLarge(ev)
+				return 0
+			}
 			break
 		}
-		if parse != request.RequestNeedReadMore || len(byte_row) > maxHeaderSize() {
+		if parse != request.RequestNeedReadMore {
 			// 畸形请求拒绝处理，不能带着空/半截头走进后续管线
 			ev.RR.Res = response.DefaultBadRequest()
 			ev.WriteResponseClose(nil)
 			metrics.NoteParseError()
+			return 0
+		}
+		if len(byte_row) > maxHeaderSize() {
+			rejectHeaderTooLarge(ev)
 			return 0
 		}
 		ev.Conn.SetReadDeadline(time.Now().Add(time.Second * 30))
@@ -213,6 +235,23 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 
 	// parse host
 	rr.Req.ParseHost(ev.LisInfo)
+
+	// Expect: 100-continue：客户端在收到 100 之前不会发正文，必须在读 body
+	// 前先回中间响应。声明的 Content-Length 已超限时直接 413、不发 100，
+	// 让客户端在上传前就知道会被拒绝。
+	if expectsContinue(rr.Req) {
+		// 期望已在本机满足：转发给上游时去掉，避免上游再回一个 100，
+		// 被代理当成最终响应透传给客户端。
+		rr.Req.DelHeader("Expect")
+		if n := declaredBodyLen(rr.Req); n > 0 && maxBodySize() > 0 && n > maxBodySize() {
+			rejectTooLargeBody(ev)
+			return 0
+		}
+		if !writeContinue(ev) {
+			metrics.NoteAborted()
+			return 0
+		}
+	}
 
 	if err := rr.Req.ParseBody(byte_row); err != nil {
 		logging.ConsoleLog.Debug().Msgf("%s", color.Red(err.Error()))
@@ -250,14 +289,8 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 	}
 	// 超过 max_body_size 必须回 413 再关闭，不能静默断连：客户端只看到连接
 	// 被重置时，分不清「服务端拒绝」和「网络故障」。
-	rejectTooLarge := func() {
-		logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
-		ev.RR.Res = response.DefaultPayloadTooLarge()
-		ev.WriteResponseClose(nil)
-		metrics.NoteAborted()
-	}
 	if tooLarge() {
-		rejectTooLarge()
+		rejectTooLargeBody(ev)
 		return 0
 	}
 
@@ -276,7 +309,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			byte_row = append(byte_row, rr.ReqBuf[:datasize]...)
 			rr.Req.TryFixBody(rr.ReqBuf[:datasize])
 			if tooLarge() {
-				rejectTooLarge()
+				rejectTooLargeBody(ev)
 				return 0
 			}
 		}
@@ -297,6 +330,59 @@ func maxHeaderSize() int {
 		return config.Current().Limit.MaxHeaderSize
 	}
 	return config.DEFAULT_MAX_HEADER_SIZE
+}
+
+// headerLen 返回头部段长度（含终止空行）；头还没读完时返回已读字节数。
+func headerLen(b []byte) int {
+	if i := bytes.Index(b, []byte("\r\n\r\n")); i >= 0 {
+		return i + 4
+	}
+	return len(b)
+}
+
+// rejectHeaderTooLarge 回 431：请求头超过 max_header_size。
+func rejectHeaderTooLarge(ev *core.Event) {
+	logging.ConsoleLog.Debug().Msgf("%s", color.Red("request header too large"))
+	ev.RR.Res = response.DefaultRequestHeaderFieldsTooLarge()
+	ev.WriteResponseClose(nil)
+	metrics.NoteParseError()
+}
+
+// rejectTooLargeBody 回 413 并关闭连接：请求体超过 max_body_size。
+func rejectTooLargeBody(ev *core.Event) {
+	logging.ConsoleLog.Debug().Msgf("%s", color.Red("read body too big"))
+	ev.RR.Res = response.DefaultPayloadTooLarge()
+	ev.WriteResponseClose(nil)
+	metrics.NoteAborted()
+}
+
+// expectsContinue 报告客户端是否在等 100 Continue。只对 HTTP/1.1 生效：
+// RFC 7231 §5.1.1 要求忽略 HTTP/1.0 请求里的这个期望。
+func expectsContinue(r *request.Request) bool {
+	if r == nil || r.Protocol != "HTTP/1.1" {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(r.HeaderFold("Expect")), "100-continue")
+}
+
+// declaredBodyLen 返回 Content-Length 声明的长度；chunked 或无长度时返回 -1。
+func declaredBodyLen(r *request.Request) int {
+	v := strings.TrimSpace(r.GetHeader("Content-Length"))
+	if v == "" {
+		return -1
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
+// writeContinue 直接写 1xx 中间响应。它不是最终响应，不经过 Res，也不写访问日志。
+func writeContinue(ev *core.Event) bool {
+	ev.Conn.SetWriteDeadline(time.Now().Add(time.Second * 30))
+	_, err := ev.Conn.Write([]byte("HTTP/1.1 100 Continue\r\n\r\n"))
+	return err == nil
 }
 
 func EventWrite(ev *core.Event, _data []byte) error {

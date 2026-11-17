@@ -28,7 +28,7 @@
 | N-01 | 逗号分隔的头字段（`Connection: keep-alive, upgrade`）被当成整体做精确匹配，导致 `keep-alive` 识别不到 | ✅ 无此问题 | `Request.IsKeepalive` 的既有实现 | 已按 `,` 拆分并逐 token `TrimSpace`，`close` 优先于 `keep-alive`；顺带说明 `request.QValue` 也是同一套拆分逻辑 |
 | N-02 | 上游返回空 body 且不带 `Content-Length` / `Transfer-Encoding` 时，连接被永久占用或误判为可复用 | ✅ 保守正确 | `ReadKeepAlive.tryToParse` 的三分支 | 无 framing 信息时归为「读到连接关闭」（返回 −4），会放弃复用而不是挂着等；代价是这类上游连接不复用，属性能取舍，见 R-12 |
 | N-03 | 超大请求体的处理：要么静默断连，要么在「一次性发完」的路径上完全绕过限额 | ⚠️ **存在缺陷，已修** | `TestParseRequestBodyTooLargeReturns413` | 见 5.3，本轮发现两处叠加问题 |
-| N-04 | header 超过 `max_header_size` 时的状态码 | ⚠️ 存在待修（合规但不精确） | `events.go` 的 `len(byte_row) > maxHeaderSize()` 分支 | 当前回 **400**。RFC 7231 §6.5.11 为这种情况定义了 **431**，用 400 不违规（原文是 MAY），但客户端无法区分「语法错误」与「字段过大」。见 R-11 |
+| N-04 | header 超过 `max_header_size` 时的状态码 | ✅ 已修复 | `TestHeaderTooLargeReturns431` | 改为 **431 Request Header Fields Too Large**；整段头一次到齐与分片到达两条路径都判定，畸形头仍回 400。见 R-08 / R-11 |
 | N-05 | 客户端声明「接受任意编码」却拿到未压缩响应 | 🔧 已修复（上一轮） | `TestEncodingWantedVectors`、B-17 | 见 [edge-case-coverage.md](edge-case-coverage.md) 的 B-17 |
 
 ## 5.3 N-03：两处叠加的缺陷

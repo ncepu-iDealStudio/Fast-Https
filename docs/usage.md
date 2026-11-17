@@ -274,6 +274,13 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `blaklist` | IP 黑名单（键名是历史拼写，保持兼容） |
 | `log_format` | 访问日志字段顺序，见第 9 节 |
 
+`servers_limit` 的两个大小上限：
+
+| 键 | 默认 | 超限行为 |
+| --- | --- | --- |
+| `max_header_size` | 4096 | 431 Request Header Fields Too Large，关闭连接 |
+| `max_body_size` | 524288 | 413 Payload Too Large，关闭连接 |
+
 ### 5.3 `server` 段
 
 | 键 | 说明 |

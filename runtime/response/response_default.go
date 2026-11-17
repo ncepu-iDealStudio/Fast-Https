@@ -90,6 +90,24 @@ func DefaultPayloadTooLarge() *Response {
 	return res
 }
 
+// DefaultRequestHeaderFieldsTooLarge 是 431：请求头超过 max_header_size。
+//
+// 与 400 区分开：客户端据此知道该精简 Cookie / 头字段，而不是怀疑
+// 请求语法写错了（RFC 7231 §6.5.11）。
+func DefaultRequestHeaderFieldsTooLarge() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(431, "REQUESTHEADERFIELDSTOOLARGE")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", CachedDate())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("431 Request Header Fields Too Large",
+		"The request header section exceeds the size limit configured by the server."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
 func DefaultNotFound() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(404, "NOTFOUND")

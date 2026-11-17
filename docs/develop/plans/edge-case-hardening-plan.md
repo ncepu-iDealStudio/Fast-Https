@@ -1,6 +1,6 @@
 # Fast-Https 边界加固功能需求
 
-状态：🚧 **部分实现**（R-01 ~ R-07 已完成，R-08 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
+状态：🚧 **部分实现**（R-01 ~ R-08 已完成，R-11、R-13 随 R-08 一并落地；R-09 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
 目前有没有这些问题、修没修）在 [edge-case-coverage.md](../../test/reports/edge-case-coverage.md)。
 
 ## 需求来源
@@ -195,9 +195,23 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 - `Expect: 100-continue`：先回 `100`，再读 body
 - keep-alive 复用连接时，请求间不残留状态（cookie、认证、缓存键）
 - header 超限 → 431；body 超限 → 413；两者都不 panic
-- 提供 `max_header_bytes`、`max_body_bytes` 配置项
+- 配置项沿用既有的 `max_header_size`、`max_body_size`
 
 **验收**：`runtime/listener` 新增一组，`-race` 下跑。
+
+**状态**：✅ 已实现，用例放在 `runtime/events/connection_limits_test.go`（解析逻辑所在包），
+`go test -race ./runtime/events` 通过。
+
+- `Expect: 100-continue`：HTTP/1.1 请求在读正文前先写 `100 Continue`；声明的
+  Content-Length 已超限时不发 100，直接 413；HTTP/1.0 按 RFC 忽略该期望。
+- keep-alive 复用：请求侧 `Request.Flush` 清 Headers/Query/Body，响应侧重建
+  `Response`，并复位 `OriginPath` / `PathLocation` / `Upgrade` / `ProxyConnInit` /
+  `CircleData`。静态层直接往 `rr.Res.Headers` 写头，不重建会把上一响应的
+  `Content-Encoding`、`Set-Cookie` 带给下一个响应。
+- header 超限回 431：既覆盖「整段头一次到齐」（按 `\r\n\r\n` 计算头段长度），
+  也覆盖「分片到达」（累计字节超限）；畸形头仍回 400。body 超限回 413。
+- 配置沿用既有 `http.servers_limit.max_header_size` / `max_body_size`，默认
+  4096 / 524288 字节。
 
 ## R-09 reload 的原子性与可见性
 
@@ -243,6 +257,10 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 **验收**：构造超长 header，断言状态行是 431；`max_header_size` 配置项在
 `docs/usage.md` 的限额表里补一行。
 
+**状态**：✅ 已实现（随 R-08）。新增 `DefaultRequestHeaderFieldsTooLarge`，
+`events.parseRequest` 在头完整与分片两条路径上都按 `headerLen` 判 431；
+`docs/usage.md` 5.2 已补 `max_header_size` / `max_body_size` 限额表。
+
 ## R-12 空 body 上游响应的连接复用
 
 **现状**：上游响应既没有 `Content-Length` 也没有 `Transfer-Encoding: chunked`
@@ -270,6 +288,9 @@ chunked 上传仍按累计长度在读取过程中拒绝。
 
 **验收**：`Expect: 100-continue` + 声明长度超限时，响应里不出现 `100 Continue`，
 只有 413。
+
+**状态**：✅ 已实现（随 R-08）。`TestExpectContinueOversizedDeclaredBodyGets413`
+断言响应只有 413、没有 100 Continue。
 
 ## 优先级
 

@@ -29,7 +29,7 @@
 | **请求行前空行** | `\r\n\r\nGET / ...` | 跳过后正常解析（RFC 7230 §3.5） | ✅(本轮) corpus_test |
 | **冒号前空白** | `"Name : value"` | InvalidHeaders（RFC 7230 §3.2.4 MUST） | ✅(本轮) corpus_test |
 | obs-fold 折行残迹 | `"Name\r\n: value"` / 行首空格头行 | InvalidHeaders | ✅(本轮) corpus_test |
-| 超长头 | > max_header_size | 400，连接关闭 | 📋 |
+| 超长头 | > max_header_size | 431，连接关闭 | ✅(本轮) connection_limits_test |
 
 ## 1.2 请求体（chunked / multipart / CL）
 

@@ -272,6 +272,14 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>log_format</code></td><td>访问日志字段顺序，见第 9 节</td></tr>
 </tbody>
 </table>
+<p><code>servers_limit</code> 的两个大小上限：</p>
+<table>
+<thead><tr><th>键</th><th>默认</th><th>超限行为</th></tr></thead>
+<tbody>
+<tr><td><code>max_header_size</code></td><td>4096</td><td>431 Request Header Fields Too Large，关闭连接</td></tr>
+<tr><td><code>max_body_size</code></td><td>524288</td><td>413 Payload Too Large，关闭连接</td></tr>
+</tbody>
+</table>
 <h3 id="sec-17">5.3 <code>server</code> 段</h3>
 <table>
 <thead><tr><th>键</th><th>说明</th></tr></thead>

@@ -34,7 +34,7 @@
 | B-12 | hop-by-hop 头（`Connection`、`TE`、`Proxy-Authorization`）被原样转发给上游 | 🔧 已修复 | `TestHopByHopHeaderCases`、`hop-by-hop-headers.json` | R-06：转发前剥离固定清单与 `Connection` 点名的扩展头；客户端要求关闭时给上游补 `Connection: close`，websocket 升级重建 `Connection: Upgrade` / `Upgrade` |
 | B-13 | `Accept-Encoding: gzip;q=0` 仍被压缩 | ✅ 无此问题 | `TestEncodingWantedVectors`（27 条向量）、`TestStaticQZeroIsNotCompressed` | `request.QValue` 解析 q 值，q=0 判为拒绝；端到端确认响应不带 `Content-Encoding` |
 | B-14 | 上游已带 `Content-Encoding` 时被二次压缩 | ✅ 无此问题 | `TestProxyCompressResponse` 的「上游已压缩不二次压缩」 | 代理压缩前检查 `Content-Encoding`，已有编码时原样透传；静态层不存在上游响应 |
-| B-15 | keep-alive 复用连接时，请求间状态泄漏 | ✅ 无此问题 | `TestKeepAliveRequestIsFullyReset`、`TestFlushClearsAuxiliaryFields` | `Request.Flush` 清 Header/Query/Body；本轮补齐 `Encoding` / `HeaderLen` / `BodyLen` 三个此前未清的辅助字段 |
+| B-15 | keep-alive 复用连接时，请求间状态泄漏 | ✅ 无此问题 | `TestKeepAliveRequestIsFullyReset`、`TestFlushClearsAuxiliaryFields`、`TestKeepAliveResetsRequestAndResponse` | 请求侧 `Request.Flush` 清 Header/Query/Body；R-08 补上响应侧：重建 `Response` 并复位 `OriginPath`/`PathLocation`/`Upgrade`，上一响应的 `Content-Encoding`/`Set-Cookie` 不再串到下一个响应 |
 | B-16 | reload 失败后旧配置失效，服务处于半死状态 | ✅ 无此问题 | `TestReloadInvalidKeepsPreviousConfig`、`TestReloadMissingFileKeepsPreviousConfig`；`management/txn` 的 `TestApplyValidationFails`、`TestApplyReloadFailsRollsBack`、`TestApplyCrashBetweenPhases` | `ReloadFile` 先校验再解析最后 `Store`，任一步失败都不触碰 `Current()` |
 | B-17 | `Accept-Encoding: *` 不生效，客户端声明接受任意编码却拿到未压缩响应 | 🔧 已修复 | `TestEncodingWantedVectors`（3 条通配符向量） | 原先只做显式 token 匹配；本轮 `encodingWanted` 增加回落：未显式声明的编码按 `*` 的 q 值决定，显式 `q=0` 仍优先于 `*` |
 | B-18 | 压缩后 `Content-Length` 仍是原文件大小，客户端按错误的长度读正文 | 🔧 已修复 | `TestAcceptEncodingCases` 的 `length-rewritten` | R-07：压缩后 `Content-Length` 改用 `int64(len(payload))`；用例逐字节核对声明长度与实际正文 |
