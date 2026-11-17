@@ -97,7 +97,7 @@ go run ./tools/docgen
 - 安装/卸载脚本在 `build/packaging/linux/`：安装后 `systemctl daemon-reload` 并打印启动提示，不自动 `enable`（容器与 CI 里没有 systemd）；卸载分两档——`remove` 保留配置与证书，`purge` 清掉 `/etc/fast-https` 下的证书、`conf.d` 与 `/var/log/fast-https`，升级两档都不触发
 - 装完执行 `systemctl enable --now fast-https` 即可常驻；`Type=simple` 配合 `FASTHTTPS_FOREGROUND=1`，服务不会自行转后台
 
-`/var/log/fast-https` 在包里用 `type: dir` 声明（配 `.keep` 占位），`/run/fast-https` 不写进包——rpm 不接受包内 `/run` 内容，改由 systemd 的 `RuntimeDirectory=` 与 postinstall 脚本创建，程序写 pid 前也会自建父目录。细节与后续阶段见 [plans/fhs-layout-plan.md](plans/fhs-layout-plan.md)。
+`/var/log/fast-https` 在包里用 `type: dir` 声明（配 `.keep` 占位），`/run/fast-https` 不写进包——rpm 不接受包内 `/run` 内容，改由 systemd 的 `RuntimeDirectory=` 与 postinstall 脚本创建，程序写 pid 前也会自建父目录。细节与后续阶段见 [archive/fhs-layout-plan.md](archive/fhs-layout-plan.md)。
 
 tar.gz 归档与 Windows 包布局不受影响，始终相对工作目录（`./config`、`./logs`、`./httpdoc`），由 `!rpm` 构建的基址常量保证。Docker 镜像（`build/docker/alpine.Dockerfile`）自这次迁移后也带 `-tags=rpm`，按 FHS 落位，与 deb/rpm/apk 一致。两种布局由同一个二进制通过 build tag 区分，不做运行时判断。
 

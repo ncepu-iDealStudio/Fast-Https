@@ -1,6 +1,6 @@
 # Fast-Https 运行期目录布局改造计划（FHS 分离布局）
 
-修订日期：2026-10-29，实施日期 2026-11-05。状态：**阶段 0、1 已实施**；阶段 2 的迁移脚本已写进 postinstall，尚未在真实 deb/rpm 升级上验证；阶段 3（专用用户与 sandbox）未启动。
+修订日期：2026-10-29，实施日期 2026-11-05。状态：**已归档** —— 阶段 0、1 已实施并随 deb/rpm/apk 发布；阶段 2 的迁移脚本已写进 postinstall，升级实测见 [distro-packages.md](../../test/verification/distro-packages.md)；阶段 3（专用用户与 sandbox）未启动，后续如要做另起计划。本文只作历史记录，不再更新。
 
 两阶段的落地方式：
 
