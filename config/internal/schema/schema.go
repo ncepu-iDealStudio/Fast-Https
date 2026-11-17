@@ -107,22 +107,22 @@ func ListenPort(listen string) int {
 }
 
 type Path struct {
-	URL            string         `json:"url"`
-	Type           string         `json:"type"`
-	Root           string         `json:"root"`
-	SymlinkPolicy  string         `json:"symlink_policy,omitempty"`
-	Index          []string       `json:"index"`
-	Rewrite        string         `json:"rewrite"`
-	ProxyPass      string         `json:"proxy_pass"`
-	ProxySetHeader []model.Header `json:"proxy_set_header"`
-	AppFireWall    []string       `json:"appfirewall"`
+	URL            string          `json:"url"`
+	Type           string          `json:"type"`
+	Root           string          `json:"root"`
+	SymlinkPolicy  string          `json:"symlink_policy,omitempty"`
+	Index          []string        `json:"index"`
+	Rewrite        string          `json:"rewrite"`
+	ProxyPass      string          `json:"proxy_pass"`
+	ProxySetHeader []model.Header  `json:"proxy_set_header"`
+	AppFireWall    []string        `json:"appfirewall"`
 	ProxyCache     model.Cache     `json:"proxy_cache"`
 	Limit          model.PathLimit `json:"limit"`
 	Auth           model.PathAuth  `json:"auth"`
 	ErrorPage      ErrorPage       `json:"error_page"`
-	Zip            []string    `json:"zip"`
-	Try            []model.Try `json:"try"`
-	AllowMethods   []string    `json:"allow_methods"`
+	Zip            []string        `json:"zip"`
+	Try            []model.Try     `json:"try"`
+	AllowMethods   []string        `json:"allow_methods"`
 }
 
 type ErrorPage struct {
@@ -147,20 +147,33 @@ type Engine struct {
 }
 
 type HTTP struct {
-	Include     []string        `json:"include"`
-	DefaultType string          `json:"default_type"`
+	Include     []string          `json:"include"`
+	DefaultType string            `json:"default_type"`
 	Limit       model.ServerLimit `json:"servers_limit"`
-	BlackList   []string        `json:"blaklist"` // 历史拼写，配置兼容
-	LogFormat   []string        `json:"log_format"`
-	Servers     []Server        `json:"server"`
+	BlackList   []string          `json:"blaklist"` // 历史拼写，配置兼容
+	LogFormat   []string          `json:"log_format"`
+	Servers     []Server          `json:"server"`
 }
 
 type Config struct {
-	Pid      string                 `json:"pid"`
-	LogRoot  string                 `json:"log_root"`
-	Engine   Engine                 `json:"engine"`
-	WAF      *model.WAFConfig       `json:"waf"`
-	Acme     *model.AcmeConfig      `json:"acme"`
-	Security *model.SecurityConfig  `json:"security"`
-	HTTP     HTTP                   `json:"http"`
+	Pid      string                `json:"pid"`
+	LogRoot  string                `json:"log_root"`
+	Engine   Engine                `json:"engine"`
+	WAF      *model.WAFConfig      `json:"waf"`
+	Acme     *model.AcmeConfig     `json:"acme"`
+	Security *model.SecurityConfig `json:"security"`
+	TLS      TLS                   `json:"tls"`
+	HTTP     HTTP                  `json:"http"`
+}
+
+// TLS 是全局 TLS 段。default_certificate 只在 SNI 未命中任何站点证书时
+// 兜底，不改变按域名选证书的行为。
+type TLS struct {
+	DefaultCertificate Certificate `json:"default_certificate"`
+}
+
+// Certificate 是一对证书文件路径。
+type Certificate struct {
+	Certificate string `json:"certificate"`
+	Key         string `json:"key"`
 }

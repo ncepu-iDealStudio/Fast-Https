@@ -26,6 +26,8 @@ type (
 	ACMECA          = model.ACMECA
 	SecurityConfig  = model.SecurityConfig
 	SecurityHeaders = model.SecurityHeaders
+	TLSConfig       = model.TLSConfig
+	Certificate     = model.Certificate
 
 	SiteLocation = sitefile.SiteLocation
 	SiteInput    = sitefile.SiteInput

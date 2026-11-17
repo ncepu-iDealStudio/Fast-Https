@@ -171,6 +171,25 @@ type Fast_Https struct {
 	Waf          *WAFConfig
 	Acme         *AcmeConfig
 	Security     *SecurityConfig
+	TLS          TLSConfig
+}
+
+// TLSConfig 是全局 TLS 段。DefaultCertificate 只在 SNI 未命中任何站点
+// 证书时兜底；未配置时沿用历史行为（回落证书列表第一张）。
+type TLSConfig struct {
+	DefaultCertificate Certificate `json:"default_certificate"`
+}
+
+// Certificate 是一对证书文件路径。
+type Certificate struct {
+	Certificate string `json:"certificate"`
+	Key         string `json:"key"`
+}
+
+// HasDefaultCertificate 报告是否配置了兜底证书。
+func (t TLSConfig) HasDefaultCertificate() bool {
+	return strings.TrimSpace(t.DefaultCertificate.Certificate) != "" &&
+		strings.TrimSpace(t.DefaultCertificate.Key) != ""
 }
 
 // Path 的符号链接策略取值。默认 check-at-load：加载/重载时站点根下出现

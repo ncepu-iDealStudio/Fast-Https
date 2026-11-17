@@ -77,6 +77,14 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 **验收**：配置了默认证书时，未知 SNI 返回该证书；未配置时回落第一张且日志
 可查。
 
+**状态**：✅ 已实现。新增顶层 `tls.default_certificate`（`certificate` +
+`key` 一对路径，相对路径按配置目录解析），校验阶段要求成对且文件存在。
+`certSet` 增加 `defaultCert`，未知 SNI（含空 SNI）优先返回它，命中的域名
+行为不变；未配置时仍回落第一张，并输出
+`reject_reason=unknown_sni`、`sni=<name>` 的 Warn 日志。配置了兜底证书后
+不再告警（属于预期流量）。`reload` 会重新加载兜底证书；读取失败只告警并
+回落到第一张，不会让 TLS 端口起不来。
+
 ## R-04 通配符证书的匹配规则
 
 **现状**：前两条**实现已正确**（走标准库 `VerifyHostname`，已由

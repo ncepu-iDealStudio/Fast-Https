@@ -16,6 +16,8 @@ import (
 // still open the files that were configured.
 func ResolveRuntimePaths(cfg *model.Fast_Https) {
 	cfg.LogRoot = LogPath(cfg.LogRoot)
+	cfg.TLS.DefaultCertificate.Certificate = ETCPath(cfg.TLS.DefaultCertificate.Certificate)
+	cfg.TLS.DefaultCertificate.Key = ETCPath(cfg.TLS.DefaultCertificate.Key)
 	for i := range cfg.Include {
 		cfg.Include[i] = ETCPath(cfg.Include[i])
 	}

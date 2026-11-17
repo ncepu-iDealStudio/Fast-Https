@@ -99,6 +99,10 @@ func processRoot(configPath string) (model.Fast_Https, error) {
 	cfg.Waf = jc.WAF
 	cfg.Acme = jc.Acme
 	cfg.Security = jc.Security
+	cfg.TLS = model.TLSConfig{DefaultCertificate: model.Certificate{
+		Certificate: jc.TLS.DefaultCertificate.Certificate,
+		Key:         jc.TLS.DefaultCertificate.Key,
+	}}
 	if err := processHttp(&cfg, jc.HTTP); err != nil {
 		return cfg, err
 	}

@@ -1,15 +1,25 @@
 package listener
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"math/big"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"fast-https/config"
+	"fast-https/infra/logging"
+
+	"github.com/rs/zerolog"
 )
 
 // selfSignedFor 生成一张只含指定 DNS 名的自签证书，用来驱动 SNI 选择。
@@ -70,6 +80,109 @@ func TestCertSetUnknownSNIFallsBack(t *testing.T) {
 	// 空 SNI（IP 直连）走同一条回落路径
 	if got := chosenCN(t, set, ""); got != "first.example" {
 		t.Fatalf("空 SNI 应回落到第一张证书，得到 %q", got)
+	}
+}
+
+// TestCertSetUsesDefaultCertificate 配置 tls.default_certificate 后，未知
+// SNI（含空 SNI）拿到兜底证书；能匹配的域名仍按原规则选择。
+func TestCertSetUsesDefaultCertificate(t *testing.T) {
+	def := selfSignedFor(t, "default.example")
+	set := &certSet{
+		certs: []tls.Certificate{
+			selfSignedFor(t, "first.example"),
+			selfSignedFor(t, "second.example"),
+		},
+		defaultCert: &def,
+	}
+
+	if got := chosenCN(t, set, "nowhere.test"); got != "default.example" {
+		t.Fatalf("未知 SNI 应使用兜底证书，得到 %q", got)
+	}
+	if got := chosenCN(t, set, ""); got != "default.example" {
+		t.Fatalf("空 SNI 应使用兜底证书，得到 %q", got)
+	}
+	if got := chosenCN(t, set, "second.example"); got != "second.example" {
+		t.Fatalf("命中的域名不应被兜底证书覆盖，得到 %q", got)
+	}
+}
+
+// TestCertSetUnknownSNILogsFallback 未配置兜底证书时回落第一张，并留下
+// 可检索的 reject_reason=unknown_sni 日志（R-10 的字段约定）。
+func TestCertSetUnknownSNILogsFallback(t *testing.T) {
+	var buf bytes.Buffer
+	previous := logging.ConsoleLog
+	logging.ConsoleLog = zerolog.New(&buf)
+	t.Cleanup(func() { logging.ConsoleLog = previous })
+
+	set := &certSet{certs: []tls.Certificate{selfSignedFor(t, "first.example")}}
+	if got := chosenCN(t, set, "nowhere.test"); got != "first.example" {
+		t.Fatalf("未知 SNI 应回落到第一张，得到 %q", got)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, `"reject_reason":"unknown_sni"`) {
+		t.Fatalf("日志缺少 reject_reason：%s", out)
+	}
+	if !strings.Contains(out, `"sni":"nowhere.test"`) {
+		t.Fatalf("日志缺少 sni：%s", out)
+	}
+}
+
+// TestCertSetDefaultCertificateSkipsLog 配置了兜底证书时属于预期行为，
+// 不再输出未知 SNI 告警，避免正常流量刷日志。
+func TestCertSetDefaultCertificateSkipsLog(t *testing.T) {
+	var buf bytes.Buffer
+	previous := logging.ConsoleLog
+	logging.ConsoleLog = zerolog.New(&buf)
+	t.Cleanup(func() { logging.ConsoleLog = previous })
+
+	def := selfSignedFor(t, "default.example")
+	set := &certSet{
+		certs:       []tls.Certificate{selfSignedFor(t, "first.example")},
+		defaultCert: &def,
+	}
+	chosenCN(t, set, "nowhere.test")
+	if buf.Len() != 0 {
+		t.Fatalf("配置兜底证书后不应告警：%s", buf.String())
+	}
+}
+
+// TestLoadDefaultCertificateFromConfig 覆盖配置到运行期的接线：
+// config.Current().TLS 指向真实 PEM 时能加载出兜底证书。
+func TestLoadDefaultCertificateFromConfig(t *testing.T) {
+	cert := selfSignedFor(t, "default.example")
+	derKey, err := x509.MarshalECPrivateKey(cert.PrivateKey.(*ecdsa.PrivateKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	certPath := filepath.Join(dir, "default.pem")
+	keyPath := filepath.Join(dir, "default-key.pem")
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Certificate[0]})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: derKey})
+	if err := os.WriteFile(certPath, certPEM, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(keyPath, keyPEM, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	previous := *config.Current()
+	config.Store(&config.Fast_Https{TLS: config.TLSConfig{
+		DefaultCertificate: config.Certificate{Certificate: certPath, Key: keyPath},
+	}}, config.MIME())
+	t.Cleanup(func() { config.Store(&previous, config.MIME()) })
+
+	loaded := loadDefaultCertificate()
+	if loaded == nil {
+		t.Fatal("配置了 tls.default_certificate 时应加载出证书")
+	}
+	leaf, err := x509.ParseCertificate(loaded.Certificate[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if leaf.Subject.CommonName != "default.example" {
+		t.Fatalf("加载到错误的证书：%q", leaf.Subject.CommonName)
 	}
 }
 

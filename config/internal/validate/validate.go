@@ -119,6 +119,9 @@ func validateConfigAt(configPath string, opts validateOpts) ([]string, error) {
 	if err := model.ValidateSecurity(root.Security); err != nil {
 		return nil, err
 	}
+	if err := validateDefaultCertificate(root.TLS, baseDir, opts); err != nil {
+		return nil, err
+	}
 
 	serverCount := len(root.HTTP.Servers)
 	for i := range root.HTTP.Servers {
@@ -225,6 +228,27 @@ func disabledSiteFiles(includes []string, opts validateOpts) []string {
 		})
 	}
 	return out
+}
+
+// validateDefaultCertificate 校验 tls.default_certificate：要么不配，要么
+// 证书与私钥成对出现且文件存在。它不参与 CertInit 自动生成，所以缺失
+// 文件是硬错误，不像站点证书那样可能是首次启动前的占位。
+func validateDefaultCertificate(tls schema.TLS, baseDir string, opts validateOpts) error {
+	cert := strings.TrimSpace(tls.DefaultCertificate.Certificate)
+	key := strings.TrimSpace(tls.DefaultCertificate.Key)
+	if cert == "" && key == "" {
+		return nil
+	}
+	if cert == "" || key == "" {
+		return errors.New("tls.default_certificate: certificate and key must be set together")
+	}
+	if !pathExistsWith(cert, baseDir, baseDir, opts) {
+		return fmt.Errorf("tls.default_certificate.certificate not found: %s", cert)
+	}
+	if !pathExistsWith(key, baseDir, baseDir, opts) {
+		return fmt.Errorf("tls.default_certificate.key not found: %s", key)
+	}
+	return nil
 }
 
 // validateServer 校验一个 server 块（主配置数组元素或 include 文件）。

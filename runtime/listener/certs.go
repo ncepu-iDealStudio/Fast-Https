@@ -6,6 +6,9 @@ import (
 	"errors"
 	"slices"
 	"sync"
+
+	"fast-https/config"
+	"fast-https/infra/logging"
 )
 
 // certSet is the certificate list served by an already-open TLS listener.
@@ -13,6 +16,8 @@ import (
 type certSet struct {
 	mu    sync.RWMutex
 	certs []tls.Certificate
+	// defaultCert 是 tls.default_certificate 指定的兜底证书，未配置为 nil。
+	defaultCert *tls.Certificate
 }
 
 func newCertSet() *certSet {
@@ -39,14 +44,32 @@ func (c *certSet) get(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	if hello != nil {
 		name = hello.ServerName
 	}
-	for i := range c.certs {
-		if name != "" && certMatches(c.certs[i], name) {
-			chosen := c.certs[i]
-			return &chosen, nil
+	if name != "" {
+		for i := range c.certs {
+			if certMatches(c.certs[i], name) {
+				chosen := c.certs[i]
+				return &chosen, nil
+			}
 		}
 	}
+	// 未知 SNI（含空 SNI）优先用显式兜底证书，保持握手指向运维指定的证书。
+	if c.defaultCert != nil {
+		chosen := *c.defaultCert
+		return &chosen, nil
+	}
+	logUnknownSNI(name)
 	chosen := c.certs[0]
 	return &chosen, nil
+}
+
+// logUnknownSNI 记录一次未知 SNI 回落。字段与统一拒绝日志对齐
+// （reject_reason=unknown_sni），便于按字段检索。
+func logUnknownSNI(sni string) {
+	logging.ConsoleLog.Warn().
+		Str("reject_reason", "unknown_sni").
+		Str("sni", sni).
+		Msg("unknown TLS SNI: falling back to the first certificate " +
+			"(set tls.default_certificate to choose an explicit fallback)")
 }
 
 func (c *certSet) replace(cfgs []ListenCfg) error {
@@ -54,10 +77,30 @@ func (c *certSet) replace(cfgs []ListenCfg) error {
 	if err != nil {
 		return err
 	}
+	def := loadDefaultCertificate()
 	c.mu.Lock()
 	c.certs = loaded
+	c.defaultCert = def
 	c.mu.Unlock()
 	return nil
+}
+
+// loadDefaultCertificate 读取 tls.default_certificate。未配置返回 nil；
+// 读取失败只告警——握手仍要能回落到第一张证书，不能因为兜底证书坏了
+// 就让所有 TLS 端口起不来。配置校验阶段已经检查过文件存在。
+func loadDefaultCertificate() *tls.Certificate {
+	cfg := config.Current().TLS
+	if !cfg.HasDefaultCertificate() {
+		return nil
+	}
+	cert, err := tls.LoadX509KeyPair(cfg.DefaultCertificate.Certificate, cfg.DefaultCertificate.Key)
+	if err != nil {
+		logging.ConsoleLog.Warn().Err(err).
+			Str("certificate", cfg.DefaultCertificate.Certificate).
+			Msg("load tls.default_certificate failed, falling back to the first certificate")
+		return nil
+	}
+	return &cert
 }
 
 func loadCerts(cfgs []ListenCfg) ([]tls.Certificate, error) {

@@ -715,3 +715,52 @@ func TestTreeValidateAcceptsRuntimeCert(t *testing.T) {
 		t.Fatalf("绝对路径证书应通过：%v", err)
 	}
 }
+
+// TestValidateDefaultCertificate 校验 tls.default_certificate：要么不配，
+// 要么证书/私钥成对且文件存在。
+func TestValidateDefaultCertificate(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"default.pem", "default-key.pem"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeConfig := func(t *testing.T, tlsBody string) string {
+		t.Helper()
+		body := `{"tls": ` + tlsBody + `,
+  "http": {"server": [{"listen": 8080, "server_name": "tls.local",
+    "location": [{"url": "/", "type": "local", "root": "."}]}]}}`
+		path := filepath.Join(dir, "fast-https.json")
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	cases := []struct {
+		name string
+		tls  string
+		want string
+	}{
+		{name: "未配置", tls: `{}`},
+		{name: "成对存在", tls: `{"default_certificate": {"certificate": "default.pem", "key": "default-key.pem"}}`},
+		{name: "只写证书", tls: `{"default_certificate": {"certificate": "default.pem"}}`, want: "set together"},
+		{name: "只写私钥", tls: `{"default_certificate": {"key": "default-key.pem"}}`, want: "set together"},
+		{name: "证书不存在", tls: `{"default_certificate": {"certificate": "missing.pem", "key": "default-key.pem"}}`, want: "certificate not found"},
+		{name: "私钥不存在", tls: `{"default_certificate": {"certificate": "default.pem", "key": "missing-key.pem"}}`, want: "key not found"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := ValidateConfigFile(writeConfig(t, c.tls))
+			if c.want == "" {
+				if err != nil {
+					t.Fatalf("应通过校验：%v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("err = %v, want containing %q", err, c.want)
+			}
+		})
+	}
+}
