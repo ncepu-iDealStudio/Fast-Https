@@ -237,9 +237,9 @@ func Run(q Query) (Result, []string, error) {
 		}
 		// 过滤用原文。写出前再脱敏并截断，避免把口令截成半截后才遮蔽。
 		var cut bool
-		rec.Path = clip(redactText(rec.Path), maxField, &cut)
-		rec.Message = clip(redactText(rec.Message), maxField, &cut)
-		rec.Reason = redactText(rec.Reason)
+		rec.Path = clip(Redact(rec.Path), maxField, &cut)
+		rec.Message = clip(Redact(rec.Message), maxField, &cut)
+		rec.Reason = Redact(rec.Reason)
 		rec.Truncated = cut
 		if cut {
 			fieldCut = true
