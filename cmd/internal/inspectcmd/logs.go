@@ -176,7 +176,15 @@ func writeLogsText(w io.Writer, res logquery.Result) {
 		if rec.Status != nil {
 			status = fmt.Sprintf("%d", *rec.Status)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", rec.Time, rec.Level, status, rec.Host, rec.Message)
+		// 拒绝原因优先用 R-10 的统一字段；没有时回落到安全日志的 reason。
+		reason := rec.RejectReason
+		if reason == "" {
+			reason = rec.Reason
+		}
+		if rec.Rule != "" {
+			reason += " · " + rec.Rule
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", rec.Time, rec.Level, status, reason, rec.Host, rec.Message)
 	}
 	_ = tw.Flush()
 }

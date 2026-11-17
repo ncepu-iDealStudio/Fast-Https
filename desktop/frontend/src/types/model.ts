@@ -71,4 +71,5 @@ export interface LogEntry {
   rejectReason: string;
   rule: string;
   remoteIp: string;
+  reason: string;
 }

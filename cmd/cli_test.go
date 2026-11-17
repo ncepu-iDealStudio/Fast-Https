@@ -1563,6 +1563,15 @@ func TestLogsQueryFiltersByRejectReason(t *testing.T) {
 	if strings.Contains(out, "body_too_large") {
 		t.Fatalf("不应命中其他拒绝原因：%s", out)
 	}
+
+	// 文本模式也要能看出拒绝原因与命中规则。
+	text, _, code := runCLI(t, "logs", "query", "--config", cfg, "--kind", "safe", "--reject-reason", "path_traversal")
+	if code != 0 {
+		t.Fatalf("text exit = %d\n%s", code, text)
+	}
+	if !strings.Contains(text, "path_traversal · static_root") {
+		t.Fatalf("text 模式缺少拒绝原因/规则：%s", text)
+	}
 }
 
 func TestNoFileFlag(t *testing.T) {

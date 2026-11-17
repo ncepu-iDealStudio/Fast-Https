@@ -190,10 +190,11 @@ type LogEntry struct {
 	Size       string `json:"size"`
 	Host       string `json:"host"`
 	RemoteAddr string `json:"remoteAddr"`
-	// 统一拒绝日志字段（R-10）。
+	// 统一拒绝日志字段（R-10）；Reason 是安全类的既有字段，供旧日志回退。
 	RejectReason string `json:"rejectReason"`
 	Rule         string `json:"rule"`
 	RemoteIP     string `json:"remoteIp"`
+	Reason       string `json:"reason"`
 }
 
 // LogQuery 对应 logs query 的白名单过滤条件。

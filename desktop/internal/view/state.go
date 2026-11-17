@@ -617,6 +617,7 @@ func logEntry(rec map[string]any) LogEntry {
 		RejectReason: cli.Str(rec, "reject_reason"),
 		Rule:         cli.Str(rec, "rule"),
 		RemoteIP:     cli.Str(rec, "remote_ip"),
+		Reason:       cli.Str(rec, "reason"),
 	}
 	if v, ok := rec["status"]; ok && v != nil {
 		e.Status = fmt.Sprint(v)

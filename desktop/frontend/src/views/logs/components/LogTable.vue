@@ -20,12 +20,17 @@ function tone(e: LogEntry): 'ok' | 'warn' | 'err' | '' {
   return 'ok';
 }
 // 拒绝原因、命中的规则与客户端 IP 压在一格里；完整内容交给 title。
+// 旧日志没有 reject_reason 时回退到安全日志的 reason。
+function reasonCode(e: LogEntry): string {
+  return e.rejectReason || e.reason || '';
+}
 function reasonText(e: LogEntry): string {
-  if (!e.rejectReason) return '—';
-  return e.rule ? `${e.rejectReason} · ${e.rule}` : e.rejectReason;
+  const code = reasonCode(e);
+  if (!code) return '—';
+  return e.rule ? `${code} · ${e.rule}` : code;
 }
 function reasonTitle(e: LogEntry): string {
-  return [e.rejectReason, e.rule, e.remoteIp].filter(Boolean).join(' · ');
+  return [reasonCode(e), e.rule, e.remoteIp].filter(Boolean).join(' · ');
 }
 </script>
 
@@ -50,7 +55,7 @@ function reasonTitle(e: LogEntry): string {
         </span>
         <span class="logrow__status mono">{{ e.status || '—' }}</span>
         <span class="logrow__size mono">{{ e.size || '—' }}</span>
-        <span class="logrow__host mono">{{ e.host || '—' }}<template v-if="e.remoteAddr"> · {{ e.remoteAddr }}</template></span>
+        <span class="logrow__host mono">{{ e.host || '—' }}<template v-if="e.remoteAddr"> · {{ e.remoteAddr }}</template><template v-else-if="e.remoteIp"> · {{ e.remoteIp }}</template></span>
       </div>
       <div v-if="hasMore" class="logtable__more">
         <button class="icon-btn" :title="t('logs.more')" :disabled="loading" @click="emit('more')">
