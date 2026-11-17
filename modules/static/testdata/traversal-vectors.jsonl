@@ -9,3 +9,11 @@
 {"path":"/file ","want":"name","note":"Windows 会截断尾空格"}
 {"path":"//etc/passwd","want":"name","note":"重复斜杠"}
 {"path":"/C:/Windows/win.ini","want":"name","note":"绝对盘符路径不能跳出 root"}
+{"path":"/CON","want":"reject","os":"windows","note":"保留设备名"}
+{"path":"/con.txt","want":"reject","os":"windows","note":"带扩展名的保留设备名同样保留"}
+{"path":"/sub/NUL","want":"reject","os":"windows","note":"任意层级的保留设备名"}
+{"path":"/COM1","want":"reject","os":"windows","note":"串口保留名"}
+{"path":"/lpt9.log","want":"reject","os":"windows","note":"并口保留名，大小写不敏感"}
+{"path":"/aux.tar.gz","want":"reject","os":"windows","note":"多级扩展名仍按第一个点判断"}
+{"path":"/.. /etc/passwd","want":"reject","os":"windows","note":"尾空格裁剪后形成 ..，仍须拒绝"}
+{"path":"/dir./file","want":"name","os":"windows","note":"目录段尾点被裁剪，结果仍在 root 内"}

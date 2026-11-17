@@ -54,6 +54,13 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 
 **验收**：`traversal-vectors.jsonl` 增加保留名与尾点向量，Windows 实跑。
 
+**状态**：✅ 已实现。尾点/尾空格采用"规范化后重新查一次"：`staticPathInRoot`
+在 Windows 上逐段裁剪尾点与尾空格，再 `Clean` 并重做前缀校验（裁剪可能
+产生新的 `..`，如 `/.. `）。保留设备名 `CON`/`PRN`/`AUX`/`NUL`/`COM1`–`COM9`/
+`LPT1`–`LPT9`（按第一个点判断，`CON.txt` 同样命中）直接拒绝。其他平台不变。
+`traversal-vectors.jsonl` 新增 9 条 Windows 向量（新增 `os` 字段控制平台），
+`TestWindowsPathSemantics` 精确断言裁剪结果与拒绝名单。
+
 ## R-03 未知域名的 TLS 兜底策略
 
 **现状**：**不会崩溃**已确认——未知 SNI 与空 SNI 都回落到证书列表的第一张，

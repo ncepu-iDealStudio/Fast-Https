@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -435,13 +436,65 @@ func hiddenPathSegment(target string) bool {
 // StaticRoot 在配置加载时已解析为绝对路径；rooted 是 StaticRoot 与
 // URL 路径直接拼接的结果。本服务不做 URL 解码，%2e%2e 不会被还原
 // 成 ..。返回清洗后的路径；ok=false 表示逃逸，调用方按 404 处理。
+//
+// Windows 上额外处理文件系统语义：尾点/尾空格按实际打开时的行为裁剪，
+// 保留设备名（CON、NUL、COM1…）直接拒绝——它们会把请求重定向到设备，
+// 与站点目录无关。
 func staticPathInRoot(root, rooted string) (string, bool) {
 	rootAbs := filepath.Clean(root)
 	full := filepath.Clean(rooted)
+	if runtime.GOOS == "windows" {
+		normalized, ok := normalizeWindowsPath(full)
+		if !ok {
+			return "", false
+		}
+		// 裁剪尾点后可能出现新的 ..（如 ".. "），必须再 Clean 一次
+		// 才能做前缀校验。
+		full = filepath.Clean(normalized)
+	}
 	if full != rootAbs && !strings.HasPrefix(full, rootAbs+string(filepath.Separator)) {
 		return "", false
 	}
 	return full, true
+}
+
+// normalizeWindowsPath 按 Windows 打开文件时的语义逐段裁剪尾点与尾空格，
+// 并拒绝保留设备名。ok=false 表示该路径命中保留设备名或裁剪后为空。
+func normalizeWindowsPath(full string) (string, bool) {
+	parts := strings.Split(full, string(filepath.Separator))
+	for i, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			continue
+		}
+		trimmed := strings.TrimRight(part, ". ")
+		if trimmed == "" {
+			return "", false
+		}
+		if reservedDeviceName(trimmed) {
+			return "", false
+		}
+		parts[i] = trimmed
+	}
+	return strings.Join(parts, string(filepath.Separator)), true
+}
+
+// reservedDeviceName 报告该路径段是否命中 Windows 保留设备名。
+// Windows 只看第一个点之前的部分，因此 CON.txt 同样保留。
+func reservedDeviceName(segment string) bool {
+	name := segment
+	if i := strings.IndexByte(name, '.'); i >= 0 {
+		name = name[:i]
+	}
+	name = strings.ToUpper(name)
+	switch name {
+	case "CON", "PRN", "AUX", "NUL":
+		return true
+	}
+	if len(name) == 4 && name[3] >= '1' && name[3] <= '9' &&
+		(strings.HasPrefix(name, "COM") || strings.HasPrefix(name, "LPT")) {
+		return true
+	}
+	return false
 }
 
 // get this endpoint's content type
