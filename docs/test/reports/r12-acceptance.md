@@ -22,6 +22,9 @@
 | R12-5 | 普通无 CL/TE 响应仍按旧语义读到关闭 | ✅ | `TestStatusWithoutLengthReadsUntilClose`：body 完整、`emptyBody=false`、连接不复用 |
 | R12-6 | 1xx interim 中间响应被丢弃，保留最终响应 | ✅ | `TestInterimResponseInSameRead`（100 / 103，同一段数据）、`TestInterimResponseAcrossReads`（分两次到达）、`TestInterimResponseThenBodylessStatus`（100 后接 204） |
 | R12-7 | 101 协议升级不按中间响应处理 | ✅ | `TestSwitchingProtocolsNotTreatedAsInterim` |
+| R12-8 | 204 / 304 带 Content-Length 时不按 CL 读 body | ✅ | `TestBodylessStatusWithContentLength`（204 CL=10、304 CL=123，都不阻塞） |
+| R12-9 | 复用决策遵循上游意愿与协议版本 | ✅ | `TestEmptyBodyReuseDecision`：默认 204 复用；`Connection: close` 与 HTTP/1.0 无 keep-alive 均重新建连 |
+| R12-10 | HEAD 响应后可复用连接 | ✅ | `TestEmptyBodyReuseDecision/head-with-content-length`：HEAD + CL=1024 两次请求只 accept 一次 |
 
 ## 3. 实现位置
 
@@ -37,7 +40,7 @@
 ## 4. 行为语义
 
 - **HEAD**：响应没有 body，头里的 `Content-Length` 表示 GET 时的长度，不能拿来读正文。
-- **204 / 304**：协议规定无 body，收到头部即到响应边界。
+- **204 / 304**：协议规定无 body，收到头部即到响应边界；304 允许带 `Content-Length`（表示 200 时正文长度），同样不读。
 - **其他无 CL/TE 的响应**：按 HTTP/1.0 语义读到上游关闭；连接不复用（`ProxyNeedClose` 保持 true）。
 - **复用条件**：本次响应必然无 body，且上游没有 `Connection: close`；HTTP/1.0 上游还要求显式 `keep-alive`。
 - **1xx interim**：收到 100 Continue / 103 Early Hints 等中间响应时丢弃这段，继续读最终响应；中间响应与最终响应落在同一次读取里时，保留最终响应开头，不会因为「再读一次」而卡到超时。101 是协议升级，不按中间响应处理。
@@ -65,8 +68,18 @@
 --- PASS: TestInterimResponseThenBodylessStatus (0.00s)
 === RUN   TestSwitchingProtocolsNotTreatedAsInterim
 --- PASS: TestSwitchingProtocolsNotTreatedAsInterim (0.00s)
+=== RUN   TestBodylessStatusWithContentLength
+=== RUN   TestBodylessStatusWithContentLength/204
+=== RUN   TestBodylessStatusWithContentLength/304
+--- PASS: TestBodylessStatusWithContentLength (0.00s)
+=== RUN   TestEmptyBodyReuseDecision
+=== RUN   TestEmptyBodyReuseDecision/204-default-keepalive
+=== RUN   TestEmptyBodyReuseDecision/204-explicit-close
+=== RUN   TestEmptyBodyReuseDecision/204-http10-without-keepalive
+=== RUN   TestEmptyBodyReuseDecision/head-with-content-length
+--- PASS: TestEmptyBodyReuseDecision (0.01s)
 PASS
-ok  	fast-https/modules/proxy	3.718s
+ok  	fast-https/modules/proxy	2.459s
 ```
 
 包级与竞态：

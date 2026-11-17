@@ -74,6 +74,14 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 		return 0
 	}
 
+	// 204 / 304 在协议上也没有 body。304 允许带 Content-Length（表示 200
+	// 时正文的长度），不能按它去读正文，否则同样会等到读超时。
+	if bodylessStatus(res) {
+		rka.body = nil
+		rka.emptyBody = true
+		return 0
+	}
+
 	var contentLength int
 	if res.GetHeader("Content-Length") != "" {
 		// fmt.Println(res.GetHeader("Content-Length"))
@@ -85,15 +93,9 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 		rka.body = tmpData[i+4:]
 		return -3
 	} else {
-		// 204 / 304 在协议上也没有 body：响应边界已经到了，不必等上游关闭。
+		// HTTP/1.0 风格「靠关闭连接表示响应结束」，只能读到 EOF，
+		// 且这条连接不进入复用池。
 		rka.body = tmpData[i+4:]
-		if bodylessStatus(res) {
-			rka.body = nil
-			rka.emptyBody = true
-			return 0
-		}
-		// 其余情况是 HTTP/1.0 风格「靠关闭连接表示响应结束」，
-		// 只能读到 EOF，且这条连接不进入复用池。
 		return -4
 	}
 }
