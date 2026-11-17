@@ -1,7 +1,7 @@
 # R-08 连接与超时边界行为 —— 验收报告
 
 - 日期：2026-11-17
-- 范围：`docs/develop/plans/edge-case-hardening-plan.md` 的 R-08，以及与连接/超时直接相关的后续补强
+- 范围：`docs/develop/archive/edge-case-hardening-plan.md` 的 R-08，以及与连接/超时直接相关的后续补强
 - 结论：**通过**。需求清单全部落地，扩展项已完成，待修项清零。
 
 ## 1. 验收依据

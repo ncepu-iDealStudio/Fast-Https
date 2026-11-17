@@ -3,7 +3,7 @@
 这份文档记录的是**问题反馈的核对结果**：收到「某某场景会出问题」的反馈后，
 逐条确认本项目是否存在同样缺陷、证据是什么、有没有修。
 
-它不是功能计划（那在 [edge-case-hardening-plan.md](../../develop/plans/edge-case-hardening-plan.md)），
+它不是功能计划（那在 [edge-case-hardening-plan.md](../../develop/archive/edge-case-hardening-plan.md)），
 也不是覆盖率报告（那在 [coverage-assessment.md](coverage-assessment.md)）。
 
 ## 4.1 状态取值
@@ -171,7 +171,7 @@ PASS: TestReloadMissingFileKeepsPreviousConfig
 - **B-08 符号链接**：已由 R-01 落地 `location.symlink_policy`，默认
   `check-at-load`（加载时拒绝 root 下的链接），可切 `reject`（请求期逐段
   拒绝任意链接，含 Windows junction）或 `allow`，
-  见 [edge-case-hardening-plan.md](../../develop/plans/edge-case-hardening-plan.md)。
+  见 [edge-case-hardening-plan.md](../../develop/archive/edge-case-hardening-plan.md)。
 - **B-05 尾点尾空格**：已由 R-02 处理——Windows 上逐段裁剪尾点 / 尾空格后
   重新 `Clean` 并复查前缀（裁剪可能产生新的 `..`，如 `/.. `），存量保留设备名
   `CON`/`PRN`/`AUX`/`NUL`/`COM1`–`COM9`/`LPT1`–`LPT9` 直接拒绝；

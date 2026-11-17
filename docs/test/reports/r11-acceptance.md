@@ -1,7 +1,7 @@
 # R-11 header 超限返回 431 —— 验收报告
 
 - 日期：2026-11-17
-- 范围：`docs/develop/plans/edge-case-hardening-plan.md` 的 R-11
+- 范围：`docs/develop/archive/edge-case-hardening-plan.md` 的 R-11
 - 结论：**通过**。R-11 随 R-08 一并落地，本次独立复核代码路径、h1/h2 行为、配置文档与日志字段。
 
 ## 1. 验收依据

@@ -1,6 +1,6 @@
 # Fast-Https 边界加固功能需求
 
-状态：🚧 **部分实现**（R-01 ~ R-11、R-13 已完成；R-12 待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
+状态：✅ **全部实现**（R-01 ~ R-13 已完成）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
 目前有没有这些问题、修没修）在 [edge-case-coverage.md](../../test/reports/edge-case-coverage.md)。
 
 ## 需求来源
@@ -317,6 +317,12 @@ host_check 的 warn 与 enforce 都记）。日志只保留客户端 IP 与
 
 **验收**：构造 `HTTP/1.1 204 No Content` 且无 `Content-Length` 的上游响应，
 断言连接被复用（第二次请求走同一条连接）。
+
+**状态**：✅ 已实现（2026-11-17）。`ReadKeepAlive.tryToParse` 先判 HEAD（忽略
+`Content-Length`），再判 204/304；无 CL/TE 的普通响应仍读到 EOF。空 body 响应
+经 `Proxy.respEmptyBody` 传给 `ChangeHeader`，HTTP/1.1 上游未显式 `close` 时
+清掉 `ProxyNeedClose`，连接归还池。1xx interim 未纳入（代理不透传 `Expect`，
+需要跳过中间响应的独立改动）。验收报告：[r12-acceptance.md](../../test/reports/r12-acceptance.md)。
 
 ## R-13 请求体限额与 100-continue 配合
 

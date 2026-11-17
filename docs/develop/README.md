@@ -25,7 +25,6 @@
 | [upstream-failover-plan.md](plans/upstream-failover-plan.md) | 代理上游故障转移：多地址、健康检查、负载均衡（R8，未排期） |
 | [config-autoreload-plan.md](plans/config-autoreload-plan.md) | 配置文件自动重载：watch + 防抖 + 复用 reload 链路（R7，暂缓） |
 | [cli-monitor-followup.md](plans/cli-monitor-followup.md) | CLI 与 Monitor 改造计划落地后的遗留：未跑的验收、文档过时、可选的 `cert renew` |
-| [edge-case-hardening-plan.md](plans/edge-case-hardening-plan.md) | 边界加固的**功能需求**：符号链接策略、未知 SNI 兜底、XFF 与 hop-by-hop、压缩协商、Windows 保留名、reload 原子性与在途请求、拒绝日志字段（R-01 ~ R-11、R-13 已完成；R-12 待实现） |
 
 ### 已实施的方案（archive/）
 
@@ -33,6 +32,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [edge-case-hardening-plan.md](archive/edge-case-hardening-plan.md) | 边界加固的**功能需求**：符号链接策略、未知 SNI 兜底、XFF 与 hop-by-hop、压缩协商、Windows 保留名、reload 原子性与在途请求、拒绝日志字段、431/413、空 body 连接复用（R-01 ~ R-13 全部实现） |
 | [desktop-console-wails3-plan.md](archive/desktop-console-wails3-plan.md) | 桌面管理端：Wails v3 单窗口 + 后台托盘，NSIS 与 Linux desktop deb 打包（功能已发布；剩余 Linux/托盘实机验证） |
 | [agent-refactor-plan.md](archive/agent-refactor-plan.md) | 原常驻智能体方案（已撤回，不再作为现行方案；已实现的控制面见 [product-design-latest.md](../product-design-latest.md) 第 8 节） |
 | [v1.5.0-plan.md](archive/v1.5.0-plan.md) | 1.5.0 数据面功能收口：ACME、`site` 命令组、安全加固、测试与性能（1.5.0 已发布，全阶段随版本落地） |

@@ -96,5 +96,5 @@ go test ./... -count=1
 | 重叠 | 压缩协商（B-13/B-17） | N-05 引用上一轮结论，不重复列 |
 
 后续新增需求见
-[edge-case-hardening-plan.md](../../develop/plans/edge-case-hardening-plan.md) 的
+[edge-case-hardening-plan.md](../../develop/archive/edge-case-hardening-plan.md) 的
 R-11 ~ R-13。

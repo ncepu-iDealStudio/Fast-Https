@@ -33,6 +33,9 @@ type Proxy struct {
 	reused bool
 	// closed 在 Close 后置位，防止已关闭连接被归还进池
 	closed bool
+	// respEmptyBody 标记刚读完的响应在协议上必然没有 body（HEAD / 204 / 304）。
+	// 只有这类响应可以在没读到连接关闭时就把连接归还进池。
+	respEmptyBody bool
 }
 
 // Register installs the reverse-proxy handlers for HTTP and HTTPS upstreams.
@@ -168,6 +171,7 @@ func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Prox
 		// 新的请求周期，刷新上游整体截止时间
 		p.ProxyConn.SetDeadline(time.Now().Add(config.Current().Proxy.UpstreamTimeoutDuration()))
 		p.ev = ev
+		p.respEmptyBody = false
 	}
 	return p, nil
 }
@@ -212,6 +216,12 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 	if temp_res.Headers["Connection"] == "close" {
 		p.ProxyNeedClose = true
 	}
+	// 空 body 响应（HEAD / 204 / 304）的响应边界已经到齐，没有未读 body
+	// 需要等上游关闭。HTTP/1.1 上游未显式 close 时按持久连接复用；
+	// HTTP/1.0 则要求显式 keep-alive。
+	if p.respEmptyBody && !upstreamCloseRequested(firstLineDec, temp_res.GetHeader("Connection")) {
+		p.ProxyNeedClose = false
+	}
 
 	temp_res.DelHeader("Server")
 	temp_res.SetHeader("Server", "Fast-Https")
@@ -226,7 +236,20 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 	return head_code
 }
 
+// upstreamCloseRequested 报告上游是否会在本次响应后关闭连接。
+// HTTP/1.0 默认不持久，只有显式 keep-alive 才认为可复用。
+func upstreamCloseRequested(firstLine []string, connection string) bool {
+	if strings.EqualFold(connection, "close") {
+		return true
+	}
+	if len(firstLine) > 0 && firstLine[0] == "HTTP/1.0" && !strings.EqualFold(connection, "keep-alive") {
+		return true
+	}
+	return false
+}
+
 func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err error) {
+	p.respEmptyBody = false
 	if !ev.RR.Req.IsKeepalive() {
 		if ev.Upgrade == "websocket" {
 			logging.ConsoleLog.Debug().Msg("-----This is Read websocket")
@@ -274,6 +297,7 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 		// }
 
 		ev.RR.Res.Body = rka.body
+		p.respEmptyBody = rka.emptyBody
 		err = nil
 	}
 	return

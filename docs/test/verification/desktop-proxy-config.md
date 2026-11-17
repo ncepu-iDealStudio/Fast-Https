@@ -134,5 +134,5 @@ npm run build
 ## 相关文档
 
 - 配置项与 CLI 行为：[docs/usage.md](../../usage.md) 的 5.6 节与 `config proxy` 命令
-- 边缘加固需求与实现说明：[edge-case-hardening-plan.md](../../develop/plans/edge-case-hardening-plan.md) 的 R-05
+- 边缘加固需求与实现说明：[edge-case-hardening-plan.md](../../develop/archive/edge-case-hardening-plan.md) 的 R-05
 - 运行期验收用例：`modules/proxy/testdata/forwarded-chain.jsonl`

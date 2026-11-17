@@ -1,7 +1,7 @@
 # R-09 reload 的原子性与可见性 —— 验收报告
 
 - 日期：2026-11-17
-- 范围：`docs/develop/plans/edge-case-hardening-plan.md` 的 R-09，以及同一条 reload 链路上的在途请求可观测性与停机协调
+- 范围：`docs/develop/archive/edge-case-hardening-plan.md` 的 R-09，以及同一条 reload 链路上的在途请求可观测性与停机协调
 - 结论：**通过**。需求与两条验收项全部落地；真实服务 E2E 在 Windows 上受平台限制无法执行，已记录待 Linux/CI 补跑。
 
 ## 1. 验收依据

@@ -1,7 +1,7 @@
 # R-10 拒绝行为的可观测性 —— 验收报告
 
 - 日期：2026-11-17
-- 范围：`docs/develop/plans/edge-case-hardening-plan.md` 的 R-10，以及同一条链路上的安全类拒绝与代理压缩跳过
+- 范围：`docs/develop/archive/edge-case-hardening-plan.md` 的 R-10，以及同一条链路上的安全类拒绝与代理压缩跳过
 - 结论：**通过**。统一字段、查询链路与真实进程 E2E 全部落地。
 
 ## 1. 验收依据

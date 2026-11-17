@@ -111,5 +111,5 @@ go test ./internal/configops -run "TLS|Prune" -v
 ## 相关文档
 
 - 配置项与 CLI 行为：[docs/usage.md](../../usage.md) 的「`config tls`」（第 9 节命令表）与 7.2 的 `tls.default_certificate`
-- 边缘加固中与证书选择相关的需求：[edge-case-hardening-plan.md](../../develop/plans/edge-case-hardening-plan.md) 的 R-03 / R-04
+- 边缘加固中与证书选择相关的需求：[edge-case-hardening-plan.md](../../develop/archive/edge-case-hardening-plan.md) 的 R-03 / R-04
 - 证书与 ACME 的实操说明：[docs/help/tls-certificates.md](../../help/tls-certificates.md)

@@ -25,6 +25,9 @@ type ReadKeepAlive struct {
 	res          *response.Response
 	body         []byte
 	p            *Proxy
+	// emptyBody 表示刚解析的响应在协议上必然没有 body（HEAD / 204 / 304）。
+	// 这类响应不需要等上游关闭，调用方可以复用连接。
+	emptyBody bool
 }
 
 /*
@@ -51,25 +54,85 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 
 	res := response.ResponseInit()
 	res.HttpResParse(string(tmpData))
+	rka.res = res
+	rka.bodyPosition = i + 4
+
+	// HEAD 的响应永远没有 body，即使头里带 Content-Length（那是 GET 的长度）。
+	// 不先判 HEAD 会按 CL 去读一个永远不来的 body，直到读超时。
+	if rka.isHeadRequest() {
+		rka.body = nil
+		rka.emptyBody = true
+		return 0
+	}
+
 	var contentLength int
 	if res.GetHeader("Content-Length") != "" {
 		// fmt.Println(res.GetHeader("Content-Length"))
 		contentLength, _ = strconv.Atoi(res.GetHeader("Content-Length"))
 		NeedRead := contentLength - (tmpLen - i - 4)
-		rka.bodyPosition = i + 4
 		rka.body = tmpData[i+4:]
-		rka.res = res
 		return NeedRead
 	} else if res.GetHeader("Transfer-Encoding") == "chunked" {
-		rka.bodyPosition = i + 4
 		rka.body = tmpData[i+4:]
-		rka.res = res
 		return -3
 	} else {
-		// unkonwn
-		rka.body = res.Body
-		rka.res = res
+		// 204 / 304 在协议上也没有 body：响应边界已经到了，不必等上游关闭。
+		rka.body = tmpData[i+4:]
+		if bodylessStatus(res) {
+			rka.body = nil
+			rka.emptyBody = true
+			return 0
+		}
+		// 其余情况是 HTTP/1.0 风格「靠关闭连接表示响应结束」，
+		// 只能读到 EOF，且这条连接不进入复用池。
 		return -4
+	}
+}
+
+// isHeadRequest 报告当前请求是否为 HEAD。rka.p / ev / Req 在单测里可能缺失。
+func (rka *ReadKeepAlive) isHeadRequest() bool {
+	if rka.p == nil || rka.p.ev == nil || rka.p.ev.RR.Req == nil {
+		return false
+	}
+	return strings.EqualFold(rka.p.ev.RR.Req.Method, "HEAD")
+}
+
+// bodylessStatus 报告状态码是否在协议上必然没有 body（204 / 304）。
+func bodylessStatus(res *response.Response) bool {
+	parts := strings.SplitN(res.FirstLine, " ", 3)
+	if len(parts) < 2 {
+		return false
+	}
+	code, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return false
+	}
+	return code == 204 || code == 304
+}
+
+// readUntilEOF 读到上游关闭连接为止，把剩余 body 追加到响应里。
+// 只有「既没有 Content-Length 也没有 chunked」的旧式响应会走到这里。
+func (rka *ReadKeepAlive) readUntilEOF() error {
+	buf := make([]byte, READ_BODY_BYTES_LEN)
+	for {
+		n, err := rka.Read(buf)
+		if n > 0 {
+			rka.finalStr = append(rka.finalStr, buf[:n]...)
+			rka.body = append(rka.body, buf[:n]...)
+		}
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+				noteReadTimeout()
+				return ProxyErrorReadFromUpstreamTimeout
+			}
+			return err
+		}
+		if n == 0 {
+			return nil
+		}
 	}
 }
 
@@ -184,7 +247,9 @@ readAgain:
 		}
 		return nil
 	} else if size == -4 {
-		return nil
+		// 无 Content-Length、无 chunked：按 HTTP/1.0 语义读到连接关闭。
+		// 这条连接不会复用，调用方会据 ProxyNeedClose 关闭它。
+		return rka.readUntilEOF()
 	}
 	// }
 
