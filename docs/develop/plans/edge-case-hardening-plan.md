@@ -87,7 +87,13 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 
 ## R-04 通配符证书的匹配规则
 
-**现状**：前两条**实现已正确**（走标准库 `VerifyHostname`，已由
+**状态**：✅ 已实现。`certSet.get` 现在收集全部同域名命中的证书，用
+`ClientHelloInfo.SupportsCertificate` 按客户端能力（`signature_algorithms`、
+`supported_groups` 等）挑兼容的那张，缺扩展或全不兼容时退回第一张；
+`TestCertSetSameNamePicksByClientCapabilities` 覆盖 RSA / ECDSA 两种客户端。
+匹配规则已写进 `docs/usage.md` 第 7 章。
+
+**原现状**：前两条**实现已正确**（走标准库 `VerifyHostname`，已由
 `TestCertSetWildcardMatchesOneLabelOnly` 与
 `TestCertSetNormalizesCaseAndTrailingDot` 锁定）；缺的是文档说明，以及
 「同名多证书按客户端能力选择」这条。
@@ -96,8 +102,8 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 
 - `*.example.com` 匹配 `a.example.com`，**不**匹配 `a.b.example.com`（已实现）
 - 尾点 `example.com.` 与大小写差异归一到同一张证书（已实现）
-- 同名多证书（RSA + ECDSA）按客户端 `signature_algorithms` 选择（未实现）
-- 把上述规则写进 `docs/usage.md` 的 TLS 章节
+- 同名多证书（RSA + ECDSA）按客户端 `signature_algorithms` 选择（已实现）
+- 把上述规则写进 `docs/usage.md` 的 TLS 章节（已实现）
 
 **验收**：多证书场景补一条用例；文档段落与实现一致。
 

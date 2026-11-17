@@ -45,11 +45,17 @@ func (c *certSet) get(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 		name = hello.ServerName
 	}
 	if name != "" {
+		// 同一域名可能部署多张证书（典型是 RSA + ECDSA）。全部收集后按
+		// 客户端能力挑一张，而不是永远用列表里第一张。
+		var matches []*tls.Certificate
 		for i := range c.certs {
 			if certMatches(c.certs[i], name) {
-				chosen := c.certs[i]
-				return &chosen, nil
+				matches = append(matches, &c.certs[i])
 			}
+		}
+		if len(matches) > 0 {
+			chosen := *chooseCert(hello, matches)
+			return &chosen, nil
 		}
 	}
 	// 未知 SNI（含空 SNI）优先用显式兜底证书，保持握手指向运维指定的证书。
@@ -70,6 +76,23 @@ func logUnknownSNI(sni string) {
 		Str("sni", sni).
 		Msg("unknown TLS SNI: falling back to the first certificate " +
 			"(set tls.default_certificate to choose an explicit fallback)")
+}
+
+// chooseCert 在同一域名命中的多张证书里按客户端能力挑一张。
+//
+// 典型场景是同一域名同时部署 RSA 与 ECDSA 两张证书文件：客户端只支持
+// 其中一种签名算法时返回兼容的那张。没有 ClientHello 或客户端没带
+// signature_algorithms 扩展时退回第一张，保持旧行为；全部不兼容时同样
+// 退回第一张，让标准库按它自己的错误结束握手，而不是静默换一张。
+func chooseCert(hello *tls.ClientHelloInfo, matches []*tls.Certificate) *tls.Certificate {
+	if hello != nil && len(hello.SignatureSchemes) > 0 {
+		for _, cert := range matches {
+			if hello.SupportsCertificate(cert) == nil {
+				return cert
+			}
+		}
+	}
+	return matches[0]
 }
 
 func (c *certSet) replace(cfgs []ListenCfg) error {

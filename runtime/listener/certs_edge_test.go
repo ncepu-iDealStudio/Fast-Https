@@ -1,10 +1,11 @@
-package listener
+﻿package listener
 
 import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -232,5 +233,79 @@ func TestCertSetNormalizesCaseAndTrailingDot(t *testing.T) {
 		if got := chosenCN(t, set, sni); got != "exact.example" {
 			t.Fatalf("sni=%q 应命中 exact.example，得到 %q", sni, got)
 		}
+	}
+}
+
+// selfSignedRSAFor 生成一张 RSA 自签证书，用来和 ECDSA 证书组成同名多证书。
+func selfSignedRSAFor(t *testing.T, names ...string) tls.Certificate {
+	t.Helper()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		Subject:      pkix.Name{CommonName: names[0]},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		DNSNames:     names,
+		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IsCA:         true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tls.Certificate{
+		Certificate: [][]byte{der},
+		PrivateKey:  key,
+	}
+}
+
+// TestCertSetSameNamePicksByClientCapabilities 同名多证书（ECDSA 在前、RSA 在后）
+// 时，按客户端 signature_algorithms 选择兼容的那张，而不是永远用第一张。
+func TestCertSetSameNamePicksByClientCapabilities(t *testing.T) {
+	set := &certSet{certs: []tls.Certificate{
+		selfSignedFor(t, "multi.example"),
+		selfSignedRSAFor(t, "multi.example"),
+	}}
+
+	pick := func(schemes []tls.SignatureScheme) tls.Certificate {
+		t.Helper()
+		cert, err := set.get(&tls.ClientHelloInfo{
+			ServerName:        "multi.example",
+			SupportedVersions: []uint16{tls.VersionTLS13},
+			SignatureSchemes:  schemes,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return *cert
+	}
+	kind := func(cert tls.Certificate) string {
+		switch cert.PrivateKey.(type) {
+		case *rsa.PrivateKey:
+			return "rsa"
+		case *ecdsa.PrivateKey:
+			return "ecdsa"
+		default:
+			return "unknown"
+		}
+	}
+
+	if got := kind(pick([]tls.SignatureScheme{tls.PSSWithSHA256})); got != "rsa" {
+		t.Fatalf("只支持 RSA 的客户端应拿到 RSA 证书，得到 %q", got)
+	}
+	if got := kind(pick([]tls.SignatureScheme{tls.ECDSAWithP256AndSHA256})); got != "ecdsa" {
+		t.Fatalf("只支持 ECDSA 的客户端应拿到 ECDSA 证书，得到 %q", got)
+	}
+	// 两种都支持：按证书列表顺序，第一张兼容的就是第一张。
+	if got := kind(pick([]tls.SignatureScheme{tls.ECDSAWithP256AndSHA256, tls.PSSWithSHA256})); got != "ecdsa" {
+		t.Fatalf("两种都支持时应取列表第一张，得到 %q", got)
+	}
+	// 没有 signature_algorithms 扩展：保持旧行为，用第一张。
+	if got := kind(pick(nil)); got != "ecdsa" {
+		t.Fatalf("缺少 signature_algorithms 时应退回第一张，得到 %q", got)
 	}
 }

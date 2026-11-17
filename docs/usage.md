@@ -402,6 +402,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 ## 7. TLS 与证书
 
 - **SNI 多证书**：同一端口上的多个 `server_name` 各自持有证书，握手时按 SNI 选择，匹配不到用该端口的第一张。
+- **匹配规则**：按标准库 `VerifyHostname` 判定，大小写与结尾的 `.` 归一化；`*.example.com` 只匹配一层（`a.example.com`），不匹配 `a.b.example.com`。
+- **同名多证书**：同一域名命中多张证书时（例如同时部署 RSA 与 ECDSA 两张），按客户端 `signature_algorithms`、`supported_groups` 选兼容的那张；客户端没带这些扩展或都不兼容时用列表里的第一张。
 - **自动生成**：首次启动时，若 `config/cert/<server_name>.pem` 不存在，会用一个本地自签 CA 生成证书。CA 有效期 10 年，域名证书 2 年 3 个月。
 - **热替换**：执行 `reload` 后证书从磁盘重新加载，不需要重启进程；启用 ACME 后新证书签发成功也会就地热替换。
 - **ACME 自动签发与续期**：配置 `acme` 段后向 Let's Encrypt / ZeroSSL 申请受信任证书，到期前自动续期，见 7.1。
