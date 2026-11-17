@@ -222,6 +222,7 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
   （单位秒，0 用默认 30 / 30 / 1），负数在加载期报错；HTTP/2 的读头超时同样读
   `read_timeout`。代理到上游的整体超时由 `proxy.upstream_timeout` 控制（默认 20s）；
   websocket / tcp 隧道的空闲断开由 `proxy.tunnel_idle_timeout` 控制（默认 0，不自动断开）。
+- 验收报告：[r08-acceptance.md](../../test/reports/r08-acceptance.md)。
 
 ## R-09 reload 的原子性与可见性
 

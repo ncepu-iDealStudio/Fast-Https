@@ -21,6 +21,7 @@ docs/test/
 | 报告 | [reports/coverage-assessment.md](reports/coverage-assessment.md) | 覆盖率评估与薄弱模块清单 | 2026-10-25 合并覆盖率 68.5%，35 个包通过 `-race` |
 | 报告 | [reports/edge-case-coverage.md](reports/edge-case-coverage.md) | **缺陷反馈核验（第一轮）**：按风险面自查 B-01 ~ B-17，逐条给证据与复跑命令 | 18 条核验：3 条已修复（B-05 / B-08 / B-17），1 条待修（B-12），其余有回归用例锁定 |
 | 报告 | [reports/upstream-feedback-coverage.md](reports/upstream-feedback-coverage.md) | **缺陷反馈核验（第二轮）**：对照主流 HTTP 服务器公开 issue/PR，过滤 C 层与 QUIC 专用条目 | 5 条核验、2 处修复 |
+| 报告 | [reports/r08-acceptance.md](reports/r08-acceptance.md) | **R-08 验收报告**：连接与超时边界（100-continue、keep-alive、431/413、限额与超时配置） | 5 条验收全部通过，扩展项与待修项清零 |
 | 用例 | [cases/boundary-cases.md](cases/boundary-cases.md) | 边界测试用例集：协议边界、注入面、数值边界、并发边界、公开语料 | 用例已全部落库，见文内对应测试文件 |
 | 方案 | [cases/stress-test-plan.md](cases/stress-test-plan.md) | 压力测试方案：4C4G3M 环境下的反代与静态资源负载 | 仅方案，压测脚本未实现（见 [v1.5.0-plan](../develop/plans/v1.5.0-plan.md)） |
 | 实测 | [verification/distro-packages.md](verification/distro-packages.md) | 发行版安装包实机验证：deb / rpm / apk / 升级迁移 | 2026-11-05 四个场景 ALL-PASS |
@@ -70,6 +71,7 @@ docs/test/
 - 2026-11-17 边缘加固 R-07 落地：压缩协商补齐 `zip_min_length` 与 `zip_skip_types`（内置已压缩类型清单，配置后整体替换），修复压缩后 `Content-Length` 仍用原文件大小的问题；`modules/static/testdata/accept-encoding.jsonl` 十条用例由 `TestAcceptEncodingCases` 逐条驱动真实响应链路，CLI `site update --zip-min-length/--zip-skip-types` 与桌面端站点编辑同步。
 - 2026-11-17 桌面端开箱即用主配置验证：`ReadConfigForm` 读到十项预设值，保存四项后其余预设不被重置，改回预设后内容一致（JSON 被规范化重写），非法 WAF 模式在表单层拦截、负链长在配置校验层拦截且配置哈希不变，详见 [verification/desktop-default-config.md](verification/desktop-default-config.md)。
 - 2026-11-17 桌面端新增站点压缩默认值验证：默认值写入 br+gzip / 1 KB / 整类跳过清单，自定义只写显式项，取消勾选后无 `zip*` 键，代理站点写入同一组默认值，非法跳过类型在写盘前被 `USAGE_ERROR` 拦下，详见 [verification/desktop-site-compression.md](verification/desktop-site-compression.md)。
+- 2026-11-17 边缘加固 R-08 验收：`Expect: 100-continue`（含 chunked / 列表 / 417 / HTTP1.0）、keep-alive 请求与响应状态隔离、header 431 与 body 413（Content-Length / chunked / h2）、限额与超时配置（`max_*`、`read/write/body_timeout`、`proxy.upstream_timeout`、`proxy.tunnel_idle_timeout`）全部落地；新增真实 TCP E2E 与 `-race` 用例，详见 [reports/r08-acceptance.md](reports/r08-acceptance.md)。
 
 ## 旧文件名对照
 
