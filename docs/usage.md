@@ -100,7 +100,8 @@ logs/                       运行日志
     "trusted_proxies": ["127.0.0.1/32", "::1/128"],
     "forwarded_for": {
       "max_hops": 10
-    }
+    },
+    "upstream_timeout": 20
   },
   "http": {
     "include": ["./conf.d"],
@@ -371,7 +372,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 "proxy": {
   "trusted_proxies": ["10.0.0.0/8", "192.168.1.10"],
   "forwarded_for": { "max_hops": 10 },
-  "preserve_host": true
+  "preserve_host": true,
+  "upstream_timeout": 20
 }
 ```
 
@@ -380,6 +382,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `trusted_proxies` | 空 | 可信代理的 IP 或 CIDR 列表。只有直连对端命中这里的请求，才保留客户端自带的 `X-Forwarded-For` |
 | `forwarded_for.max_hops` | `0` | 转发链长度上限，`0` 表示不限制。链已达到上限时不再追加客户端地址，并写一条含 `hops` / `max_hops` 的 Warn 日志 |
 | `preserve_host` | `true` | `true` 原样透传客户端 `Host`；`false` 时改写为上游 `host:port` |
+| `upstream_timeout` | `20` | 代理到上游的整体超时（秒）；`0` 表示用默认值，负数为非法配置 |
 
 `X-Forwarded-For` 的生成规则：
 

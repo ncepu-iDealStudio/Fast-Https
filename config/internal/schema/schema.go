@@ -173,9 +173,10 @@ type Config struct {
 
 // Proxy 是全局代理策略段：可信代理、X-Forwarded-For 链长上限与 Host 透传。
 type Proxy struct {
-	TrustedProxies []string     `json:"trusted_proxies"`
-	ForwardedFor   ForwardedFor `json:"forwarded_for"`
-	PreserveHost   *bool        `json:"preserve_host"`
+	TrustedProxies  []string     `json:"trusted_proxies"`
+	ForwardedFor    ForwardedFor `json:"forwarded_for"`
+	PreserveHost    *bool        `json:"preserve_host"`
+	UpstreamTimeout int          `json:"upstream_timeout"`
 }
 
 // ForwardedFor 是 X-Forwarded-For 链的配置。max_hops 为 0 表示不限制。

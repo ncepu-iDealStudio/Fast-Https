@@ -90,7 +90,7 @@ func dialUpstream(addr string, proxyType int) (*Proxy, error) {
 		p.Close = p.closeSSL
 	}
 
-	p.ProxyConn.SetDeadline(time.Now().Add(time.Second * 20)) // proxy server time out
+	p.ProxyConn.SetDeadline(time.Now().Add(config.Current().Proxy.UpstreamTimeoutDuration())) // proxy server time out
 	return p, nil
 }
 
@@ -165,8 +165,8 @@ func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Prox
 		return nil, err
 	}
 	if p.reused {
-		// 新的请求周期，刷新整体 20s 截止时间
-		p.ProxyConn.SetDeadline(time.Now().Add(time.Second * 20))
+		// 新的请求周期，刷新上游整体截止时间
+		p.ProxyConn.SetDeadline(time.Now().Add(config.Current().Proxy.UpstreamTimeoutDuration()))
 		p.ev = ev
 	}
 	return p, nil

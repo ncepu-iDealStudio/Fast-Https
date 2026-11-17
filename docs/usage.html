@@ -123,7 +123,8 @@ logs/                       运行日志</code></pre>
     &#34;trusted_proxies&#34;: [&#34;127.0.0.1/32&#34;, &#34;::1/128&#34;],
     &#34;forwarded_for&#34;: {
       &#34;max_hops&#34;: 10
-    }
+    },
+    &#34;upstream_timeout&#34;: 20
   },
   &#34;http&#34;: {
     &#34;include&#34;: [&#34;./conf.d&#34;],
@@ -363,7 +364,8 @@ fast-https site delete blog --yes</code></pre>
 <pre><code class="language-json">&#34;proxy&#34;: {
   &#34;trusted_proxies&#34;: [&#34;10.0.0.0/8&#34;, &#34;192.168.1.10&#34;],
   &#34;forwarded_for&#34;: { &#34;max_hops&#34;: 10 },
-  &#34;preserve_host&#34;: true
+  &#34;preserve_host&#34;: true,
+  &#34;upstream_timeout&#34;: 20
 }</code></pre>
 <table>
 <thead><tr><th>键</th><th>默认</th><th>说明</th></tr></thead>
@@ -371,6 +373,7 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>trusted_proxies</code></td><td>空</td><td>可信代理的 IP 或 CIDR 列表。只有直连对端命中这里的请求，才保留客户端自带的 <code>X-Forwarded-For</code></td></tr>
 <tr><td><code>forwarded_for.max_hops</code></td><td><code>0</code></td><td>转发链长度上限，<code>0</code> 表示不限制。链已达到上限时不再追加客户端地址，并写一条含 <code>hops</code> / <code>max_hops</code> 的 Warn 日志</td></tr>
 <tr><td><code>preserve_host</code></td><td><code>true</code></td><td><code>true</code> 原样透传客户端 <code>Host</code>；<code>false</code> 时改写为上游 <code>host:port</code></td></tr>
+<tr><td><code>upstream_timeout</code></td><td><code>20</code></td><td>代理到上游的整体超时（秒）；<code>0</code> 表示用默认值，负数为非法配置</td></tr>
 </tbody>
 </table>
 <p><code>X-Forwarded-For</code> 的生成规则：</p>

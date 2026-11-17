@@ -421,14 +421,14 @@ func declaredBodyLen(r *request.Request) int {
 
 // writeContinue 直接写 1xx 中间响应。它不是最终响应，不经过 Res，也不写访问日志。
 func writeContinue(ev *core.Event) bool {
-	ev.Conn.SetWriteDeadline(time.Now().Add(config.Current().Limit.WriteTimeoutDuration()))
+	ev.SetWriteTimeout()
 	_, err := ev.Conn.Write([]byte("HTTP/1.1 100 Continue\r\n\r\n"))
 	return err == nil
 }
 
 func EventWrite(ev *core.Event, _data []byte) error {
 	//fmt.Printf("%p", ev)
-	ev.Conn.SetWriteDeadline(time.Now().Add(config.Current().Limit.WriteTimeoutDuration()))
+	ev.SetWriteTimeout()
 	data := ev.ResponseBytes()
 	// data := []byte("HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\nhello world")
 	for len(data) > 0 {

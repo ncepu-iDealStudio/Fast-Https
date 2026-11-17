@@ -30,6 +30,15 @@ const H2GracefulShutdownPeriod = 5 * time.Second
 
 const (
 	h2MaxConcurrentStreams = 250
+	// h2HeaderStackSlack 让协议栈的头上限比应用层的 max_header_size 略宽，
+	// 这样「超限」请求能进到 ServeHTTP 由应用层统一回 431，而不是先被
+	// 协议栈以连接错误终止。
+	h2HeaderStackSlack = 64 * 1024
+)
+
+var (
+	errH2BodyTooLarge = errors.New("h2 request body too large")
+	errH2BodyTimeout  = errors.New("h2 request body read timeout")
 )
 
 // H2HandleEvent 接管一条已完成 TCP 接入的 HTTP/2 连接。
@@ -54,10 +63,11 @@ func H2HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 
 	ln := newSingleConnListener(conn)
 	headerLimit := maxHeaderSize()
+	readTimeout := config.Current().Limit.ReadTimeoutDuration()
 	srv := &http.Server{
 		Handler:           h,
-		ReadHeaderTimeout: config.Current().Limit.ReadTimeoutDuration(),
-		MaxHeaderBytes:    headerLimit,
+		ReadHeaderTimeout: readTimeout,
+		MaxHeaderBytes:    headerLimit + h2HeaderStackSlack,
 		ErrorLog:          log.New(h2LogWriter{}, "", 0),
 		BaseContext:       func(net.Listener) context.Context { return ctx },
 		ConnState: func(_ net.Conn, state http.ConnState) {
@@ -70,6 +80,10 @@ func H2HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 	}
 	http2.ConfigureServer(srv, &http2.Server{
 		MaxConcurrentStreams: h2MaxConcurrentStreams,
+		// 没有活动流时按 keep-alive 空闲超时关闭，与 h1 的读空闲保持一致。
+		IdleTimeout: readTimeout,
+		// 每次写没有任何进展超过 write_timeout 就断开，避免对端不收导致挂死。
+		WriteByteTimeout: config.Current().Limit.WriteTimeoutDuration(),
 	})
 
 	stopped := make(chan struct{})
@@ -131,6 +145,10 @@ func (h *h2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		metrics.NoteAborted()
 		return
+	case http.StatusRequestTimeout:
+		w.WriteHeader(http.StatusRequestTimeout)
+		metrics.NoteAborted()
+		return
 	default:
 		w.WriteHeader(http.StatusBadRequest)
 		metrics.NoteParseError()
@@ -182,7 +200,8 @@ func h2HeaderSize(r *http.Request) int {
 }
 
 // fillRequest 将 net/http 的请求映射为 runtime/request.Request。
-// 返回 0 表示成功；400 表示请求目标不合法；413 表示正文超过 max_body_size。
+// 返回 0 表示成功；400 表示请求目标不合法；413 表示正文超限；
+// 408 表示读取正文超时。
 func fillRequest(req *request.Request, r *http.Request) int {
 	path, ok := request.NormalizePath(r.URL.RequestURI())
 	if !ok {
@@ -208,21 +227,75 @@ func fillRequest(req *request.Request, r *http.Request) int {
 		return 0
 	}
 	limit := maxBodySize()
-	var reader io.Reader = r.Body
-	if limit > 0 {
-		reader = io.LimitReader(r.Body, int64(limit)+1)
-	}
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		logging.ConsoleLog.Debug().Msgf("h2 read body: %v", err)
-	}
+	body, err := readH2Body(r.Body, limit, config.Current().Limit.BodyTimeoutDuration())
 	_ = r.Body.Close()
-	if limit > 0 && len(body) > limit {
+	switch {
+	case errors.Is(err, errH2BodyTooLarge):
 		return http.StatusRequestEntityTooLarge
+	case errors.Is(err, errH2BodyTimeout):
+		return http.StatusRequestTimeout
+	case err != nil:
+		logging.ConsoleLog.Debug().Msgf("h2 read body: %v", err)
 	}
 	req.Body.Write(body)
 	req.BodyLen = len(body)
 	return 0
+}
+
+// readH2Body 读取 HTTP/2 请求体，并把 body_timeout 应用到每一次读上。
+//
+// x/net/http2 的请求体没有可设置的读 deadline，这里用单独协程读、主协程
+// 计时的方式实现：任意一次读超过 timeout 就返回 errH2BodyTimeout；调用方
+// 关闭 body 后读取协程会因读错误退出，不会泄漏。
+func readH2Body(r io.Reader, limit int, timeout time.Duration) ([]byte, error) {
+	type chunk struct {
+		data []byte
+		err  error
+	}
+	ch := make(chan chunk, 2)
+	go func() {
+		buf := make([]byte, 32*1024)
+		for {
+			n, err := r.Read(buf)
+			if n > 0 {
+				ch <- chunk{data: append([]byte(nil), buf[:n]...)}
+			}
+			if err != nil {
+				ch <- chunk{err: err}
+				return
+			}
+		}
+	}()
+
+	var out []byte
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		select {
+		case c := <-ch:
+			if len(c.data) > 0 {
+				out = append(out, c.data...)
+				if limit > 0 && len(out) > limit {
+					return out, errH2BodyTooLarge
+				}
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(timeout)
+			}
+			if c.err != nil {
+				if errors.Is(c.err, io.EOF) {
+					return out, nil
+				}
+				return out, c.err
+			}
+		case <-timer.C:
+			return out, errH2BodyTimeout
+		}
+	}
 }
 
 // h2ResponseWriter 把 response.Response 写出为 HTTP/2 响应。

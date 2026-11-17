@@ -220,7 +220,7 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
   `h2_helpers_test.go`（h2 431/413/417）；`-race` 下通过。
 - 超时可配置：`http.servers_limit.read_timeout` / `write_timeout` / `body_timeout`
   （单位秒，0 用默认 30 / 30 / 1），负数在加载期报错；HTTP/2 的读头超时同样读
-  `read_timeout`。
+  `read_timeout`。代理到上游的整体超时由 `proxy.upstream_timeout` 控制（默认 20s）。
 
 ## R-09 reload 的原子性与可见性
 

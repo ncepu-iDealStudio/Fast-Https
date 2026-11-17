@@ -21,9 +21,10 @@ import (
 type Section = model.ProxyConfig
 
 // IsDefault 报告这份配置是否等价于「未配置」：无意可信代理、链长不限、
-// Host 透传。此时 proxy 段可以整段删掉。
+// Host 透传、上游超时用默认值。此时 proxy 段可以整段删掉。
 func IsDefault(c Section) bool {
-	return len(c.TrustedProxies) == 0 && c.ForwardedFor.MaxHops == 0 && c.PreserveHostEnabled()
+	return len(c.TrustedProxies) == 0 && c.ForwardedFor.MaxHops == 0 &&
+		c.PreserveHostEnabled() && c.UpstreamTimeout == 0
 }
 
 // PreviewProxySection 返回写入 proxy 段之后的完整文件内容，不落盘。
@@ -87,9 +88,10 @@ func marshalProxySection(c Section, indent string) ([]byte, error) {
 		trusted = []string{}
 	}
 	return json.MarshalIndent(map[string]any{
-		"trusted_proxies": trusted,
-		"forwarded_for":   map[string]int{"max_hops": c.ForwardedFor.MaxHops},
-		"preserve_host":   c.PreserveHostEnabled(),
+		"trusted_proxies":  trusted,
+		"forwarded_for":    map[string]int{"max_hops": c.ForwardedFor.MaxHops},
+		"preserve_host":    c.PreserveHostEnabled(),
+		"upstream_timeout": c.UpstreamTimeout,
 	}, indent, "  ")
 }
 

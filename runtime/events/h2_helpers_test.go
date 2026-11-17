@@ -1,10 +1,13 @@
 package events
 
 import (
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"fast-https/config"
 	"fast-https/core"
@@ -89,6 +92,29 @@ func TestFillRequestMapsFields(t *testing.T) {
 	}
 	if req2.Body.Len() != 0 {
 		t.Fatalf("body should stay empty, got %q", req2.Body.String())
+	}
+}
+
+// readH2Body：正常读完、累计超限、单次读超时三种情况。
+func TestReadH2Body(t *testing.T) {
+	got, err := readH2Body(strings.NewReader("hello"), 0, time.Second)
+	if err != nil || string(got) != "hello" {
+		t.Fatalf("body = %q err = %v", got, err)
+	}
+
+	if _, err := readH2Body(strings.NewReader("0123456789"), 4, time.Second); !errors.Is(err, errH2BodyTooLarge) {
+		t.Fatalf("err = %v, want errH2BodyTooLarge", err)
+	}
+
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	defer pr.Close()
+	start := time.Now()
+	if _, err := readH2Body(pr, 0, 50*time.Millisecond); !errors.Is(err, errH2BodyTimeout) {
+		t.Fatalf("err = %v, want errH2BodyTimeout", err)
+	}
+	if elapsed := time.Since(start); elapsed < 30*time.Millisecond || elapsed > 2*time.Second {
+		t.Fatalf("elapsed = %v, want about 50ms", elapsed)
 	}
 }
 

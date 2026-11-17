@@ -2,8 +2,10 @@ package events
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"fast-https/core"
 	"fast-https/runtime/filters"
 	"fast-https/runtime/listener"
+	"fast-https/runtime/response"
 )
 
 // withLimit 在测试期间覆盖 limit 段，结束后恢复原快照。
@@ -340,6 +343,35 @@ func TestReadTimeoutIsConfigurable(t *testing.T) {
 	}
 	if elapsed < 700*time.Millisecond || elapsed > 5*time.Second {
 		t.Fatalf("耗时 %v，期望约 1 秒（read_timeout 生效）", elapsed)
+	}
+}
+
+// TestWriteTimeoutIsConfigurable 锁定 write_timeout 真的作用到写出上：
+// 对端不读时，1 秒后写必须失败，而不是永久阻塞。
+func TestWriteTimeoutIsConfigurable(t *testing.T) {
+	withLimit(t, func(c *config.Fast_Https) { c.Limit.WriteTimeout = 1 })
+
+	server, client := net.Pipe()
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+	})
+	ev := core.NewEvent(&listener.Listener{}, server)
+	ev.EventWrite = EventWrite
+	ev.RR.Res = response.ResponseInit()
+	ev.RR.Res.SetFirstLine(200, "OK")
+	body := bytes.Repeat([]byte("x"), 1<<20)
+	ev.RR.Res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	ev.RR.Res.Body = body
+
+	start := time.Now()
+	err := ev.WriteResponse(nil)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("对端不读时写应超时失败")
+	}
+	if elapsed < 700*time.Millisecond || elapsed > 5*time.Second {
+		t.Fatalf("耗时 %v，期望约 1 秒（write_timeout 生效）", elapsed)
 	}
 }
 

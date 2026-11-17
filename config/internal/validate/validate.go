@@ -265,6 +265,9 @@ func validateProxy(proxy schema.Proxy) error {
 	if proxy.ForwardedFor.MaxHops < 0 {
 		return fmt.Errorf("proxy.forwarded_for.max_hops must be >= 0: %d", proxy.ForwardedFor.MaxHops)
 	}
+	if proxy.UpstreamTimeout < 0 {
+		return fmt.Errorf("proxy.upstream_timeout must be >= 0, got %d", proxy.UpstreamTimeout)
+	}
 	for i, raw := range proxy.TrustedProxies {
 		item := strings.TrimSpace(raw)
 		if item == "" {

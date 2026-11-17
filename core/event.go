@@ -156,6 +156,12 @@ func (ev *Event) WriteResponse(data []byte) error {
 	return ev.EventWrite(ev, data)
 }
 
+// SetWriteTimeout 刷新写超时。模块绕过 EventWrite 直接写连接时（静态文件）
+// 必须在写之前调用，否则 write_timeout 不会生效。
+func (ev *Event) SetWriteTimeout() {
+	ev.Conn.SetWriteDeadline(time.Now().Add(config.Current().Limit.WriteTimeoutDuration()))
+}
+
 // ResponseBytes is the bytes written for this response.
 // HEAD keeps the headers, including Content-Length, and omits the body.
 func (ev *Event) ResponseBytes() []byte {

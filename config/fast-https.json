@@ -17,7 +17,8 @@
     "trusted_proxies": ["127.0.0.1/32", "::1/128"],
     "forwarded_for": {
       "max_hops": 10
-    }
+    },
+    "upstream_timeout": 20
   },
   "http": {
     "include": ["./conf.d"],

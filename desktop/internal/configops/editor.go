@@ -71,6 +71,7 @@ var configSpecs = []fieldSpec{
 	{"proxy.trusted_proxies", "可信代理", "代理", "list", "只有来自这些 IP/CIDR 的请求才保留入站 X-Forwarded-For；每行一个", nil, ""},
 	{"proxy.forwarded_for.max_hops", "X-Forwarded-For 链长上限", "代理", "number", "0 表示不限制；达到上限后不再追加并记一条告警日志", nil, ""},
 	{"proxy.preserve_host", "透传客户端 Host", "代理", "bool", "默认开启；关闭时转发给上游的 Host 改成上游地址", nil, ""},
+	{"proxy.upstream_timeout", "上游超时（秒）", "代理", "number", "0 表示默认 20 秒", nil, ""},
 
 	{"http.include", "include 目录 / 文件", "HTTP", "pathlist", "每行一个；站点文件通常放在 conf.d", nil, "dir"},
 	{"http.default_type", "默认 MIME 类型", "HTTP", "text", "", nil, ""},

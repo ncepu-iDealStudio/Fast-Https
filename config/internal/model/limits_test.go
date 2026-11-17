@@ -29,3 +29,13 @@ func TestServerLimitTimeoutDuration(t *testing.T) {
 		t.Fatalf("body timeout = %v, want 2s", got)
 	}
 }
+
+func TestProxyUpstreamTimeoutDuration(t *testing.T) {
+	var zero Proxy
+	if got := zero.UpstreamTimeoutDuration(); got != 20*time.Second {
+		t.Fatalf("upstream timeout = %v, want 20s", got)
+	}
+	if got := (Proxy{UpstreamTimeout: 5}).UpstreamTimeoutDuration(); got != 5*time.Second {
+		t.Fatalf("upstream timeout = %v, want 5s", got)
+	}
+}
