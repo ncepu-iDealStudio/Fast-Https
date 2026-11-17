@@ -282,6 +282,7 @@ host_check 的 warn 与 enforce 都记）。日志只保留客户端 IP 与
 `reject_reason`、`rule`、`remote_ip`；桌面端日志查询同步该参数。
 真实链路 E2E：`TestRejectLogE2E`（`FASTHTTPS_E2E_REJECT_LOG=1`）起真实进程触发
 穿越/超限/压缩跳过/未知 SNI，再按 `reject_reason` 查回记录；已加入 CI。
+验收报告：[r10-acceptance.md](../../test/reports/r10-acceptance.md)。
 
 ## R-11 header 超限返回 431
 
