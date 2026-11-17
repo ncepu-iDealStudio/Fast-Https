@@ -1602,13 +1602,13 @@ var (
 )
 
 func TestValidateConfigAcceptsValidConfig(t *testing.T) {
-	if err := validateConfig(writeTestConfig(t, mustTestdata("config-valid.json"))); err != nil {
+	if err := config.ValidateConfigFile(writeTestConfig(t, mustTestdata("config-valid.json"))); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestValidateConfigRejectsInvalidConfig(t *testing.T) {
-	err := validateConfig(writeTestConfig(t, mustTestdata("config-invalid-listen.json")))
+	err := config.ValidateConfigFile(writeTestConfig(t, mustTestdata("config-invalid-listen.json")))
 	if err == nil || !strings.Contains(err.Error(), "listen") {
 		t.Fatalf("err = %v", err)
 	}

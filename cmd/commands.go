@@ -372,7 +372,7 @@ func ReloadHandler() error {
 // 直接说到终端上——否则只有 daemon.log 里一行「reload kept previous config」，
 // 用户看到的是 reload 成功退出却什么都没变。
 func reload(configPath, pidPath string) error {
-	if err := validateConfig(configPath); err != nil {
+	if err := config.ValidateConfigFile(configPath); err != nil {
 		return fmt.Errorf("配置未通过校验，已保留运行中的配置：%w", err)
 	}
 
@@ -408,12 +408,6 @@ func reload(configPath, pidPath string) error {
 		logging.ConsoleLog.Fatal().Msgf("fast-https reload failed: %v", err)
 	}
 	return nil
-}
-
-// validateConfig 用主配置同一套 schema 校验一个配置文件及其 include，
-// 不监听端口、不写 pid，也不打印任何东西。
-func validateConfig(path string) error {
-	return config.ValidateConfigFile(path)
 }
 
 func statusHandler() error {
@@ -534,9 +528,3 @@ func RegisterHandlers() { servicecmd.RegisterHandlers() }
 
 // RegisterServices 注册所有自定义服务。
 func RegisterServices() { servicecmd.RegisterServices() }
-
-// StartRuntimeEndpoint 启动运行时查询端点。
-func StartRuntimeEndpoint() error { return servicecmd.StartRuntimeEndpoint() }
-
-// StopRuntimeEndpoint 关闭运行时查询端点。
-func StopRuntimeEndpoint() { servicecmd.StopRuntimeEndpoint() }

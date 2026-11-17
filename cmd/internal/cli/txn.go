@@ -63,9 +63,6 @@ func BannedRoots(liveMain string) []string {
 	}
 }
 
-// Abs 把路径固定到当前工作目录，失败时原样返回。
-func Abs(path string) string { return abs(path) }
-
 // NewTxnEngine 构造配置事务引擎：状态目录来自 --state-dir，
 // reload 与健康检查都按 pid 文件判断服务是否在跑。
 func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
