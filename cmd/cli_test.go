@@ -1572,6 +1572,9 @@ func TestLogsQueryFiltersByRejectReason(t *testing.T) {
 	if !strings.Contains(text, "path_traversal · static_root") {
 		t.Fatalf("text 模式缺少拒绝原因/规则：%s", text)
 	}
+	if !strings.Contains(text, "1.2.3.4") {
+		t.Fatalf("text 模式缺少 remote_ip：%s", text)
+	}
 }
 
 func TestNoFileFlag(t *testing.T) {

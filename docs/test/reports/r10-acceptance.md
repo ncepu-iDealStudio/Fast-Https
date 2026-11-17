@@ -71,7 +71,7 @@ fast-https logs query --kind safe --reason blacklist --json
 
 返回记录新增 `reject_reason`、`rule`、`remote_ip`，与既有白名单字段一起脱敏、截断。
 
-CLI 文本模式（不加 `--json`）也增加一列：优先显示 `reject_reason`，没有时回退到旧 `reason`，并附带 `rule`，例如 `path_traversal · static_root`。
+CLI 文本模式（不加 `--json`）也增加一列：优先显示 `reject_reason`，没有时回退到旧 `reason`，并附带 `rule`，例如 `path_traversal · static_root`；host 列在拒绝日志里补 `remote_ip`。
 
 桌面端日志页：
 

@@ -184,7 +184,16 @@ func writeLogsText(w io.Writer, res logquery.Result) {
 		if rec.Rule != "" {
 			reason += " · " + rec.Rule
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", rec.Time, rec.Level, status, reason, rec.Host, rec.Message)
+		// host 列顺带展示拒绝日志的客户端 IP；access 日志没有 remote_ip 时保持原样。
+		hostPeer := rec.Host
+		if rec.RemoteIP != "" {
+			if hostPeer == "" {
+				hostPeer = rec.RemoteIP
+			} else {
+				hostPeer += " · " + rec.RemoteIP
+			}
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", rec.Time, rec.Level, status, reason, hostPeer, rec.Message)
 	}
 	_ = tw.Flush()
 }
