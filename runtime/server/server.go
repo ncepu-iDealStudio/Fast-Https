@@ -144,8 +144,13 @@ func (s *Server) SigHandler(sig os.Signal) {
 
 // gracefulStop stops accepting, waits for in-flight handlers, then unblocks Run.
 // The wait ends at GracefulStopTimeout even if a handler is still running.
+// 与 reload 共用 reloadMu：停止开始后不再允许 reload 改写监听器表，
+// 避免 drain 拿旧表、reload 换新表交错。
 func (s *Server) gracefulStop() {
 	s.stopOnce.Do(func() {
+		s.reloadMu.Lock()
+		defer s.reloadMu.Unlock()
+
 		logging.PrintInfo("The server got a stop signal")
 		metrics.MarkStopping()
 		core.RunBeforeStop()
@@ -159,10 +164,11 @@ func (s *Server) gracefulStop() {
 func (s *Server) drainConnections(timeout time.Duration) {
 	s.mu.Lock()
 	s.stopping = true
+	listens := append([]*listener.Listener(nil), s.Listens...)
 	s.mu.Unlock()
-	for i := range s.Listens {
-		if s.Listens[i].Cancel != nil {
-			s.Listens[i].Cancel()
+	for i := range listens {
+		if listens[i].Cancel != nil {
+			listens[i].Cancel()
 		}
 	}
 	done := make(chan struct{})
@@ -271,6 +277,17 @@ func (s *Server) Reload() {
 	s.reloadMu.Lock()
 	defer s.reloadMu.Unlock()
 
+	// 停止已开始（或已完成）时不再重建监听器：否则 reload 会在退出前
+	// 把刚被 drain 的端口重新拉起来。gracefulStop 与本函数同一把锁，
+	// 这里读到 true 只可能来自一次已经结束的停止。
+	s.mu.Lock()
+	stopping := s.stopping
+	s.mu.Unlock()
+	if stopping {
+		logging.ConsoleLog.Info().Msg("reload skipped: server is stopping")
+		return
+	}
+
 	metrics.MarkReloading()
 	defer metrics.MarkRunning()
 
@@ -297,7 +314,10 @@ func (s *Server) Reload() {
 	// 关闭被移除/类型变化的旧监听器。
 	// common 端口的配置热更新已由 ReloadListenCfg 通过同一 *Listener
 	// 指针完成，在途连接经配置快照读到新配置，这里无需再做。
-	for _, old := range s.Listens {
+	s.mu.Lock()
+	oldListens := append([]*listener.Listener(nil), s.Listens...)
+	s.mu.Unlock()
+	for _, old := range oldListens {
 		if _, ok := removedSet[old.Port]; !ok {
 			continue
 		}
@@ -318,13 +338,15 @@ func (s *Server) Reload() {
 	}
 
 	// 指向最新的ListenCfg数据
+	s.mu.Lock()
 	s.Listens = lisAll
+	s.mu.Unlock()
 
 	// 开启新增端口的监听协程开始处理事件
 	s.RunAdded(lisAdded)
 
 	initModules()
-	publishListeners(s.Listens)
+	publishListeners(lisAll)
 	metrics.NoteReloadSuccess()
 
 	logging.ConsoleLog.Info().Msg("========= server reload  end  ========")
@@ -349,6 +371,21 @@ func publishListeners(listens []*listener.Listener) {
 		out = append(out, info)
 	}
 	metrics.ReplaceListeners(out)
+	// /runtime 的 listeners[].in_flight_requests 需要实时取值：注册一个读
+	// 监听器表的函数，metrics 不用反向 import runtime/listener。
+	metrics.SetListenerInFlightSource(listenerInFlight)
+}
+
+// listenerInFlight 汇总当前监听器表的在途请求数，供 /runtime 快照读取。
+func listenerInFlight() map[string]int64 {
+	listeners := listener.SnapshotListeners()
+	out := make(map[string]int64, len(listeners))
+	for _, lis := range listeners {
+		if lis != nil {
+			out[lis.Port] = lis.InflightRequests()
+		}
+	}
+	return out
 }
 
 // RunAdded starts newly added listeners
@@ -374,8 +411,9 @@ func (s *Server) RunAdded(lisAdded []*listener.Listener) {
 //
 // 启动服务器，开始监听所有配置的端口
 func (s *Server) Run() {
-
-	listens := s.Listens
+	s.mu.Lock()
+	listens := append([]*listener.Listener(nil), s.Listens...)
+	s.mu.Unlock()
 
 	for _, lis := range listens {
 		go s.serveListener(lis)

@@ -355,6 +355,109 @@ func TestReloadLogsInFlightRequestsOnRemovedPort(t *testing.T) {
 	}
 }
 
+// /runtime 快照的 listeners[].in_flight_requests 反映实时值：端口表副本仍由
+// publishListeners 提供，在途数在 TakeSnapshot 时经注册的来源填充。
+func TestRuntimeSnapshotExposesListenerInFlight(t *testing.T) {
+	resetMetricsForTest(t)
+
+	lis := &listener.Listener{Port: "18099", LisType: 0}
+	previousListeners := listener.GLisinfos
+	listener.GLisinfos = []*listener.Listener{lis}
+	t.Cleanup(func() {
+		listener.GLisinfos = previousListeners
+		metrics.ResetForTest()
+	})
+
+	lis.BeginRequest()
+	publishListeners([]*listener.Listener{lis})
+
+	snap := metrics.TakeSnapshot()
+	if len(snap.Listeners) != 1 {
+		t.Fatalf("listeners = %+v", snap.Listeners)
+	}
+	if got := snap.Listeners[0].InFlightRequests; got != 1 {
+		t.Fatalf("in_flight_requests = %d, want 1", got)
+	}
+}
+
+// 停止开始后到达的 reload 直接跳过：不能在退出前把已 drain 的端口再拉起来。
+func TestReloadSkippedWhileStopping(t *testing.T) {
+	resetMetricsForTest(t)
+	metrics.MarkRunning()
+
+	s := &Server{}
+	s.mu.Lock()
+	s.stopping = true
+	s.mu.Unlock()
+
+	called := false
+	previousReload := reloadConfig
+	reloadConfig = func() error {
+		called = true
+		return nil
+	}
+	t.Cleanup(func() { reloadConfig = previousReload })
+
+	s.Reload()
+
+	if called {
+		t.Fatal("reload must not run once stopping has begun")
+	}
+	if got := metrics.State(); got != metrics.StateRunning {
+		t.Fatalf("state = %s, want running (skipped reload must not flap)", got)
+	}
+	if got := metrics.Generation(); got != 0 {
+		t.Fatalf("generation = %d, want 0", got)
+	}
+}
+
+// reload 与 graceful stop 并发：监听器表的读写同在 Server.mu 下，
+// -race 下不出现数据竞争，停止状态最终生效。
+func TestReloadAndGracefulStopDoNotRace(t *testing.T) {
+	resetMetricsForTest(t)
+	metrics.RecordProcessStart()
+	metrics.MarkRunning()
+
+	previous := *config.Current()
+	next := previous
+	next.Servers = nil
+	config.Store(&next, config.MIME())
+	t.Cleanup(func() { config.Store(&previous, config.MIME()) })
+
+	oldListener := &listener.Listener{Port: "18100", LisType: 0}
+	previousListeners := listener.GLisinfos
+	listener.GLisinfos = []*listener.Listener{oldListener}
+	t.Cleanup(func() { listener.GLisinfos = previousListeners })
+
+	core.SetServices(core.Services{})
+	t.Cleanup(func() { core.SetServices(core.Services{}) })
+
+	previousReload := reloadConfig
+	reloadConfig = func() error { return nil }
+	t.Cleanup(func() { reloadConfig = previousReload })
+
+	s := &Server{Listens: []*listener.Listener{oldListener}}
+	s.Wg.Add(1)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		s.Reload()
+	}()
+	go func() {
+		defer wg.Done()
+		s.gracefulStop()
+	}()
+	wg.Wait()
+
+	s.mu.Lock()
+	stopping := s.stopping
+	s.mu.Unlock()
+	if !stopping {
+		t.Fatal("graceful stop did not mark the server as stopping")
+	}
+}
+
 func freeTCPPort(t *testing.T) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

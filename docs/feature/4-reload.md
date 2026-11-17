@@ -44,7 +44,8 @@ fast-https reload        # 或向进程发 SIGINT
 请求在进入路由时从监听器快照取到 `*ListenCfg`；reload 只整体替换快照，
 不修改旧切片，所以「处理完再切换」这条路径不会读到半新半旧的字段。
 在途计数由 `Listener.BeginRequest`/`EndRequest` 维护，只统计 HTTP 请求
-（h1 每个请求、h2 每个流），websocket/tcp 隧道不计入。
+（h1 每个请求、h2 每个流），websocket/tcp 隧道不计入。同一计数也出现在
+`/runtime` 快照的 `listeners[].in_flight_requests`。
 
 ### 监听器增删改（listener/reload.go）
 

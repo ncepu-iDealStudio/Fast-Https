@@ -114,6 +114,8 @@ type ListenerInfo struct {
 	Port string `json:"port"`
 	SSL  bool   `json:"ssl,omitempty"`
 	H2   bool   `json:"h2,omitempty"`
+	// InFlightRequests 是该端口正在处理的请求数，取自 /runtime 快照。
+	InFlightRequests int64 `json:"in_flight_requests"`
 }
 
 // ConnectionsInfo 是连接计数。

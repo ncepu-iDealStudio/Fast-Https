@@ -137,7 +137,7 @@ func TakeSnapshot() Snapshot {
 		SchemaVersion: SchemaVersion,
 		ObservedAt:    time.Now().Format(logging.TimeFormat),
 		Server:        srv,
-		Listeners:     Listeners(),
+		Listeners:     listenersWithInFlight(),
 		Connections: ConnectionsInfo{
 			Active:        ConnActive(),
 			AcceptedTotal: ConnAcceptedTotal(),
