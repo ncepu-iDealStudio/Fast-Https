@@ -24,6 +24,7 @@ docs/test/
 | 报告 | [reports/r08-acceptance.md](reports/r08-acceptance.md) | **R-08 验收报告**：连接与超时边界（100-continue、keep-alive、431/413、限额与超时配置） | 5 条验收全部通过，扩展项与待修项清零 |
 | 报告 | [reports/r09-acceptance.md](reports/r09-acceptance.md) | **R-09 验收报告**：reload 的原子性与可见性（串行化、在途请求、失败保留旧配置、`in_flight_requests`） | 需求与验收全部通过；真实服务 E2E 已加入 Linux CI，待首次流水线结果回填 |
 | 报告 | [reports/r10-acceptance.md](reports/r10-acceptance.md) | **R-10 验收报告**：拒绝行为可观测性（统一字段、枚举与 rule、真实进程 E2E） | 三项验收全部通过；真实进程 E2E 本机 PASS，已加入 CI |
+| 报告 | [reports/r11-acceptance.md](reports/r11-acceptance.md) | **R-11 验收报告**：header 超限返回 431（h1 一次到齐/分片、真实 TCP、h2、畸形头仍 400） | 五项验收全部通过，无需新增代码 |
 | 用例 | [cases/boundary-cases.md](cases/boundary-cases.md) | 边界测试用例集：协议边界、注入面、数值边界、并发边界、公开语料 | 用例已全部落库，见文内对应测试文件 |
 | 方案 | [cases/stress-test-plan.md](cases/stress-test-plan.md) | 压力测试方案：4C4G3M 环境下的反代与静态资源负载 | 仅方案，压测脚本未实现（见 [v1.5.0-plan](../develop/archive/v1.5.0-plan.md)） |
 | 实测 | [verification/distro-packages.md](verification/distro-packages.md) | 发行版安装包实机验证：deb / rpm / apk / 升级迁移 | 2026-11-05 四个场景 ALL-PASS |
