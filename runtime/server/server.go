@@ -210,21 +210,6 @@ func (s *Server) serveConn(lis *listener.Listener, conn net.Conn, ctx context.Co
 	}()
 }
 
-// setConnCfg configures connection parameters
-//
-// Parameters:
-//   - conn: Pointer to the network connection to be configured
-//
-// Features:
-//   - Sets the initial connection deadline from http.servers_limit.read_timeout
-//   - Each connection activity requires setting a new deadline
-//
-// 设置连接的配置参数
-func (s *Server) setConnCfg(conn *net.Conn) {
-	now := time.Now()
-	(*conn).SetDeadline(now.Add(config.Current().Limit.ReadTimeoutDuration()))
-}
-
 // serveListener handles listening and serving on a single port
 //
 // Features:
