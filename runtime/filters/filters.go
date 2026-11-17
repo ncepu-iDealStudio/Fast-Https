@@ -140,7 +140,10 @@ func HostCheckRejects(ev *core.Event) bool {
 		return true
 	}
 	logging.Safe().Warn().
-		Str("reason", "host_check").
+		Str(logging.FieldReason, "host_check").
+		Str(logging.FieldRejectReason, "host_check").
+		Str(logging.FieldRule, "security.host_check").
+		Str(logging.FieldRemoteIP, logging.RemoteIP(ev.Conn)).
 		Str("host", host).
 		Str("port", ev.LisInfo.Port).
 		Msg("host does not match any server_name")

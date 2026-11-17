@@ -122,7 +122,7 @@ func Bucket(ev *core.Event) bool {
 	stats.rateLimitRejected.Add(1)
 
 	// write <403> and close
-	logReject(ev, ReasonRateLimit)
+	logReject(ev, ReasonRateLimit, "security.rate_limit")
 	log := dynlog.DynLogger{}
 	dynlog.Log(&log, ev)
 

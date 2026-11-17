@@ -80,9 +80,10 @@ func fileReadWrite(file *os.File, ev *core.Event) int {
 // dofind 在 path 上查找可直接返回的文件：路径本身、索引数组、try.Next。
 // 每个真正要打开的候选都过一遍 symlink_policy：索引文件和 try.Next 是
 // 请求路径的延伸，只在入口检查 realPath 会漏掉它们的符号链接。
-func dofind(path string, try *listener.Try, staticRoot, policy string) (found bool, file *os.File, file_size int64, modtime time.Time) {
+// symlinkHit 表示本次查找有候选被 reject 策略拦下，调用方据此记拒绝日志。
+func dofind(path string, try *listener.Try, staticRoot, policy string) (found bool, file *os.File, file_size int64, modtime time.Time, symlinkHit bool) {
 	if symlinkBlocked(policy, staticRoot, path) {
-		return false, nil, -1, time.Time{}
+		return false, nil, -1, time.Time{}, true
 	}
 	file, file_size, modtime = fileFdSize(path)
 
@@ -93,6 +94,7 @@ func dofind(path string, try *listener.Try, staticRoot, policy string) (found bo
 			// "rootindex.html" 这样的路径
 			p := filepath.Join(path, item)
 			if symlinkBlocked(policy, staticRoot, p) {
+				symlinkHit = true
 				continue
 			}
 			file, file_size, modtime = fileFdSize(p)
@@ -107,7 +109,9 @@ func dofind(path string, try *listener.Try, staticRoot, policy string) (found bo
 
 	if !found && try.Next != "" {
 		next := staticRoot + "/" + try.Next
-		if !symlinkBlocked(policy, staticRoot, next) {
+		if symlinkBlocked(policy, staticRoot, next) {
+			symlinkHit = true
+		} else {
 			file, file_size, modtime = fileFdSize(next)
 			if file != nil {
 				found = true
@@ -115,7 +119,7 @@ func dofind(path string, try *listener.Try, staticRoot, policy string) (found bo
 		}
 	}
 
-	return found, file, file_size, modtime
+	return found, file, file_size, modtime, symlinkHit
 }
 
 func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
@@ -151,23 +155,31 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	var file_size int64 // file size
 	var modtime time.Time
 	var found bool
+	symlinkHit := false
 
 	for _, try := range lisdata.Trys {
 		if mathed := try.UriRe.Match([]byte(rr.Req.Path)); !mathed && try.Next == "" {
 			continue
 		}
-		found, file, file_size, modtime = dofind(realPath, &try, lisdata.StaticRoot, lisdata.SymlinkPolicy)
+		var blocked bool
+		found, file, file_size, modtime, blocked = dofind(realPath, &try, lisdata.StaticRoot, lisdata.SymlinkPolicy)
+		symlinkHit = symlinkHit || blocked
 		if found || try.Next != "" {
 			break
 		}
 	}
 
 	if lisdata.Trys == nil {
-		found, file, file_size, modtime = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex},
+		var blocked bool
+		found, file, file_size, modtime, blocked = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex},
 			lisdata.StaticRoot, lisdata.SymlinkPolicy)
+		symlinkHit = symlinkHit || blocked
 	}
 
 	if !found {
+		if symlinkHit {
+			logReject(ev, "symlink_rejected", "symlink_policy")
+		}
 		log.Status(404)
 		log.Size(50)
 		return -1
@@ -252,6 +264,11 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 				}
 				payload = compressed
 				stream = false
+			} else {
+				// 配置允许压缩、文件也满足条件，只剩客户端没要（或只要了
+				// 未启用的编码）。与配置跳过区分开，便于排查“为什么没压缩”。
+				logging.RejectDebug("compression_skipped", "accept_encoding", logging.RemoteIP(ev.Conn)).
+					Msg("static response compression skipped: client accepts no configured encoding")
 			}
 		}
 	}

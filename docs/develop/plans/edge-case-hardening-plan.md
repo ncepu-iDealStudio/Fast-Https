@@ -272,9 +272,12 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 写入安全日志：路径穿越（`path_traversal` / `static_root`）、隐藏路径
 （`hidden_path` / `hidden_path_segment`）、超限（`header_too_large` /
 `max_header_size`、`body_too_large` / `max_body_size`，h1 与 h2 共用）、
-未知 SNI（`unknown_sni` / `tls.sni`）、压缩跳过（`compression_skipped` /
-`zip_min_length`、`zip_skip_types`，debug 级）。日志只保留客户端 IP 与规则名，
-不记原始请求路径。`logs query` 新增 `--reject-reason`，返回记录带
+未知 SNI（`unknown_sni` / `tls.sni`，同时写 safe.log 与控制台/error.log）、
+符号链接策略（`symlink_rejected` / `symlink_policy`）、压缩跳过
+（`compression_skipped`：`zip_min_length`、`zip_skip_types`、
+`accept_encoding`，debug 级）；安全类的黑名单/限流/location 限流/WAF/
+host_check 也补了同一组字段（保留既有 `reason`）。日志只保留客户端 IP 与
+规则名，不记原始请求路径。`logs query` 新增 `--reject-reason`，返回记录带
 `reject_reason`、`rule`、`remote_ip`；桌面端日志查询同步该参数。
 真实链路 E2E：`TestRejectLogE2E`（`FASTHTTPS_E2E_REJECT_LOG=1`）起真实进程触发
 穿越/超限/压缩跳过/未知 SNI，再按 `reject_reason` 查回记录；已加入 CI。

@@ -75,7 +75,7 @@ docs/test/
 - 2026-11-17 边缘加固 R-08 验收：`Expect: 100-continue`（含 chunked / 列表 / 417 / HTTP1.0）、keep-alive 请求与响应状态隔离、header 431 与 body 413（Content-Length / chunked / h2）、限额与超时配置（`max_*`、`read/write/body_timeout`、`proxy.upstream_timeout`、`proxy.tunnel_idle_timeout`）全部落地；新增真实 TCP E2E 与 `-race` 用例，详见 [reports/r08-acceptance.md](reports/r08-acceptance.md)。
 - 2026-11-17 边缘加固 R-09 落地：并发 reload 串行化（`server.Reload` 与 loader 各持互斥锁），在途请求按端口变化区分「旧快照跑完」与「移除/重建时终止」，reload 日志带 `port` 与 `in_flight_requests`；新增 loader/server 并发 10 次 reload 的 `-race` 用例与在途计数用例，详见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md) 与 [4-reload.md](../feature/4-reload.md)。
 - 2026-11-17 边缘加固 R-09 验收：需求与两条验收项全部通过；`/runtime` 新增 `listeners[].in_flight_requests`，reload 与 graceful stop 共用锁并跳过停止后的 reload；真实服务 E2E 因 Windows 不支持定向投递 reload 信号，已加入 Gitee Go Linux 流水线，待首次结果回填，详见 [reports/r09-acceptance.md](reports/r09-acceptance.md)。
-- 2026-11-17 边缘加固 R-10 落地：数据面拒绝统一写 `reject_reason` / `rule` / `remote_ip`，覆盖路径穿越（`path_traversal`）、隐藏路径（`hidden_path`）、超限（`header_too_large` / `body_too_large`，h1+h2）、未知 SNI（`unknown_sni`）与压缩跳过（`compression_skipped`，debug）；拒绝日志不记原始路径。`logs query` 新增 `--reject-reason`，记录输出带三个字段，桌面端同步，详见 [16-logging.md](../feature/16-logging.md)。
+- 2026-11-17 边缘加固 R-10 落地：所有拒绝统一写 `reject_reason` / `rule` / `remote_ip`，覆盖路径穿越（`path_traversal`）、隐藏路径（`hidden_path`）、符号链接策略（`symlink_rejected`）、超限（`header_too_large` / `body_too_large`，h1+h2）、未知 SNI（`unknown_sni`，safe.log 与控制台双写）与压缩跳过（`compression_skipped`：配置跳过和 `accept_encoding`，debug）；黑名单/限流/location 限流/WAF/host_check 补同一组字段。拒绝日志不记原始路径。`logs query` 新增 `--reject-reason`，记录输出带三个字段，桌面端同步，详见 [16-logging.md](../feature/16-logging.md)。
 
 ## 旧文件名对照
 

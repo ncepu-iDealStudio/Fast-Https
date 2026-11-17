@@ -49,6 +49,45 @@ func TestPathRejectLogsCarryUnifiedFields(t *testing.T) {
 	}
 }
 
+// R-10：symlink_policy=reject 拦下的 404 也要留下拒绝原因。
+func TestSymlinkRejectLogCarriesUnifiedFields(t *testing.T) {
+	dir := t.TempDir()
+	t.Cleanup(logging.CloseLogFiles)
+	if err := logging.Open(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
+		t.Skipf("创建符号链接失败：%v", err)
+	}
+
+	cfg := &listener.ListenCfg{StaticRoot: root, SymlinkPolicy: config.SYMLINK_REJECT}
+	ev, _ := newStaticEvent(t, "GET", "/link/secret.txt")
+	if got := getResBytes(&dynlog.DynLogger{}, cfg, filepath.Join(root, "link", "secret.txt"), "close", ev); got != -1 {
+		t.Fatalf("symlink reject getResBytes = %d, want -1", got)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, logging.SafeLogName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(raw)
+	for _, want := range []string{
+		`"reject_reason":"symlink_rejected"`,
+		`"rule":"symlink_policy"`,
+		`"remote_ip":"pipe"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("拒绝日志缺少 %s：%s", want, out)
+		}
+	}
+}
+
 // 压缩跳过原因决定 reject_reason=compression_skipped 的 rule 字段。
 func TestCompressibleReason(t *testing.T) {
 	cfg := &listener.ListenCfg{Zip: config.ZIP_GZIP, ZipMinLength: 100}

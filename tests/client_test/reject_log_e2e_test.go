@@ -49,6 +49,12 @@ func TestRejectLogE2E(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(work, "httpdoc", "root", "index.html"), []byte("<html>reject-log-e2e</html>"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(work, "httpdoc", "root", "plain"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "httpdoc", "root", "plain", "index.html"), []byte("<html>plain</html>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	httpPort := reserveTCPPort(t)
 	tlsPort := reserveTCPPort(t)
@@ -109,7 +115,21 @@ func TestRejectLogE2E(t *testing.T) {
 		t.Fatalf("compression request status = %d", resp.StatusCode)
 	}
 
-	// 5) 未知 SNI：握手回落到第一张证书，控制台 warn 镜像进 error.log。
+	// 4b) 客户端不接受压缩：不发送 Accept-Encoding，debug 日志记 accept_encoding。
+	plainReq, err := http.NewRequest(http.MethodGet, "http://"+httpAddr+"/plain/", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plainResp, err := client.Do(plainReq)
+	if err != nil {
+		t.Fatalf("plain request: %v\n%s", err, procLog.String())
+	}
+	_ = plainResp.Body.Close()
+	if plainResp.StatusCode != http.StatusOK {
+		t.Fatalf("plain request status = %d", plainResp.StatusCode)
+	}
+
+	// 5) 未知 SNI：握手回落到第一张证书，同时写控制台/error.log 与 safe.log。
 	conn, err := tls.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", tlsPort), &tls.Config{
 		ServerName:         "unknown.example",
 		InsecureSkipVerify: true,
@@ -143,7 +163,9 @@ func TestRejectLogE2E(t *testing.T) {
 			[]string{`"reject_reason":"body_too_large"`, `"rule":"max_body_size"`, `"remote_ip":"127.0.0.1"`}},
 		{"compression_skipped", []string{"logs", "query", "--kind", "safe", "--reject-reason", "compression_skipped", "--json"},
 			[]string{`"reject_reason":"compression_skipped"`, `"rule":"zip_min_length"`}},
-		{"unknown_sni", []string{"logs", "query", "--kind", "error", "--reject-reason", "unknown_sni", "--json"},
+		{"compression_skipped_accept", []string{"logs", "query", "--kind", "safe", "--reject-reason", "compression_skipped", "--json"},
+			[]string{`"reject_reason":"compression_skipped"`, `"rule":"accept_encoding"`}},
+		{"unknown_sni", []string{"logs", "query", "--kind", "safe", "--reject-reason", "unknown_sni", "--json"},
 			[]string{`"reject_reason":"unknown_sni"`, `"rule":"tls.sni"`, `"remote_ip":"127.0.0.1"`}},
 	} {
 		out := waitQuery(t, query, tc.args, tc.want...)
@@ -214,6 +236,12 @@ func writeRejectSite(t *testing.T, work string, httpPort, tlsPort int) {
           "index": ["index.html"],
           "zip": ["gzip"],
           "zip_min_length": 1000000
+        }, {
+          "url": "/plain",
+          "type": "local",
+          "root": "./httpdoc/root",
+          "index": ["index.html"],
+          "zip": ["gzip"]
         }]
       },
       {

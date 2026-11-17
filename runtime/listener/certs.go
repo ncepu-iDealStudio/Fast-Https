@@ -69,20 +69,24 @@ func (c *certSet) get(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return &chosen, nil
 }
 
-// logUnknownSNI 记录一次未知 SNI 回落。字段与统一拒绝日志对齐
-// （reject_reason=unknown_sni），便于按字段检索。
+// logUnknownSNI 记录一次未知 SNI 回落。控制台保留原有告警（镜像到
+// error.log），同时写安全日志，让 --kind safe 也能按 reject_reason 查到。
 func logUnknownSNI(sni string, hello *tls.ClientHelloInfo) {
 	var conn net.Conn
 	if hello != nil {
 		conn = hello.Conn
 	}
+	remoteIP := logging.RemoteIP(conn)
 	logging.ConsoleLog.Warn().
 		Str(logging.FieldRejectReason, "unknown_sni").
 		Str(logging.FieldRule, "tls.sni").
-		Str(logging.FieldRemoteIP, logging.RemoteIP(conn)).
+		Str(logging.FieldRemoteIP, remoteIP).
 		Str("sni", sni).
 		Msg("unknown TLS SNI: falling back to the first certificate " +
 			"(set tls.default_certificate to choose an explicit fallback)")
+	logging.RejectWarn("unknown_sni", "tls.sni", remoteIP).
+		Str("sni", sni).
+		Msg("unknown TLS SNI, falling back to the first certificate")
 }
 
 // chooseCert 在同一域名命中的多张证书里按客户端能力挑一张。

@@ -106,6 +106,9 @@ func Allowed(_ *listener.ListenCfg, ev *core.Event) bool {
 	logging.Safe().Warn().
 		Str(logging.FieldRemoteAddr, remoteIP(ev)).
 		Str(logging.FieldReason, "waf").
+		Str(logging.FieldRejectReason, "waf").
+		Str(logging.FieldRule, "security.waf").
+		Str(logging.FieldRemoteIP, logging.RemoteIP(ev.Conn)).
 		Int("score", result.TotalScore).
 		Str("action", result.Action).
 		Str("detectors", findingsSummary(result)).

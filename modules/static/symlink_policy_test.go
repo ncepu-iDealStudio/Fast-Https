@@ -106,13 +106,13 @@ func TestSymlinkPolicyRejectBlocksIndexLink(t *testing.T) {
 	}
 	try := &listener.Try{Files: []string{"index.html"}}
 
-	found, file, _, _ := dofind(root, try, root, config.SYMLINK_REJECT)
+	found, file, _, _, _ := dofind(root, try, root, config.SYMLINK_REJECT)
 	if found {
 		file.Close()
 		t.Fatal("reject 应拦截指向 root 之外的索引链接")
 	}
 
-	found, file, _, _ = dofind(root, try, root, config.SYMLINK_ALLOW)
+	found, file, _, _, _ = dofind(root, try, root, config.SYMLINK_ALLOW)
 	if !found {
 		t.Fatal("allow 应能读到索引链接")
 	}
@@ -132,13 +132,13 @@ func TestSymlinkPolicyRejectBlocksTryNextLink(t *testing.T) {
 	}
 	try := &listener.Try{Next: "index.html"}
 
-	found, file, _, _ := dofind(root, try, root, config.SYMLINK_REJECT)
+	found, file, _, _, _ := dofind(root, try, root, config.SYMLINK_REJECT)
 	if found {
 		file.Close()
 		t.Fatal("reject 应拦截指向 root 之外的 try.Next 链接")
 	}
 
-	found, file, _, _ = dofind(root, try, root, config.SYMLINK_ALLOW)
+	found, file, _, _, _ = dofind(root, try, root, config.SYMLINK_ALLOW)
 	if !found {
 		t.Fatal("allow 应能读到 try.Next 链接")
 	}

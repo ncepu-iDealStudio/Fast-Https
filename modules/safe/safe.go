@@ -3,6 +3,7 @@
 package safe
 
 import (
+	"net"
 	"strings"
 	"sync/atomic"
 
@@ -73,10 +74,21 @@ func RemoteIP(ev *core.Event) string {
 	return addr
 }
 
-// logReject 向安全日志写一条拒绝事件，字段与访问日志保持一致，便于统一查询。
-func logReject(ev *core.Event, reason string) {
+// logReject 向安全日志写一条拒绝事件，字段与访问日志、统一拒绝日志
+// 保持一致：reason 保留给既有查询，reject_reason / rule / remote_ip
+// 供 R-10 的统一口径检索。
+func logReject(ev *core.Event, reason, rule string) {
+	remoteIP := ""
+	var conn net.Conn
+	if ev != nil && ev.Conn != nil {
+		conn = ev.Conn
+		remoteIP = RemoteIP(ev)
+	}
 	logging.Safe().Warn().
-		Str(logging.FieldRemoteAddr, RemoteIP(ev)).
+		Str(logging.FieldRemoteAddr, remoteIP).
 		Str(logging.FieldReason, reason).
+		Str(logging.FieldRejectReason, reason).
+		Str(logging.FieldRule, rule).
+		Str(logging.FieldRemoteIP, logging.RemoteIP(conn)).
 		Msg("connection rejected")
 }
