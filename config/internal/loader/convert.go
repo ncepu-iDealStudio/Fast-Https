@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"os"
 	"strings"
+	"sync"
 
 	"fast-https/config/internal/acme"
 	"fast-https/config/internal/model"
@@ -17,6 +18,11 @@ import (
 	"fast-https/infra/logging"
 )
 
+// loadMu 串行化配置快照的发布。并发 reload 时后到的调用等待前一次完成，
+// 这样快照替换顺序与调用开始顺序一致——否则先开始但后完成的那次会用旧
+// 文件内容覆盖掉新内容。覆盖 Init 与 Reload 两条入口。
+var loadMu sync.Mutex
+
 // Init 加载编译期基址上的主配置文件。
 func Init() error {
 	return LoadFile(model.CONFIG_FILE_PATH)
@@ -25,6 +31,14 @@ func Init() error {
 // LoadFile 读取一份配置与 MIME 表，然后整体替换配置快照。
 // 任何一步失败都不改动现有快照，读取方不会看到清空或半成品。
 func LoadFile(path string) error {
+	loadMu.Lock()
+	defer loadMu.Unlock()
+	return loadFileLocked(path)
+}
+
+// loadFileLocked 是 LoadFile 的加锁内层，供已经在持锁的 ReloadFile 调用，
+// 避免同一把锁重入死锁。
+func loadFileLocked(path string) error {
 	cfg, err := processRoot(path)
 	if err != nil {
 		return err
@@ -69,11 +83,14 @@ func Reload() error {
 }
 
 // ReloadFile 先校验再加载，校验或加载失败都保留原快照。
+// 校验与加载在同一把锁内完成：并发调用时，后开始的调用一定后发布快照。
 func ReloadFile(path string) error {
+	loadMu.Lock()
+	defer loadMu.Unlock()
 	if err := validate.ValidateConfigFile(path); err != nil {
 		return err
 	}
-	return LoadFile(path)
+	return loadFileLocked(path)
 }
 
 func processRoot(configPath string) (model.Fast_Https, error) {

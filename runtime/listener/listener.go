@@ -211,7 +211,9 @@ func FindPorts() []string {
 
 func FindOldPorts() []string {
 	var Ports []string
-	for _, item := range GLisinfos {
+	// 走快照而不是直接读 GLisinfos：reload 会替换监听器表，
+	// 这里与证书热替换等读取方并发，不能读半截切片。
+	for _, item := range SnapshotListeners() {
 		if !slices.Contains(Ports, item.Port) {
 			// always true
 			Ports = append(Ports, item.Port)
@@ -281,8 +283,11 @@ func SortBySpecificPorts(ports []string, lisInfos *[]*Listener) {
 // sort configure from "path"
 func processListenData(lisInfos *[]*Listener) {
 	Id := 0
-	proxy := config.Current().Proxy
-	for _, server := range config.Current().Servers {
+	// 一次取快照：Servers 与 Proxy 必须来自同一份配置，
+	// 否则 reload 恰好在此处换快照时会拼出「新路由 + 旧 XFF 策略」。
+	cur := config.Current()
+	proxy := cur.Proxy
+	for _, server := range cur.Servers {
 		listen := strings.Split(server.Listen, " ")[0]
 		for _, paths := range server.Path {
 

@@ -45,8 +45,11 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 	processHostMap(&CurrLisinfoCommon)
 	// fill cfg
 
+	// 读一份快照：GLisinfos 在 reload 结束时整体替换，
+	// 直接遍历会与替换并发（证书热替换 / 指标读取同样要拿快照）。
+	oldListeners := SnapshotListeners()
 	for index, each := range CurrLisinfoCommon {
-		for _, old := range GLisinfos {
+		for _, old := range oldListeners {
 			if old.Port != each.Port {
 				continue
 			}

@@ -38,6 +38,11 @@ type Server struct {
 	mu       sync.Mutex
 	stopping bool
 	stopOnce sync.Once
+
+	// reloadMu 串行化整条 reload 流水线（配置加载 → 钩子对齐 → 监听器
+	// 增删改 → 指标发布）。并发信号或命令后到的等待前一次完成，避免两次
+	// reload 同时改写 GLisinfos / s.Listens 造成乱序或半截状态。
+	reloadMu sync.Mutex
 }
 
 // initModules initializes all modules that need to be initialized after the listener
@@ -260,7 +265,12 @@ var reloadConfig = config.Reload
 
 // Reload reloads the server configuration.
 // An invalid file, including a missing certificate, leaves the current listeners open.
+// Concurrent callers are serialized: the later one waits for the earlier to finish,
+// so listener table writes never interleave.
 func (s *Server) Reload() {
+	s.reloadMu.Lock()
+	defer s.reloadMu.Unlock()
+
 	metrics.MarkReloading()
 	defer metrics.MarkRunning()
 

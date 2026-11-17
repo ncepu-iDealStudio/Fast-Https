@@ -25,6 +25,19 @@ fast-https reload        # 或向进程发 SIGINT
 
 在途请求与 reload 协程之间没有无同步的共享可变状态；读取端要么看到完整旧状态、要么完整新状态。
 
+### 并发 reload 串行化
+
+`server.Reload` 与 `config.LoadFile`/`ReloadFile` 各自持有一把互斥锁。并发
+`SIGINT` 或 `reload` 命令后到的调用等待前一次完成，配置快照与监听器表的发布
+顺序与调用开始顺序一致——否则先开始但后完成的一次会用旧文件内容覆盖新内容。
+后到的一次不会被丢弃，仍会完整执行一遍。
+
+### 在途请求语义：处理完再切换
+
+请求在进入路由时从监听器快照取到 `*ListenCfg`；reload 只整体替换快照，
+不修改旧切片。因此**这条请求用旧配置处理完**，不会读到半新半旧的字段；
+新请求（包括 keep-alive 连接上的下一个请求）重新查表时读到的才是新配置。
+
 ### 监听器增删改（listener/reload.go）
 
 - **新增端口**：新建 `*Listener`（新 Lfd/Ctx）→ 发布快照 → `RunAdded` 启动 serveListener。
@@ -80,7 +93,7 @@ flowchart LR
 
 ## 测试
 
-`config/reload_window_test.go`（-race 并发读 + 50 次 reload 零撕裂）、`tests/unit_test/runtime/listener/reload_common_test.go`、`runtime/listener/hot_update_race_test.go`、`runtime/server/reload_cert_test.go`、`runtime/server/reload_order_test.go`（钩子先于监听器重载）、`modules/certmanager/manager_reconcile_test.go`（差异判定与停旧起新）、E2E：`FASTHTTPS_E2E_RELOAD=1`。
+`config/config_test.go`（校验失败保留旧快照）、`tests/unit_test/runtime/listener/reload_common_test.go`、`runtime/listener/hot_update_race_test.go`（快照无撕裂 + 在途请求按旧配置处理完）、`config/internal/loader/loader_test.go`（`TestConcurrentReloadSerialized`）、`runtime/server/reload_state_test.go`（`TestConcurrentReloadsAreSerialized`：-race 下 10 次并发 reload）、`runtime/server/reload_cert_test.go`、`runtime/server/reload_order_test.go`（钩子先于监听器重载）、`modules/certmanager/manager_reconcile_test.go`（差异判定与停旧起新）、E2E：`FASTHTTPS_E2E_RELOAD=1`。
 
 ## 已知限制
 

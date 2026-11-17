@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"fast-https/config/internal/model"
@@ -214,6 +215,64 @@ func TestConvertPathReadsErrorPage(t *testing.T) {
 	path := convertPath(jp)
 	if path.ErrorNotFound != "404.html" || path.ErrorProxy != "proxy.html" {
 		t.Fatalf("not_found=%q proxy=%q", path.ErrorNotFound, path.ErrorProxy)
+	}
+}
+
+// 十个并发 reload 必须串行发布：最终快照是一份完整配置，而不是
+// 两次加载拼出来的「新站点 + 旧日志目录」。-race 下同时验证没有数据竞争。
+func TestConcurrentReloadSerialized(t *testing.T) {
+	before := model.Current()
+	beforeMIME := model.MIME()
+	t.Cleanup(func() { model.Store(before, beforeMIME) })
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "mime.json"), []byte(`{"html": "text/html"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	const n = 10
+	paths := make([]string, n)
+	for i := 0; i < n; i++ {
+		body := fmt.Sprintf(`{
+  "log_root": "reload-%d",
+  "http": {"server": [{"listen": %d, "server_name": "site-%d.local",
+    "location": [{"url": "/", "type": "local", "root": "."}]}]}
+}`, i, 18000+i, i)
+		path := filepath.Join(dir, fmt.Sprintf("site-%d.json", i))
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths[i] = path
+	}
+
+	var wg sync.WaitGroup
+	errs := make(chan error, n)
+	for _, path := range paths {
+		wg.Add(1)
+		go func(path string) {
+			defer wg.Done()
+			errs <- ReloadFile(path)
+		}(path)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("concurrent reload: %v", err)
+		}
+	}
+
+	cur := model.Current()
+	if len(cur.Servers) != 1 {
+		t.Fatalf("servers = %d, want 1 (snapshot must not merge reloads)", len(cur.Servers))
+	}
+	name := cur.Servers[0].ServerName
+	idx := strings.TrimSuffix(strings.TrimPrefix(name, "site-"), ".local")
+	if idx == name || idx == "" {
+		t.Fatalf("unexpected server name %q", name)
+	}
+	if want := "reload-" + idx; filepath.Base(cur.LogRoot) != want {
+		t.Fatalf("log_root = %q, want %q from the same load as %q", cur.LogRoot, want, name)
 	}
 }
 

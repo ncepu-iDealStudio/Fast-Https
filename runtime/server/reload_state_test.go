@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -255,6 +256,57 @@ func TestSigtermMarksStopping(t *testing.T) {
 	s.SigHandler(syscall.SIGTERM)
 	if got := metrics.State(); got != metrics.StateStopping {
 		t.Fatalf("state = %s, want stopping", got)
+	}
+}
+
+// 并发触发 10 次 reload：后到的等待前一次完成，监听器表与指标不应出现
+// 交错写入或半截状态。-race 下同时覆盖 GLisinfos / s.Listens 的读写。
+func TestConcurrentReloadsAreSerialized(t *testing.T) {
+	resetMetricsForTest(t)
+	metrics.RecordProcessStart()
+	metrics.MarkRunning()
+
+	// 配置里一个 server 都没有：ReloadListenCfg 只做移除，不触发真实绑定。
+	previous := *config.Current()
+	next := previous
+	next.Servers = nil
+	config.Store(&next, config.MIME())
+	t.Cleanup(func() { config.Store(&previous, config.MIME()) })
+
+	oldListener := &listener.Listener{Port: "18096", LisType: 0}
+	previousListeners := listener.GLisinfos
+	listener.GLisinfos = []*listener.Listener{oldListener}
+	t.Cleanup(func() { listener.GLisinfos = previousListeners })
+
+	core.SetServices(core.Services{})
+	t.Cleanup(func() { core.SetServices(core.Services{}) })
+
+	previousReload := reloadConfig
+	reloadConfig = func() error { return nil }
+	t.Cleanup(func() { reloadConfig = previousReload })
+
+	s := &Server{Listens: []*listener.Listener{oldListener}}
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.Reload()
+		}()
+	}
+	wg.Wait()
+
+	if got := metrics.Generation(); got != 10 {
+		t.Fatalf("generation = %d, want 10 (one per reload)", got)
+	}
+	if got := metrics.State(); got != metrics.StateRunning {
+		t.Fatalf("state = %s, want running after the last reload", got)
+	}
+	if got := len(listener.SnapshotListeners()); got != 0 {
+		t.Fatalf("listener table = %d entries, want 0", got)
+	}
+	if got := len(s.Listens); got != 0 {
+		t.Fatalf("s.Listens = %d entries, want 0", got)
 	}
 }
 
