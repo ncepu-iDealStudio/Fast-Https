@@ -3,8 +3,8 @@
 这份文档记录的是**问题反馈的核对结果**：收到「某某场景会出问题」的反馈后，
 逐条确认本项目是否存在同样缺陷、证据是什么、有没有修。
 
-它不是功能计划（那在 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)），
-也不是覆盖率报告（那在 [0-coverage-assessment.md](0-coverage-assessment.md)）。
+它不是功能计划（那在 [edge-case-hardening-plan.md](../../develop/plans/edge-case-hardening-plan.md)），
+也不是覆盖率报告（那在 [coverage-assessment.md](coverage-assessment.md)）。
 
 ## 4.1 状态取值
 
@@ -23,10 +23,10 @@
 | B-02 | 用 `%2e%2e`、`..%2f` 等编码绕过上一条的检查 | ✅ 无此问题 | `TestStaticPathTraversalVectors`（本轮新增） | 解码发生在静态层之前，编码形式到该层已是普通字符 |
 | B-03 | 用 `%5c`（编码反斜杠）在 Windows 上再绕过一次 | ✅ 无此问题 | 同上 | 编码形式落到普通文件名分支；裸 `\..\..\` 被 `Clean` 当分隔符拒绝 |
 | B-04 | 四点是合法文件名，被误判成 `..` | ✅ 无此问题 | 同上（`/....//etc/passwd`） | 按普通名处理，不误拒 |
-| B-05 | 尾点 / 尾空格被 Windows 静默截断，读到别的文件 | ⚠️ 存在待修 | 同上（`/file.`、`/file `） | 当前当普通名，结果取决于目标文件是否存在；需在 Windows 上单独验证并决定是否显式拒绝 |
+| B-05 | 尾点 / 尾空格被 Windows 静默截断，读到别的文件 | 🔧 已修复 | `TestWindowsPathSemantics`、`traversal-vectors.jsonl` 的 Windows 向量 | R-02：Windows 上逐段裁剪尾点 / 尾空格后重新 `Clean` 并复查前缀；`CON`/`COM1` 等保留名一律拒绝 |
 | B-06 | 绝对盘符路径（`/C:/Windows/win.ini`）跳出根目录 | ✅ 无此问题 | 同上 | `Clean` 后仍在 root 内，最终 404 |
 | B-07 | 重复斜杠（`//etc/passwd`）被当成绝对路径 | ✅ 无此问题 | 同上 | 归一化后仍在 root 内 |
-| B-08 | 文档根内的符号链接指向外部，被当普通文件读出 | ⚠️ 存在待修 | `TestStaticSymlinkEscape`（Windows 上 Skip） | `staticPathInRoot` 只看字符串前缀，不 `EvalSymlinks`；需决定「拒绝」还是「配置期校验」 |
+| B-08 | 文档根内的符号链接指向外部，被当普通文件读出 | 🔧 已修复 | `TestSymlinkPolicyRejectEscapingLink` 等 6 个策略用例、`TestLoadFileRejectsSymlinkRootByDefault`、`TestStaticSymlinkEscape` | R-01：新增 `location.symlink_policy`，默认 `check-at-load` 在加载期拒绝 root 下的链接；`reject` 在请求期逐段拒绝（含 Windows junction） |
 | B-09 | 未配置证书的域名发起 TLS 握手，进程崩溃 | ✅ 无此问题 | `TestCertSetUnknownSNIFallsBack`、`TestCertSetEmptyReturnsError` | 未知 SNI 与空 SNI 都回落到第一张证书；证书列表为空时返回错误而非 panic |
 | B-10 | 通配符证书 `*.example.com` 匹配了 `a.b.example.com` | ✅ 无此问题 | `TestCertSetWildcardMatchesOneLabelOnly` | 走标准库 `VerifyHostname`，通配符只跨一层 |
 | B-10b | 大小写或结尾的点导致选不到证书 | ✅ 无此问题 | `TestCertSetNormalizesCaseAndTrailingDot` | `EXACT.EXAMPLE`、`exact.example.` 均命中同一张 |
@@ -123,8 +123,11 @@ PASS: TestReloadMissingFileKeepsPreviousConfig
 - **B-08 符号链接**：已由 R-01 落地 `location.symlink_policy`，默认
   `check-at-load`（加载时拒绝 root 下的链接），可切 `reject`（请求期逐段
   拒绝任意链接，含 Windows junction）或 `allow`，
-  见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)。
-- **B-05 尾点尾空格**：仍待 R-02 定产品判断（显式拒绝还是规范化后重查）。
+  见 [edge-case-hardening-plan.md](../../develop/plans/edge-case-hardening-plan.md)。
+- **B-05 尾点尾空格**：已由 R-02 处理——Windows 上逐段裁剪尾点 / 尾空格后
+  重新 `Clean` 并复查前缀（裁剪可能产生新的 `..`，如 `/.. `），存量保留设备名
+  `CON`/`PRN`/`AUX`/`NUL`/`COM1`–`COM9`/`LPT1`–`LPT9` 直接拒绝；
+  `TestWindowsPathSemantics` 逐条锁定，其他平台行为不变。
 
 ## 4.5 复跑方式
 
@@ -154,9 +157,8 @@ B-05、B-08 需要在 Windows / Linux 各跑一次，结果才有意义（`EvalS
 
 当前收集到的反馈已全部核验完毕，没有 ❓ 项。
 
-B-08 符号链接逃逸已通过 R-01 的 `symlink_policy` 处理（默认 `check-at-load`）；
-B-05 Windows 尾点尾空格仍待 R-02 定产品判断，方案见
-[edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)。
+B-05 与 B-08 已分别由 R-02、R-01 处理并有回归用例；剩余待修项只有 B-12
+（hop-by-hop 头剥离，R-06）。
 
 后续再收到新的问题反馈，按同样节奏处理：
 

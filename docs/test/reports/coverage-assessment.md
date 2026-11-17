@@ -8,7 +8,7 @@ go tool cover -func=cover.out
 ```
 
 > 2026-10-25 二次实测：完成三大补测缺口 + 公开语料覆盖（见
-> [1-boundary-cases.md §1.8](1-boundary-cases.md#18-公开语料覆盖真实用例)）后，
+> [boundary-cases.md §1.8](../cases/boundary-cases.md#18-公开语料覆盖真实用例)）后，
 > 合并覆盖率 50.8% → **55.7%**。
 >
 > 2026-10-25 三次实测：**全功能模块补测**（auth/rewrite/dev_mod/safe-counts/
@@ -60,7 +60,7 @@ go tool cover -func=cover.out
 > （httparse 向量 + payload-box 走私 payload）覆盖性回打，合计修掉 5 个
 > 真实缺陷（分片误拒 400、冒号前空白放行、响应 reason 截断、
 > ReadBytes 自旋/半截交付、过期缓存条目回放）。明细见
-> [1-boundary-cases.md §1.8](1-boundary-cases.md#18-公开语料覆盖真实用例)。
+> [boundary-cases.md §1.8](../cases/boundary-cases.md#18-公开语料覆盖真实用例)。
 
 1. ~~runtime/events.parseRequest 的分片读分支~~ ✅ `runtime/events/fragment_test.go`
 2. ~~proxy getDataFromServer 的上游异常矩阵~~ ✅ `modules/proxy/upstream_matrix_test.go`（M1-M7：半响应/关闭/真实 RST/慢/对照/close 路径）
@@ -71,4 +71,4 @@ go tool cover -func=cover.out
 ## 约定
 
 - 覆盖率是手段不是 KPI：注入面、并发边界（`-race`）、协议边界的用例价值高于数字。
-- 新增功能合并门禁：对应包不因新代码**下降**（见 [develop/1-testing.md](../develop/1-testing.md)）。
+- 新增功能合并门禁：对应包不因新代码**下降**（见 [develop/1-testing.md](../../develop/1-testing.md)）。

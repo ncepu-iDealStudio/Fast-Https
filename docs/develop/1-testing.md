@@ -54,7 +54,7 @@ sh tests/packaging/distro/run.sh all      # deb → upgrade → rpm → apk
 
 四个场景分别在 `ubuntu:24.04`、`almalinux:9`、`alpine:3.21` 里装包、启动、轮转、卸载，逐项打印 `PASS` / `FAIL`，退出码即结果。
 
-**跑之前先看 [test/3-distro-verification.md](../test/3-distro-verification.md)**：那里有上一次实测的产物校验和、镜像摘要、逐项结论，以及"看着像缺陷其实是镜像策略"的四条环境差异（man `path-exclude`、`curl-minimal` 冲突、容器内 `start` 不 daemonize、rpm `.rpmsave`）。同一份产物不重复跑。
+**跑之前先看 [test/verification/distro-packages.md](../test/verification/distro-packages.md)**：那里有上一次实测的产物校验和、镜像摘要、逐项结论，以及"看着像缺陷其实是镜像策略"的四条环境差异（man `path-exclude`、`curl-minimal` 冲突、容器内 `start` 不 daemonize、rpm `.rpmsave`）。同一份产物不重复跑。
 
 ## 新功能测试清单
 

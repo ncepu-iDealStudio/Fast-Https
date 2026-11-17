@@ -1,7 +1,7 @@
 # Fast-Https 边界加固功能需求
 
-状态：🚧 **部分实现**（R-01 已完成，其余待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
-目前有没有这些问题、修没修）在 [4-edge-case-coverage.md](../../test/4-edge-case-coverage.md)。
+状态：🚧 **部分实现**（R-01 ~ R-04 已完成，R-05 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
+目前有没有这些问题、修没修）在 [edge-case-coverage.md](../../test/reports/edge-case-coverage.md)。
 
 ## 需求来源
 
@@ -265,12 +265,12 @@ chunked 上传仍按累计长度在读取过程中拒绝。
 每个需求按同一节奏：
 
 1. 先在 `testdata/` 写用例表，跑出当前的失败或记录现状
-2. 在 [缺陷核验表](../../test/4-edge-case-coverage.md) 里把对应行从 ❓ 改成 ✅ 或 ⚠️
+2. 在 [缺陷核验表](../../test/reports/edge-case-coverage.md) 里把对应行从 ❓ 改成 ✅ 或 ⚠️
 3. 需要改代码的单独一个提交，用例作为回归
 4. 只补用例不改代码的，标注「锁定现状」并说明为什么可以接受
 
 ## 相关文档
 
-- 缺陷核验记录见 [4-edge-case-coverage.md](../../test/4-edge-case-coverage.md)
-- 按输入域组织的用例集见 [1-boundary-cases.md](../../test/1-boundary-cases.md)
-- 覆盖率评估见 [0-coverage-assessment.md](../../test/0-coverage-assessment.md)
+- 缺陷核验记录见 [edge-case-coverage.md](../../test/reports/edge-case-coverage.md)
+- 按输入域组织的用例集见 [boundary-cases.md](../../test/cases/boundary-cases.md)
+- 覆盖率评估见 [coverage-assessment.md](../../test/reports/coverage-assessment.md)

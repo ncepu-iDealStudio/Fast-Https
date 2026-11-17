@@ -18,7 +18,7 @@
 | 宿主 | Windows 11 + Docker Desktop 29.7.2（WSL2 后端） |
 | 架构 | `amd64`（宿主与容器一致；`arm64` 产物本次未实装） |
 | 镜像 | `ubuntu@sha256:fe815609…ef852`、`almalinux@sha256:245f8aab…57ae2`、`alpine@sha256:ee16d92f…b5bd` |
-| 脚本 | [`tests/packaging/distro/`](../../tests/packaging/distro/README.md) |
+| 脚本 | [`tests/packaging/distro/`](../../../tests/packaging/distro/README.md) |
 
 产物校验和（sha256，取自 `dist/checksums.txt`）：
 
@@ -140,6 +140,6 @@ sh tests/packaging/distro/run.sh deb arm64
 
 ## 与其它文档的关系
 
-- 缺陷与根因：[help/dev-issues.md 002](../help/dev-issues.md)（本文是验证记录，那里是问题记录）
-- 打包与 FHS 布局：[help/build-and-install.md](../help/build-and-install.md)、[help/package-layout.md](../help/package-layout.md)
-- 发布前清单：[develop/5-release.md](../develop/5-release.md)
+- 缺陷与根因：[help/dev-issues.md 002](../../help/dev-issues.md)（本文是验证记录，那里是问题记录）
+- 打包与 FHS 布局：[help/build-and-install.md](../../help/build-and-install.md)、[help/package-layout.md](../../help/package-layout.md)
+- 发布前清单：[develop/5-release.md](../../develop/5-release.md)
