@@ -77,7 +77,7 @@ docs/test/
 - 2026-11-17 边缘加固 R-09 落地：并发 reload 串行化（`server.Reload` 与 loader 各持互斥锁），在途请求按端口变化区分「旧快照跑完」与「移除/重建时终止」，reload 日志带 `port` 与 `in_flight_requests`；新增 loader/server 并发 10 次 reload 的 `-race` 用例与在途计数用例，详见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md) 与 [4-reload.md](../feature/4-reload.md)。
 - 2026-11-17 边缘加固 R-09 验收：需求与两条验收项全部通过；`/runtime` 新增 `listeners[].in_flight_requests`，reload 与 graceful stop 共用锁并跳过停止后的 reload；真实服务 E2E 因 Windows 不支持定向投递 reload 信号，已加入 Gitee Go Linux 流水线，待首次结果回填，详见 [reports/r09-acceptance.md](reports/r09-acceptance.md)。
 - 2026-11-17 边缘加固 R-10 落地：所有拒绝统一写 `reject_reason` / `rule` / `remote_ip`，覆盖路径穿越（`path_traversal`）、隐藏路径（`hidden_path`）、符号链接策略（`symlink_rejected`）、超限（`header_too_large` / `body_too_large`，h1+h2）、未知 SNI（`unknown_sni`，safe.log 与控制台双写）与压缩跳过（`compression_skipped`：配置跳过和 `accept_encoding`，静态与代理，debug）；黑名单/限流/location 限流/WAF/host_check 补同一组字段。拒绝日志不记原始路径。`logs query` 新增 `--reject-reason`，记录输出带三个字段，桌面端同步，详见 [16-logging.md](../feature/16-logging.md)。
-- 2026-11-17 边缘加固 R-10 验收：三项验收全部通过；真实进程 `TestRejectLogE2E` 覆盖穿越/超限/两种压缩跳过/未知 SNI 并用 `logs query --reject-reason` 查回，已加入 CI；host_check warn/enforce 与代理压缩跳过补齐，详见 [reports/r10-acceptance.md](reports/r10-acceptance.md)。
+- 2026-11-17 边缘加固 R-10 验收：三项验收全部通过；真实进程 `TestRejectLogE2E` 覆盖穿越/超限/两种压缩跳过/未知 SNI 并用 `logs query --reject-reason` 查回，已加入 CI；host_check warn/enforce 与代理压缩跳过补齐；桌面端日志页提供拒绝原因枚举筛选与原因/规则展示列，详见 [reports/r10-acceptance.md](reports/r10-acceptance.md)。
 
 ## 旧文件名对照
 

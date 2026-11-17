@@ -69,7 +69,12 @@ fast-https logs query --kind safe --reason blacklist --json
 ```
 
 返回记录新增 `reject_reason`、`rule`、`remote_ip`，与既有白名单字段一起脱敏、截断。
-桌面端日志页「高级筛选」增加了「拒绝原因」输入框，后端翻译为 `--reject-reason`。
+
+桌面端日志页：
+
+- 高级筛选的「拒绝原因」是枚举下拉：`全部` + 12 个 `reject_reason`，选中后翻译为 `--reject-reason`。
+- 表格新增 reason 列，显示 `reject_reason · rule`；悬浮 `title` 显示 `remote_ip`。
+- `logEntry` 映射三个字段，`LogEntry`（Go/TS）同步；窄窗口自动收起该列。
 
 ## 5. 测试执行记录
 
@@ -86,6 +91,7 @@ PASS: TestHostCheckCarriesUnifiedFields (warn/enforce) (runtime/filters)
 PASS: TestRejectReasonFilter                        (management/logquery)
 PASS: TestLogsQueryFiltersByRejectReason            (cmd)
 PASS: TestLogsQueryArgs                             (desktop/internal/view)
+PASS: TestLogEntryMapping                           (desktop/internal/view)
 ```
 
 真实进程 E2E：
@@ -127,6 +133,7 @@ E2E 在临时目录起真实进程（HTTP + TLS），触发路径穿越、header
 | `0e358c7` | 真实进程 E2E `TestRejectLogE2E`，并加入 CI |
 | `32f84a3` | 安全类拒绝、symlink、accept_encoding、unknown_sni 补统一字段 |
 | `6ad71e8` | host_check enforce 与代理压缩跳过日志 |
+| `680e621` | 桌面端日志表展示拒绝原因与规则，筛选改为枚举下拉 |
 
 ## 8. 关键文件
 
