@@ -70,11 +70,14 @@ fast-https logs query --kind safe --reason blacklist --json
 
 返回记录新增 `reject_reason`、`rule`、`remote_ip`，与既有白名单字段一起脱敏、截断。
 
+CLI 文本模式（不加 `--json`）也增加一列：优先显示 `reject_reason`，没有时回退到旧 `reason`，并附带 `rule`，例如 `path_traversal · static_root`。
+
 桌面端日志页：
 
 - 高级筛选的「拒绝原因」是枚举下拉：`全部` + 12 个 `reject_reason`，选中后翻译为 `--reject-reason`。
-- 表格新增 reason 列，显示 `reject_reason · rule`；悬浮 `title` 显示 `remote_ip`。
-- `logEntry` 映射三个字段，`LogEntry`（Go/TS）同步；窄窗口自动收起该列。
+- 表格新增 reason 列，显示 `reject_reason · rule`（旧日志回退到 `reason`）；悬浮 `title` 显示 `remote_ip`。
+- host/peer 列在没有 `remote_addr` 时显示 `remote_ip`，拒绝日志也能看到来源。
+- `logEntry` 映射四个字段，`LogEntry`（Go/TS）同步；窄窗口自动收起 reason 列。
 
 ## 5. 测试执行记录
 
@@ -134,6 +137,7 @@ E2E 在临时目录起真实进程（HTTP + TLS），触发路径穿越、header
 | `32f84a3` | 安全类拒绝、symlink、accept_encoding、unknown_sni 补统一字段 |
 | `6ad71e8` | host_check enforce 与代理压缩跳过日志 |
 | `680e621` | 桌面端日志表展示拒绝原因与规则，筛选改为枚举下拉 |
+| `308bbfd` | CLI 文本模式展示拒绝原因/规则；桌面端旧 `reason` 回退与 `remote_ip` 展示 |
 
 ## 8. 关键文件
 
