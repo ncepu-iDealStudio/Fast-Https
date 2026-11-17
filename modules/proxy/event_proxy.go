@@ -56,6 +56,9 @@ var (
 	ProxyErrorDialUpstream            = &ProxyError{msg: "proxy dial upstream server"}
 	ProxyErrorSendToUpstreamTimeout   = &ProxyError{msg: "proxy send to upstream server time out"}
 	ProxyErrorReadFromUpstreamTimeout = &ProxyError{msg: "proxy read from upstream server time out"}
+	// ProxyErrorUpstreamBodyTooLarge 表示上游既没给 Content-Length 也没给
+	// chunked，读到 EOF 时超过 max_body_size。按 502 回给客户端。
+	ProxyErrorUpstreamBodyTooLarge = &ProxyError{msg: "proxy upstream response body too large"}
 )
 
 type ProxyError struct {
@@ -297,7 +300,13 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 		// }
 
 		ev.RR.Res.Body = rka.body
-		p.respEmptyBody = rka.emptyBody
+		// 空 body 响应后还有多余字节：上游违约（例如 204 带了正文）。
+		// 响应本身可以交付，但这条连接不能再复用，否则残留字节会污染
+		// 下一条借到它的请求。
+		if rka.trailingBytes {
+			p.ProxyNeedClose = true
+		}
+		p.respEmptyBody = rka.emptyBody && !rka.trailingBytes
 		err = nil
 	}
 	return
@@ -385,7 +394,7 @@ func (p *Proxy) proxyNeedCache(cfg *listener.ListenCfg, pc *ProxyCache, req_data
 	if err != nil {
 		// 上游连接状态未知，一律关闭不回收
 		p.Close()
-		ev.RR.Res = response.DefaultServerError()
+		ev.RR.Res = proxyErrorResponse(err)
 		ev.WriteResponseClose(nil)
 		return
 	}
@@ -415,6 +424,15 @@ func writeProxyResponse(ev *core.Event) {
 	ev.WriteResponseClose(nil)
 }
 
+// proxyErrorResponse 把上游读取错误映射成对客户端的响应。
+// 上游响应超出限额属于网关侧问题，用 502；其余沿用 500。
+func proxyErrorResponse(err error) *response.Response {
+	if err == ProxyErrorUpstreamBodyTooLarge {
+		return response.DefaultBadGateway()
+	}
+	return response.DefaultServerError()
+}
+
 func (p *Proxy) proxyNoCache(cfg *listener.ListenCfg, req_data []byte, ev *core.Event) {
 
 	status, err := p.getDataFromServer(ev, req_data)
@@ -426,7 +444,7 @@ func (p *Proxy) proxyNoCache(cfg *listener.ListenCfg, req_data []byte, ev *core.
 			ev.Close()
 			ev.Reuse = false
 		} else {
-			ev.RR.Res = response.DefaultServerError()
+			ev.RR.Res = proxyErrorResponse(err)
 			ev.WriteResponseClose(nil)
 		}
 		return

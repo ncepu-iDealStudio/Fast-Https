@@ -31,6 +31,9 @@ type ReadKeepAlive struct {
 	// emptyBody 表示刚解析的响应在协议上必然没有 body（HEAD / 204 / 304）。
 	// 这类响应不需要等上游关闭，调用方可以复用连接。
 	emptyBody bool
+	// trailingBytes 表示空 body 响应的头部之后还读到了字节。上游违约时
+	// 连接不能复用，否则残留字节会污染下一个请求。
+	trailingBytes bool
 }
 
 /*
@@ -71,6 +74,7 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 	if rka.isHeadRequest() {
 		rka.body = nil
 		rka.emptyBody = true
+		rka.trailingBytes = tmpLen > i+4
 		return 0
 	}
 
@@ -79,6 +83,7 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 	if bodylessStatus(res) {
 		rka.body = nil
 		rka.emptyBody = true
+		rka.trailingBytes = tmpLen > i+4
 		return 0
 	}
 
@@ -129,13 +134,18 @@ func bodylessStatus(res *response.Response) bool {
 
 // readUntilEOF 读到上游关闭连接为止，把剩余 body 追加到响应里。
 // 只有「既没有 Content-Length 也没有 chunked」的旧式响应会走到这里。
+// 累计长度受 max_body_size 限制：无长度声明的响应不能让上游无限撑大内存。
 func (rka *ReadKeepAlive) readUntilEOF() error {
+	limit := maxChunkedBody()
 	buf := make([]byte, READ_BODY_BYTES_LEN)
 	for {
 		n, err := rka.Read(buf)
 		if n > 0 {
 			rka.finalStr = append(rka.finalStr, buf[:n]...)
 			rka.body = append(rka.body, buf[:n]...)
+			if limit > 0 && len(rka.body) > limit {
+				return ProxyErrorUpstreamBodyTooLarge
+			}
 		}
 		if err != nil {
 			if err == io.EOF {

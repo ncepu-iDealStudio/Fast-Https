@@ -165,6 +165,19 @@ func DefaultServerError() *Response {
 	return res
 }
 
+func DefaultBadGateway() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(502, "BADGATEWAY")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", CachedDate())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("502 Bad Gateway", "The upstream server returned an invalid or oversized response."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
 func DefaultServerHeaderError() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(500, "SERVERHeaderERROR")

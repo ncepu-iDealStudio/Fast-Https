@@ -2,6 +2,8 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
+	"errors"
 	"net"
 	"strings"
 	"sync/atomic"
@@ -238,6 +240,48 @@ func runProxyTwice(t *testing.T, method, resp string) int64 {
 		releaseProxy(p)
 	}
 	return accepts.Load()
+}
+
+// 无 CL/TE 的响应读到 EOF 时受 max_body_size 限制，不能无限吃内存。
+func TestUpstreamBodyWithoutLengthTooLarge(t *testing.T) {
+	client, upstream := net.Pipe()
+	t.Cleanup(func() { _ = client.Close(); _ = upstream.Close() })
+
+	go func() {
+		_, _ = upstream.Write([]byte("HTTP/1.1 200 OK\r\n\r\n"))
+		chunk := bytes.Repeat([]byte("x"), 4096)
+		for i := 0; i < 200; i++ { // 约 800 KB，超过默认 512 KB 上限
+			if _, err := upstream.Write(chunk); err != nil {
+				return
+			}
+		}
+	}()
+
+	rka := &ReadKeepAlive{p: newMatrixProxy(client)}
+	err := runWithWatchdog(t, "oversized", rka.proxyKeepAlive)
+	if err != ProxyErrorUpstreamBodyTooLarge {
+		t.Fatalf("err = %v, want ProxyErrorUpstreamBodyTooLarge", err)
+	}
+	if len(rka.body) <= maxChunkedBody() {
+		t.Errorf("read %d bytes before failing, want more than limit %d", len(rka.body), maxChunkedBody())
+	}
+}
+
+// 空 body 响应后还有多余字节（上游违约）：响应照常，连接必须关闭不复用。
+func TestEmptyBodyTrailingBytesNotReused(t *testing.T) {
+	if got := runProxyTwice(t, "GET", "HTTP/1.1 204 No Content\r\n\r\nJUNK"); got != 2 {
+		t.Fatalf("upstream accepted %d connections, want 2 (trailing bytes must disable reuse)", got)
+	}
+}
+
+// 上游响应超限映射成 502，其它读取错误仍是 500。
+func TestProxyErrorResponseMapping(t *testing.T) {
+	if got := proxyErrorResponse(ProxyErrorUpstreamBodyTooLarge).FirstLine; !strings.Contains(got, "502") {
+		t.Errorf("oversized upstream response should map to 502, got %q", got)
+	}
+	if got := proxyErrorResponse(errors.New("boom")).FirstLine; !strings.Contains(got, "500") {
+		t.Errorf("generic error should map to 500, got %q", got)
+	}
 }
 
 // serveKeepAlive204 在一个连接上循环读请求，每个请求都回 204 No Content。

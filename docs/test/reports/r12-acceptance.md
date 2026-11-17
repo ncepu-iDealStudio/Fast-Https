@@ -25,6 +25,8 @@
 | R12-8 | 204 / 304 带 Content-Length 时不按 CL 读 body | ✅ | `TestBodylessStatusWithContentLength`（204 CL=10、304 CL=123，都不阻塞） |
 | R12-9 | 复用决策遵循上游意愿与协议版本 | ✅ | `TestEmptyBodyReuseDecision`：默认 204 复用；`Connection: close` 与 HTTP/1.0 无 keep-alive 均重新建连 |
 | R12-10 | HEAD 响应后可复用连接 | ✅ | `TestEmptyBodyReuseDecision/head-with-content-length`：HEAD + CL=1024 两次请求只 accept 一次 |
+| R12-11 | 无 CL/TE 响应超过 `max_body_size` 时回 502 | ✅ | `TestUpstreamBodyWithoutLengthTooLarge`、`TestProxyErrorResponseMapping` |
+| R12-12 | 空 body 响应后有多余字节时连接不复用 | ✅ | `TestEmptyBodyTrailingBytesNotReused`：204 后带 JUNK，两次请求 accept=2 |
 
 ## 3. 实现位置
 
@@ -32,7 +34,10 @@
 | --- | --- |
 | `modules/proxy/proxy_read.go` `ReadKeepAlive` | 新增 `emptyBody` 标记；`tryToParse` 先判 HEAD，再判 204/304 |
 | `modules/proxy/proxy_read.go` `interimResponse` | 1xx（101 除外）返回专门的中间响应标记；`proxyKeepAlive` 丢弃这段后继续解析剩余字节 |
-| `modules/proxy/proxy_read.go` `readUntilEOF` | 无 CL、无 chunked 的普通响应读到 EOF，保持原有「读到连接关闭」语义 |
+| `modules/proxy/proxy_read.go` `readUntilEOF` | 无 CL、无 chunked 的普通响应读到 EOF；累计 body 超过 `max_body_size` 时返回 `ProxyErrorUpstreamBodyTooLarge` |
+| `modules/proxy/proxy_read.go` `trailingBytes` | 空 body 响应头部后还有字节时标记，连接不进入复用池 |
+| `modules/proxy/event_proxy.go` `proxyErrorResponse` | 上游响应超限映射 502，其余读取错误仍是 500 |
+| `runtime/response/response_default.go` `DefaultBadGateway` | 502 Bad Gateway 响应页 |
 | `modules/proxy/event_proxy.go` `Proxy.respEmptyBody` | 把「本次响应必然无 body」传给连接回收决策 |
 | `modules/proxy/event_proxy.go` `ChangeHeader` | 空 body 响应且上游未显式 close 时清掉 `ProxyNeedClose`，允许入池 |
 | `modules/proxy/event_proxy.go` `upstreamCloseRequested` | HTTP/1.1 只看 `Connection: close`；HTTP/1.0 要求显式 `keep-alive` |
@@ -41,8 +46,9 @@
 
 - **HEAD**：响应没有 body，头里的 `Content-Length` 表示 GET 时的长度，不能拿来读正文。
 - **204 / 304**：协议规定无 body，收到头部即到响应边界；304 允许带 `Content-Length`（表示 200 时正文长度），同样不读。
-- **其他无 CL/TE 的响应**：按 HTTP/1.0 语义读到上游关闭；连接不复用（`ProxyNeedClose` 保持 true）。
+- **其他无 CL/TE 的响应**：按 HTTP/1.0 语义读到上游关闭；累计正文超过 `max_body_size` 时停止读取并回 **502**；连接不复用。
 - **复用条件**：本次响应必然无 body，且上游没有 `Connection: close`；HTTP/1.0 上游还要求显式 `keep-alive`。
+- **上游违约**：空 body 响应（204/304/HEAD）后如果还读到字节，响应照常交付，但连接立即关闭、不进入池，避免残留字节污染下一个请求。
 - **1xx interim**：收到 100 Continue / 103 Early Hints 等中间响应时丢弃这段，继续读最终响应；中间响应与最终响应落在同一次读取里时，保留最终响应开头，不会因为「再读一次」而卡到超时。101 是协议升级，不按中间响应处理。
 
 ## 5. 测试执行记录
@@ -78,8 +84,14 @@
 === RUN   TestEmptyBodyReuseDecision/204-http10-without-keepalive
 === RUN   TestEmptyBodyReuseDecision/head-with-content-length
 --- PASS: TestEmptyBodyReuseDecision (0.01s)
+=== RUN   TestUpstreamBodyWithoutLengthTooLarge
+--- PASS: TestUpstreamBodyWithoutLengthTooLarge (0.01s)
+=== RUN   TestEmptyBodyTrailingBytesNotReused
+--- PASS: TestEmptyBodyTrailingBytesNotReused (0.00s)
+=== RUN   TestProxyErrorResponseMapping
+--- PASS: TestProxyErrorResponseMapping (0.00s)
 PASS
-ok  	fast-https/modules/proxy	2.459s
+ok  	fast-https/modules/proxy	3.937s
 ```
 
 包级与竞态：
@@ -91,9 +103,10 @@ ok  	fast-https/modules/proxy	2.459s
 ## 6. 已知边界
 
 1. **101 协议升级**：按升级响应处理，不当作 interim 丢弃；websocket 仍走原有的升级分支。
-2. **无长度上限**：无 CL/TE 的普通响应按旧语义读到 EOF，没有额外的 body 上限；与同样路径的 `ReadConnectionClose` 保持一致。
+2. **无 CL/TE 响应上限**：与 `max_body_size` 一致（默认 512 KB），超过时回 502，不再继续读取；有 `Content-Length` 的响应仍按声明长度读取，不受此项影响。
 3. **连接复用依赖上游未显式 close**：若上游在 204 后仍主动关闭，复用时首次发送失败会由 `p.reused` 分支换新连接重试一次，不会把错误暴露给客户端。
+4. **空 body 后带正文**：上游违约时响应仍正常返回，但连接不复用；不会尝试丢弃正文后继续复用。
 
 ## 7. 结论
 
-R-12 的验收项全部通过：204/304/HEAD 不再等待连接关闭，空 body 响应后连接进入池并被下一次请求复用；1xx interim 被正确跳过，101 保留协议升级语义；普通无 CL/TE 响应维持原有读到关闭的行为。
+R-12 的验收项全部通过：204/304/HEAD 不再等待连接关闭，空 body 响应后连接进入池并被下一次请求复用；1xx interim 被正确跳过，101 保留协议升级语义；普通无 CL/TE 响应维持读到关闭的行为，并受 `max_body_size` 限制、超限回 502；空 body 响应带多余字节时连接关闭不复用，避免污染共享连接。
