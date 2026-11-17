@@ -21,12 +21,10 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [agent-refactor-plan.md](plans/agent-refactor-plan.md) | 原常驻智能体方案。对应的产品设计稿已删除，不再作为现行方案；已实现的控制面见 [product-design-latest.md](../product-design-latest.md) 第 8 节 |
 | [performance-slimming-plan.md](plans/performance-slimming-plan.md) | 精简与性能优化计划（精简部分已落地，性能与稳定性分期未完成） |
 | [upstream-failover-plan.md](plans/upstream-failover-plan.md) | 代理上游故障转移：多地址、健康检查、负载均衡（R8，未排期） |
 | [config-autoreload-plan.md](plans/config-autoreload-plan.md) | 配置文件自动重载：watch + 防抖 + 复用 reload 链路（R7，暂缓） |
 | [cli-monitor-followup.md](plans/cli-monitor-followup.md) | CLI 与 Monitor 改造计划落地后的遗留：未跑的验收、文档过时、可选的 `cert renew` |
-| [desktop-console-wails3-plan.md](plans/desktop-console-wails3-plan.md) | 桌面管理端：Wails v3 单窗口应用，无托盘，含 NSIS 与 Linux desktop deb 打包（实施中） |
 | [edge-case-hardening-plan.md](plans/edge-case-hardening-plan.md) | 边界加固的**功能需求**：符号链接策略、未知 SNI 兜底、XFF 与 hop-by-hop、压缩协商、Windows 保留名、reload 原子性与在途请求、拒绝日志字段（R-01 ~ R-11、R-13 已完成；R-12 待实现） |
 
 ### 已实施的方案（archive/）
@@ -35,6 +33,8 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [desktop-console-wails3-plan.md](archive/desktop-console-wails3-plan.md) | 桌面管理端：Wails v3 单窗口 + 后台托盘，NSIS 与 Linux desktop deb 打包（功能已发布；剩余 Linux/托盘实机验证） |
+| [agent-refactor-plan.md](archive/agent-refactor-plan.md) | 原常驻智能体方案（已撤回，不再作为现行方案；已实现的控制面见 [product-design-latest.md](../product-design-latest.md) 第 8 节） |
 | [v1.5.0-plan.md](archive/v1.5.0-plan.md) | 1.5.0 数据面功能收口：ACME、`site` 命令组、安全加固、测试与性能（1.5.0 已发布，全阶段随版本落地） |
 | [fhs-layout-plan.md](archive/fhs-layout-plan.md) | 运行期目录改成 FHS 分离布局（阶段 0、1 已实施并随包发布；升级迁移实测与专用用户/sandbox 阶段未启动） |
 | [architecture-convergence-plan.md](archive/architecture-convergence-plan.md) | 架构收敛计划（阶段 0-4 已完成，4b 快照化已做，阶段 5 按需） |
