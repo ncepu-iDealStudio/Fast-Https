@@ -221,13 +221,11 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	if rngStart == -1 && compressible(lisdata, contentType, file_size) {
 		encoding = compress.Wanted(lisdata.Zip, acceptEncoding(ev))
 		if encoding != "" {
-			raw, err := io.ReadAll(file)
+			// 按块从文件流式压缩，避免把原文整体读进内存；输出缓冲
+			// 是为了先拿到压缩体长度写 Content-Length。
+			compressed, err := compress.CompressReader(file, encoding)
 			file.Close()
 			file = nil
-			if err != nil {
-				return -10
-			}
-			compressed, err := compress.CompressBytes(raw, encoding)
 			if err != nil {
 				return -10
 			}
