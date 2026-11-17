@@ -266,7 +266,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `url` | 匹配规则，支持正则，例如 `/`、`/api/`、`\.php$` |
 | `type` | `local`（静态）、`proxy`（反向代理）、`rewrite`（重定向）、`devmod`（开发模式） |
 | `root` | `local` 的站点根目录 |
-| `symlink_policy` | `local` 站点根的符号链接策略，只对 `local` 生效。`check-at-load`（默认）：加载/重载配置时扫描 root，发现符号链接就拒绝加载；`reject`：加载放行，但请求经链接解析后落在 root 之外时返回 404（root 内部的链接仍可读）；`allow`：保持旧行为，链接照常解析 |
+| `symlink_policy` | `local` 站点根的符号链接策略，只对 `local` 生效。`check-at-load`（默认）：加载/重载配置时扫描 root，发现链接就拒绝加载；`reject`：加载放行，但请求路径下命中任何链接（符号链接或 Windows junction）都返回 404；`allow`：保持旧行为，链接照常解析 |
 | `index` | 默认索引文件名列表 |
 | `try` | `try_files` 语义：`[{"uri": "/", "file": ["index.html"], "next": "@backend"}]` |
 | `rewrite` | `type: rewrite` 时的目标地址 |

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -454,9 +453,6 @@ func writeSymlinkPolicyConfig(t *testing.T, body string) string {
 // rootWithSymlink 返回一个内部含符号链接的站点目录。
 func rootWithSymlink(t *testing.T) string {
 	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows 上创建符号链接需要开发者模式或管理员权限")
-	}
 	root := t.TempDir()
 	outside := t.TempDir()
 	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {

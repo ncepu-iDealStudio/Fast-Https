@@ -121,7 +121,8 @@ PASS: TestReloadMissingFileKeepsPreviousConfig
 - **反斜杠**在 Windows 上被 `filepath.Clean` 当作分隔符，裸 `\..\..\` 会被
   正确拒绝；编码形式 `%5c` 不会，落到普通文件名分支。
 - **B-08 符号链接**：已由 R-01 落地 `location.symlink_policy`，默认
-  `check-at-load`（加载时拒绝 root 下的链接），可切 `reject` / `allow`，
+  `check-at-load`（加载时拒绝 root 下的链接），可切 `reject`（请求期逐段
+  拒绝任意链接，含 Windows junction）或 `allow`，
   见 [edge-case-hardening-plan.md](../develop/plans/edge-case-hardening-plan.md)。
 - **B-05 尾点尾空格**：仍待 R-02 定产品判断（显式拒绝还是规范化后重查）。
 

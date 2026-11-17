@@ -260,7 +260,7 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>url</code></td><td>匹配规则，支持正则，例如 <code>/</code>、<code>/api/</code>、<code>\.php$</code></td></tr>
 <tr><td><code>type</code></td><td><code>local</code>（静态）、<code>proxy</code>（反向代理）、<code>rewrite</code>（重定向）、<code>devmod</code>（开发模式）</td></tr>
 <tr><td><code>root</code></td><td><code>local</code> 的站点根目录</td></tr>
-<tr><td><code>symlink_policy</code></td><td><code>local</code> 站点根的符号链接策略，只对 <code>local</code> 生效。<code>check-at-load</code>（默认）：加载/重载配置时扫描 root，发现符号链接就拒绝加载；<code>reject</code>：加载放行，但请求经链接解析后落在 root 之外时返回 404（root 内部的链接仍可读）；<code>allow</code>：保持旧行为，链接照常解析</td></tr>
+<tr><td><code>symlink_policy</code></td><td><code>local</code> 站点根的符号链接策略，只对 <code>local</code> 生效。<code>check-at-load</code>（默认）：加载/重载配置时扫描 root，发现链接就拒绝加载；<code>reject</code>：加载放行，但请求路径下命中任何链接（符号链接或 Windows junction）都返回 404；<code>allow</code>：保持旧行为，链接照常解析</td></tr>
 <tr><td><code>index</code></td><td>默认索引文件名列表</td></tr>
 <tr><td><code>try</code></td><td><code>try_files</code> 语义：<code>[{&#34;uri&#34;: &#34;/&#34;, &#34;file&#34;: [&#34;index.html&#34;], &#34;next&#34;: &#34;@backend&#34;}]</code></td></tr>
 <tr><td><code>rewrite</code></td><td><code>type: rewrite</code> 时的目标地址</td></tr>

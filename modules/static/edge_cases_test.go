@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -98,10 +97,6 @@ func TestStaticPathTraversalVectors(t *testing.T) {
 // （配置者自己放进来的链接），但需要明确行为：读得到还是读不到必须稳定，
 // 不能随平台变化。
 func TestStaticSymlinkEscape(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows 上创建符号链接需要开发者模式或管理员权限")
-	}
-
 	outside := t.TempDir()
 	secret := filepath.Join(outside, "secret.txt")
 	if err := os.WriteFile(secret, []byte("top-secret"), 0o600); err != nil {

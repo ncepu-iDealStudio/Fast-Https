@@ -1,32 +1,59 @@
 package static
 
 import (
-	"fast-https/config"
+	"os"
 	"path/filepath"
 	"strings"
+
+	"fast-https/config"
 )
 
-// symlinkBlocked 判断在 reject 策略下是否应把该路径按 404 处理。
+// symlinkBlocked 判断 reject 策略下该路径是否应按 404 处理。
 //
-// 判定用 EvalSymlinks 解析后的真实路径与解析后的 root 比对：链接指向
-// root 之外就拒绝。root 内部的链接仍然可读——它们和普通文件一样由配置者
-// 自己放进站点目录。路径不存在或解析失败时不在这里拦，交给后续打开流程，
-// 结果同样是 404。
+// reject 的语义是"静态根下不允许链接"：从 root 到目标文件的每一段都做
+// Lstat，命中符号链接（含 Windows junction）即拒绝。root 自身是链接不算，
+// 部署方可以把整个站点目录挂到别处。
+//
+// 与 check-at-load 的差别只在时机：两者都禁止链接，check-at-load 在加载
+// 配置时扫描一次，reject 每次请求都校验，运行期新加的链接也能挡住。
 func symlinkBlocked(policy, root, full string) bool {
 	if policy != config.SYMLINK_REJECT {
 		return false
 	}
-	realRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
+	cleanRoot := filepath.Clean(root)
+	rel, err := filepath.Rel(cleanRoot, filepath.Clean(full))
+	if err != nil || rel == "." {
 		return false
 	}
-	realFull, err := filepath.EvalSymlinks(full)
-	if err != nil {
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return true
+	}
+	current := cleanRoot
+	for _, part := range strings.Split(rel, string(filepath.Separator)) {
+		current = filepath.Join(current, part)
+		fi, err := os.Lstat(current)
+		if err != nil {
+			// 不存在的部分交给打开流程，结果同样是 404。
+			return false
+		}
+		if isLink(current, fi) {
+			return true
+		}
+	}
+	return false
+}
+
+// isLink 识别符号链接与 Windows junction。
+// junction（IO_REPARSE_TAG_MOUNT_POINT）在部分 Go/Windows 组合上既不是
+// ModeSymlink，也不会被 EvalSymlinks 解析，只能靠 Lstat 的 ModeIrregular
+// 加 Readlink 成功来判定。
+func isLink(path string, fi os.FileInfo) bool {
+	if fi.Mode()&os.ModeSymlink != 0 {
+		return true
+	}
+	if fi.Mode()&os.ModeIrregular == 0 {
 		return false
 	}
-	rel, err := filepath.Rel(realRoot, realFull)
-	if err != nil {
-		return false
-	}
-	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	_, err := os.Readlink(path)
+	return err == nil
 }

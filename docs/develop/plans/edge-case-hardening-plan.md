@@ -22,7 +22,7 @@
 
 | 取值 | 行为 |
 | --- | --- |
-| `reject` | 请求路径命中符号链接即 404（运行时 `EvalSymlinks` 后比对） |
+| `reject` | 请求路径下命中链接（符号链接或 Windows junction）即 404，运行时逐段检查 |
 | `allow` | 保持现状，不做额外检查 |
 | `check-at-load` | 启动时校验 root 下无符号链接，有则拒绝加载配置 |
 
@@ -32,10 +32,14 @@
 **验收**：三种取值各一个用例；`reject` 在 Linux/macOS 实跑（Windows 上
 创建链接需权限，Skip）。
 
-**状态**：✅ 已实现。`symlink_policy` 转小写后校验，空值取 `check-at-load`；
-`check-at-load` 在配置校验阶段扫描 root（扫描的是 `EvalSymlinks` 后的真实目录，
-root 自身是链接不算违规）；`reject` 在静态层用 `EvalSymlinks` 比对真实路径，
-逃出 root 才 404。
+**状态**：✅ 已实现。`symlink_policy` 转小写后校验，空值取 `check-at-load`。
+`check-at-load` 在 `LoadFile` 加载层与配置校验阶段都会扫描 root（root 自身是
+链接不算违规，加载层兜底保证 `InitSystem` 等绕过校验的入口同样生效）；
+`reject` 在静态层对请求路径逐段 `Lstat`，命中任何链接都 404（不再只拦逃出
+root 的链接，与 `check-at-load` 的严格度保持一致），索引文件与 `try.Next`
+这类请求路径的延伸也逐项检查。链接识别除 `ModeSymlink` 外，还用
+`ModeIrregular` + `Readlink` 覆盖 Windows junction——实测 junction 在 Go
+1.27/Windows 上既不是 `ModeSymlink`，`EvalSymlinks` 也不会解析它。
 
 ## R-02 Windows 保留名与尾点尾空格的显式拒绝
 

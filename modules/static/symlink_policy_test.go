@@ -4,16 +4,14 @@ import (
 	"fast-https/config"
 	"fast-https/runtime/listener"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
 )
 
-// TestSymlinkPolicyRejectEscapingLink reject 策略下，链接指向 root 之外按 404 处理。
+// TestSymlinkPolicyRejectEscapingLink reject 策略下，路径经过链接即按 404 处理。
 func TestSymlinkPolicyRejectEscapingLink(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows 上创建符号链接需要开发者模式或管理员权限")
-	}
 	outside := t.TempDir()
 	secret := filepath.Join(outside, "secret.txt")
 	if err := os.WriteFile(secret, []byte("top-secret"), 0o600); err != nil {
@@ -37,11 +35,9 @@ func TestSymlinkPolicyRejectEscapingLink(t *testing.T) {
 	}
 }
 
-// TestSymlinkPolicyRejectKeepsInnerLink root 内部的链接不受 reject 影响。
-func TestSymlinkPolicyRejectKeepsInnerLink(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows 上创建符号链接需要开发者模式或管理员权限")
-	}
+// TestSymlinkPolicyRejectBlocksInnerLink root 内部的链接同样被 reject 拦截：
+// 该策略的语义是"静态根下不允许链接"，与 check-at-load 的严格度一致。
+func TestSymlinkPolicyRejectBlocksInnerLink(t *testing.T) {
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "real"), 0o755); err != nil {
 		t.Fatal(err)
@@ -55,8 +51,32 @@ func TestSymlinkPolicyRejectKeepsInnerLink(t *testing.T) {
 		t.Skipf("创建符号链接失败：%v", err)
 	}
 
-	if symlinkBlocked(config.SYMLINK_REJECT, root, filepath.Join(link, "index.html")) {
-		t.Error("reject 只拦截逃出 root 的链接，内部链接应放行")
+	if !symlinkBlocked(config.SYMLINK_REJECT, root, filepath.Join(link, "index.html")) {
+		t.Error("reject 应拦截 root 内部的链接")
+	}
+	if symlinkBlocked(config.SYMLINK_REJECT, root, file) {
+		t.Error("真实路径不应被拦截")
+	}
+}
+
+// TestSymlinkPolicyRejectBlocksJunction Windows junction 在 Go 1.27 上既不是
+// ModeSymlink，EvalSymlinks 也不会解析，必须靠 ModeIrregular + Readlink 识别。
+func TestSymlinkPolicyRejectBlocksJunction(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("仅 Windows 有 junction")
+	}
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("top-secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	junc := filepath.Join(root, "junc")
+	if out, err := exec.Command("cmd", "/c", "mklink", "/J", junc, outside).CombinedOutput(); err != nil {
+		t.Skipf("创建 junction 失败：%v (%s)", err, out)
+	}
+
+	if !symlinkBlocked(config.SYMLINK_REJECT, root, filepath.Join(junc, "secret.txt")) {
+		t.Error("reject 应拦截 junction")
 	}
 }
 
