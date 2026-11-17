@@ -46,7 +46,7 @@ type fieldSpec struct {
 //   - 只有真正自由文本（HSTS 策略、CSP、MIME 类型）才用输入框
 var configSpecs = []fieldSpec{
 	{"pid", "pid 文件路径", "基础", "text", "预留字段，通常留空", nil, "file"},
-	{"log_root", "日志根目录", "基础", "text", "预留字段，通常留空", nil, "dir"},
+	{"log_root", "日志根目录", "基础", "text", "相对路径按启动目录解析；留空用默认 ./logs", nil, "dir"},
 
 	{"security.host_check", "Host 校验", "安全", "select", "off 回落首个 server；warn 只记录；enforce 返回 421", []string{"off", "warn", "enforce"}, ""},
 	{"security.headers.nosniff", "X-Content-Type-Options", "安全", "bool", "写入 nosniff 响应头", nil, ""},

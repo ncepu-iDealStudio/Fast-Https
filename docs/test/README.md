@@ -26,6 +26,7 @@ docs/test/
 | 实测 | [verification/distro-packages.md](verification/distro-packages.md) | 发行版安装包实机验证：deb / rpm / apk / 升级迁移 | 2026-11-05 四个场景 ALL-PASS |
 | 实测 | [verification/desktop-tls-config.md](verification/desktop-tls-config.md) | 桌面端 TLS 默认证书配置：GUI 写入、清除、成对校验 | 2026-11-17 三项全部符合预期 |
 | 实测 | [verification/desktop-proxy-config.md](verification/desktop-proxy-config.md) | 桌面端代理来源配置：写入、恢复默认、非法网段与负链长拦截 | 2026-11-17 四项全部符合预期 |
+| 实测 | [verification/desktop-default-config.md](verification/desktop-default-config.md) | 桌面端读取与保存随包主配置：预设值、改四项、非法枚举与负链长 | 2026-11-17 五项全部符合预期 |
 
 ## 测试类型与入口
 
@@ -36,7 +37,7 @@ docs/test/
 | 架构守卫 | `go test ./tests/arch` | 分层依赖方向 | [develop/1-testing.md](../develop/1-testing.md) |
 | 打包守卫 | `go test ./tests/packaging` | LF 行尾、安装清单、logrotate 覆盖、脚本结构 | 同上 |
 | 实机装包 | `sh tests/packaging/distro/run.sh all`（需 docker） | 真装、启动、轮转、卸载 | [verification/distro-packages.md](verification/distro-packages.md) |
-| 桌面端 | `cd desktop && go test ./internal/...` | 设置页字段、站点参数翻译、CLI 转交 | [verification/desktop-tls-config.md](verification/desktop-tls-config.md)、[verification/desktop-proxy-config.md](verification/desktop-proxy-config.md) |
+| 桌面端 | `cd desktop && go test ./internal/...` | 设置页字段、站点参数翻译、CLI 转交 | [verification/desktop-tls-config.md](verification/desktop-tls-config.md)、[verification/desktop-proxy-config.md](verification/desktop-proxy-config.md)、[verification/desktop-default-config.md](verification/desktop-default-config.md) |
 | 前端 | `cd desktop/frontend && npm run typecheck && npm run i18n:check` | 类型、双语字典键对齐 | 同上 |
 | 手工验证 | 按 verification/ 下的步骤操作 GUI 或容器 | 图形界面、安装包这类自动化覆盖不到的部分 | `verification/` |
 
@@ -53,6 +54,7 @@ docs/test/
 | `cd desktop/frontend && npm run i18n:check` | 两份字典各 623 键，代码引用 290 键，全部覆盖 |
 | 桌面端 TLS 配置手工验证 | 写入 / 清除 / 只填一项报错 三项符合预期，见 [verification/desktop-tls-config.md](verification/desktop-tls-config.md) |
 | 桌面端代理来源配置验证 | 写入 / 恢复默认 / 非法网段 / 负链长 四项符合预期，见 [verification/desktop-proxy-config.md](verification/desktop-proxy-config.md) |
+| 桌面端开箱即用主配置验证 | 十项预设读取 / 改四项保存 / 改回预设 / 非法枚举 / 负链长 五项符合预期，见 [verification/desktop-default-config.md](verification/desktop-default-config.md) |
 
 ## 历史记录
 
@@ -64,6 +66,7 @@ docs/test/
 - 2026-11-17 边缘加固 R-06 落地：代理转发前剥离 `Connection` / `Keep-Alive` / `Proxy-Authenticate` / `Proxy-Authorization` / `Proxy-Connection` / `TE` / `Trailer` / `Transfer-Encoding` / `Upgrade` 及 `Connection` 点名的扩展头；客户端要求关闭时给上游补 `Connection: close`，HTTP/1.0 keep-alive 与 websocket 升级各自重建连接头。`modules/proxy/testdata/hop-by-hop-headers.json` 七类输入由 `TestHopByHopHeaderCases` 逐项核对上游实际收到的头。
 - 2026-11-17 桌面端代理来源配置验证：写入三项后 `proxy` 段落盘且 CLI 双入口一致，三项改回默认即删段，负 `max_hops` 与非法 CIDR 均在写盘前被拦下且配置哈希不变，详见 [verification/desktop-proxy-config.md](verification/desktop-proxy-config.md)。
 - 2026-11-17 边缘加固 R-07 落地：压缩协商补齐 `zip_min_length` 与 `zip_skip_types`（内置已压缩类型清单，配置后整体替换），修复压缩后 `Content-Length` 仍用原文件大小的问题；`modules/static/testdata/accept-encoding.jsonl` 七条用例由 `TestAcceptEncodingCases` 逐条驱动真实响应链路，CLI `site update --zip-min-length/--zip-skip-types` 与桌面端站点编辑同步。
+- 2026-11-17 桌面端开箱即用主配置验证：`ReadConfigForm` 读到十项预设值，保存四项后其余预设不被重置，改回预设后内容一致（JSON 被规范化重写），非法 WAF 模式在表单层拦截、负链长在配置校验层拦截且配置哈希不变，详见 [verification/desktop-default-config.md](verification/desktop-default-config.md)。
 
 ## 旧文件名对照
 
