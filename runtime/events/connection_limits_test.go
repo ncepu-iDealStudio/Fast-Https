@@ -327,6 +327,38 @@ func TestHTTP10IgnoresExpect(t *testing.T) {
 	}
 }
 
+// TestChunkedBodyTooLargeReturns413 覆盖 chunked 上传超限：
+// 解码后的正文超过 max_body_size 必须回 413，而不是静默断开。
+func TestChunkedBodyTooLargeReturns413(t *testing.T) {
+	withLimit(t, func(c *config.Fast_Https) { c.Limit.MaxBodySize = 4 })
+
+	ev, client := newParseEvent(t)
+	_ = client.SetReadDeadline(time.Now().Add(3 * time.Second))
+
+	raw := "POST /up HTTP/1.1\r\nHost: example.com\r\n" +
+		"Transfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n\r\n"
+	done := make(chan int, 1)
+	go func() { done <- parseRequest(ev, filters.NewFilter()) }()
+	go func() { _, _ = client.Write([]byte(raw)) }()
+
+	resp, err := io.ReadAll(client)
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if !strings.Contains(string(resp), " 413 ") {
+		t.Fatalf("响应 = %q，期望 413", resp)
+	}
+
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Fatalf("parseRequest() = %d，超限后应返回 0", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("parseRequest 未返回")
+	}
+}
+
 // TestReadTimeoutIsConfigurable 锁定 read_timeout 真的作用到读头上：
 // 只发半截头，配置成 1 秒后连接必须被放弃，而不是继续等 30 秒。
 func TestReadTimeoutIsConfigurable(t *testing.T) {

@@ -43,6 +43,7 @@
 | B-21 | 客户端带 `Expect: 100-continue` 等待，服务端不先回 100，双方互等到超时 | 🔧 已修复 | `TestExpectContinueSends100BeforeBody`、`TestExpectContinueChunkedBody`、`TestRealTCPExpectContinueAndKeepAlive` | R-08：读正文前先回 `100 Continue`；超限时不回 100、直接 413；HTTP/1.0 忽略 |
 | B-22 | 无法满足的 `Expect` 被静默忽略，客户端只能等到超时 | 🔧 已修复 | `TestUnknownExpectationReturns417`、`TestH2UnknownExpectationReturns417` | 回 417 Expectation Failed，转发前移除已在本地满足的期望 |
 | B-23 | HTTP/2 上 `max_header_size` / `max_body_size` 不生效 | 🔧 已修复 | `TestH2HeaderTooLargeReturns431`、`TestH2BodyTooLargeReturns413` | R-08：`MaxHeaderBytes` 接入配置，应用层按 RFC 7540 字段开销判 431；正文限额覆盖声明长度与流式正文 |
+| B-24 | chunked 上传超过 `max_body_size` 时静默断连，客户端看不到 413 | 🔧 已修复 | `TestChunkedBodyTooLargeReturns413` | R-08：`ReadChunked` 用独立 `ErrBodyTooLarge` 与「分块格式错误」区分，解析层据此回 413 |
 
 ## 4.3 本轮新增的用例
 
@@ -135,16 +136,27 @@ PASS: TestAcceptEncodingCases                    (10 条压缩协商输入)
 PASS: TestProxyCompressResponse                  (代理压缩/跳过/头部改写)
 PASS: TestKeepAliveRequestIsFullyReset
 PASS: TestFlushClearsAuxiliaryFields
+PASS: TestKeepAliveResetsRequestAndResponse
+PASS: TestExpectContinueSends100BeforeBody / ChunkedBody / ListAcceptsContinue
+PASS: TestUnknownExpectationReturns417
+PASS: TestHTTP10IgnoresExpect
+PASS: TestHeaderTooLargeReturns431                (一次到齐 / 分片)
+PASS: TestChunkedBodyTooLargeReturns413
+PASS: TestRealTCPExpectContinueAndKeepAlive
+PASS: TestRealTCPProxyDropsSatisfiedExpect
+PASS: TestH2HeaderTooLargeReturns431 / TestH2BodyTooLargeReturns413
+PASS: TestReadTimeoutIsConfigurable / TestWriteTimeoutIsConfigurable
 PASS: TestReloadInvalidKeepsPreviousConfig
 PASS: TestReloadMissingFileKeepsPreviousConfig
 ```
 
-核验结果：**21 条核验项里，14 条确认无此问题，7 条已修复，待修项清零**。
+核验结果：**25 条核验项里，14 条确认无此问题，11 条已修复，待修项清零**。
 
-本轮修掉的两处：
+本轮修掉的问题（节选）：
 
 | 问题 | 改动 |
 | --- | --- |
+| chunked 上传超限静默断连（B-24） | `ReadChunked` 增加独立 `ErrBodyTooLarge`，`runtime/events` 据此回 413而不是直接关连接 |
 | `Accept-Encoding: *` 不生效（B-17） | `runtime/request` 拆出 `QValue`（返回 q 值与是否出现），`encodingWanted` 在显式未命中时回落到 `*`；显式 `q=0` 仍优先于 `*` |
 | `Request.Flush` 漏清三个辅助字段（B-15 的一部分） | 补 `Encoding` / `HeaderLen` / `BodyLen`。三者当前没有读取方，但属于「随请求变化」的状态，留着等于给将来埋跨请求残留的坑 |
 | 压缩后 `Content-Length` 用错长度（B-18） | `modules/static` 在 `!stream` 分支把 `payloadLen` 改成 `int64(len(payload))` |

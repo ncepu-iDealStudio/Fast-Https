@@ -494,8 +494,8 @@ func TestChunkSizeCorpus(t *testing.T) {
 		_, err := request.ReadChunked([]byte("3086d\r\n"), func() ([]byte, error) {
 			return nil, nil
 		}, 1024)
-		if err != request.ErrChunkedBody {
-			t.Fatalf("err = %v, want ErrChunkedBody", err)
+		if err != request.ErrBodyTooLarge {
+			t.Fatalf("err = %v, want ErrBodyTooLarge", err)
 		}
 	})
 	t.Run("garbage without crlf is rejected", func(t *testing.T) {

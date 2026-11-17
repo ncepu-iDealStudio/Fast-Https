@@ -50,7 +50,7 @@ func TestReadChunkedRejectsBadSizeAndOverflow(t *testing.T) {
 	_, err = ReadChunked([]byte("5\r\nhello\r\n0\r\n\r\n"), func() ([]byte, error) {
 		return nil, errors.New("eof")
 	}, 4)
-	if !errors.Is(err, ErrChunkedBody) {
+	if !errors.Is(err, ErrBodyTooLarge) {
 		t.Fatalf("overflow err %v", err)
 	}
 }

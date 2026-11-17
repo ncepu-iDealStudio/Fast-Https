@@ -7,8 +7,12 @@ import (
 	"strings"
 )
 
-// ErrChunkedBody is returned when a chunked body is malformed or too large.
+// ErrChunkedBody is returned when a chunked body is malformed.
 var ErrChunkedBody = errors.New("invalid chunked body")
+
+// ErrBodyTooLarge 表示解码后的正文超过 max_body_size；调用方应回 413，
+// 与「分块格式错误」区分开。
+var ErrBodyTooLarge = errors.New("chunked body too large")
 
 // HeaderFold returns the first header whose name matches, ignoring case.
 func (r *Request) HeaderFold(name string) string {
@@ -96,7 +100,7 @@ func ReadChunked(initial []byte, readMore func() ([]byte, error), max int) ([]by
 			return out.Bytes(), nil
 		}
 		if max > 0 && (n > uint64(max) || out.Len()+int(n) > max) {
-			return nil, ErrChunkedBody
+			return nil, ErrBodyTooLarge
 		}
 		need := int(n) + 2
 		for len(buf) < need {

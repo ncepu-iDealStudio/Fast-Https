@@ -4,6 +4,7 @@ package events
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fast-https/config"
 	"fast-https/core"
 	"fast-https/infra/color"
@@ -257,6 +258,10 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			return append([]byte(nil), rr.ReqBuf[:n]...), nil
 		}, maxBodySize())
 		if err != nil {
+			if errors.Is(err, request.ErrBodyTooLarge) {
+				rejectTooLargeBody(ev)
+				return 0
+			}
 			logging.ConsoleLog.Debug().Msgf("%s", color.Red(err.Error()))
 			metrics.NoteAborted()
 			return 0
