@@ -140,6 +140,7 @@ E2E 在临时目录起真实进程（HTTP + TLS），触发路径穿越、header
 | `6ad71e8` | host_check enforce 与代理压缩跳过日志 |
 | `680e621` | 桌面端日志表展示拒绝原因与规则，筛选改为枚举下拉 |
 | `308bbfd` | CLI 文本模式展示拒绝原因/规则；桌面端旧 `reason` 回退与 `remote_ip` 展示 |
+| `659b3e2` | rule 对齐实际配置项；Windows 非法路径改用 `invalid_path` |
 
 ## 8. 关键文件
 
