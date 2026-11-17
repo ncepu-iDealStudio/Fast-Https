@@ -27,6 +27,7 @@
 | R12-10 | HEAD 响应后可复用连接 | ✅ | `TestEmptyBodyReuseDecision/head-with-content-length`：HEAD + CL=1024 两次请求只 accept 一次 |
 | R12-11 | 无 CL/TE 响应超过 `max_body_size` 时回 502 | ✅ | `TestUpstreamBodyWithoutLengthTooLarge`、`TestProxyErrorResponseMapping` |
 | R12-12 | 空 body 响应后有多余字节时连接不复用 | ✅ | `TestEmptyBodyTrailingBytesNotReused`：204 后带 JUNK，两次请求 accept=2 |
+| R12-13 | 完整链路（客户端 → Fast-Https → 上游）复用 | ✅ | `TestProxyEmptyBodyReuseE2E`（`tests/client_test`）：真实进程两次代理请求，上游 accept=1 |
 
 ## 3. 实现位置
 
@@ -99,6 +100,19 @@ ok  	fast-https/modules/proxy	3.937s
 - `go test -count=1 ./modules/proxy/`：通过
 - `go test -race -count=1 ./modules/proxy/`：通过
 - `go build ./...`、`go vet ./modules/proxy/`：通过
+
+完整链路 E2E：
+
+- 命令：`go test ./tests/client_test -run TestProxyEmptyBodyReuseE2E -v -count=1`
+- 拓扑：客户端 → 真实 Fast-Https 进程（临时目录配置代理站点）→ 只回 `204 No Content` 的上游 stub
+- 结果：
+
+```text
+=== RUN   TestProxyEmptyBodyReuseE2E
+--- PASS: TestProxyEmptyBodyReuseE2E (0.43s)
+PASS
+ok  	fast-https/tests/client_test	0.957s
+```
 
 ## 6. 已知边界
 
