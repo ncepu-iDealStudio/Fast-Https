@@ -6,6 +6,7 @@ import (
 
 	"fast-https/config"
 	"fast-https/core"
+	"fast-https/infra/logging"
 	"fast-https/modules/compress"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/response"
@@ -46,13 +47,16 @@ func compressResponse(cfg *listener.ListenCfg, ev *core.Event) {
 		return
 	}
 	if cfg.ZipMinLength > 0 && len(body) < cfg.ZipMinLength {
+		logCompressionSkip(ev, "zip_min_length")
 		return
 	}
 	if compress.Skip(ev.RR.Res.Headers["Content-Type"], cfg.ZipSkipTypes) {
+		logCompressionSkip(ev, "zip_skip_types")
 		return
 	}
 	encoding := compress.Wanted(cfg.Zip, ev.RR.Req.HeaderFold("Accept-Encoding"))
 	if encoding == "" {
+		logCompressionSkip(ev, "accept_encoding")
 		return
 	}
 	out, err := compress.CompressBytes(body, encoding)
@@ -64,6 +68,13 @@ func compressResponse(cfg *listener.ListenCfg, ev *core.Event) {
 	// 上游如果是 chunked，正文已被解码，压缩后必须用长度分帧。
 	ev.RR.Res.DelHeader("Transfer-Encoding")
 	ev.RR.Res.SetHeader("Content-Length", strconv.Itoa(len(out)))
+}
+
+// logCompressionSkip 记录代理响应按策略或协商跳过压缩。协议语义上不适用的
+// 情况（HEAD、304/204/206、上游已压缩、Range、空 body）不在这里记。
+func logCompressionSkip(ev *core.Event, rule string) {
+	logging.RejectDebug("compression_skipped", rule, logging.RemoteIP(ev.Conn)).
+		Msg("proxy response compression skipped")
 }
 
 // responseStatus 从状态行取状态码，解析失败返回 0。
