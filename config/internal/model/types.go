@@ -98,7 +98,11 @@ type Path struct {
 	PathName string
 	PathType uint16
 	Zip      uint16
-	Root     string
+	// ZipMinLength 是压缩阈值（字节），0 表示不限制。
+	ZipMinLength int
+	// ZipSkipTypes 是跳过压缩的 MIME 类型；空时用 static 包的内置清单。
+	ZipSkipTypes []string
+	Root         string
 	// SymlinkPolicy 控制站点根下符号链接的处理方式，取值见 SYMLINK_* 常量。
 	SymlinkPolicy  string
 	Index          []string

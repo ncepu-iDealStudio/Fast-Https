@@ -342,6 +342,17 @@ func validateServerWith(s *schema.Server, certBaseDir, rootBaseDir, where string
 			return fmt.Errorf("%s: location[%d].url is required", where, i)
 		}
 
+		if loc.ZipMinLength < 0 {
+			return fmt.Errorf("%s: location[%d].zip_min_length must be >= 0: %d", where, i, loc.ZipMinLength)
+		}
+		for j, item := range loc.ZipSkipTypes {
+			v := strings.TrimSpace(item)
+			if v == "" || !strings.Contains(v, "/") {
+				return fmt.Errorf("%s: location[%d].zip_skip_types[%d]: want a MIME type like image/png, got %q",
+					where, i, j, item)
+			}
+		}
+
 		typeStr := loc.Type
 		if typeStr == "" {
 			typeStr = "local"

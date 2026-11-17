@@ -41,13 +41,17 @@ type SiteLocation struct {
 	Root string `json:"root,omitempty"`
 	// SymlinkPolicy 只对 local 生效，取值 allow / reject / check-at-load；
 	// 留空表示默认策略。
-	SymlinkPolicy string           `json:"symlink_policy,omitempty"`
-	Index         []string         `json:"index,omitempty"`
-	ProxyPass     string           `json:"proxy_pass,omitempty"`
-	Zip           *[]string        `json:"zip,omitempty"`
-	Limit         *model.PathLimit `json:"limit,omitempty"`
-	Auth          *model.PathAuth  `json:"auth,omitempty"`
-	Cache         *model.Cache     `json:"proxy_cache,omitempty"`
+	SymlinkPolicy string    `json:"symlink_policy,omitempty"`
+	Index         []string  `json:"index,omitempty"`
+	ProxyPass     string    `json:"proxy_pass,omitempty"`
+	Zip           *[]string `json:"zip,omitempty"`
+	// ZipMinLength 是压缩阈值（字节）；nil 表示不改，0 表示不限制（删键）。
+	ZipMinLength *int `json:"zip_min_length,omitempty"`
+	// ZipSkipTypes 是跳过压缩的 MIME 类型；nil 表示不改，空列表表示删键回内置清单。
+	ZipSkipTypes *[]string        `json:"zip_skip_types,omitempty"`
+	Limit        *model.PathLimit `json:"limit,omitempty"`
+	Auth         *model.PathAuth  `json:"auth,omitempty"`
+	Cache        *model.Cache     `json:"proxy_cache,omitempty"`
 }
 
 // SiteInput 是生成 conf.d/<name>.json 的输入。

@@ -338,6 +338,40 @@ func TestAllowMethodsValidated(t *testing.T) {
 	}
 }
 
+// R-07：zip_min_length 不得为负，zip_skip_types 必须是形如 image/png 的 MIME。
+func TestValidateZipOptions(t *testing.T) {
+	cases := []struct {
+		name string
+		path schema.Path
+		want string
+	}{
+		{"negative min length", schema.Path{
+			URL: "/", Type: "local", Root: "./httpdoc/root",
+			Zip: []string{"gzip"}, ZipMinLength: -1,
+		}, "zip_min_length must be >= 0"},
+		{"skip type without slash", schema.Path{
+			URL: "/", Type: "local", Root: "./httpdoc/root",
+			Zip: []string{"gzip"}, ZipSkipTypes: []string{"png"},
+		}, "zip_skip_types[0]"},
+		{"empty skip type", schema.Path{
+			URL: "/", Type: "local", Root: "./httpdoc/root",
+			Zip: []string{"gzip"}, ZipSkipTypes: []string{"  "},
+		}, "zip_skip_types[0]"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			server := schema.Server{
+				Listen: schema.FlexList{"80"}, ServerName: "a.example",
+				Locations: []schema.Path{c.path},
+			}
+			err := validateServer(&server, ".", ".", "site", false)
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("error = %v, want it to contain %q", err, c.want)
+			}
+		})
+	}
+}
+
 func TestValidateConfigFileAcceptsComments(t *testing.T) {
 	dir := t.TempDir()
 	main := filepath.Join(dir, "fast-https.json")

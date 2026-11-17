@@ -61,6 +61,10 @@ type ListenCfg struct {
 	SymlinkPolicy string
 	StaticIndex   []string
 	Zip           uint16
+	// ZipMinLength 是压缩阈值（字节），0 表示不限制。
+	ZipMinLength int
+	// ZipSkipTypes 是跳过压缩的 MIME 类型；空时用 static 包的内置清单。
+	ZipSkipTypes  []string
 	ErrorNotFound string
 	ErrorProxy    string
 
@@ -330,6 +334,8 @@ func processListenData(lisInfos *[]*Listener) {
 					})
 				}
 				data.Zip = paths.Zip
+				data.ZipMinLength = paths.ZipMinLength
+				data.ZipSkipTypes = paths.ZipSkipTypes
 				data.ReWrite = paths.Rewrite
 				data.ProxyCache = paths.ProxyCache
 				data.AllowMethods = paths.AllowMethods

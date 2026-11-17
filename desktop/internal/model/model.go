@@ -97,6 +97,8 @@ type SiteInput struct {
 	// 高级配置（主 location）：响应压缩、限流、Basic 认证、代理缓存。
 	// 编辑模式才提交；添加站点时 site add 不支持这些字段，前端不会带。
 	Zip          []string `json:"zip"`
+	ZipMinLength int      `json:"zipMinLength"`
+	ZipSkipTypes []string `json:"zipSkipTypes"`
 	LimitRate    int      `json:"limitRate"`
 	LimitBurst   int      `json:"limitBurst"`
 	LimitMem     int      `json:"limitMem"`
@@ -134,6 +136,8 @@ type SiteDetail struct {
 	// 高级配置，回填弹窗用。AuthPass 恒为脱敏值或空串：site show 已经
 	// 把 pswd 抹成 ***，这里再原样透出，前端留空即表示不修改。
 	Zip          []string `json:"zip"`
+	ZipMinLength int      `json:"zipMinLength"`
+	ZipSkipTypes []string `json:"zipSkipTypes"`
 	LimitRate    int      `json:"limitRate"`
 	LimitBurst   int      `json:"limitBurst"`
 	LimitMem     int      `json:"limitMem"`

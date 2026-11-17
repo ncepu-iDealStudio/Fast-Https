@@ -32,6 +32,44 @@ func TestPlanAdvancedSymlinkPolicy(t *testing.T) {
 	}
 }
 
+// R-07：压缩阈值与跳过类型同其他高级字段一样按差量生成参数；
+// 清除时用空值传递，不能悄悄留成原值。
+func TestPlanAdvancedZipLimits(t *testing.T) {
+	args, changed := planAdvanced(model.SiteDetail{}, model.SiteInput{
+		ZipMinLength: 1024, ZipSkipTypes: []string{"image/png"},
+	})
+	if !changed {
+		t.Fatal("填了阈值与跳过类型应视为有改动")
+	}
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--zip-min-length 1024") ||
+		!strings.Contains(joined, "--zip-skip-types image/png") {
+		t.Fatalf("args = %v", args)
+	}
+
+	args, changed = planAdvanced(
+		model.SiteDetail{ZipMinLength: 1024, ZipSkipTypes: []string{"image/png"}},
+		model.SiteInput{},
+	)
+	if !changed {
+		t.Fatal("清除阈值与跳过类型应算改动")
+	}
+	joined = strings.Join(args, " ")
+	if !strings.Contains(joined, "--zip-min-length 0") || !strings.Contains(joined, "--zip-skip-types=") {
+		t.Fatalf("清除参数 = %v", args)
+	}
+
+	if _, changed = planAdvanced(
+		model.SiteDetail{ZipMinLength: 1024, ZipSkipTypes: []string{"image/png"}},
+		model.SiteInput{ZipMinLength: 1024, ZipSkipTypes: []string{"IMAGE/PNG"}},
+	); changed {
+		t.Fatal("仅大小写不同不应生成参数")
+	}
+	if !hasAdvanced(model.SiteInput{ZipMinLength: 1}) || !hasAdvanced(model.SiteInput{ZipSkipTypes: []string{"image/png"}}) {
+		t.Fatal("两个新字段都应参与 hasAdvanced")
+	}
+}
+
 func containsArg(args []string, want string) bool {
 	for _, arg := range args {
 		if arg == want {

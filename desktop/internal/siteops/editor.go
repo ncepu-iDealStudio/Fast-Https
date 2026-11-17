@@ -291,6 +291,8 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 // auth.pswd 已被 site show 脱敏成 ***，原样保留：前端留空即不改密码。
 func fillAdvanced(d *SiteDetail, loc map[string]any) {
 	d.Zip = cli.Strs(loc, "zip")
+	d.ZipMinLength = cli.Int(loc, "zip_min_length")
+	d.ZipSkipTypes = cli.Strs(loc, "zip_skip_types")
 	d.SymlinkPolicy = cli.Str(loc, "symlink_policy")
 
 	if limit := cli.AsMap(loc["limit"]); limit != nil {
@@ -385,6 +387,16 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 		changed = true
 	}
 
+	if cur.ZipMinLength != in.ZipMinLength {
+		args = append(args, "--zip-min-length", strconv.Itoa(in.ZipMinLength))
+		changed = true
+	}
+
+	if !sameStringSet(cur.ZipSkipTypes, in.ZipSkipTypes) {
+		args = append(args, zipSkipTypesArgs(in.ZipSkipTypes)...)
+		changed = true
+	}
+
 	if strings.TrimSpace(cur.SymlinkPolicy) != strings.TrimSpace(in.SymlinkPolicy) {
 		args = append(args, "--symlink-policy="+strings.TrimSpace(in.SymlinkPolicy))
 		changed = true
@@ -417,6 +429,12 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 func advancedArgs(in SiteInput) []string {
 	var args []string
 	args = append(args, zipArgs(in.Zip)...)
+	if in.ZipMinLength > 0 {
+		args = append(args, "--zip-min-length", strconv.Itoa(in.ZipMinLength))
+	}
+	if len(in.ZipSkipTypes) > 0 {
+		args = append(args, zipSkipTypesArgs(in.ZipSkipTypes)...)
+	}
 	if p := strings.TrimSpace(in.SymlinkPolicy); p != "" {
 		args = append(args, "--symlink-policy="+p)
 	}
@@ -429,7 +447,8 @@ func advancedArgs(in SiteInput) []string {
 // hasAdvanced 报告用户是否在弹窗里填过任何高级配置。
 // 新建站点据此决定要不要追加那条 site update。
 func hasAdvanced(in SiteInput) bool {
-	return len(in.Zip) > 0 || strings.TrimSpace(in.SymlinkPolicy) != "" ||
+	return len(in.Zip) > 0 || in.ZipMinLength > 0 || len(in.ZipSkipTypes) > 0 ||
+		strings.TrimSpace(in.SymlinkPolicy) != "" ||
 		in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
 		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CachePath) != ""
 }
@@ -448,6 +467,21 @@ func zipArgs(zip []string) []string {
 	}
 	if len(args) == 0 {
 		return []string{"--zip="}
+	}
+	return args
+}
+
+// zipSkipTypesArgs 生成跳过压缩的 MIME 类型参数。空列表用 --zip-skip-types=
+// 表示回落内置清单（CLI 侧把单个空值当成删除）。
+func zipSkipTypesArgs(types []string) []string {
+	var args []string
+	for _, t := range types {
+		if s := strings.TrimSpace(t); s != "" {
+			args = append(args, "--zip-skip-types", s)
+		}
+	}
+	if len(args) == 0 {
+		return []string{"--zip-skip-types="}
 	}
 	return args
 }

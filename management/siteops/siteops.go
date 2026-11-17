@@ -57,9 +57,13 @@ type UpdateInput struct {
 	ProxyPass  *string
 	TLS        *bool
 	Zip        *[]string
-	Limit      *config.PathLimit
-	Auth       *config.PathAuth
-	Cache      *config.Cache
+	// ZipMinLength 三态：nil 不改；指向 0 表示清除阈值（不限制）；正数写入。
+	ZipMinLength *int
+	// ZipSkipTypes 三态：nil 不改；指向空列表表示回落内置已压缩类型清单。
+	ZipSkipTypes *[]string
+	Limit        *config.PathLimit
+	Auth         *config.PathAuth
+	Cache        *config.Cache
 	// SymlinkPolicy 三态：nil 不改；指向空串表示回到默认策略；否则写入取值。
 	SymlinkPolicy *string
 	Banned        []string
@@ -391,7 +395,8 @@ func normalizeSymlinkPolicy(raw string) (string, error) {
 // 密码特殊处理：GUI 读到的是脱敏值 "***"，用户没改密码时前端原样回传，
 // 这里遇到空串或 "***" 就保留文件里的原密码，避免把真实口令写成星号。
 func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
-	if in.Zip == nil && in.Limit == nil && in.Auth == nil && in.Cache == nil && in.SymlinkPolicy == nil {
+	if in.Zip == nil && in.ZipMinLength == nil && in.ZipSkipTypes == nil &&
+		in.Limit == nil && in.Auth == nil && in.Cache == nil && in.SymlinkPolicy == nil {
 		return nil
 	}
 	loc := primaryLoc(cur)
@@ -417,6 +422,31 @@ func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
 			zip = append(zip, v)
 		}
 		loc.Zip = &zip
+	}
+
+	if in.ZipMinLength != nil {
+		v := *in.ZipMinLength
+		if v < 0 {
+			return fmt.Errorf("%w: --zip-min-length must be >= 0, got %d", ErrUsage, v)
+		}
+		loc.ZipMinLength = &v
+	}
+
+	if in.ZipSkipTypes != nil {
+		types := make([]string, 0, len(*in.ZipSkipTypes))
+		seen := make(map[string]bool, len(*in.ZipSkipTypes))
+		for _, raw := range *in.ZipSkipTypes {
+			v := strings.ToLower(strings.TrimSpace(raw))
+			if v == "" || seen[v] {
+				continue
+			}
+			if !strings.Contains(v, "/") {
+				return fmt.Errorf("%w: --zip-skip-types wants MIME types like image/png, got %q", ErrUsage, raw)
+			}
+			seen[v] = true
+			types = append(types, v)
+		}
+		loc.ZipSkipTypes = &types
 	}
 
 	if in.Limit != nil {

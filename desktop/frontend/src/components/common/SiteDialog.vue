@@ -36,6 +36,8 @@ const form = reactive({
   certKey: '',
   zipGzip: false,
   zipBr: false,
+  zipMinLength: 0,
+  zipSkipTypes: '',
   limitRate: 0,
   limitBurst: 0,
   limitMem: 0,
@@ -132,7 +134,7 @@ watch(() => props.open, async (open) => {
     Object.assign(form, {
       name: 'localhost', https: false, keepHttp: false, httpPort: '80', httpsPort: '443', listen: '80',
       type: 'local', root: '', proxyScheme: 'http://', proxy: '', cert: '', certKey: '',
-      zipGzip: false, zipBr: false, limitRate: 0, limitBurst: 0, limitMem: 0,
+      zipGzip: false, zipBr: false, zipMinLength: 0, zipSkipTypes: '', limitRate: 0, limitBurst: 0, limitMem: 0,
       limitNodelay: false, authOn: false, authUser: '', authPass: '', authRealm: '',
       cachePath: '', cacheValid: '', cacheMaxSize: 0,
     });
@@ -165,6 +167,8 @@ watch(() => props.open, async (open) => {
     form.certKey = d.certKey ?? '';
     form.zipGzip = (d.zip ?? []).includes('gzip');
     form.zipBr = (d.zip ?? []).some((z) => z === 'br' || z === 'brotli');
+    form.zipMinLength = d.zipMinLength ?? 0;
+    form.zipSkipTypes = (d.zipSkipTypes ?? []).join(', ');
     form.limitRate = d.limitRate ?? 0;
     form.limitBurst = d.limitBurst ?? 0;
     form.limitMem = d.limitMem ?? 0;
@@ -206,6 +210,8 @@ function buildPayload(): SiteInput {
     cert: tls ? form.cert.trim() : '',
     certKey: tls ? form.certKey.trim() : '',
     zip,
+    zipMinLength: toInt(form.zipMinLength),
+    zipSkipTypes: form.zipSkipTypes.split(',').map((s) => s.trim()).filter(Boolean),
     limitRate: toInt(form.limitRate),
     limitBurst: toInt(form.limitBurst),
     limitMem: toInt(form.limitMem),
@@ -428,6 +434,17 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
             <label class="check-field"><input v-model="form.zipBr" type="checkbox" /><span>brotli</span></label>
           </div>
           <small class="field-note">{{ t('dialog.site.zipHint') }}</small>
+          <div class="adv__fields">
+            <label class="stack-field">
+              <span>{{ t('dialog.site.zipMinLength') }}</span>
+              <input v-model.number="form.zipMinLength" type="number" min="0" />
+            </label>
+            <label class="stack-field">
+              <span>{{ t('dialog.site.zipSkipTypes') }}</span>
+              <input v-model="form.zipSkipTypes" type="text" :placeholder="t('dialog.site.zipSkipTypesHint')" />
+            </label>
+          </div>
+          <small class="field-note">{{ t('dialog.site.zipSkipTypesNote') }}</small>
         </div>
 
         <div class="adv__block">

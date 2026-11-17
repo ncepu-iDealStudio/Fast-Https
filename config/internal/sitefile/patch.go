@@ -122,6 +122,28 @@ func locationAdvancedEdits(base []jsonc.Step, before, after SiteLocation) []json
 		}
 	}
 
+	if after.ZipMinLength != nil {
+		// 0 与「未配置」等价（不限制），写 0 没有意义，直接删键。
+		if *after.ZipMinLength <= 0 {
+			if before.ZipMinLength != nil {
+				edits = append(edits, delEditAt(base, "zip_min_length"))
+			}
+		} else if before.ZipMinLength == nil || *before.ZipMinLength != *after.ZipMinLength {
+			edits = append(edits, setEditAt(base, "zip_min_length", mustJSON(*after.ZipMinLength)))
+		}
+	}
+
+	if after.ZipSkipTypes != nil {
+		types := normalizeMIMETypes(*after.ZipSkipTypes)
+		if len(types) == 0 {
+			if before.ZipSkipTypes != nil && len(normalizeMIMETypes(*before.ZipSkipTypes)) > 0 {
+				edits = append(edits, delEditAt(base, "zip_skip_types"))
+			}
+		} else if before.ZipSkipTypes == nil || !sameStrings(normalizeMIMETypes(*before.ZipSkipTypes), types) {
+			edits = append(edits, setEditAt(base, "zip_skip_types", mustJSON(types)))
+		}
+	}
+
 	if after.Limit != nil {
 		if after.Limit.IsZero() {
 			edits = append(edits, delEditAt(base, "limit"))
@@ -156,6 +178,25 @@ func locationAdvancedEdits(base []jsonc.Step, before, after SiteLocation) []json
 // 任何无关改动（例如只改 root）时被当成空列表静默删除。合法性由
 // management/siteops.applyAdvanced 在写入前校验，差异比对只负责如实反映。
 func normalizeZip(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, raw := range in {
+		v := strings.ToLower(strings.TrimSpace(raw))
+		if v == "" {
+			continue
+		}
+		if _, dup := seen[v]; dup {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+	return out
+}
+
+// normalizeMIMETypes 与 loader 的规则一致：去空白、小写、按首次出现去重。
+// 差异比对用它，避免 "Image/PNG" 与 "image/png" 被当成两次不同的修改。
+func normalizeMIMETypes(in []string) []string {
 	out := make([]string, 0, len(in))
 	seen := make(map[string]struct{}, len(in))
 	for _, raw := range in {

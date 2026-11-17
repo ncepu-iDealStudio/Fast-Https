@@ -210,6 +210,44 @@ func TestPatchZip(t *testing.T) {
 	}
 }
 
+// R-07：阈值与跳过类型都要能写入、能清除，且互不影响 zip 本身。
+func TestPatchZipLimits(t *testing.T) {
+	minLen := 1024
+	skip := []string{"image/png", "font/woff2"}
+	want := SiteInput{
+		Listens:    []string{"8080"},
+		ServerName: "a.local",
+		Locations: []SiteLocation{{
+			URL: "/", Type: "local", Root: "./httpdoc/root",
+			Index: []string{"index.html"}, ZipMinLength: &minLen, ZipSkipTypes: &skip,
+		}},
+	}
+	out := patchAdvanced(t, advancedBase(t), want)
+	got := reparse(t, out)
+	loc := got.Locations[0]
+	if loc.ZipMinLength == nil || *loc.ZipMinLength != 1024 {
+		t.Fatalf("zip_min_length 没写进去:\n%s", out)
+	}
+	if loc.ZipSkipTypes == nil || strings.Join(*loc.ZipSkipTypes, ",") != "image/png,font/woff2" {
+		t.Fatalf("zip_skip_types 没写进去:\n%s", out)
+	}
+
+	// 再传零值/空列表：两个键都要被删掉，回到默认行为。
+	zero, empty := 0, []string{}
+	clear := SiteInput{
+		Listens:    []string{"8080"},
+		ServerName: "a.local",
+		Locations: []SiteLocation{{
+			URL: "/", Type: "local", Root: "./httpdoc/root",
+			Index: []string{"index.html"}, ZipMinLength: &zero, ZipSkipTypes: &empty,
+		}},
+	}
+	out = patchAdvanced(t, out, clear)
+	if strings.Contains(out, "zip_min_length") || strings.Contains(out, "zip_skip_types") {
+		t.Fatalf("清除后不应残留键:\n%s", out)
+	}
+}
+
 func TestPatchLimit(t *testing.T) {
 	limit := model.PathLimit{Rate: 50, Burst: 100}
 	want := SiteInput{

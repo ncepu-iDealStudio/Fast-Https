@@ -18,6 +18,10 @@ export interface SiteInput {
   cert: string;
   certKey: string;
   zip: string[];
+  /** 最小压缩阈值（字节）；0 表示不限制。 */
+  zipMinLength: number;
+  /** 跳过压缩的 MIME 类型；空数组表示用内置已压缩类型清单。 */
+  zipSkipTypes: string[];
   limitRate: number;
   limitBurst: number;
   limitMem: number;

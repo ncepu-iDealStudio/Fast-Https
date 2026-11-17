@@ -1,0 +1,14 @@
+# R-07 压缩协商的端到端用例：每条覆盖一项语义，逐条经 getResBytes 走真实响应头。
+#
+# body 写法 repeat:<次数>:<片段>，最终内容是该片段重复 N 次（便于构造
+# 「大于 min_length」与「小于 min_length」两种体积）。
+#
+# 需求里的「响应已带 Content-Encoding 时跳过」不适用：本项目的压缩只发生在
+# 读取静态文件的这一刻，没有响应中间件链路，不存在「上游已经压过」的响应。
+{"name":"q-zero","file":"a.txt","body":"repeat:64:q-zero-body-","zip":"gzip","accept":"gzip;q=0","want_encoding":"","note":"gzip;q=0 明确拒绝，不压缩"}
+{"name":"wildcard-fallback","file":"a.txt","body":"repeat:64:wildcard-body-","zip":"gzip","accept":"*","want_encoding":"gzip","note":"未显式列出时回落到 * 的 q 值"}
+{"name":"head-length-matches-get","file":"a.txt","body":"repeat:64:head-body-","zip":"gzip","accept":"gzip","method":"HEAD","compare_get":true,"want_encoding":"gzip","note":"HEAD 无正文，Content-Length 与 GET 一致"}
+{"name":"range-skips-compression","file":"a.txt","body":"repeat:64:range-body-","zip":"gzip","accept":"gzip","range":"bytes=0-9","want_status":"206 Partial Content","want_encoding":"","note":"Range 请求跳过压缩，压缩后 Range 语义失效"}
+{"name":"compressed-type-skipped","file":"logo.png","body":"repeat:64:png-body-","zip":"gzip","accept":"gzip","want_encoding":"","want_content_type":"image/png","note":"图片本身已压缩，默认跳过"}
+{"name":"length-rewritten","file":"a.txt","body":"repeat:200:vary-body-","zip":"gzip","accept":"gzip","want_encoding":"gzip","note":"压缩后 Content-Length 改用压缩体长度，并带 Vary"}
+{"name":"min-length","file":"a.txt","body":"tiny","zip":"gzip","accept":"gzip","min_length":1024,"want_encoding":"","note":"小于 min_length 的响应不压"}

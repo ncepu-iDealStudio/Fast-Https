@@ -53,16 +53,17 @@ func addSiteWriteCommands(root *cobra.Command) {
 		Short: cli.T("受控更新站点的白名单字段", "update allow-listed fields of a site through the config transaction"),
 		Long: cli.T(
 			"只改 flag 点名的字段：--listen、--server-name、--root、--proxy-pass、--tls、--ssl-certificate*，"+
-				"以及主 location 上的高级配置 --zip、--limit-*、--auth-*、--cache-*、--symlink-policy。"+
+				"以及主 location 上的高级配置 --zip、--zip-min-length、--zip-skip-types、--limit-*、--auth-*、--cache-*、--symlink-policy。"+
 				"没写的字段（含未知键与注释）原样保留，不接受任意 JSON 合并。"+
 				"改 --server-name 时，按域名自动命名的证书路径会跟着改名；自定义证书路径不动。"+
-				"关闭某项：--zip= 清空压缩，--auth-type= 关闭认证，--cache-path= 关闭缓存，--symlink-policy= 回到默认策略。"+
+				"关闭某项：--zip= 清空压缩，--zip-min-length=0 取消阈值，--zip-skip-types= 回落内置清单，"+
+				"--auth-type= 关闭认证，--cache-path= 关闭缓存，--symlink-policy= 回到默认策略。"+
 				"--auth-pass 留空或传 *** 表示沿用原口令。内联在主配置 http.server[] 里的站点返回 NOT_SUPPORTED。",
 			"Only the named flags change: --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate*,\n"+
-				"plus main-location advanced options --zip, --limit-*, --auth-*, --cache-*, --symlink-policy.\n"+
+				"plus main-location advanced options --zip, --zip-min-length, --zip-skip-types, --limit-*, --auth-*, --cache-*, --symlink-policy.\n"+
 				"Everything else, including unknown keys and comments, is preserved; arbitrary JSON merge is rejected.\n"+
 				"Renaming --server-name makes the auto-named certificate path follow; custom certificate paths are left alone.\n"+
-				"Disable with --zip=, --auth-type=, --cache-path= or --symlink-policy=. An empty or *** --auth-pass keeps the current password.\n"+
+				"Disable with --zip=, --zip-min-length=0, --zip-skip-types=, --auth-type=, --cache-path= or --symlink-policy=. An empty or *** --auth-pass keeps the current password.\n"+
 				"Sites inline in the main config http.server[] return NOT_SUPPORTED."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
@@ -80,6 +81,8 @@ func addSiteWriteCommands(root *cobra.Command) {
 		"私钥路径；留空表示交回默认约定",
 		"private key path; empty falls back to the default convention"))
 	upd.Flags().StringSlice("zip", nil, cli.T("响应压缩编码，可重复：gzip / br；传空表示关闭", "response compression: gzip / br, repeatable; empty disables"))
+	upd.Flags().Int("zip-min-length", -1, cli.T("最小压缩阈值（字节），0 表示不限制；不传表示不改", "minimum size to compress in bytes; 0 disables the threshold; omit to keep"))
+	upd.Flags().StringSlice("zip-skip-types", nil, cli.T("跳过压缩的 MIME 类型，如 image/png；传空表示回落内置清单", "MIME types to skip, e.g. image/png; empty restores the built-in list"))
 	upd.Flags().Int("limit-rate", -1, cli.T("限流 rate（每秒请求数），0 表示不限", "rate limit (requests per second); 0 disables"))
 	upd.Flags().Int("limit-burst", -1, cli.T("限流 burst（突发桶大小）", "rate limit burst bucket size"))
 	upd.Flags().Int("limit-mem", -1, cli.T("限流 mem（连接缓冲大小）", "rate limit connection buffer size"))
@@ -272,6 +275,22 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 		in.Zip = &v
 		changed = true
 	}
+	if cmd.Flags().Changed("zip-min-length") {
+		v, _ := cmd.Flags().GetInt("zip-min-length")
+		if v < 0 {
+			return cli.UsageError(fmt.Errorf("--zip-min-length must be >= 0"))
+		}
+		in.ZipMinLength = &v
+		changed = true
+	}
+	if cmd.Flags().Changed("zip-skip-types") {
+		v, _ := cmd.Flags().GetStringSlice("zip-skip-types")
+		if len(v) == 1 && strings.TrimSpace(v[0]) == "" {
+			v = nil // --zip-skip-types "" 表示回落内置清单
+		}
+		in.ZipSkipTypes = &v
+		changed = true
+	}
 	if limit, ok := readLimitFlags(cmd); ok {
 		in.Limit = limit
 		changed = true
@@ -290,7 +309,7 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 		changed = true
 	}
 	if !changed {
-		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate, --ssl-certificate-key, --zip, --limit-*, --auth-*, --cache-*, --symlink-policy"))
+		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate, --ssl-certificate-key, --zip, --zip-min-length, --zip-skip-types, --limit-*, --auth-*, --cache-*, --symlink-policy"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	return cli.RunTxn(cmd, "site.update", "site update "+in.Name, map[string]string{"name": in.Name}, dry, func(_ string, dirs []string) error {

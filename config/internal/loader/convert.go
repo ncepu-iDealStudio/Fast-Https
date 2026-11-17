@@ -236,8 +236,29 @@ func convertPath(jl schema.Path) model.Path {
 		ErrorNotFound:  jl.ErrorPage.NotFound,
 		ErrorProxy:     jl.ErrorPage.Proxy,
 		Zip:            parseZip(jl.Zip),
+		ZipMinLength:   jl.ZipMinLength,
+		ZipSkipTypes:   normalizeMIMETypes(jl.ZipSkipTypes),
 		AllowMethods:   normalizeMethods(jl.AllowMethods),
 	}
+}
+
+// normalizeMIMETypes 统一小写、去空白并按首次出现去重；
+// 空列表返回 nil，让静态层回落到内置的已压缩类型清单。
+func normalizeMIMETypes(types []string) []string {
+	if len(types) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(types))
+	seen := make(map[string]bool, len(types))
+	for _, item := range types {
+		v := strings.ToLower(strings.TrimSpace(item))
+		if v == "" || seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out
 }
 
 // normalizeMethods 统一成大写并去掉空白，让配置写成 get 也能工作；

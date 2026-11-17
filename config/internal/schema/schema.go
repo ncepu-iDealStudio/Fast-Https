@@ -121,8 +121,12 @@ type Path struct {
 	Auth           model.PathAuth  `json:"auth"`
 	ErrorPage      ErrorPage       `json:"error_page"`
 	Zip            []string        `json:"zip"`
-	Try            []model.Try     `json:"try"`
-	AllowMethods   []string        `json:"allow_methods"`
+	// ZipMinLength 是压缩阈值（字节），0 表示不限制；小于该值的文件不压缩。
+	ZipMinLength int `json:"zip_min_length"`
+	// ZipSkipTypes 是跳过压缩的 MIME 类型；留空使用内置的已压缩类型清单，非空整体替换。
+	ZipSkipTypes []string    `json:"zip_skip_types"`
+	Try          []model.Try `json:"try"`
+	AllowMethods []string    `json:"allow_methods"`
 }
 
 type ErrorPage struct {

@@ -1,6 +1,6 @@
 # Fast-Https 边界加固功能需求
 
-状态：🚧 **部分实现**（R-01 ~ R-06 已完成，R-07 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
+状态：🚧 **部分实现**（R-01 ~ R-07 已完成，R-08 及之后待实现）。本文只写**要开发什么能力**；对应的缺陷核验记录（本项目
 目前有没有这些问题、修没修）在 [edge-case-coverage.md](../../test/reports/edge-case-coverage.md)。
 
 ## 需求来源
@@ -151,18 +151,12 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 ## R-07 压缩协商的完整语义
 
 **现状**：`modules/compress` 只是字节压缩辅助（57 行），真正的协商在
-`modules/static` 的 `encodingWanted`。本轮已补齐并锁定：
-
-- q 值：`gzip;q=0` 不压、`q>0` 即接受（`request.QValue`）
-- `*` 通配符：显式未命中时回落到 `*` 的 q 值；显式 `q=0` 优先于 `*`
-- 两种编码都配置时固定优先 `br`，不做加权择优
-
-剩余未做的：`min_length` 阈值、已压缩类型跳过列表、`HEAD` 与 GET 的
-`Content-Length` 一致性。
+`modules/static` 的 `encodingWanted`。
 
 **需求**：
 
 - 按 q 值协商：`gzip;q=0` 必须不压，`q` 相同时按服务端偏好定序（已完成）
+- `*` 通配符：显式未命中时回落到 `*` 的 q 值；显式 `q=0` 优先于 `*`（已完成）
 - 响应已带 `Content-Encoding` 时跳过（不适用：压缩只发生在读静态文件时，
   没有响应中间件链路）
 - `HEAD` 不产生 body，且 `Content-Length` 与 GET 一致
@@ -172,6 +166,17 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 - 提供最小压缩阈值（`min_length`），小响应不压
 
 **验收**：`accept-encoding.jsonl` 覆盖上述七条，每条一个用例。
+
+**状态**：✅ 已实现。`modules/static/compression.go` 新增内置已压缩类型清单
+（jpeg/png/gif/webp/avif、mp4/webm/quicktime、mp3/ogg/aac、zip/gzip/7z/rar/bz2、
+woff/woff2 等）；`zip_skip_types` 非空时**整体替换**该清单，不追加。
+`zip_min_length` 为 0 表示不限制，`Content-Type` 命中跳过类型或文件小于阈值时
+改为流式原样返回。压缩后 `Content-Length` 改用压缩体长度（此前误用原文件大小）。
+配置项贯通 schema → loader → model → `listener.ListenCfg`，并同步
+`site update --zip-min-length` / `--zip-skip-types` 与桌面端站点编辑。
+`TestAcceptEncodingCases` 逐条读取 `modules/static/testdata/accept-encoding.jsonl`
+的七个用例（`gzip;q=0`、`*` 回落、HEAD 长度、Range 跳过、已压缩类型、
+长度改写与 `Vary`、`min_length`）。
 
 ## R-08 连接与超时的边界行为
 

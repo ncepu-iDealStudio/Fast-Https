@@ -211,10 +211,15 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 		}
 	}
 
+	contentType := getContentType(name)
+
 	var payload []byte
 	encoding := ""
 	stream := true
-	if rngStart == -1 {
+	// 压缩条件：无 Range（压缩后 Range 语义失效）、文件达到 min_length
+	// 阈值、Content-Type 不在已压缩类型清单里。三条任一不满足就流式
+	// 原样返回，避免为几字节的响应付出压缩成本或把已压缩内容再压一遍。
+	if rngStart == -1 && compressible(lisdata, contentType, file_size) {
 		encoding = encodingWanted(lisdata.Zip, acceptEncoding(ev))
 		if encoding != "" {
 			raw, err := io.ReadAll(file)
@@ -235,6 +240,11 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	if rngStart >= 0 {
 		payloadLen = rngEnd - rngStart + 1
 	}
+	if !stream {
+		// 压缩后正文长度变了，Content-Length 必须改用压缩体长度，
+		// 否则客户端会按原文件大小读取，把后续响应或连接关闭当正文。
+		payloadLen = int64(len(payload))
+	}
 
 	if rngStart >= 0 {
 		writeHeader(&rr, 206, "Partial Content")
@@ -244,7 +254,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	} else {
 		writeHeader(&rr, 200, "OK")
 	}
-	rr.Res.SetHeader("Content-Type", getContentType(name))
+	rr.Res.SetHeader("Content-Type", contentType)
 	rr.Res.SetHeader("Content-Length", strconv.Itoa(int(payloadLen)))
 	rr.Res.SetHeader("Last-Modified", lastModified)
 	if !stream {

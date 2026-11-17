@@ -37,6 +37,9 @@
 | B-15 | keep-alive 复用连接时，请求间状态泄漏 | ✅ 无此问题 | `TestKeepAliveRequestIsFullyReset`、`TestFlushClearsAuxiliaryFields` | `Request.Flush` 清 Header/Query/Body；本轮补齐 `Encoding` / `HeaderLen` / `BodyLen` 三个此前未清的辅助字段 |
 | B-16 | reload 失败后旧配置失效，服务处于半死状态 | ✅ 无此问题 | `TestReloadInvalidKeepsPreviousConfig`、`TestReloadMissingFileKeepsPreviousConfig`；`management/txn` 的 `TestApplyValidationFails`、`TestApplyReloadFailsRollsBack`、`TestApplyCrashBetweenPhases` | `ReloadFile` 先校验再解析最后 `Store`，任一步失败都不触碰 `Current()` |
 | B-17 | `Accept-Encoding: *` 不生效，客户端声明接受任意编码却拿到未压缩响应 | 🔧 已修复 | `TestEncodingWantedVectors`（3 条通配符向量） | 原先只做显式 token 匹配；本轮 `encodingWanted` 增加回落：未显式声明的编码按 `*` 的 q 值决定，显式 `q=0` 仍优先于 `*` |
+| B-18 | 压缩后 `Content-Length` 仍是原文件大小，客户端按错误的长度读正文 | 🔧 已修复 | `TestAcceptEncodingCases` 的 `length-rewritten` | R-07：压缩后 `Content-Length` 改用 `int64(len(payload))`；用例逐字节核对声明长度与实际正文 |
+| B-19 | 图片、字体、zip 等已压缩类型被二次压缩；几字节的小响应也压 | 🔧 已修复 | `TestAcceptEncodingCases` 的 `compressed-type-skipped`、`min-length` | R-07：内置已压缩类型清单 + `zip_min_length`；`zip_skip_types` 非空时整体替换清单 |
+| B-20 | `HEAD` 返回正文，或 `HEAD` 与 GET 的 `Content-Length` 不一致；Range 请求被压缩 | ✅ 无此问题 | `TestAcceptEncodingCases` 的 `head-length-matches-get`、`range-skips-compression`、`TestStaticHeadOmitsBody` | HEAD 只写响应头；压缩路径对 HEAD 同样先算出压缩体，长度与 GET 一致；Range 原本就不压缩 |
 
 ## 4.3 本轮新增的用例
 
@@ -69,7 +72,24 @@ hop-by-hop 一项由 R-06 从「原样转发」改成「转发前剥离」，用
 策略追加」，核心策略另有 `core/forwarded_test.go` 的
 `TestForwardedForChainPolicy` 逐条锁定。
 
-### 4.3.3 静态路径（B-01 ~ B-07）
+### 4.3.4 压缩协商（B-13、B-17 ~ B-20）
+
+`modules/static/testdata/accept-encoding.jsonl` 七条用例，`TestAcceptEncodingCases`
+逐条驱动真实的 `getResBytes` 响应链路：
+
+| 用例 | 断言 |
+| --- | --- |
+| `q-zero` | `gzip;q=0` 明确拒绝，响应不带 `Content-Encoding` |
+| `wildcard-fallback` | 只给 `*` 时回落到 `*` 的 q 值并压缩 |
+| `head-length-matches-get` | HEAD 无正文，`Content-Length` / `Content-Encoding` 与 GET 一致 |
+| `range-skips-compression` | `206` 且不压缩，正文是请求的那一段 |
+| `compressed-type-skipped` | `logo.png` 默认跳过，`Content-Type: image/png` |
+| `length-rewritten` | 压缩后声明的 `Content-Length` 等于压缩体字节数，并带 `Vary: Accept-Encoding` |
+| `min-length` | 小于 `zip_min_length` 的响应不压 |
+
+「响应已带 `Content-Encoding` 时跳过」不适用，理由见 B-14。
+
+### 4.3.5 静态路径（B-01 ~ B-07）
 
 `modules/static/testdata/traversal-vectors.jsonl` —— 11 条向量：
 
@@ -102,13 +122,14 @@ PASS: TestForwardedForChainPolicy                (受信/不受信/上限/0 不�
 PASS: TestEncodingWantedVectors                  (21 条协商向量)
 PASS: TestStaticQZeroIsNotCompressed
 PASS: TestStaticQZeroFallsBackToOtherEncoding
+PASS: TestAcceptEncodingCases                   (7 条压缩协商输入)
 PASS: TestKeepAliveRequestIsFullyReset
 PASS: TestFlushClearsAuxiliaryFields
 PASS: TestReloadInvalidKeepsPreviousConfig
 PASS: TestReloadMissingFileKeepsPreviousConfig
 ```
 
-核验结果：**18 条核验项里，13 条确认无此问题，5 条已修复，待修项清零**。
+核验结果：**21 条核验项里，14 条确认无此问题（含 1 条不适用），7 条已修复，待修项清零**。
 
 本轮修掉的两处：
 
@@ -116,6 +137,8 @@ PASS: TestReloadMissingFileKeepsPreviousConfig
 | --- | --- |
 | `Accept-Encoding: *` 不生效（B-17） | `runtime/request` 拆出 `QValue`（返回 q 值与是否出现），`encodingWanted` 在显式未命中时回落到 `*`；显式 `q=0` 仍优先于 `*` |
 | `Request.Flush` 漏清三个辅助字段（B-15 的一部分） | 补 `Encoding` / `HeaderLen` / `BodyLen`。三者当前没有读取方，但属于「随请求变化」的状态，留着等于给将来埋跨请求残留的坑 |
+| 压缩后 `Content-Length` 用错长度（B-18） | `modules/static` 在 `!stream` 分支把 `payloadLen` 改成 `int64(len(payload))` |
+| 已压缩类型与小响应仍被压（B-19） | 新增 `zip_min_length` / `zip_skip_types`，内置已压缩类型清单；配置后整体替换清单 |
 
 
 - **URL 解码发生在静态层之前**：`%2e%2e` 到这一层已是普通字符，因此既不会
@@ -144,7 +167,7 @@ go test ./runtime/listener/ -run TestCertSet -v
 # 代理头
 go test ./modules/proxy/ ./core/ -run 'TestHopByHopHeaderCases|TestForwardedChainCases|TestForwardedForChainPolicy' -v
 # 内容编码协商
-go test ./modules/static/ -run 'TestEncodingWantedVectors|TestStaticQZero' -v
+go test ./modules/static/ -run 'TestEncodingWantedVectors|TestStaticQZero|TestAcceptEncodingCases' -v
 # keep-alive 状态隔离
 go test ./runtime/request/ -run 'TestKeepAliveRequestIsFullyReset|TestFlushClearsAuxiliaryFields' -v
 # reload 原子性
@@ -160,8 +183,8 @@ B-05、B-08 需要在 Windows / Linux 各跑一次，结果才有意义（`EvalS
 
 当前收集到的反馈已全部核验完毕，没有 ❓ 项。
 
-B-05、B-08 已分别由 R-02、R-01 处理，B-12 由 R-06 处理，均有回归用例；
-当前核验表里没有待修项。
+B-05、B-08 已分别由 R-02、R-01 处理，B-12 由 R-06 处理，B-18/B-19 由 R-07
+处理，均有回归用例；当前核验表里没有待修项。
 
 后续再收到新的问题反馈，按同样节奏处理：
 
