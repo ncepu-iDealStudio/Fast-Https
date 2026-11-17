@@ -66,6 +66,56 @@ func TestLookupAndSetPath(t *testing.T) {
 	}
 }
 
+// TestConfigSpecsCoverTLSDefaults 桌面设置页必须暴露 tls.default_certificate，
+// 否则桌面端与 CLI（config tls / config show --section tls）能力不对等。
+func TestConfigSpecsCoverTLSDefaults(t *testing.T) {
+	want := map[string]string{
+		"tls.default_certificate.certificate": "file",
+		"tls.default_certificate.key":         "file",
+	}
+	got := map[string]string{}
+	for _, s := range configSpecs {
+		if strings.HasPrefix(s.path, "tls.") {
+			got[s.path] = s.browse
+		}
+	}
+	for path, browse := range want {
+		if got[path] != browse {
+			t.Fatalf("设置页缺少字段 %s（browse=%q），当前 tls 字段：%v", path, browse, got)
+		}
+	}
+	if !configTopLevel["tls"] {
+		t.Fatal("tls 必须由表单接管，否则会被当成原样保留的段")
+	}
+}
+
+// TestPruneEmptyTLS 两项都留空表示关闭兜底证书，应与 CLI 一样删掉该键。
+func TestPruneEmptyTLS(t *testing.T) {
+	both := func(cert, key string) map[string]any {
+		return map[string]any{"tls": map[string]any{
+			"default_certificate": map[string]any{"certificate": cert, "key": key},
+		}}
+	}
+
+	root := both("", "")
+	pruneEmptyTLS(root)
+	if _, ok := root["tls"]; ok {
+		t.Fatalf("两项都空时应删掉 tls 段：%v", root)
+	}
+
+	root = both("def.pem", "")
+	pruneEmptyTLS(root)
+	if _, ok := root["tls"].(map[string]any)["default_certificate"]; !ok {
+		t.Fatal("只清空一项时应保留，交给校验报错")
+	}
+
+	root = both("def.pem", "def.key")
+	pruneEmptyTLS(root)
+	if _, ok := root["tls"].(map[string]any)["default_certificate"]; !ok {
+		t.Fatal("有值时不应删除")
+	}
+}
+
 // writeTreeWorkspace 建一棵最小的线上配置树：主配置 + conf.d 站点 + 停用文件。
 func writeTreeWorkspace(t *testing.T) (string, model.RuntimePaths) {
 	t.Helper()

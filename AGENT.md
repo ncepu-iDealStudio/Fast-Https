@@ -66,6 +66,19 @@ Windows 上 `core.autocrlf=true` 会自动把工作区转成 CRLF，所以：
 
 已实现的行为见 [docs/product-design-latest.md](docs/product-design-latest.md) 第 8 节。
 
+### 6. 新功能必须同时落到 CLI 与桌面端
+
+同一个能力要在三个入口可用：**CLI、桌面端 GUI、配置项文档**。只做其中一部分视为未完成——历史上多次出现「配置项和 CLI 都加了，Windows 图形界面却没法设置」。
+
+- **新增配置项**：先写 `config/internal/schema` + `model` + 校验，然后两头补入口：
+  - CLI：写入口与查看入口（例：`site add/update --symlink-policy`、`config tls` / `config tls show`），带双语帮助与 `--dry-run`（涉及写盘时）。
+  - 桌面端：顶层配置进 `desktop/internal/configops/editor.go` 的 `configSpecs`（路径字段给 `browse: "file"|"dir"`，并把键加进 `configTopLevel`）；站点级配置进 `SiteDialog.vue`，同时改 `desktop/internal/model` DTO、`desktop/internal/siteops` 的 plan 参数、`frontend/src/services/api/types.ts`。
+- **新增 CLI 命令**：重新生成 man 页（`go run ./tools/manpage`），同步 `docs/cli/command-spec.md`；写盘类命令要有错误码与 `--json` 输出。
+- **桌面端文案**：`i18n/locales/zh-CN.ts` 与 `en-US.ts` 两份都要加，跑 `npm run typecheck` 与 `npm run i18n:check`（两份键数必须相等）。
+- **测试**：CLI 侧加在 `cmd/...` 或 `management/...`；桌面侧加在 `desktop/internal/...`（设置页字段缺失、参数翻译错误都要有用例锁住）。
+- **文档**：`docs/usage.md` 写清 CLI 与 GUI 两种用法，并重新生成 `docs/usage.html`。
+- 桌面端是独立 Go 模块，在 `desktop/` 目录下执行 `go build ./...`、`go test ./internal/...`。
+
 ## 常用命令
 
 ```bash
@@ -97,6 +110,7 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 | `runtime/` | 监听、连接、请求/响应、reload、进程内运行状态计数（本机 `GET /runtime` 在 `cmd/`） |
 | `modules/` | 各功能模块（proxy/static/cache/compress/auth/waf/certmanager…） |
 | `init/` | 启动编排：证书初始化、自签 CA |
+| `desktop/` | Windows 桌面端（独立 Go 模块 + Vue3）。配置表单字段清单在 `internal/configops/editor.go`，站点弹窗参数在 `internal/siteops` 与 `frontend/src/components/common/SiteDialog.vue` |
 | `build/packaging/` | 打包资源：systemd 单元、安装脚本、man 页、仓库脚本 |
 | `build/goreleaser.yaml` | 产物定义：构建、归档、nfpms |
 | `tests/packaging/` | 打包产物守卫：行尾、logrotate 覆盖、卸载语义、distro 容器脚本结构 |
@@ -109,6 +123,7 @@ Windows 上并行跑测试偶发 `Access is denied`，用 `go test -p 1 ./...`�
 4. 改了打包脚本或安装布局 → `go test ./tests/packaging`，再 `sh tests/packaging/distro/run.sh all` 确认真能装上
 5. 改了运行期路径 → 两种布局各自 `check` 一遍
 6. 行为变化同步 `docs/feature/`，结构变化同步 `docs/architecture-map.md`
+7. 新增/修改配置项与 CLI：确认桌面端有对应入口与测试（见硬规则 6），跑了 `cd desktop && go test ./internal/...`、前端 `npm run typecheck` 与 `npm run i18n:check`
 
 ## 文档去哪找
 

@@ -141,6 +141,7 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 		return "", fmt.Errorf("主配置不是合法的 JSON 对象：%w", err)
 	}
 	changed := 0
+	tlsSubmitted := false
 	for _, s := range configSpecs {
 		text, ok := values[s.path]
 		if !ok {
@@ -152,9 +153,15 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 		}
 		setPath(root, s.path, v)
 		changed++
+		if strings.HasPrefix(s.path, "tls.default_certificate.") {
+			tlsSubmitted = true
+		}
 	}
 	if changed == 0 {
 		return "", fmt.Errorf("没有需要保存的改动")
+	}
+	if tlsSubmitted {
+		pruneEmptyTLS(root)
 	}
 
 	cand, err := buildCandidate(paths, root)
@@ -183,6 +190,27 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 		msg += "（" + strings.Join(extra, "，") + "）"
 	}
 	return msg + view.WriteNote(), nil
+}
+
+// pruneEmptyTLS 在两项都留空时删掉 tls.default_certificate（tls 段空了
+// 就整段删掉），与 `config tls --cert= --key=` 的落盘结果一致；只清空
+// 一项时保留原样，交给校验报「必须成对」。
+func pruneEmptyTLS(root map[string]any) {
+	tlsMap, ok := root["tls"].(map[string]any)
+	if !ok {
+		return
+	}
+	dc, ok := tlsMap["default_certificate"].(map[string]any)
+	if !ok {
+		return
+	}
+	if strings.TrimSpace(cli.Str(dc, "certificate")) != "" || strings.TrimSpace(cli.Str(dc, "key")) != "" {
+		return
+	}
+	delete(tlsMap, "default_certificate")
+	if len(tlsMap) == 0 {
+		delete(root, "tls")
+	}
 }
 
 // buildCandidate 复刻主程序 siteops.CloneLiveTree 搭一棵候选配置树：
