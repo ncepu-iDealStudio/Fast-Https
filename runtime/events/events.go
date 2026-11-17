@@ -78,6 +78,12 @@ func watchClose(ctx context.Context, ev *core.Event) func() {
 
 // distribute event
 func EventHandler(ev *core.Event, fif *filters.Filter) {
+	// 在途计数覆盖整条处理链路（含 panic 展开），reload 用它标注受影响请求数。
+	// 只统计 HTTP 请求；websocket/tcp 隧道由 ListenFilter 直接接管，不计入。
+	if ev != nil && ev.LisInfo != nil {
+		ev.LisInfo.BeginRequest()
+		defer ev.LisInfo.EndRequest()
+	}
 	metrics.RequestBegin()
 	started := time.Now()
 	defer func() {

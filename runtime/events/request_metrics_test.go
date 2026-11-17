@@ -63,6 +63,40 @@ func newHandlerEvent(t *testing.T, lis *listener.Listener, method, path, host st
 	return ev
 }
 
+// 请求处理期间该端口的在途计数为 1，结束后回到 0；reload 用它标注
+// 被移除 / 重建端口影响的请求数。
+func TestInFlightRequestsTrackedDuringHandler(t *testing.T) {
+	resetMetrics(t)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	registerStub(t, func(cfg *listener.ListenCfg, ev *core.Event) {
+		close(started)
+		<-release
+		ev.RR.Res.SetFirstLine(200, "OK")
+		_ = ev.WriteResponse(nil)
+	})
+
+	lis := stubListener()
+	ev := newHandlerEvent(t, lis, "GET", "/ok", "example.com")
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		EventHandler(ev, filters.NewFilter())
+	}()
+
+	<-started
+	if got := lis.InflightRequests(); got != 1 {
+		close(release)
+		<-done
+		t.Fatalf("in-flight = %d while handling, want 1", got)
+	}
+	close(release)
+	<-done
+	if got := lis.InflightRequests(); got != 0 {
+		t.Fatalf("in-flight = %d after handler, want 0", got)
+	}
+}
+
 func TestKeepAliveTwoRequests(t *testing.T) {
 	resetMetrics(t)
 	registerStub(t, func(cfg *listener.ListenCfg, ev *core.Event) {

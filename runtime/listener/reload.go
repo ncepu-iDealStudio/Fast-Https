@@ -64,6 +64,12 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 						logging.ConsoleLog.Error().Msgf("reload kept previous certificate: %s", err.Error())
 					}
 				}
+				// 已进入处理的请求继续用旧配置跑完，新请求才读新快照；
+				// 记下在途数，排障时能对应上。
+				logging.ConsoleLog.Debug().
+					Str("port", each.Port).
+					Int64("in_flight_requests", old.InflightRequests()).
+					Msg("reload updated listener; in-flight requests keep the previous config")
 			case old.LisType != each.LisType:
 				logging.ConsoleLog.Debug().Msgf("port %s listen type changed", each.Port)
 				old.Lfd.Close()
@@ -81,7 +87,6 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 				each.replaceCtx()
 				typeChanged = append(typeChanged, each)
 			}
-			logging.ConsoleLog.Debug().Msgf("update: %s", each.Port)
 			break
 		}
 	}

@@ -106,6 +106,9 @@ type Listener struct {
 
 	certs *certSet
 	cur   atomic.Pointer[listenerSnapshot]
+
+	// inflight 是该端口正在处理的请求数，供 reload 日志标注受影响范围。
+	inflight atomic.Int64
 }
 
 // publish 把构造好的 Cfg/HostMap 发布为请求路径可见的快照。
@@ -176,6 +179,18 @@ func (l *Listener) DefaultHosts() []ListenCfg {
 	}
 	return l.Hosts()[cfgs[0].ServerName]
 }
+
+// BeginRequest 标记该端口上一条请求开始处理。
+// reload 关闭或更新端口时读 InflightRequests，把受影响的请求数写进日志。
+func (l *Listener) BeginRequest() { l.inflight.Add(1) }
+
+// EndRequest 标记一条请求处理结束，与 BeginRequest 成对调用。
+func (l *Listener) EndRequest() { l.inflight.Add(-1) }
+
+// InflightRequests 返回该端口正在处理的请求数。
+// 只统计走 EventHandler 的 HTTP 请求（h1 每个请求、h2 每个流），
+// websocket/tcp 隧道属于长连接，不计入。
+func (l *Listener) InflightRequests() int64 { return l.inflight.Load() }
 
 // GLisinfos 是当前进程的监听器表。启动与 reload 写入，请求路径与
 // 证书热替换（控制面签发证书后）读取，所以读写都走 lisMu：

@@ -1,19 +1,24 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net"
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"fast-https/config"
 	"fast-https/core"
+	"fast-https/infra/logging"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/metrics"
 )
@@ -307,6 +312,46 @@ func TestConcurrentReloadsAreSerialized(t *testing.T) {
 	}
 	if got := len(s.Listens); got != 0 {
 		t.Fatalf("s.Listens = %d entries, want 0", got)
+	}
+}
+
+// 移除端口时日志必须带上该端口的在途请求数：排障时才能判断这次
+// reload 打断了多少请求，而不是只有一句“端口被移除”。
+func TestReloadLogsInFlightRequestsOnRemovedPort(t *testing.T) {
+	var buf bytes.Buffer
+	previousLog := logging.ConsoleLog
+	logging.ConsoleLog = zerolog.New(&buf)
+	t.Cleanup(func() { logging.ConsoleLog = previousLog })
+
+	previous := *config.Current()
+	next := previous
+	next.Servers = nil
+	config.Store(&next, config.MIME())
+	t.Cleanup(func() { config.Store(&previous, config.MIME()) })
+
+	oldListener := &listener.Listener{Port: "18097", LisType: 0}
+	oldListener.BeginRequest()
+	oldListener.BeginRequest()
+	previousListeners := listener.GLisinfos
+	listener.GLisinfos = []*listener.Listener{oldListener}
+	t.Cleanup(func() { listener.GLisinfos = previousListeners })
+
+	core.SetServices(core.Services{})
+	t.Cleanup(func() { core.SetServices(core.Services{}) })
+
+	previousReload := reloadConfig
+	reloadConfig = func() error { return nil }
+	t.Cleanup(func() { reloadConfig = previousReload })
+
+	s := &Server{Listens: []*listener.Listener{oldListener}}
+	s.Reload()
+
+	out := buf.String()
+	if !strings.Contains(out, `"port":"18097"`) || !strings.Contains(out, `"in_flight_requests":2`) {
+		t.Fatalf("reload log missing port / in-flight count: %s", out)
+	}
+	if !strings.Contains(out, "in-flight requests are terminated") {
+		t.Fatalf("reload log does not mark interrupted requests: %s", out)
 	}
 }
 

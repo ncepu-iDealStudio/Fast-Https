@@ -302,13 +302,19 @@ func (s *Server) Reload() {
 			continue
 		}
 
+		inflight := old.InflightRequests()
 		if old.Cancel != nil {
 			old.Cancel()
 		}
 		if old.Lfd != nil {
 			_ = old.Lfd.Close()
 		}
-		logging.ConsoleLog.Info().Msgf("reload removed listener on port %s", old.Port)
+		// 移除/重建端口无法“处理完再切换”：取消 ctx 会关闭 h1 连接，
+		// h2 最多等 H2GracefulShutdownPeriod。把受影响请求数写进日志。
+		logging.ConsoleLog.Info().
+			Str("port", old.Port).
+			Int64("in_flight_requests", inflight).
+			Msg("reload removed listener; in-flight requests are terminated")
 	}
 
 	// 指向最新的ListenCfg数据

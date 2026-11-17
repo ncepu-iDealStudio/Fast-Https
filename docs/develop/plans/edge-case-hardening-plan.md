@@ -242,11 +242,13 @@ root 的链接，与 `check-at-load` 的严格度保持一致），索引文件�
 触发 10 次 reload，无 panic、无状态错乱。
 
 **状态**：✅ 已实现。`server.Reload` 与 `config.LoadFile`/`ReloadFile` 各持
-互斥锁，后到的 reload 等待前一次完成；在途请求按进入路由时的快照处理完，
-新请求才读新配置。`TestReloadInvalidKeepsPreviousConfig` 锁定非法配置保留旧
-快照；`TestConcurrentReloadSerialized`（loader）与
+互斥锁，后到的 reload 等待前一次完成；在途请求按端口变化分两种：common 端口
+热更新时用旧快照处理完，移除/重建端口时终止并在日志带 `port` +
+`in_flight_requests` 字段。`TestReloadInvalidKeepsPreviousConfig` 锁定非法配置
+保留旧快照；`TestConcurrentReloadSerialized`（loader）与
 `TestConcurrentReloadsAreSerialized`（server，-race）并发 10 次 reload；
-`TestInFlightRequestKeepsCapturedCfgAcrossReload` 锁定在途请求语义。
+`TestInFlightRequestsTrackedDuringHandler` 与
+`TestReloadLogsInFlightRequestsOnRemovedPort` 锁定在途请求计数与日志。
 详见 [4-reload.md](../../feature/4-reload.md)。
 
 ## R-10 拒绝行为的可观测性
