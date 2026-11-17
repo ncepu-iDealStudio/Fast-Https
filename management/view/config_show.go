@@ -13,7 +13,7 @@ import (
 )
 
 // ConfigSections 是 config show --section 允许的取值。
-var ConfigSections = []string{"http", "acme", "security", "waf", "sites"}
+var ConfigSections = []string{"http", "acme", "security", "tls", "waf", "sites"}
 
 // ConfigShowInput 描述一次 config show。PidFile 只用来给出「改过未重载」的提示。
 type ConfigShowInput struct {

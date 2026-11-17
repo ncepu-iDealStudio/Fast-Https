@@ -43,6 +43,77 @@ func TestUpdateZip(t *testing.T) {
 	}
 }
 
+func TestUpdateSymlinkPolicy(t *testing.T) {
+	policy := config.SYMLINK_REJECT
+	out := updateAdvanced(t, UpdateInput{SymlinkPolicy: &policy})
+	if !strings.Contains(out, `"symlink_policy"`) || !strings.Contains(out, `"reject"`) {
+		t.Fatalf("symlink_policy 没写进去:\n%s", out)
+	}
+}
+
+// TestUpdateSymlinkPolicyClears 传空串应删除字段，回到默认策略。
+func TestUpdateSymlinkPolicyClears(t *testing.T) {
+	live, doc, eng, _ := writeLive(t, "live.example")
+	if _, err := runAdd(t, eng, live, "adv.example", doc, "sp0", false); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(filepath.Dir(live), "conf.d", "adv.example.json")
+
+	apply := func(policy, requestID string) {
+		t.Helper()
+		v := policy
+		if _, err := Run(context.Background(), eng, RunInput{
+			LiveMain: live, Command: "site.update", RequestID: requestID,
+			Mutate: func(_ string, dirs []string) error {
+				_, err := Update(dirs, live, UpdateInput{Name: "adv.example", SymlinkPolicy: &v})
+				return err
+			},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	apply(config.SYMLINK_REJECT, "sp1")
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(got), `"symlink_policy"`) || !strings.Contains(string(got), `"reject"`) {
+		t.Fatalf("先写入 reject 失败:\n%s", got)
+	}
+
+	apply("", "sp2")
+	got, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(got), "symlink_policy") {
+		t.Fatalf("空值应清除字段:\n%s", got)
+	}
+}
+
+func TestSymlinkPolicyValidation(t *testing.T) {
+	local := &config.SiteInput{Locations: []config.SiteLocation{{URL: "/", Type: "local", Root: "."}}}
+
+	bad := "loose"
+	if err := applyAdvanced(local, UpdateInput{SymlinkPolicy: &bad}); err == nil {
+		t.Fatal("非法取值应报错")
+	}
+
+	ok := config.SYMLINK_ALLOW
+	if err := applyAdvanced(local, UpdateInput{SymlinkPolicy: &ok}); err != nil {
+		t.Fatalf("合法取值被拒绝：%v", err)
+	}
+	if local.Locations[0].SymlinkPolicy != config.SYMLINK_ALLOW {
+		t.Fatalf("loc.SymlinkPolicy = %q", local.Locations[0].SymlinkPolicy)
+	}
+
+	proxy := &config.SiteInput{Locations: []config.SiteLocation{{URL: "/", Type: "proxy", ProxyPass: "http://127.0.0.1:9000"}}}
+	if err := applyAdvanced(proxy, UpdateInput{SymlinkPolicy: &ok}); err == nil {
+		t.Fatal("proxy location 不应接受 symlink_policy")
+	}
+}
+
 func TestUpdateLimit(t *testing.T) {
 	limit := config.PathLimit{Rate: 50, Burst: 100}
 	out := updateAdvanced(t, UpdateInput{Limit: &limit})

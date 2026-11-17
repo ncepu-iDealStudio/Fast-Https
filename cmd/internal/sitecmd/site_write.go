@@ -44,22 +44,25 @@ func addSiteWriteCommands(root *cobra.Command) {
 	add.Flags().String("ssl-certificate-key", "", cli.T(
 		"私钥路径；留空用 config/cert/<域名>-key.pem",
 		"private key path; defaults to config/cert/<domain>-key.pem"))
+	add.Flags().String("symlink-policy", "", cli.T(
+		"静态根符号链接策略：check-at-load（默认）/ reject / allow；仅 local 生效",
+		"static root symlink policy: check-at-load (default) / reject / allow; local only"))
 
 	upd := &cobra.Command{
 		Use:   "update <name>",
 		Short: cli.T("受控更新站点的白名单字段", "update allow-listed fields of a site through the config transaction"),
 		Long: cli.T(
 			"只改 flag 点名的字段：--listen、--server-name、--root、--proxy-pass、--tls、--ssl-certificate*，"+
-				"以及主 location 上的高级配置 --zip、--limit-*、--auth-*、--cache-*。"+
+				"以及主 location 上的高级配置 --zip、--limit-*、--auth-*、--cache-*、--symlink-policy。"+
 				"没写的字段（含未知键与注释）原样保留，不接受任意 JSON 合并。"+
 				"改 --server-name 时，按域名自动命名的证书路径会跟着改名；自定义证书路径不动。"+
-				"关闭某项：--zip= 清空压缩，--auth-type= 关闭认证，--cache-path= 关闭缓存。"+
+				"关闭某项：--zip= 清空压缩，--auth-type= 关闭认证，--cache-path= 关闭缓存，--symlink-policy= 回到默认策略。"+
 				"--auth-pass 留空或传 *** 表示沿用原口令。内联在主配置 http.server[] 里的站点返回 NOT_SUPPORTED。",
 			"Only the named flags change: --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate*,\n"+
-				"plus main-location advanced options --zip, --limit-*, --auth-*, --cache-*.\n"+
+				"plus main-location advanced options --zip, --limit-*, --auth-*, --cache-*, --symlink-policy.\n"+
 				"Everything else, including unknown keys and comments, is preserved; arbitrary JSON merge is rejected.\n"+
 				"Renaming --server-name makes the auto-named certificate path follow; custom certificate paths are left alone.\n"+
-				"Disable with --zip=, --auth-type= or --cache-path=. An empty or *** --auth-pass keeps the current password.\n"+
+				"Disable with --zip=, --auth-type=, --cache-path= or --symlink-policy=. An empty or *** --auth-pass keeps the current password.\n"+
 				"Sites inline in the main config http.server[] return NOT_SUPPORTED."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
@@ -88,6 +91,9 @@ func addSiteWriteCommands(root *cobra.Command) {
 	upd.Flags().String("cache-path", "", cli.T("代理缓存目录；留空表示关闭缓存", "proxy cache directory; empty disables caching"))
 	upd.Flags().StringSlice("cache-valid", nil, cli.T("代理缓存有效期，可重复，如 10s / 1m", "proxy cache TTL values, repeatable, e.g. 10s / 1m"))
 	upd.Flags().Int("cache-max-size", -1, cli.T("代理缓存最大字节数", "proxy cache maximum size in bytes"))
+	upd.Flags().String("symlink-policy", "", cli.T(
+		"静态根符号链接策略：check-at-load / reject / allow；传空表示回到默认",
+		"static root symlink policy: check-at-load / reject / allow; empty restores the default"))
 
 	del := &cobra.Command{
 		Use:          "delete <name>",
@@ -160,6 +166,7 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 	tls, _ := cmd.Flags().GetBool("tls")
 	cert, _ := cmd.Flags().GetString("ssl-certificate")
 	certKey, _ := cmd.Flags().GetString("ssl-certificate-key")
+	policy, _ := cmd.Flags().GetString("symlink-policy")
 
 	if strings.TrimSpace(domain) != "" {
 		if strings.TrimSpace(proxy) == "" && strings.TrimSpace(root) == "" {
@@ -177,7 +184,7 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 		}
 		return siteops.AddInput{
 			Domain: domain, Root: root, Listens: listens, ProxyPass: proxy, TLS: tls, Banned: banned,
-			SSLCertificate: cert, SSLCertificateKey: certKey,
+			SSLCertificate: cert, SSLCertificateKey: certKey, SymlinkPolicy: policy,
 		}, nil
 	}
 
@@ -211,6 +218,7 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 		// 向导里填过的证书路径照样带过去，不能因为换条路径就丢掉用户输入。
 		SSLCertificate:    si.SSLCertificate,
 		SSLCertificateKey: si.SSLCertificateKey,
+		SymlinkPolicy:     loc.SymlinkPolicy,
 	}, nil
 }
 
@@ -276,8 +284,13 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 		in.Cache = cache
 		changed = true
 	}
+	if cmd.Flags().Changed("symlink-policy") {
+		v, _ := cmd.Flags().GetString("symlink-policy")
+		in.SymlinkPolicy = &v
+		changed = true
+	}
 	if !changed {
-		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate, --ssl-certificate-key, --zip, --limit-*, --auth-*, --cache-*"))
+		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate, --ssl-certificate-key, --zip, --limit-*, --auth-*, --cache-*, --symlink-policy"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	return cli.RunTxn(cmd, "site.update", "site update "+in.Name, map[string]string{"name": in.Name}, dry, func(_ string, dirs []string) error {

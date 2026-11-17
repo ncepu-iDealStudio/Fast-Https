@@ -291,6 +291,7 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 // auth.pswd 已被 site show 脱敏成 ***，原样保留：前端留空即不改密码。
 func fillAdvanced(d *SiteDetail, loc map[string]any) {
 	d.Zip = cli.Strs(loc, "zip")
+	d.SymlinkPolicy = cli.Str(loc, "symlink_policy")
 
 	if limit := cli.AsMap(loc["limit"]); limit != nil {
 		d.LimitRate = cli.Int(limit, "rate")
@@ -384,6 +385,11 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 		changed = true
 	}
 
+	if strings.TrimSpace(cur.SymlinkPolicy) != strings.TrimSpace(in.SymlinkPolicy) {
+		args = append(args, "--symlink-policy="+strings.TrimSpace(in.SymlinkPolicy))
+		changed = true
+	}
+
 	if cur.LimitRate != in.LimitRate || cur.LimitBurst != in.LimitBurst ||
 		cur.LimitMem != in.LimitMem || cur.LimitNodelay != in.LimitNodelay {
 		args = append(args, limitArgs(in)...)
@@ -411,6 +417,9 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 func advancedArgs(in SiteInput) []string {
 	var args []string
 	args = append(args, zipArgs(in.Zip)...)
+	if p := strings.TrimSpace(in.SymlinkPolicy); p != "" {
+		args = append(args, "--symlink-policy="+p)
+	}
 	args = append(args, limitArgs(in)...)
 	args = append(args, authArgs(in)...)
 	args = append(args, cacheArgs(in)...)
@@ -420,7 +429,8 @@ func advancedArgs(in SiteInput) []string {
 // hasAdvanced 报告用户是否在弹窗里填过任何高级配置。
 // 新建站点据此决定要不要追加那条 site update。
 func hasAdvanced(in SiteInput) bool {
-	return len(in.Zip) > 0 || in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
+	return len(in.Zip) > 0 || strings.TrimSpace(in.SymlinkPolicy) != "" ||
+		in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
 		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CachePath) != ""
 }
 

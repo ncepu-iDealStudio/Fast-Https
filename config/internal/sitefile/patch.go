@@ -108,6 +108,11 @@ func stringFieldEdits(key, before, after string) []jsonc.Edit {
 func locationAdvancedEdits(base []jsonc.Step, before, after SiteLocation) []jsonc.Edit {
 	var edits []jsonc.Edit
 
+	// symlink_policy 是普通字符串：未改动时不动文件，改成空串表示删键回到默认。
+	if !sameText(before.SymlinkPolicy, after.SymlinkPolicy) {
+		edits = append(edits, stringFieldEditsAt(base, "symlink_policy", before.SymlinkPolicy, after.SymlinkPolicy)...)
+	}
+
 	if after.Zip != nil {
 		zip := normalizeZip(*after.Zip)
 		if len(zip) == 0 {

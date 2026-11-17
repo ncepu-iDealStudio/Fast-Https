@@ -31,6 +31,7 @@ const form = reactive({
   root: '',
   proxyScheme: 'http://',
   proxy: '',
+  symlinkPolicy: '',
   cert: '',
   certKey: '',
   zipGzip: false,
@@ -159,6 +160,7 @@ watch(() => props.open, async (open) => {
     const mp = /^(https?:\/\/)?(.*)$/.exec(d.proxyPass ?? '');
     form.proxyScheme = mp?.[1] || 'http://';
     form.proxy = mp?.[2] ?? '';
+    form.symlinkPolicy = d.symlinkPolicy ?? '';
     form.cert = d.cert ?? '';
     form.certKey = d.certKey ?? '';
     form.zipGzip = (d.zip ?? []).includes('gzip');
@@ -200,6 +202,7 @@ function buildPayload(): SiteInput {
     type: form.type,
     root: form.type === 'local' ? form.root : '',
     proxyPass: form.type === 'proxy' ? form.proxyScheme + form.proxy : '',
+    symlinkPolicy: form.type === 'local' ? form.symlinkPolicy : '',
     cert: tls ? form.cert.trim() : '',
     certKey: tls ? form.certKey.trim() : '',
     zip,
@@ -425,6 +428,19 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
             <label class="check-field"><input v-model="form.zipBr" type="checkbox" /><span>brotli</span></label>
           </div>
           <small class="field-note">{{ t('dialog.site.zipHint') }}</small>
+        </div>
+
+        <div class="adv__block">
+          <div class="adv__title">{{ t('dialog.site.symlink') }}</div>
+          <label class="stack-field">
+            <select v-model="form.symlinkPolicy">
+              <option value="">{{ t('dialog.site.symlinkDefault') }}</option>
+              <option value="check-at-load">check-at-load</option>
+              <option value="reject">reject</option>
+              <option value="allow">allow</option>
+            </select>
+          </label>
+          <small class="field-note">{{ t('dialog.site.symlinkHint') }}</small>
         </div>
 
         <div class="adv__block">

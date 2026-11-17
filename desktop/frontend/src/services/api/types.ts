@@ -12,6 +12,8 @@ export interface SiteInput {
   type: string;
   root: string;
   proxyPass: string;
+  /** 静态根符号链接策略：'' 默认 / check-at-load / reject / allow；只对 local 生效。 */
+  symlinkPolicy: string;
   /** 证书 / 私钥路径；留空表示走默认约定（./cert/<域名>.pem，首次启动生成）。 */
   cert: string;
   certKey: string;

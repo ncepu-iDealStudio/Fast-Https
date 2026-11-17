@@ -36,7 +36,9 @@ type AddInput struct {
 	Listens   []string
 	ProxyPass string
 	TLS       bool
-	Banned    []string
+	// SymlinkPolicy 只对 local 站点生效，取值见 config.SYMLINK_*；空表示默认。
+	SymlinkPolicy string
+	Banned        []string
 	// SSLCertificate / SSLCertificateKey 留空表示走默认约定（config/cert/<域名>.pem）；
 	// 显式给出时按给定路径写入，用于多站点共享同一张证书（如通配符证书）。
 	SSLCertificate    string
@@ -58,7 +60,9 @@ type UpdateInput struct {
 	Limit      *config.PathLimit
 	Auth       *config.PathAuth
 	Cache      *config.Cache
-	Banned     []string
+	// SymlinkPolicy 三态：nil 不改；指向空串表示回到默认策略；否则写入取值。
+	SymlinkPolicy *string
+	Banned        []string
 	// 证书路径同样是三态：nil 不改；指向空串表示交回默认约定（首次 start 生成）。
 	SSLCertificate    *string
 	SSLCertificateKey *string
@@ -258,7 +262,14 @@ func Add(dirs []string, in AddInput) (string, error) {
 		SSLCertificate:    strings.TrimSpace(in.SSLCertificate),
 		SSLCertificateKey: strings.TrimSpace(in.SSLCertificateKey),
 	}
+	policy, err := normalizeSymlinkPolicy(in.SymlinkPolicy)
+	if err != nil {
+		return "", err
+	}
 	if strings.TrimSpace(in.ProxyPass) != "" {
+		if policy != "" {
+			return "", fmt.Errorf("%w: --symlink-policy only applies to local locations", ErrUsage)
+		}
 		si.Locations = []config.SiteLocation{{URL: "/", Type: "proxy", ProxyPass: strings.TrimSpace(in.ProxyPass)}}
 	} else {
 		root := in.Root
@@ -271,7 +282,8 @@ func Add(dirs []string, in AddInput) (string, error) {
 		}
 		si.Locations = []config.SiteLocation{{
 			URL: "/", Type: "local", Root: abs,
-			Index: []string{"index.html", "index.htm"},
+			Index:         []string{"index.html", "index.htm"},
+			SymlinkPolicy: policy,
 		}}
 	}
 	fillCerts(&si)
@@ -363,15 +375,37 @@ func Update(dirs []string, liveMain string, in UpdateInput) (string, error) {
 	return path, nil
 }
 
-// applyAdvanced 把 --zip / --limit-* / --auth-* / --cache-* 落到主 location 上。
+// normalizeSymlinkPolicy 校验 --symlink-policy 取值；空串表示清除（回到默认）。
+func normalizeSymlinkPolicy(raw string) (string, error) {
+	switch v := strings.ToLower(strings.TrimSpace(raw)); v {
+	case "", config.SYMLINK_ALLOW, config.SYMLINK_REJECT, config.SYMLINK_CHECK_AT_LOAD:
+		return v, nil
+	default:
+		return "", fmt.Errorf("%w: --symlink-policy accepts allow, reject or check-at-load, got %q", ErrUsage, raw)
+	}
+}
+
+// applyAdvanced 把 --zip / --limit-* / --auth-* / --cache-* / --symlink-policy
+// 落到主 location 上。
 //
 // 密码特殊处理：GUI 读到的是脱敏值 "***"，用户没改密码时前端原样回传，
 // 这里遇到空串或 "***" 就保留文件里的原密码，避免把真实口令写成星号。
 func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
-	if in.Zip == nil && in.Limit == nil && in.Auth == nil && in.Cache == nil {
+	if in.Zip == nil && in.Limit == nil && in.Auth == nil && in.Cache == nil && in.SymlinkPolicy == nil {
 		return nil
 	}
 	loc := primaryLoc(cur)
+
+	if in.SymlinkPolicy != nil {
+		policy, err := normalizeSymlinkPolicy(*in.SymlinkPolicy)
+		if err != nil {
+			return err
+		}
+		if policy != "" && loc.Type != "" && loc.Type != "local" {
+			return fmt.Errorf("%w: --symlink-policy only applies to local locations", ErrUsage)
+		}
+		loc.SymlinkPolicy = policy
+	}
 
 	if in.Zip != nil {
 		zip := make([]string, 0, len(*in.Zip))

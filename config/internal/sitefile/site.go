@@ -36,15 +36,18 @@ func IsTreeConfigFile(name string) bool {
 // 差异比对，文件里的原值原样保留。这样 site update 只改用户点名的字段，
 // 不会把没动过的高级配置写成零值。
 type SiteLocation struct {
-	URL       string            `json:"url"`
-	Type      string            `json:"type"`
-	Root      string            `json:"root,omitempty"`
-	Index     []string          `json:"index,omitempty"`
-	ProxyPass string            `json:"proxy_pass,omitempty"`
-	Zip       *[]string         `json:"zip,omitempty"`
-	Limit     *model.PathLimit  `json:"limit,omitempty"`
-	Auth      *model.PathAuth   `json:"auth,omitempty"`
-	Cache     *model.Cache      `json:"proxy_cache,omitempty"`
+	URL  string `json:"url"`
+	Type string `json:"type"`
+	Root string `json:"root,omitempty"`
+	// SymlinkPolicy 只对 local 生效，取值 allow / reject / check-at-load；
+	// 留空表示默认策略。
+	SymlinkPolicy string           `json:"symlink_policy,omitempty"`
+	Index         []string         `json:"index,omitempty"`
+	ProxyPass     string           `json:"proxy_pass,omitempty"`
+	Zip           *[]string        `json:"zip,omitempty"`
+	Limit         *model.PathLimit `json:"limit,omitempty"`
+	Auth          *model.PathAuth  `json:"auth,omitempty"`
+	Cache         *model.Cache     `json:"proxy_cache,omitempty"`
 }
 
 // SiteInput 是生成 conf.d/<name>.json 的输入。

@@ -65,6 +65,9 @@ var configSpecs = []fieldSpec{
 	{"acme.fallback_self_signed", "证书失败回落自签", "ACME", "bool", "默认回落；显式 false 则不回落", nil, ""},
 	{"acme.storage", "ACME 缓存目录", "ACME", "text", "留空用默认路径", nil, "dir"},
 
+	{"tls.default_certificate.certificate", "默认证书", "TLS", "text", "未知 SNI 时使用；与私钥成对配置，留空则回落该端口第一张证书", nil, "file"},
+	{"tls.default_certificate.key", "默认证书私钥", "TLS", "text", "与默认证书成对出现", nil, "file"},
+
 	{"http.include", "include 目录 / 文件", "HTTP", "pathlist", "每行一个；站点文件通常放在 conf.d", nil, "dir"},
 	{"http.default_type", "默认 MIME 类型", "HTTP", "text", "", nil, ""},
 	{"http.servers_limit.max_header_size", "请求头上限（字节）", "HTTP", "number", "", nil, ""},
@@ -80,7 +83,7 @@ var configSpecs = []fieldSpec{
 // 若配置里仍带 engine 段，会列入 ConfigForm.Preserved 并在保存时原样保留。
 var configTopLevel = map[string]bool{
 	"pid": true, "log_root": true,
-	"waf": true, "acme": true, "security": true, "http": true,
+	"waf": true, "acme": true, "security": true, "tls": true, "http": true,
 }
 
 // ReadConfigForm 转交 config show 取表单字段值（敏感值已脱敏）；

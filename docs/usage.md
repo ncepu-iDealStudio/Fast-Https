@@ -191,12 +191,15 @@ fast-https site enable demo.example --yes
 fast-https site delete demo.example --yes   # 只删配置文件，不删内容目录与证书
 fast-https site list --json                 # 含 enabled、cert_status
 fast-https site add --domain blog.example --listen 80 --root ./httpdoc/root --yes
+fast-https site add --domain static.example --root ./httpdoc/root --symlink-policy reject --yes
+fast-https site update blog --symlink-policy= --yes   # 传空表示回到默认 check-at-load
 fast-https site show blog
 fast-https site delete blog --yes
 ```
 
 - **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。
-- **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
+- **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`、`--ssl-certificate*`，以及主 location 上的高级配置 `--zip`、`--limit-*`、`--auth-*`、`--cache-*`、`--symlink-policy`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
+- **符号链接策略**：`site add/update` 的 `--symlink-policy` 取 `check-at-load`（默认）、`reject`、`allow`，只对 `local` 站点生效；`site update --symlink-policy=` 传空串表示删掉该键、回到默认。代理站点带此参数返回退出码 2。
 - **site disable / enable**：把 `<name>.json` 改名为 `<name>.json.disabled` 或改回（`include` 只加载 `*.json`）。`site list --json` 里停用站点为 `enabled: false`。
 - **site delete**：必须 `--yes`。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 `config rollback` 找回。
 - **交互式**：`fast-https site add` 不带 `--domain` 且标准输入是终端时进向导，一题一屏依次问站点名（也是文件名）、监听端口、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。最后一屏确认即视为 `--yes`。标准输入不是终端时不会挂起，会提示改用 `--domain` 等参数。
@@ -237,6 +240,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `http` | HTTP 服务主体，见下 |
 | `acme` | ACME 自动签发与续期，见 7.1。缺省即关闭，行为与老版本一致 |
 | `security` | Host 校验与安全响应头，见 5.5。缺省只加 `X-Content-Type-Options: nosniff` |
+| `tls` | 全局 TLS 兜底：`default_certificate` 指定未知 SNI 使用的证书，见 7.2。缺省回落到该端口第一张证书 |
 
 ### 5.2 `http` 段
 
@@ -446,6 +450,24 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 
 > 本地 CA 的证书 `root.crt` 放在 `httpdoc/root/`（首页可直接下载安装），私钥 `root.key` 放在 `config/cert/`，不在对外服务的站点根下。旧版本把两者都放在站点根，升级后首次启动会把私钥搬到 `config/cert/`。如果你自己改过站点根，确认新目录里不含私钥。
 
+### 7.2 未知 SNI 的兜底证书
+
+默认行为是回落到该端口证书列表的第一张，并在控制台与 `error.log` 里留下一条 `reject_reason=unknown_sni` 的告警（含 `sni` 字段），便于发现扫描器或域名配错。想指定一张专门的兜底证书（例如只覆盖主域名的正式证书）时：
+
+```json
+"tls": {
+  "default_certificate": {
+    "certificate": "config/cert/default.pem",
+    "key": "config/cert/default-key.pem"
+  }
+}
+```
+
+- 只有 SNI 未命中任何站点证书（含不带 SNI 的 IP 直连）时才使用它，命中的域名仍按原规则选证书。
+- `certificate` 与 `key` 必须成对出现，文件必须存在，否则 `check` / 启动校验直接报错。
+- 配置后未知 SNI 属于预期流量，不再输出 `unknown_sni` 告警。
+- 执行 `reload` 后重新加载，不需要重启进程。
+
 ## 8. HTTP/2
 
 `listen` 加上 `h2` 即可，例如 `"listen": "443 ssl h2"`。
@@ -497,7 +519,7 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `service reload` | 受控 reload：校验、预检新增端口、发信号，再用 `/runtime` 做强验证（pid/`started_at` 不变且 `config_generation` 加一）；读不到快照时退回弱验证。不改配置文件。`--dry-run` 只校验与预检。服务没在跑退出码 4。记 operation，支持 `--request-id` 幂等 |
 | `runtime status` | 读取 `127.0.0.1:9088/runtime` 的瞬时连接与请求状态。连不上退出码 4；`schema_version` 不认识退出码 11。没有的字段（如 CPU、reading/writing/waiting）省略并在 `warnings` 说明 |
 | `runtime stats` | 进程启动以来的累计计数，响应里 `window` 为 `since_process_start`。`--since`、`--domain` 尚未支持，传入即退出码 11（`NOT_SUPPORTED`）。Monitor 只消费这份累计快照，不另算时间窗 |
-| `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`waf`、`sites` |
+| `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`tls`、`waf`、`sites` |
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
 | `config versions` | 列出状态目录里的配置版本快照。`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照不含证书与私钥 |
 | `config diff --candidate` | 比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
@@ -512,8 +534,8 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0 |
 | `monitor status` | 只读 Monitor 的 `status.json`。文件不存在时 `status` 为 `not_installed`（退出码 0）；采集时间早于 30 秒为 `stale`。不连接 Monitor 进程，也不负责启停 |
 | `monitor events` | 只读 `events.jsonl`。`--since`、`--limit`（默认 100，上限 1000）、`--severity`（`info`、`warning`、`error`、`critical`）。坏行跳过并计数，事件文本只作为数据返回 |
-| `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`）。走配置事务，非 dry-run 必须 `--yes`。同名或同 `server_name` 退出码 10 |
-| `site update <name>` | 受控更新白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`）。内联主配置站点退出码 11 |
+| `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`、`--symlink-policy`）。走配置事务，非 dry-run 必须 `--yes`。同名或同 `server_name` 退出码 10 |
+| `site update <name>` | 受控更新白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls` 与主 location 高级配置，含 `--symlink-policy`）。内联主配置站点退出码 11 |
 | `site delete <name>` | 受控删除站点配置（不删内容目录与证书）。必须 `--yes` |
 | `site enable <name>` / `site disable <name>` | 把 `<name>.json` 与 `<name>.json.disabled` 互改并 reload。必须 `--yes` |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套（含 `enabled`、`cert_status`） |

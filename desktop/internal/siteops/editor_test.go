@@ -11,6 +11,36 @@ import (
 
 // 弹窗字段 → CLI 命令 flag 的翻译是本包的核心逻辑，逐项锁住。
 
+// TestPlanAdvancedSymlinkPolicy 锁住符号链接策略的差量：改了才带 flag，
+// 从有值改回空串时要显式传 --symlink-policy= 才能清除。
+func TestPlanAdvancedSymlinkPolicy(t *testing.T) {
+	args, changed := planAdvanced(model.SiteDetail{}, model.SiteInput{SymlinkPolicy: "reject"})
+	if !changed || !containsArg(args, "--symlink-policy=reject") {
+		t.Fatalf("args = %v, changed = %v", args, changed)
+	}
+
+	args, changed = planAdvanced(model.SiteDetail{SymlinkPolicy: "reject"}, model.SiteInput{})
+	if !changed || !containsArg(args, "--symlink-policy=") {
+		t.Fatalf("清除时 args = %v, changed = %v", args, changed)
+	}
+
+	if _, changed = planAdvanced(model.SiteDetail{SymlinkPolicy: "reject"}, model.SiteInput{SymlinkPolicy: "reject"}); changed {
+		t.Fatal("取值未变不应生成参数")
+	}
+	if !hasAdvanced(model.SiteInput{SymlinkPolicy: "allow"}) {
+		t.Fatal("填了策略应视为高级配置")
+	}
+}
+
+func containsArg(args []string, want string) bool {
+	for _, arg := range args {
+		if arg == want {
+			return true
+		}
+	}
+	return false
+}
+
 func TestPlanAddSingleDomain(t *testing.T) {
 	plan, err := planAdd(model.SiteInput{
 		Name: "blog.example.com", Listen: "80, 443 ssl h2",

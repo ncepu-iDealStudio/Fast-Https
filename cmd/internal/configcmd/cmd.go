@@ -28,12 +28,12 @@ func newConfigShowCmd() *cobra.Command {
 		Long: cli.T(
 			"显示磁盘上的主配置与 http.include 站点，口令、令牌等敏感值一律脱敏，没有显示明文的选项。\n\n"+
 				"来源是磁盘，不是运行中进程实际生效的配置；config_dirty_hint 只是按修改时间做的提示。\n"+
-				"--section 可选：http、acme、security、waf、sites。",
+				"--section 可选：http、acme、security、tls、waf、sites。",
 			"show the main config and the sites under http.include; passwords, tokens and other\n"+
 				"secrets are always redacted and there is no option to reveal them.\n\n"+
 				"The source is the disk, not the configuration the running process has applied;\n"+
 				"config_dirty_hint is only a modification-time hint.\n"+
-				"--section accepts: http, acme, security, waf, sites."),
+				"--section accepts: http, acme, security, tls, waf, sites."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -60,7 +60,7 @@ func newConfigShowCmd() *cobra.Command {
 		},
 	}
 	cli.AddConfigFlag(c)
-	c.Flags().String("section", "", cli.T("只显示某一段：http、acme、security、waf、sites", "show one section only: http, acme, security, waf, sites"))
+	c.Flags().String("section", "", cli.T("只显示某一段：http、acme、security、tls、waf、sites", "show one section only: http, acme, security, tls, waf, sites"))
 	return c
 }
 
