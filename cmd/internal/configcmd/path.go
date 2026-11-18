@@ -29,7 +29,7 @@ type RuntimePaths struct {
 func NewConfigCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "config",
-		Short:        cli.T("查看路径、显示、校验、版本、差异、应用与回滚", "inspect paths, show, validate, versions, diff, apply and rollback"),
+		Short:        cli.T("查看路径、显示与校验配置，管理 tls/proxy、版本、差异、应用与回滚", "inspect paths, show and validate config, manage tls/proxy, versions, diffs, applies and rollbacks"),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
 	}
@@ -41,12 +41,12 @@ func NewConfigCmd() *cobra.Command {
 			"打印配置、证书、日志、pid、本地根 CA 证书与管理状态目录的路径（绝对路径）。\n\n"+
 				"log 是当前布局的默认日志目录；配置里写了 log_root 时以配置为准，\n"+
 				"控制面可读取配置文件同名字段覆盖本值。root_crt 由当前布局的\n"+
-				"数据目录算出，控制面不要自行拼接。state 是配置版本与 operation 的目录。",
+				"数据目录算出，控制面不要自行拼接。state 下 snapshots/ 存版本快照、operations/ 存操作记录。",
 			"print config, cert, log, pid, local root CA and management state paths (absolute).\n\n"+
 				"log defaults to the directory of the current layout; when log_root is set in\n"+
 				"the config, that value wins and the control plane may override it as well.\n"+
 				"root_crt is derived from the current data dir; control planes must not\n"+
-				"assemble it themselves. state holds config versions and operations."),
+				"assemble it themselves. state holds snapshots/ (versions) and operations/ (audit log)."),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			paths := ResolvePaths()

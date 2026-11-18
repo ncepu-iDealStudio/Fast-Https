@@ -128,9 +128,9 @@ func diffSlice(path string, a, b []any, out *[]Change) {
 		child := fmt.Sprintf("%s[%d]", path, i)
 		switch {
 		case i >= len(a):
-			*out = append(*out, Change{Path: child, Op: OpAdded, Value: b[i]})
+			*out = append(*out, Change{Path: child, Op: OpAdded, Value: redact.Value(b[i])})
 		case i >= len(b):
-			*out = append(*out, Change{Path: child, Op: OpRemoved, Old: a[i]})
+			*out = append(*out, Change{Path: child, Op: OpRemoved, Old: redact.Value(a[i])})
 		default:
 			diffValue(child, a[i], b[i], out)
 		}
@@ -141,14 +141,14 @@ func added(path, key string, v any) Change {
 	if redact.IsSensitiveKey(key) {
 		return Change{Path: path, Op: OpAdded, Changed: true}
 	}
-	return Change{Path: path, Op: OpAdded, Value: v}
+	return Change{Path: path, Op: OpAdded, Value: redact.Value(v)}
 }
 
 func removed(path, key string, v any) Change {
 	if redact.IsSensitiveKey(key) {
 		return Change{Path: path, Op: OpRemoved, Changed: true}
 	}
-	return Change{Path: path, Op: OpRemoved, Old: v}
+	return Change{Path: path, Op: OpRemoved, Old: redact.Value(v)}
 }
 
 func modified(path string, oldv, newv any) Change {
@@ -160,7 +160,7 @@ func modified(path string, oldv, newv any) Change {
 	if redact.IsSensitiveKey(leaf) {
 		return Change{Path: path, Op: OpModified, Changed: true}
 	}
-	return Change{Path: path, Op: OpModified, Old: oldv, New: newv}
+	return Change{Path: path, Op: OpModified, Old: redact.Value(oldv), New: redact.Value(newv)}
 }
 
 func join(prefix, key string) string {

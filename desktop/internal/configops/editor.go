@@ -5,7 +5,7 @@ package configops
 //
 // 读取转交 config show（敏感值由主程序脱敏，保存只回写被改动的字段，
 // 脱敏值不触碰就不会被写回）；保存搭建候选配置树后转交 config apply 的
-// 配置事务——校验、差异、恢复点、切换、reload、失败自动回滚，与命令行
+// 配置事务——校验、差异、临时备份、切换、reload、失败自动回滚，与命令行
 // 语义一致。桌面端只准备候选，不直接改线上配置文件。
 
 import (
@@ -136,7 +136,7 @@ func ReadConfigForm(dir string) (ConfigForm, error) {
 }
 
 // SaveConfigForm 只把「被改动的字段」写进候选配置树，再转交 config apply
-// 的配置事务。事务负责校验、恢复点、切换与 reload，失败自动回滚。
+// 的配置事务。事务负责校验、临时备份、切换与 reload，失败自动回滚。
 func SaveConfigForm(dir string, values map[string]string) (string, error) {
 	paths := view.ResolvePaths(dir)
 	raw, err := os.ReadFile(paths.Config)
@@ -197,10 +197,7 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 		extra = append(extra, "操作 "+id)
 	}
 	if v := cli.Str(m, "version"); v != "" {
-		extra = append(extra, "配置版本 "+v)
-	}
-	if r := cli.Str(m, "restore_point"); r != "" {
-		extra = append(extra, "恢复点 "+r)
+		extra = append(extra, "配置快照 "+v)
 	}
 	if len(extra) > 0 {
 		msg += "（" + strings.Join(extra, "，") + "）"

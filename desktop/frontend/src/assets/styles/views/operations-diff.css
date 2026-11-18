@@ -1,3 +1,8 @@
+/* 版本差异弹窗（views/operations/components/DiffDialog.vue）。 */
+.diff-summary { margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+.diff-group + .diff-group { margin-top: 14px; }
+.diff-group__file { margin-bottom: 4px; font-size: 11px; color: var(--muted); }
+
 .difftable {
   margin-top: 4px;
   border: 1px solid var(--line-strong);
@@ -8,7 +13,7 @@
 .difftable__head,
 .diffrow {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) 76px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.5fr) 96px minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   align-items: baseline;
   padding: 9px 14px;
@@ -40,6 +45,7 @@
   font-weight: 600;
   white-space: nowrap;
 }
+.diffrow__masked { margin-left: 6px; font-size: 11px; color: var(--muted); }
 .diffrow__val { overflow-wrap: anywhere; color: var(--muted); }
 
 /* 增 / 删 / 改：左侧色条 + 变更标签着色，值本身不染色以免长文本变花 */
@@ -50,15 +56,7 @@
 .diffrow--mod { border-left-color: var(--warn); }
 .diffrow--mod .diffrow__op { color: var(--warn); background: rgba(167, 91, 10, .07); }
 
-/* 卡片本身也加一道更实的边框，与页面背景分层 */
-.versions-page > .card {
-  border-color: var(--line-strong);
-  box-shadow: 0 1px 3px rgba(16, 20, 28, .05);
-}
-.versions-page .card-head { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
-
 @media (max-width: 900px) {
-  .difftable__head, .diffrow { grid-template-columns: minmax(0, 1.4fr) 68px minmax(0, 1fr); }
+  .difftable__head, .diffrow { grid-template-columns: minmax(0, 1.4fr) 80px minmax(0, 1fr); }
   .diffrow > span:last-child, .difftable__head > span:last-child { display: none; }
 }
-

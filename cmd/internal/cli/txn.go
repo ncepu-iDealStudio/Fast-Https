@@ -69,7 +69,8 @@ func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 	pidPath := config.PID_FILE
 	var before *rtclient.Snapshot
 	return &txn.Engine{
-		State: StateDir(),
+		State:   StateDir(),
+		CertDir: resolveCertDir(liveMain),
 		Reloader: txn.FuncReloader(func(ctx context.Context) error {
 			st, pid, err := procctl.InspectProcess(pidPath)
 			if err != nil {
@@ -137,6 +138,20 @@ func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 	}
 }
 
+// resolveCertDir 让证书目录跟随实际使用的配置文件：
+// 默认配置下就是编译期的 config/cert；用 --config 指向别处时，
+// 优先用配置文件旁边的 cert/，避免把别的安装目录证书写进当前状态。
+func resolveCertDir(liveMain string) string {
+	if liveMain == "" {
+		return config.CERT_DIR
+	}
+	dir := filepath.Join(filepath.Dir(liveMain), "cert")
+	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		return dir
+	}
+	return config.CERT_DIR
+}
+
 // restartService 定义在平台文件里：Windows 用子进程调用自身 stop/start
 // 让新配置生效（无法定向投递 reload 信号）；其余平台不会被调用。
 // 这样 os/exec 只出现在明确标注为「重执行自身」的文件里，
@@ -187,14 +202,13 @@ func FromSiteopsError(id string, err error) *CLIError {
 // EmitTxnResult 按 --json 与是否 dry-run 输出事务结果。
 func EmitTxnResult(cmd *cobra.Command, id string, res txn.Result) error {
 	data := map[string]any{
-		"dry_run":       res.DryRun,
-		"idempotent":    res.Idempotent,
-		"identical":     res.Diff.Identical,
-		"changes":       res.Diff.Changes,
-		"restore_point": res.RestorePoint,
-		"version":       res.Version,
-		"rolled_back":   res.RolledBack,
-		"config_state":  res.ConfigState,
+		"dry_run":      res.DryRun,
+		"idempotent":   res.Idempotent,
+		"identical":    res.Diff.Identical,
+		"changes":      res.Diff.Changes,
+		"version":      res.Version,
+		"rolled_back":  res.RolledBack,
+		"config_state": res.ConfigState,
 	}
 	if res.Operation.ID != "" {
 		data["operation_id"] = res.Operation.ID
@@ -212,8 +226,8 @@ func EmitTxnResult(cmd *cobra.Command, id string, res txn.Result) error {
 		}
 		return PrintIndentedJSON(cmd.OutOrStdout(), res.Diff)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %s restore=%s version=%s\n",
-		res.Operation.ID, res.Operation.Status, res.RestorePoint, res.Version)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %s version=%s\n",
+		res.Operation.ID, res.Operation.Status, res.Version)
 	return nil
 }
 

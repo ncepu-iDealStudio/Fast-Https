@@ -17,9 +17,12 @@ func ResolveStateDir() string {
 	return abs(config.STATE_DIR)
 }
 
-// StateDir 返回状态目录句柄。
+// StateDir 返回状态目录句柄。顺便执行一次幂等 Ensure：
+// 建目录并完成旧 config-versions → snapshots 的迁移，读命令也能看到旧历史。
 func StateDir() state.Dir {
-	return state.Dir{Root: ResolveStateDir()}
+	d := state.Dir{Root: ResolveStateDir()}
+	_ = d.Ensure()
+	return d
 }
 
 // abs 把路径转成绝对路径，失败时原样返回。

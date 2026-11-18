@@ -108,11 +108,17 @@ func newConfigVersionsCmd() *cobra.Command {
 		Use:   "versions",
 		Short: cli.T("列出配置版本快照", "list configuration version snapshots"),
 		Long: cli.T(
-			"列出状态目录里的配置版本。active 不靠标志位，而是当前磁盘配置树的哈希与快照哈希相同的那一个。\n"+
-				"都不相同则 drift 为 true。快照不含证书与私钥。",
-			"List configuration versions in the state directory. active is not stored as a flag:\n"+
-				"the version whose tree hash matches the on-disk config is active. If none match, drift is true.\n"+
-				"Snapshots never include certificates or private keys."),
+			"列出状态目录里的配置快照，版本号形如 v2026.11.18.1（日期 + 当天序号）。\n"+
+				"每成功改一次配置只保存一份结果快照；回滚是把 active 切回旧快照，不会新建版本。\n"+
+				"active 不靠标志位，而是当前磁盘配置树的哈希与快照哈希相同的那一个；都不相同则 drift 为 true。\n"+
+				"快照包含主配置、conf.d 与服务证书/私钥，不含 ACME 存储目录。\n"+
+				"每个版本会附带最近一次产生它的 operation_id 与 command。",
+			"List configuration snapshots in the state directory. Versions look like v2026.11.18.1 (date plus a daily counter).\n"+
+				"Every successful config change saves one result snapshot; rollback switches active back to an old snapshot\n"+
+				"and never creates a version. active is not stored as a flag: the version whose tree hash matches the\n"+
+				"on-disk config is active, and if none match, drift is true.\n"+
+				"Snapshots include the main config, conf.d and service certificates/keys (not ACME storage).\n"+
+				"Each version is annotated with the latest operation_id and command that produced it."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -121,11 +127,32 @@ func newConfigVersionsCmd() *cobra.Command {
 			if err != nil {
 				return cli.FromStateError("config.versions", err)
 			}
+			// 版本历史由「快照 + 操作」共同派生：给每个版本补上最近一次产生它的操作。
+			ops, err := operation.Store{Dir: cli.StateDir()}.List(operation.ListFilter{Limit: operation.MaxLimit})
+			if err != nil {
+				return cli.FromStateError("config.versions", err)
+			}
+			latest := map[string]operation.Record{}
+			for _, op := range ops {
+				v, _ := op.Result["version"].(string)
+				if v == "" {
+					continue
+				}
+				if _, seen := latest[v]; !seen {
+					latest[v] = op
+				}
+			}
+			for i := range data.Versions {
+				if op, ok := latest[data.Versions[i].Version]; ok {
+					data.Versions[i].OperationID = op.ID
+					data.Versions[i].Command = op.Command
+				}
+			}
 			if cli.JSONMode(cmd) {
 				return cli.EmitOK(cmd, "config.versions", data, nil)
 			}
 			if len(data.Versions) == 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "(no versions)")
+				fmt.Fprintln(cmd.OutOrStdout(), cli.T("（没有版本记录）", "(no versions)"))
 				return nil
 			}
 			for _, v := range data.Versions {
@@ -133,15 +160,56 @@ func newConfigVersionsCmd() *cobra.Command {
 				if v.Active {
 					mark = " active"
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s%s  %s  %s\n", v.Version, mark, v.CreatedAt, v.Summary)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s%s  %s  %s  %s\n", v.Version, mark, v.CreatedAt, v.Command, v.Summary)
 			}
 			if data.Drift {
-				fmt.Fprintln(cmd.OutOrStdout(), "drift: true")
+				fmt.Fprintln(cmd.OutOrStdout(), cli.T("drift: true（磁盘配置与任何快照都不一致）", "drift: true (on-disk config matches no snapshot)"))
 			}
 			return nil
 		},
 	}
 	cli.AddConfigFlag(c)
+	c.AddCommand(newConfigVersionsDeleteCmd())
+	return c
+}
+
+func newConfigVersionsDeleteCmd() *cobra.Command {
+	c := &cobra.Command{
+		Use:   "delete <version>",
+		Short: cli.T("删除一个历史版本快照", "delete a historical version snapshot"),
+		Long: cli.T(
+			"删除一个版本快照目录。当前 active 版本不能删除；operation 记录保留，不会连带删除历史操作。\n"+
+				"版本号形如 v2026.11.18.1；旧的时间戳（20261118-141108-836）与 vNNN 也能识别。必须加 --yes。",
+			"Delete a version snapshot directory. The active version cannot be deleted; operation records are kept.\n"+
+				"The version looks like v2026.11.18.1; legacy timestamps (20261118-141108-836) and vNNN are also accepted.\n"+
+				"--yes is required."),
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cli.Confirmed(cmd) {
+				return cli.UsageError(fmt.Errorf("delete requires --yes"))
+			}
+			path, _ := cmd.Flags().GetString("config")
+			version := strings.TrimSpace(args[0])
+			if err := cfgver.Delete(cli.StateDir(), version, path); err != nil {
+				switch {
+				case errors.Is(err, cfgver.ErrActiveVersion):
+					return &cli.CLIError{Code: cli.CodeConflict, Command: "config.versions.delete", Message: "cannot delete the active version: " + version, Cause: err}
+				case errors.Is(err, cfgver.ErrVersionNotFound):
+					return &cli.CLIError{Code: cli.CodeNotFound, Command: "config.versions.delete", Message: "version not found: " + version, Cause: err}
+				default:
+					return cli.FromStateError("config.versions.delete", err)
+				}
+			}
+			if cli.JSONMode(cmd) {
+				return cli.EmitOK(cmd, "config.versions.delete", map[string]any{"version": version, "deleted": true}, nil)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), cli.T("已删除 %s\n", "deleted %s\n"), version)
+			return nil
+		},
+	}
+	cli.AddConfigFlag(c)
+	c.Flags().Bool("yes", false, cli.T("确认删除", "confirm deletion"))
 	return c
 }
 
@@ -150,10 +218,11 @@ func newConfigDiffCmd() *cobra.Command {
 		Use:   "diff",
 		Short: cli.T("比较当前配置与候选配置", "compare the current config with a candidate"),
 		Long: cli.T(
-			"比较当前配置与 --candidate（目录、主配置文件或版本号，例如 v001）。只展示差异，不应用。\n"+
+			"比较当前配置与 --candidate（目录、主配置文件、版本号或操作 ID，例如 v2026.11.18.1、op_20261118_001）。只展示差异，不应用。\n"+
 				"敏感键只显示 changed，不输出新旧值。无法解析时失败，不会用空差异冒充一致。\n"+
 				"候选为目录或版本快照时比较整棵 JSON 树（主文件 + conf.d）。",
-			"Compare the current config with --candidate (a directory, main file, or version such as v001).\n"+
+			"Compare the current config with --candidate (a directory, main file, version or operation id,\n"+
+				"e.g. v2026.11.18.1 or op_20261118_001).\n"+
 				"It only shows differences and never applies them. Sensitive keys are reported as changed\n"+
 				"without old or new values. A parse failure is an error, never an empty diff.\n"+
 				"A directory or version snapshot is compared as a whole JSON tree (main file + conf.d)."),
@@ -171,11 +240,15 @@ func newConfigDiffCmd() *cobra.Command {
 			if err := rejectCandidateEscape(candidate); err != nil {
 				return err
 			}
-			candPath, err := resolveDiffCandidate(candidate)
+			curPath, err := resolveDiffRef("current", current)
 			if err != nil {
 				return err
 			}
-			data, err := diffConfig(current, candPath)
+			candPath, err := resolveDiffRef("candidate", candidate)
+			if err != nil {
+				return err
+			}
+			data, err := diffConfig(curPath, candPath)
 			if err != nil {
 				return cli.FromViewError("config.diff", err)
 			}
@@ -227,21 +300,45 @@ func isDir(path string) bool {
 }
 
 func resolveDiffCandidate(candidate string) (string, error) {
-	if _, err := os.Stat(candidate); err == nil {
-		return candidate, nil
+	return resolveDiffRef("candidate", candidate)
+}
+
+// resolveDiffRef 把路径、版本号（v2026.11.18.1）或操作 ID（op_...）解析成可比较的路径。
+// --current 也接受版本号，方便直接对比两个历史版本。
+func resolveDiffRef(kind, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return ref, nil
 	}
-	if strings.HasPrefix(candidate, "v") {
-		dest := filepath.Join(cli.StateDir().VersionsDir(), candidate)
+	if _, err := os.Stat(ref); err == nil {
+		return ref, nil
+	}
+	if strings.HasPrefix(ref, "op_") {
+		rec, err := operation.Store{Dir: cli.StateDir()}.Get(ref)
+		if err != nil {
+			return "", &cli.CLIError{Code: cli.CodeNotFound, Command: "config.diff", Message: kind + " not found: " + ref, Cause: err}
+		}
+		v, _ := rec.Result["version"].(string)
+		if v == "" {
+			return "", &cli.CLIError{Code: cli.CodeNotFound, Command: "config.diff", Message: "operation has no config version: " + ref}
+		}
+		ref = v
+	}
+	if cfgver.IsVersionName(ref) {
+		dest := cfgver.VersionDir(cli.StateDir(), ref)
 		if info, err := os.Stat(dest); err == nil && info.IsDir() {
 			return dest, nil
 		}
-		p, err := cfgver.MainFile(cli.StateDir(), candidate)
+		p, err := cfgver.MainFile(cli.StateDir(), ref)
 		if err != nil {
-			return "", &cli.CLIError{Code: cli.CodeNotFound, Command: "config.diff", Message: "version not found: " + candidate, Cause: err}
+			return "", &cli.CLIError{Code: cli.CodeNotFound, Command: "config.diff", Message: kind + " not found: " + ref, Cause: err}
 		}
 		return p, nil
 	}
-	return "", &cli.CLIError{Code: cli.CodeNotFound, Command: "config.diff", Message: "candidate not found: " + candidate}
+	if kind == "current" {
+		return ref, nil
+	}
+	return "", &cli.CLIError{Code: cli.CodeNotFound, Command: "config.diff", Message: kind + " not found: " + ref}
 }
 
 func newConfigApplyCmd() *cobra.Command {
@@ -249,12 +346,13 @@ func newConfigApplyCmd() *cobra.Command {
 		Use:   "apply",
 		Short: cli.T("将候选配置目录受控应用到线上", "apply a candidate config directory under management control"),
 		Long: cli.T(
-			"校验候选目录、生成差异、保存恢复点、切换配置、reload。读得到 /runtime 时做强验证，否则退回弱验证。失败则从恢复点还原。\n"+
-				"必须加 --yes。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建恢复点。",
-			"Validate the candidate directory, diff it, save a restore point, switch files, reload, and verify.\n"+
+			"校验候选目录、生成差异、备份、切换配置、reload。读得到 /runtime 时做强验证，否则退回弱验证。失败则从临时备份还原。\n"+
+				"必须加 --yes。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建快照。成功后自动保存结果快照。",
+			"Validate the candidate directory, diff it, back up, switch files, reload, and verify.\n"+
 				"When /runtime is reachable the check is strong; otherwise it falls back to a basic process/port check.\n"+
-				"Failure rolls back from the restore point. --yes is required.\n"+
-				"--dry-run only reports validation and the diff; it writes nothing, does not reload, and creates no restore point."),
+				"Failure restores from a temporary backup. --yes is required.\n"+
+				"--dry-run only reports validation and the diff; it writes nothing, does not reload, and creates no snapshot.\n"+
+				"On success a result snapshot is saved automatically."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         runConfigApply,
@@ -271,16 +369,21 @@ func newConfigRollbackCmd() *cobra.Command {
 		Use:   "rollback",
 		Short: cli.T("回滚到一个历史配置版本", "roll back to a historical config version"),
 		Long: cli.T(
-			"回滚是一次新的 operation：先校验目标版本（含引用的证书仍存在），再走与 apply 相同的事务。不删除历史版本。\n"+
-				"必须加 --yes。",
-			"Rollback is a new operation: the target version is validated first (including that referenced certificates still exist),\n"+
-				"then the same transaction as apply runs. Historical versions are not deleted. --yes is required."),
+			"回滚复用目标版本的快照（主配置、conf.d 与服务证书），再走与 apply 相同的事务，不会新建版本。\n"+
+				"目标可以是版本号（v2026.11.18.1）或操作 ID（op_...），二选一。\n"+
+				"回滚会在操作记录里留一条 config.rollback，方便审计，但版本列表不把它当成新版本。必须加 --yes。",
+			"Rollback reuses the target version snapshot (main config, conf.d, and service certificates)\n"+
+				"and runs the same transaction as apply. It never creates a new version.\n"+
+				"The target is either a version (v2026.11.18.1) or an operation id (op_...).\n"+
+				"Rollback leaves a config.rollback entry in the operation log for auditing, but the version list\n"+
+				"does not treat it as a new version. --yes is required."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         runConfigRollback,
 	}
 	cli.AddConfigFlag(c)
-	c.Flags().String("version", "", cli.T("目标版本号，例如 v001（必填）", "target version, e.g. v001 (required)"))
+	c.Flags().String("version", "", cli.T("目标版本号，例如 v2026.11.18.1（与 --operation 二选一）", "target version, e.g. v2026.11.18.1 (either this or --operation)"))
+	c.Flags().String("operation", "", cli.T("目标操作 ID，例如 op_20261118_001（与 --version 二选一）", "target operation id, e.g. op_20261118_001 (either this or --version)"))
 	c.Flags().Bool("dry-run", false, cli.T("只校验与展示差异，不回滚", "validate and show the diff only, do not roll back"))
 	c.Flags().Bool("yes", false, cli.T("确认执行（非 dry-run 必填）", "confirm the rollback (required unless --dry-run)"))
 	return c
@@ -307,26 +410,44 @@ func runConfigApply(cmd *cobra.Command, _ []string) error {
 
 func runConfigRollback(cmd *cobra.Command, _ []string) error {
 	ver, _ := cmd.Flags().GetString("version")
-	if strings.TrimSpace(ver) == "" {
-		return cli.UsageError(fmt.Errorf("--version is required"))
+	opID, _ := cmd.Flags().GetString("operation")
+	ver, opID = strings.TrimSpace(ver), strings.TrimSpace(opID)
+	if (ver == "") == (opID == "") {
+		return cli.UsageError(fmt.Errorf("exactly one of --version or --operation is required"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	if !dry && !cli.Confirmed(cmd) {
 		return cli.UsageError(fmt.Errorf("rollback requires --yes; use --dry-run to preview"))
+	}
+	if opID != "" {
+		rec, err := operation.Store{Dir: cli.StateDir()}.Get(opID)
+		if err != nil {
+			return &cli.CLIError{Code: cli.CodeNotFound, Command: "config.rollback", Message: "operation not found: " + opID, Cause: err}
+		}
+		v, _ := rec.Result["version"].(string)
+		if v == "" {
+			return &cli.CLIError{Code: cli.CodeNotFound, Command: "config.rollback", Message: "operation has no config version: " + opID}
+		}
+		ver = v
 	}
 	root := cfgver.VersionDir(cli.StateDir(), ver)
 	if info, err := os.Stat(root); err != nil || !info.IsDir() {
 		return &cli.CLIError{Code: cli.CodeNotFound, Command: "config.rollback", Message: "version not found: " + ver}
 	}
 	live, _ := cmd.Flags().GetString("config")
+	args := map[string]string{"version": ver, "live": live}
+	if opID != "" {
+		args["operation"] = opID
+	}
 	return runTxn(cmd, "config.rollback", txn.Input{
-		Candidate: root,
-		LiveMain:  live,
-		RequestID: cli.EnsureRequestID(cmd),
-		Command:   "config.rollback",
-		Summary:   "rollback to " + ver,
-		DryRun:    dry,
-		Args:      map[string]string{"version": ver, "live": live},
+		Candidate:    root,
+		LiveMain:     live,
+		RequestID:    cli.EnsureRequestID(cmd),
+		Command:      "config.rollback",
+		Summary:      "rollback to " + ver,
+		DryRun:       dry,
+		RestoreCerts: true,
+		Args:         args,
 	})
 }
 

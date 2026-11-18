@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /** 缓存区页：主配置 cache 段的增删改查，全部转交 CLI。 */
-import { computed, onMounted, reactive, ref } from 'vue';
-import { Pencil, Plus, Trash2 } from '@lucide/vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { FolderOpen, Pencil, Plus, Trash2 } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { quipOfDay } from '../../content/quips';
 import { listCacheZones, addCacheZone, saveCacheZone, deleteCacheZone } from '../../services/api/cache';
 import { messageOf } from '../../services/api/base';
+import { pickPath } from '../../services/api/app';
 import FhButton from '../../components/ui/FhButton.vue';
 import PageTitle from '../../components/common/PageTitle.vue';
 import FhDialog from '../../components/ui/FhDialog.vue';
@@ -26,6 +27,14 @@ const editingName = ref('');
 const saving = ref(false);
 const formError = ref('');
 const form = reactive({ name: '', path: '', maxSize: 0 });
+// 用户手动改过目录后，不再让名称联动覆盖它。
+const pathTouched = ref(false);
+
+watch(() => form.name, (name) => {
+  if (editingName.value || pathTouched.value) return;
+  const n = name.trim();
+  form.path = n ? `./.cache/${n}` : '';
+});
 
 const delOpen = ref(false);
 const delName = ref('');
@@ -127,6 +136,7 @@ function openAdd(): void {
   form.name = '';
   form.path = '';
   form.maxSize = 0;
+  pathTouched.value = false;
   validRules.value = defaultRules();
   formError.value = '';
   dialogOpen.value = true;
@@ -137,9 +147,22 @@ function openEdit(z: CacheZone): void {
   form.name = z.name;
   form.path = z.path;
   form.maxSize = z.max_size ?? 0;
+  pathTouched.value = true;
   validRules.value = rulesFromValid(z.valid);
   formError.value = '';
   dialogOpen.value = true;
+}
+
+async function browsePath(): Promise<void> {
+  try {
+    const p = await pickPath('dir');
+    if (p) {
+      form.path = p;
+      pathTouched.value = true;
+    }
+  } catch (e) {
+    formError.value = messageOf(e);
+  }
 }
 
 function toInt(v: number | string): number {
@@ -265,13 +288,16 @@ onMounted(() => { void load(); });
       width="520px"
     >
       <div class="cache-form adv__fields adv__fields--2">
-        <label class="stack-field">
+        <label class="stack-field span-2">
           <span>{{ t('cache.name') }}</span>
           <input v-model="form.name" type="text" :placeholder="t('cache.namePh')" :disabled="!!editingName" />
         </label>
-        <label class="stack-field">
+        <label class="stack-field span-2">
           <span>{{ t('cache.path') }}</span>
-          <input v-model="form.path" type="text" :placeholder="t('cache.pathPh')" />
+          <div class="joined">
+            <input v-model="form.path" type="text" :placeholder="t('cache.pathPh')" @input="pathTouched = true" />
+            <FhButton size="small" @click="browsePath"><FolderOpen :size="14" /><span>{{ t('cache.browse') }}</span></FhButton>
+          </div>
         </label>
         <div class="stack-field span-2">
           <span>{{ t('cache.valid') }}</span>

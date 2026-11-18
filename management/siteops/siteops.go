@@ -153,7 +153,6 @@ func replayIdempotent(eng *txn.Engine, in RunInput) (txn.Result, bool, error) {
 		Diff:        cfgdiff.Result{Identical: true},
 	}
 	if rec.Result != nil {
-		out.RestorePoint, _ = rec.Result["restore_point"].(string)
 		out.Version, _ = rec.Result["version"].(string)
 		out.RolledBack, _ = rec.Result["rolled_back"].(bool)
 		if s, ok := rec.Result["config_state"].(string); ok && s != "" {

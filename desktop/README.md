@@ -92,7 +92,7 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 ## 数据从哪来（转交 CLI）
 
-桌面端是 CLI 的图形前端：**所有状态读取与管理动作都转交同目录的主程序** `fast-https <cmd> --json`，由主程序的配置事务负责校验、恢复点、reload 与回滚，桌面端与命令行看到的永远是同一套语义。点击站点页刷出站点列表，本质就是执行 `site list`。
+桌面端是 CLI 的图形前端：**所有状态读取与管理动作都转交同目录的主程序** `fast-https <cmd> --json`，由主程序的配置事务负责校验、临时备份、切换、reload 与失败还原，桌面端与命令行看到的永远是同一套语义。点击站点页刷出站点列表，本质就是执行 `site list`。
 
 | 界面动作 | CLI 命令 |
 | --- | --- |
@@ -100,14 +100,14 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 | 站点详情弹窗 | `site show` |
 | 添加 / 编辑 / 删除 / 启停站点 | `site add` / `site update` / `site delete` / `site enable` / `site disable` |
 | 设置页表单读取 / 保存 | `config show`（脱敏）/ `config apply`（候选配置树 + 事务） |
-| 设置页校验 / 版本 / 对比 / 回滚 | `config validate` / `config versions` / `config diff` / `config rollback` |
+| 历史时间线 / 当前版本 / 差异 / 回滚 | `operation list` / `config versions`（只读当前 active）/ `config diff` / `config rollback`（`--version` 或 `--operation`） |
 | 运行概况 / 状态栏 / 启停重载 | `service status` / `start` / `stop` / `service reload` / `status` |
 | 运行快照卡片 | `runtime status` / `runtime stats` |
 | 健康检查弹窗 | `diagnose` |
 | Monitor 卡片 | `monitor status` / `monitor events` |
 | 证书列表 / 检查 / ACME 设置 | `cert list` / `cert check` / `acme show` |
 | 日志页 / 矩阵访问日志栏 | `logs query` / `logs access` |
-| 最近操作时间线 | `operation list` / `operation get` |
+| 最近操作时间线 | `operation list` / `operation get`（同时承载配置历史与版本信息） |
 
 命令的 `data` JSON 形状见 [docs/cli/cli-json-shapes.md](../docs/cli/cli-json-shapes.md)；`internal/cli` 解析封套，`internal/model` 做界面视图模型（例如合并 listen 拆行），不复制命令结构体。运行期路径仍由 `config path --json` 提供（归档 / deb / rpm / apk 布局由主程序按编译期基址算好，桌面端不拼路径）。本地保留的文件读取只有两处：搭建候选配置树（保存表单时）与文件元数据（大小/修改时间）。
 
@@ -123,7 +123,7 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 这里填的是**站点证书**（由本地根 CA 签发，TLS 握手时发给浏览器，配置里 `ssl_certificate` 指向它）；`httpdoc/root/root.crt` 是**本地根 CA 证书**，负责签发站点证书、放在站点根目录供下载，也是导入系统信任库要用的那一张。两者都由 `CertInit` 首次启动时生成。
 
-增删改与启停全部走 `site` 命令的配置事务（校验、恢复点、切换、reload、失败自动回滚），提交后**立即生效，无需手动点「重载配置」**；结果里带操作 ID 与配置版本号，在概览页「最近操作」里可查。详情编辑（行尾 `⋯`）对应 `site show` 读取与 `site update` 的白名单字段（server_name / listen / root / proxy_pass），证书与原始 JSON 只读展示；主配置 `http.server[]` 内联的站点不在列表里，需到设置页修改。
+增删改与启停全部走 `site` 命令的配置事务（校验、临时备份、切换、reload、失败自动还原），提交后**立即生效，无需手动点「重载配置」**；结果里带操作 ID 与配置版本号，在侧边栏「操作记录」里可查。详情编辑（行尾 `⋯`）对应 `site show` 读取与 `site update` 的白名单字段（server_name / listen / root / proxy_pass），证书与原始 JSON 只读展示；主配置 `http.server[]` 内联的站点不在列表里，需到设置页修改。
 
 ## 日志页：筛选与滚动分页
 
@@ -137,9 +137,9 @@ Win11 的圆角与阴影保留（`DisableFramelessWindowDecorations` 保持默�
 
 设置页**按字段编辑**主配置（通常是 `config/fast-https.json`）：分组表单覆盖 `security` / `waf` / `acme` / `http` / 基础等标量字段，枚举用下拉、布尔用勾选、数组用多行输入。字段清单在 `desktop/internal/configops/editor.go` 维护（纯 UI 元数据），字段值来自 `config show`（敏感值由主程序脱敏）。`engine`（集群占位）当前没有模块读取、项目也未启用集群，不放进表单；配置里若仍带该段会原样保留。
 
-保存只提交**被改动的字段**（脱敏值不触碰就不会被写回）：先搭一棵候选配置树（主配置副本 + `conf.d` 站点文件副本，复刻主程序 `siteops.CloneLiveTree`），再转交 `config apply --candidate --yes` 的配置事务——校验、生成差异、保存恢复点、切换文件、reload、失败自动回滚。保存即生效，**无需手动点「重载配置」**，结果里带操作 ID、配置版本号与恢复点。未纳入表单的 `http.server[]`、`acme.cas` 与未知顶层键原样保留。配置语义由 `config apply` 校验。
+保存只提交**被改动的字段**（脱敏值不触碰就不会被写回）：先搭一棵候选配置树（主配置副本 + `conf.d` 站点文件副本，复刻主程序 `siteops.CloneLiveTree`），再转交 `config apply --candidate --yes` 的配置事务——校验、生成差异、临时备份、切换文件、reload、失败自动还原，成功后自动保存结果快照。保存即生效，**无需手动点「重载配置」**，结果里带操作 ID 与配置版本号。未纳入表单的 `http.server[]`、`acme.cas` 与未知顶层键原样保留。配置语义由 `config apply` 校验。
 
-「校验配置」按钮转交 `config validate`；「配置版本」卡片转交 `config versions`，每行可「对比」（`config diff --candidate <版本>`）或「回滚」（`config rollback --version <版本> --yes`，是一次新的事务操作，可再次回滚）。「运行时路径」只读展示 `config path` 的输出。主程序不在同目录时会显示读取失败并禁用表单。
+「校验配置」按钮转交 `config validate`；配置历史与回滚都在侧边栏「版本更新」页：版本号是 `vYYYY.MM.DD.N`（同一天递增），每条版本行内可看差异、回滚、手动删除（active 版本不能删）；差异用弹窗按文件分组展示（主配置 + `conf.d` 的增删改）。「运行时路径」只读展示 `config path` 的输出。主程序不在同目录时会显示读取失败并禁用表单。
 
 ## 证书页：证书清单、检查与信任本地 CA
 
@@ -162,7 +162,7 @@ src/
   help-content.js   帮助文档内容（中英双语分节，命令输出实测）
   state.js          跨模块共享状态（当前日志、日志游标、配置脏标记等）
   theme.js          亮暗主题与五档中性色
-  router.js         工作区切换与按需加载（设置页拉配置版本、矩阵页刷新面板、证书页拉 ACME）
+  router.js         工作区切换与按需加载（操作记录页拉当前版本、矩阵页刷新面板、证书页拉 ACME）
   refresh.js        概览 2s / 明细 15s 拉取编排
   actions.js        data-action 按钮统一入口
   account-menu.js   左下角账户菜单（外观、语言、设置、托盘、帮助）
@@ -179,7 +179,7 @@ scripts/
 
 弹窗与账户菜单的 HTML 不再写在根 `index.html` 里，而是由各自模块导出 `template`，入口在挂载时注入 `body` 末尾；事件绑定与业务逻辑仍留在对应模块。这样单文件不会随功能增加而膨胀，改某个页面或弹窗只需看一个文件。
 
-普通页面的数据走 `DesktopService` 的专用方法（映射成对应 CLI 命令）；补充面板（运行快照、Monitor、操作记录、健康检查、证书检查、ACME、配置版本/差异/回滚）直接走 `RunCommand(args)` 通用转交，按命令渲染 CLI 的 data 原样 JSON，桌面端不再为每个命令定义一份结构体。
+普通页面的数据走 `DesktopService` 的专用方法（映射成对应 CLI 命令）；补充面板（运行快照、Monitor、操作记录、健康检查、证书检查、ACME、配置历史/差异/回滚）直接走 `RunCommand(args)` 通用转交，按命令渲染 CLI 的 data 原样 JSON，桌面端不再为每个命令定义一份结构体。
 
 ## 多语言
 

@@ -3,10 +3,11 @@ import { ref, computed, onUnmounted } from 'vue';
 import type { Lang } from '../types/i18n';
 import { readStoredLang, storeLang } from '../i18n/config';
 import { switchLang } from '../i18n';
+import { service } from '../services/api/base';
 
 export type PaneKey =
   | 'monitor' | 'sites' | 'cache' | 'certs' | 'logs'
-  | 'operations' | 'versions' | 'settings';
+  | 'operations' | 'audit' | 'settings';
 
 /** 澶栬涓夋€侊細浜?/ 鏆?/ 璺熼殢绯荤粺銆傝窡闅忔ā寮忎笅 data-mode 闅忕郴缁熷疄鏃跺垏鎹€?*/
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -19,7 +20,7 @@ const RAIL_KEY = 'fast-https.railCollapsed';
 // 涓嶈繘瀵艰埅锛屼篃涓嶈鎴愪负銆屼笂娆″仠鐣欑殑椤甸潰銆嶁€斺€斿惁鍒欏埛鏂板悗鍗″湪璁剧疆椤典笖
 // 渚ф爮娌℃湁浠讳綍楂樹寒椤癸紝鐢ㄦ埛浠ヤ负鐣岄潰鍧忎簡銆?
 const NAV_PANES: readonly PaneKey[] = [
-  'monitor', 'sites', 'cache', 'certs', 'logs', 'operations', 'versions',
+  'monitor', 'sites', 'cache', 'certs', 'logs', 'operations', 'audit',
 ];
 
 function initialPane(): PaneKey {
@@ -80,6 +81,7 @@ export const useAppStore = defineStore('app', () => {
     lang.value = next;
     switchLang(next);
     storeLang(next);
+    service.SetLanguage?.(next)?.catch(() => {});
   }
   function activate(next: PaneKey): void {
     pane.value = next;
@@ -88,6 +90,7 @@ export const useAppStore = defineStore('app', () => {
 
   applyMode();
   document.documentElement.lang = lang.value === 'en-US' ? 'en' : lang.value;
+  service.SetLanguage?.(lang.value)?.catch(() => {});
 
   return {
     mode, lang, pane, railCollapsed,

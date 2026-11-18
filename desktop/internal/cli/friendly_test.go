@@ -7,6 +7,8 @@ import (
 )
 
 func TestFriendlyMessage(t *testing.T) {
+	SetLanguage("zh-CN")
+	t.Cleanup(func() { SetLanguage("zh-CN") })
 	cases := []struct {
 		name, msg, cmd, want string
 	}{
@@ -15,6 +17,7 @@ func TestFriendlyMessage(t *testing.T) {
 		{"already enabled", "CONFLICT: site conflict: site default is already enabled", "site enable", "已经是启用状态"},
 		{"already disabled", "CONFLICT: site conflict: site default is already disabled", "site disable", "已经是停用状态"},
 		{"server_name taken", "CONFLICT: site conflict: server_name localhost already used by default on port 80", "site add", "这个域名在这个端口上已经被别的站点占用了"},
+		{"cache zone referenced", "CONFLICT: cache zone \"edge\" is still referenced by: conf.d/a.json location \"/\"", "cache delete", "缓存区仍被站点引用"},
 		{"not found", "NOT_FOUND: site not found: foo", "site show", "找不到该站点"},
 		{"not supported inline", "NOT_SUPPORTED: site foo is inline in the main config (http.server)", "site update", "内联在主配置"},
 		{"log missing", "LOG_SOURCE_UNAVAILABLE: log file not found: access.log", "logs access", "日志文件还不存在"},
@@ -27,14 +30,26 @@ func TestFriendlyMessage(t *testing.T) {
 			if !strings.Contains(got, c.want) {
 				t.Errorf("FriendlyError(%q) = %q, want containing %q", c.msg, got, c.want)
 			}
-			// 人话提示必须中英双语（\n 分隔），且不能把整段 Go 错误原样甩出
-			if !strings.Contains(got, "\n") {
-				t.Errorf("提示应含中英双语：%q", got)
+			// 只输出一种语言，不再中英混排
+			if strings.Contains(got, "\n") {
+				t.Errorf("提示不应中英混排：%q", got)
 			}
 			if strings.Contains(got, "dial tcp connectex") {
 				t.Errorf("不应保留 Go 技术细节：%q", got)
 			}
 		})
+	}
+}
+
+func TestFriendlyMessageEnglish(t *testing.T) {
+	SetLanguage("en-US")
+	t.Cleanup(func() { SetLanguage("zh-CN") })
+	got := FriendlyMessage("SERVICE_UNREACHABLE: runtime snapshot unreachable", "runtime status")
+	if !strings.Contains(got, "Runtime snapshot unavailable") {
+		t.Fatalf("got %q", got)
+	}
+	if strings.Contains(got, "\n") {
+		t.Fatalf("不应中英混排：%q", got)
 	}
 }
 

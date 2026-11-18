@@ -149,7 +149,7 @@ func resolvePaths(dir string) RuntimePaths {
 // 用在配置事务之后：Windows 上事务的 reload 阶段用 GenerateConsoleCtrlEvent
 // 给服务进程发信号，而该 API 只能发给整个控制台进程组，服务会被打断
 // （用户看到的现象是「点禁用站点，服务停了」）。事务本身成功了（配置已写入、
-// 恢复点已建），但服务需要重新拉起才继续可用。
+// 临时备份已建），但服务需要重新拉起才继续可用。
 //
 // 服务本来就没运行、或拉起失败时都返回空串：不该把「本来就没开」说成故障。
 func EnsureServerRunning(dir string) string {

@@ -36,6 +36,12 @@ func NewDesktopService() *DesktopService {
 	return &DesktopService{baseDir: view.ExeDir()}
 }
 
+// SetLanguage 让 CLI 错误翻译跟随界面语言（zh-CN / en-US），
+// 避免桌面端错误提示中英混排。
+func (s *DesktopService) SetLanguage(lang string) {
+	cli.SetLanguage(lang)
+}
+
 // ------------------------------------------------------------ 自绘标题栏窗口按钮
 // frameless 窗口没有系统标题栏按钮，全部转交 Wails 的窗口 API。
 
@@ -149,7 +155,7 @@ func (s *DesktopService) DeleteSite(id string) (string, error) {
 }
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
-// 桌面端不改文件名：事务会处理校验、恢复点与 reload，和命令行语义一致。
+// 桌面端不改文件名：事务会处理校验、临时备份与 reload，和命令行语义一致。
 // 成功后立刻让站点列表缓存失效，保证紧接着的刷新拿到的是新状态。
 func (s *DesktopService) SetSiteEnabled(id string, enabled bool) (string, error) {
 	msg, err := siteops.SetSiteEnabled(s.baseDir, id, enabled)
@@ -313,7 +319,7 @@ func (s *DesktopService) PickPath(kind string) (string, error) {
 		d.AttachToWindow(mainWindow)
 	}
 	if kind == "dir" {
-		d.SetTitle("选择站点根目录").CanChooseDirectories(true).CanChooseFiles(false)
+		d.SetTitle("选择目录").CanChooseDirectories(true).CanChooseFiles(false)
 	} else {
 		d.SetTitle("选择证书文件").CanChooseDirectories(false).CanChooseFiles(true).
 			AddFilter("PEM 证书", "*.pem;*.crt;*.cer").

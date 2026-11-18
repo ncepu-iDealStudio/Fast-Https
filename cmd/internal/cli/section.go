@@ -26,7 +26,7 @@ type SectionTxnInput struct {
 
 // RunSectionTxn 把「只改主配置某个段」的写命令送进配置事务。
 //
-// 候选树是线上树的副本，Mutate 在候选主配置上做局部改写；校验、恢复点、
+// 候选树是线上树的副本，Mutate 在候选主配置上做局部改写；校验、临时备份、
 // 原子切换与 operation 记录全部由事务引擎负责，与 site.* 走同一条链路。
 // 这些命令的语义是「下次 reload 或启动时生效」，所以 reload 与健康检查
 // 在这里是空操作；站点命令仍然自动 reload。

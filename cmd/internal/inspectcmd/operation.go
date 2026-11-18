@@ -16,12 +16,18 @@ import (
 func NewOperationCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "operation",
-		Short: cli.T("查询管理操作记录", "query management operations"),
+		Short: cli.T("查询管理操作记录（含回滚、失败与重载）", "query management operations (including rollback, failures and reloads)"),
 		Long: cli.T(
-			"查询落在状态目录里的管理操作。状态由服务端持久化，SSH 断线后仍可按 operation_id 查询。\n"+
+			"查询落在状态目录里的管理操作记录，是配置变更的完整审计时间线：\n"+
+				"成功改配置、回滚、启停站点、reload 失败等都会留下一条。\n"+
+				"成功改配置的记录在 result 里带 version 与 changes；回滚记录标 command=config.rollback，\n"+
+				"但它不产生新版本。状态由服务端持久化，SSH 断线后仍可按 operation_id 查询。\n"+
 				"running 且持有者进程已不在时，会把记录对账为 unknown，并保留最后完成的 phase。",
-			"Query management operations stored in the state directory. Status is persisted on disk,\n"+
-				"so a caller can look up an operation_id after an SSH disconnect.\n"+
+			"Query management operations stored in the state directory. This is the full audit timeline of config\n"+
+				"changes: successful edits, rollbacks, site enable/disable and failed reloads all leave a record.\n"+
+				"A successful config change carries version and changes in result; a rollback is recorded with\n"+
+				"command=config.rollback but creates no new version. Status is persisted on disk, so a caller can look up\n"+
+				"an operation_id after an SSH disconnect.\n"+
 				"A running record whose owner process is gone is reconciled to unknown, keeping the last phase."),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },
@@ -101,11 +107,11 @@ func validOpStatus(s string) bool {
 
 func writeOperationListText(w io.Writer, list []operation.Record) {
 	if len(list) == 0 {
-		fmt.Fprintln(w, "(no operations)")
+		fmt.Fprintln(w, cli.T("（没有操作记录）", "(no operations)"))
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "ID\tSTATUS\tCOMMAND\tCREATED")
+	fmt.Fprintln(tw, cli.T("操作 ID\t状态\t命令\t时间", "ID\tSTATUS\tCOMMAND\tCREATED"))
 	for _, rec := range list {
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", rec.ID, rec.Status, rec.Command, rec.CreatedAt)
 	}

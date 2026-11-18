@@ -9,15 +9,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const (
-	lockName       = "lock"
-	versionsName   = "config-versions"
-	operationsName = "operations"
-	requestsName   = "requests.json"
-	lockRetryTimes = 5
+	lockName           = "lock"
+	snapshotsName      = "snapshots"
+	legacyVersionsName = "config-versions"
+	legacyRecycleName  = "recycle"
+	operationsName     = "operations"
+	requestsName       = "requests.json"
+	lockRetryTimes     = 5
 )
 
 // ErrLocked 表示状态目录已被别的活着的进程持有。
@@ -84,22 +87,43 @@ func (d Dir) CurrentTime() time.Time           { return d.now() }
 func (d Dir) IsAlive(pid int, key string) bool { return d.alive(pid, key) }
 
 func (d Dir) LockPath() string      { return filepath.Join(d.Root, lockName) }
-func (d Dir) VersionsDir() string   { return filepath.Join(d.Root, versionsName) }
+func (d Dir) SnapshotsDir() string  { return filepath.Join(d.Root, snapshotsName) }
 func (d Dir) OperationsDir() string { return filepath.Join(d.Root, operationsName) }
 func (d Dir) RequestsPath() string  { return filepath.Join(d.Root, requestsName) }
-func (d Dir) RecycleDir(opID string) string {
-	return filepath.Join(d.Root, "recycle", opID)
-}
 
 // Ensure 建好状态目录及其子目录，权限 0700（Windows 尽力而为）。
 func (d Dir) Ensure() error {
-	for _, p := range []string{d.Root, d.VersionsDir(), d.OperationsDir()} {
+	for _, p := range []string{d.Root, d.SnapshotsDir(), d.OperationsDir()} {
 		if err := os.MkdirAll(p, 0o700); err != nil {
 			return err
 		}
 		_ = os.Chmod(p, 0o700)
 	}
+	d.migrateLegacy()
 	return nil
+}
+
+// migrateLegacy 把旧 state 布局并到新布局：
+//   - config-versions/v* 逐个移到 snapshots/（目标已存在则跳过）；
+//   - recycle 只是切换时的临时垃圾，直接删掉。
+//
+// 尽力而为：失败不阻塞命令，下次 Ensure 会重试。
+func (d Dir) migrateLegacy() {
+	legacy := filepath.Join(d.Root, legacyVersionsName)
+	if entries, err := os.ReadDir(legacy); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() || !strings.HasPrefix(e.Name(), "v") {
+				continue
+			}
+			dst := filepath.Join(d.SnapshotsDir(), e.Name())
+			if _, err := os.Stat(dst); err == nil {
+				continue
+			}
+			_ = os.Rename(filepath.Join(legacy, e.Name()), dst)
+		}
+		_ = os.Remove(legacy)
+	}
+	_ = os.RemoveAll(filepath.Join(d.Root, legacyRecycleName))
 }
 
 // Lock 以 O_EXCL 占用锁文件。持有者已死则接管。

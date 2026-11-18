@@ -16,19 +16,19 @@ import (
 )
 
 const (
-	PhaseStarted           = "started"
-	PhaseValidated         = "validated"
-	PhaseRestorePointSaved = "restore_point_saved"
-	PhaseFilesSwitched     = "files_switched"
-	PhaseReloaded          = "reloaded"
-	PhaseVerified          = "verified"
-	PhaseCommitted         = "committed"
-	PhaseCompensating      = "compensating"
-	PhaseRestored          = "restored"
-	PhaseRestoreVerified   = "restore_verified"
+	PhaseStarted       = "started"
+	PhaseValidated     = "validated"
+	PhaseBackedUp      = "backup_saved"
+	PhaseFilesSwitched = "files_switched"
+	PhaseReloaded      = "reloaded"
+	PhaseVerified      = "verified"
+	PhaseCommitted     = "committed"
+	PhaseCompensating  = "compensating"
+	PhaseRestored      = "restored"
+	PhaseRestoreVerified = "restore_verified"
 
 	StateMatchesCandidate = "matches_candidate"
-	StateMatchesRestore   = "matches_restore_point"
+	StateMatchesPrevious  = "matches_previous"
 	StateUnchanged        = "unchanged"
 	StateUncertain        = "uncertain"
 )
@@ -57,26 +57,26 @@ func (f FuncHealth) Check(ctx context.Context) error { return f(ctx) }
 
 // Input 是一次 apply/rollback。
 type Input struct {
-	Candidate string
-	LiveMain  string
-	RequestID string
-	Command   string
-	Summary   string
-	DryRun    bool
-	Args      map[string]string
+	Candidate    string
+	LiveMain     string
+	RequestID    string
+	Command      string
+	Summary      string
+	DryRun       bool
+	RestoreCerts bool
+	Args         map[string]string
 }
 
 // Result 是事务结果。
 type Result struct {
-	Operation    operation.Record
-	Diff         cfgdiff.Result
-	RestorePoint string
-	Version      string
-	RolledBack   bool
-	ConfigState  string
-	DryRun       bool
-	Idempotent   bool
-	Warnings     []string
+	Operation   operation.Record
+	Diff        cfgdiff.Result
+	Version     string
+	RolledBack  bool
+	ConfigState string
+	DryRun      bool
+	Idempotent  bool
+	Warnings    []string
 }
 
 // Engine 跑配置事务。StopAfter / RestoreErr 仅测试使用。
@@ -85,10 +85,18 @@ type Engine struct {
 	Reloader   Reloader
 	Health     HealthChecker
 	Files      FileOps
+	CertDir    string
 	Probe      func(int) bool
 	Bind       func(int) error
 	StopAfter  string
 	RestoreErr error
+}
+
+func (e *Engine) certDir() string {
+	if e.CertDir != "" {
+		return e.CertDir
+	}
+	return config.CERT_DIR
 }
 
 func (e *Engine) ops() operation.Store { return operation.Store{Dir: e.State} }
@@ -180,7 +188,6 @@ func (e *Engine) Apply(ctx context.Context, in Input) (Result, error) {
 	if rec.Status != operation.StatusRunning {
 		out.Idempotent = true
 		out.ConfigState = resultState(rec)
-		out.RestorePoint, _ = rec.Result["restore_point"].(string)
 		out.Version, _ = rec.Result["version"].(string)
 		out.RolledBack, _ = rec.Result["rolled_back"].(bool)
 		return out, nil
@@ -205,23 +212,37 @@ func (e *Engine) Apply(ctx context.Context, in Input) (Result, error) {
 		return out, errStopped
 	}
 
-	man, err := cfgver.Snapshot(e.State, liveMain, "restore point before "+in.Command, e.State.CurrentTime())
+	// 备份只用于失败补偿，放系统临时目录，成功即删；不回滚历史。
+	backup, err := os.MkdirTemp("", "fast-https-backup-")
 	if err != nil {
-		return out, e.fail(ctx, rec, liveMain, "", err, false)
+		return out, e.fail(rec, StateUnchanged, err)
 	}
-	out.RestorePoint = man.Version
-	rec.Result["restore_point"] = man.Version
-	if err := e.setPhase(&rec, PhaseRestorePointSaved); err != nil {
+	defer os.RemoveAll(backup)
+	if err := e.backupTree(liveMain, backup); err != nil {
+		return out, e.fail(rec, StateUnchanged, err)
+	}
+	if in.RestoreCerts {
+		if err := cfgver.BackupCerts(e.certDir(), filepath.Join(backup, "certs")); err != nil {
+			return out, e.fail(rec, StateUnchanged, err)
+		}
+	}
+	// 第一次操作时给「操作前」的配置留一个基线版本（v001），
+	// 之后每次成功操作只保存结果快照；它不是每次操作的恢复点。
+	if !cfgver.HasSnapshots(e.State) {
+		if _, err := cfgver.SnapshotWithCerts(e.State, liveMain, e.certDir(), "initial "+in.Command, e.State.CurrentTime()); err != nil {
+			return out, e.fail(rec, StateUnchanged, err)
+		}
+	}
+	if err := e.setPhase(&rec, PhaseBackedUp); err != nil {
 		return out, attachOp(err, rec)
 	}
-	if e.stop(PhaseRestorePointSaved) {
+	if e.stop(PhaseBackedUp) {
 		out.Operation = rec
 		return out, errStopped
 	}
 
-	recycle := e.State.RecycleDir(rec.ID)
-	if err := e.switchFiles(liveMain, candRoot, recycle); err != nil {
-		return out, e.compensate(ctx, rec, liveMain, cfgver.VersionDir(e.State, man.Version), err)
+	if err := e.switchFiles(liveMain, candRoot); err != nil {
+		return out, e.compensate(ctx, rec, liveMain, backup, err)
 	}
 	if err := e.setPhase(&rec, PhaseFilesSwitched); err != nil {
 		return out, attachOp(err, rec)
@@ -231,11 +252,19 @@ func (e *Engine) Apply(ctx context.Context, in Input) (Result, error) {
 		return out, errStopped
 	}
 
+	var certs []string
+	if in.RestoreCerts {
+		certs, err = cfgver.RestoreCerts(candRoot, e.certDir())
+		if err != nil {
+			return out, e.compensate(ctx, rec, liveMain, backup, err)
+		}
+	}
+
 	if err := ctx.Err(); err != nil {
 		return out, e.unknown(rec, err)
 	}
 	if err := e.reloader().Reload(ctx); err != nil {
-		return out, e.compensate(ctx, rec, liveMain, cfgver.VersionDir(e.State, man.Version), err)
+		return out, e.compensate(ctx, rec, liveMain, backup, err)
 	}
 	if err := e.setPhase(&rec, PhaseReloaded); err != nil {
 		return out, attachOp(err, rec)
@@ -246,7 +275,7 @@ func (e *Engine) Apply(ctx context.Context, in Input) (Result, error) {
 	}
 
 	if err := e.health().Check(ctx); err != nil {
-		return out, e.compensate(ctx, rec, liveMain, cfgver.VersionDir(e.State, man.Version), err)
+		return out, e.compensate(ctx, rec, liveMain, backup, err)
 	}
 	if err := e.setPhase(&rec, PhaseVerified); err != nil {
 		return out, attachOp(err, rec)
@@ -256,32 +285,22 @@ func (e *Engine) Apply(ctx context.Context, in Input) (Result, error) {
 		return out, errStopped
 	}
 
-	list, err := cfgver.List(e.State, liveMain)
+	man, err := cfgver.SnapshotWithCerts(e.State, liveMain, e.certDir(), in.Summary, e.State.CurrentTime())
 	if err != nil {
-		return out, e.fail(ctx, rec, liveMain, man.Version, err, false)
+		return out, e.fail(rec, StateMatchesCandidate, err)
 	}
-	ver := ""
-	for _, v := range list.Versions {
-		if v.Active {
-			ver = v.Version
-			break
-		}
-	}
-	if ver == "" || list.Drift {
-		applied, err := cfgver.Snapshot(e.State, liveMain, in.Summary, e.State.CurrentTime())
-		if err != nil {
-			return out, e.fail(ctx, rec, liveMain, man.Version, err, false)
-		}
-		ver = applied.Version
-	}
-	out.Version = ver
+	out.Version = man.Version
 	out.ConfigState = StateMatchesCandidate
-	rec, err = e.ops().Finish(rec, operation.StatusSucceeded, PhaseCommitted, map[string]any{
-		"restore_point": man.Version,
-		"version":       ver,
-		"rolled_back":   false,
-		"config_state":  StateMatchesCandidate,
-	}, nil)
+	result := map[string]any{
+		"version":      man.Version,
+		"rolled_back":  false,
+		"config_state": StateMatchesCandidate,
+		"changes":      out.Diff.Changes,
+	}
+	if len(certs) > 0 {
+		result["certs_restored"] = certs
+	}
+	rec, err = e.ops().Finish(rec, operation.StatusSucceeded, PhaseCommitted, result, nil)
 	if err != nil {
 		return out, attachOp(err, rec)
 	}
@@ -309,16 +328,23 @@ func (e *Engine) stop(phase string) bool {
 	return e.StopAfter != "" && e.StopAfter == phase
 }
 
-func (e *Engine) compensate(ctx context.Context, rec operation.Record, liveMain, restoreRoot string, cause error) error {
+func (e *Engine) compensate(ctx context.Context, rec operation.Record, liveMain, backup string, cause error) error {
 	_ = e.setPhase(&rec, PhaseCompensating)
-	if err := e.restoreFiles(liveMain, restoreRoot); err != nil {
+	if err := e.restoreFiles(liveMain, backup); err != nil {
 		rec, _ = e.ops().Finish(rec, operation.StatusRecoveryRequired, PhaseCompensating, map[string]any{
-			"restore_point": filepath.Base(restoreRoot),
-			"rolled_back":   false,
-			"config_state":  StateUncertain,
-			"cause":         cause.Error(),
+			"rolled_back":  false,
+			"config_state": StateUncertain,
+			"cause":        cause.Error(),
 		}, &operation.ErrorBody{Code: CodeRecovery, Message: err.Error()})
 		return attachOp(wrap(CodeRecovery, "restore failed, manual recovery required: "+err.Error(), err), rec)
+	}
+	if err := cfgver.RestoreCertBackup(filepath.Join(backup, "certs"), e.certDir()); err != nil {
+		rec, _ = e.ops().Finish(rec, operation.StatusRecoveryRequired, PhaseCompensating, map[string]any{
+			"rolled_back":  false,
+			"config_state": StateUncertain,
+			"cause":        cause.Error(),
+		}, &operation.ErrorBody{Code: CodeRecovery, Message: err.Error()})
+		return attachOp(wrap(CodeRecovery, "restore certificates failed, manual recovery required: "+err.Error(), err), rec)
 	}
 	_ = e.setPhase(&rec, PhaseRestored)
 	reloadErr := e.reloader().Reload(ctx)
@@ -331,36 +357,27 @@ func (e *Engine) compensate(ctx context.Context, rec operation.Record, liveMain,
 			msg = healthErr.Error()
 		}
 		rec, _ = e.ops().Finish(rec, operation.StatusRecoveryRequired, PhaseRestored, map[string]any{
-			"restore_point": filepath.Base(restoreRoot),
-			"rolled_back":   false,
-			"config_state":  StateUncertain,
-			"cause":         cause.Error(),
+			"rolled_back":  false,
+			"config_state": StateUncertain,
+			"cause":        cause.Error(),
 		}, &operation.ErrorBody{Code: CodeRecovery, Message: msg})
 		return attachOp(wrap(CodeRecovery, msg, cause), rec)
 	}
 	_ = e.setPhase(&rec, PhaseRestoreVerified)
 	rec, _ = e.ops().Finish(rec, operation.StatusFailed, PhaseRestoreVerified, map[string]any{
-		"restore_point": filepath.Base(restoreRoot),
-		"rolled_back":   true,
-		"config_state":  StateMatchesRestore,
-		"cause":         cause.Error(),
+		"rolled_back":  true,
+		"config_state": StateMatchesPrevious,
+		"cause":        cause.Error(),
 	}, &operation.ErrorBody{Code: CodeFailed, Message: cause.Error()})
 	return attachOp(wrap(CodeFailed, cause.Error(), cause), rec)
 }
 
-func (e *Engine) fail(_ context.Context, rec operation.Record, _, restore string, cause error, rolled bool) error {
-	st := operation.StatusFailed
-	code := CodeFailed
-	cfg := StateUnchanged
-	if rolled {
-		cfg = StateMatchesRestore
-	}
-	rec, _ = e.ops().Finish(rec, st, rec.Phase, map[string]any{
-		"restore_point": restore,
-		"rolled_back":   rolled,
-		"config_state":  cfg,
-	}, &operation.ErrorBody{Code: code, Message: cause.Error()})
-	return attachOp(wrap(code, cause.Error(), cause), rec)
+func (e *Engine) fail(rec operation.Record, state string, cause error) error {
+	rec, _ = e.ops().Finish(rec, operation.StatusFailed, rec.Phase, map[string]any{
+		"rolled_back":  false,
+		"config_state": state,
+	}, &operation.ErrorBody{Code: CodeFailed, Message: cause.Error()})
+	return attachOp(wrap(CodeFailed, cause.Error(), cause), rec)
 }
 
 func (e *Engine) unknown(rec operation.Record, cause error) error {

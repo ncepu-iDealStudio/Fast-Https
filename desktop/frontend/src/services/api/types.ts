@@ -85,6 +85,7 @@ export interface DesktopServiceContract {
   ToggleMaximiseWindow(): Promise<void>;
   HideWindow(): Promise<void>;
   QuitApp(): Promise<void>;
+  SetLanguage(lang: string): Promise<void>;
   OpenHelp(): Promise<string>;
   OpenRepo(): Promise<void>;
   ReadConfigForm(): Promise<ConfigForm>;

@@ -12,10 +12,21 @@
 .opstable__head,
 .opsrow {
   display: grid;
-  grid-template-columns: 156px minmax(0, 1fr) 92px 84px 84px;
+  grid-template-columns: 156px minmax(0, 1fr) 150px 108px;
   gap: 12px;
   align-items: baseline;
   padding: 8px 16px;
+}
+/* 操作记录多一列状态：时间 / 命令 / 状态 / 版本 / 操作 */
+.opstable--audit .opstable__head,
+.opstable--audit .opsrow {
+  grid-template-columns: 156px minmax(0, 1fr) 92px 120px 64px;
+}
+@media (max-width: 1080px) {
+  .opstable--audit .opstable__head,
+  .opstable--audit .opsrow {
+    grid-template-columns: 136px minmax(0, 1fr) 84px 104px 60px;
+  }
 }
 
 .opstable__head {
@@ -43,9 +54,13 @@
 .opsrow--open { background: var(--surface); border-left-color: var(--accent); }
 
 .opsrow__time { color: var(--muted); }
-.opsrow__cmd { overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
-.opsrow__ver { color: var(--text); }
-.opsrow__restore { color: var(--muted); }
+.opsrow__cmd {
+  display: flex; align-items: center; gap: 6px;
+  overflow: hidden; text-overflow: ellipsis; font-weight: 500;
+}
+.opsrow__cmd--err { color: var(--danger); }
+.opsrow__ver { display: flex; align-items: center; gap: 6px; color: var(--text); }
+.opsrow__actions { display: flex; gap: 4px; justify-content: flex-end; align-items: center; }
 
 .opstable__more { display: flex; justify-content: center; padding: 12px 0 14px; }
 .opstable__end {

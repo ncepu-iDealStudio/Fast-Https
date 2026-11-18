@@ -1,7 +1,7 @@
 // Package cli 是桌面端访问主程序的唯一通道。
 //
 // 桌面端不直接读写配置、站点、证书或日志文件：所有操作都通过
-// `fast-https <command> --json` 转交，由主程序的配置事务负责校验、恢复点、
+// `fast-https <command> --json` 转交，由主程序的配置事务负责校验、临时备份、
 // reload 与回滚。这样桌面端和命令行看到的永远是同一套语义，也不会绕过
 // 事务留下不一致的磁盘状态。
 //
@@ -84,7 +84,7 @@ func command(dir string, args []string) (*exec.Cmd, error) {
 // （{"level":"fatal",...,"message":"..."}）并 os.Exit(1)：这里把它翻译成
 // 人话——提取 message 字段作为错误返回，不把 JSON 甩给界面。
 func Run(dir string, args ...string) (string, error) {
-	cmd, err := command(dir, args)
+	cmd, err := command(dir, withLang(args))
 	if err != nil {
 		return "", err
 	}
@@ -125,7 +125,8 @@ func fatalMessage(text string) string {
 // 目前只有 config path（保留桌面端旧契约，直接输出 RuntimePaths）。
 func RunBareJSON[T any](dir string, args ...string) (T, error) {
 	var zero T
-	full := append(append([]string{}, args...), "--json")
+	full := withLang(args)
+	full = append(full, "--json")
 	cmd, err := command(dir, full)
 	if err != nil {
 		return zero, err
@@ -223,7 +224,7 @@ func envelopeError(out []byte) error {
 // args 里不用带 --json，这里统一补上。
 func RunJSON[T any](dir string, args ...string) (T, []string, error) {
 	var zero T
-	full := append([]string{}, args...)
+	full := withLang(args)
 	full = append(full, "--json")
 	cmd, err := command(dir, full)
 	if err != nil {

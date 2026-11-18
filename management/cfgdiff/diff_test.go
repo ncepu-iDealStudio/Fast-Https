@@ -73,6 +73,25 @@ func TestTreesDiffsConfdFiles(t *testing.T) {
 	}
 }
 
+// 运行期附属文件（mime.json、monitor.json）不属于事务管理的配置树，
+// 候选树/版本快照里没有它们也不能报成「删除」。
+func TestTreesIgnoresRuntimeAuxFiles(t *testing.T) {
+	current := t.TempDir()
+	candidate := t.TempDir()
+	writeTreeJSON(t, current, `{"n":1}`, `{"server_name":"a"}`)
+	writeTreeJSON(t, candidate, `{"n":1}`, `{"server_name":"a"}`)
+	write(t, filepath.Join(current, "mime.json"), `{"html":"text/html"}`)
+	write(t, filepath.Join(current, "monitor.json"), `{}`)
+
+	res, err := Trees(current, candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Identical || len(res.Changes) != 0 {
+		t.Fatalf("附属文件不应产生差异：%+v", res.Changes)
+	}
+}
+
 func writeTreeJSON(t *testing.T, root, main, site string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Join(root, "conf.d"), 0o755); err != nil {

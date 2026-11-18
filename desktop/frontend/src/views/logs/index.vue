@@ -13,9 +13,22 @@ const KINDS = [
   { key: 'access', label: 'logs.access' }, { key: 'error', label: 'logs.error' },
   { key: 'system', label: 'logs.system' }, { key: 'safe', label: 'logs.safe' },
 ];
+// 时间范围默认是「最近 24 小时」：当前时间往前推 1 天。
+// 窗口跟着当前时间滚动，否则页面每 5 秒自动刷新时，固定在打开时刻的截止会挡住新日志。
+// 用户手动改过起止后就交给用户，不再自动滚动。
+let rollingRange = true;
+function lastDayRange(): { since: string; until: string } {
+  const now = Date.now();
+  return {
+    since: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
+    until: new Date(now).toISOString(),
+  };
+}
+const defaultRange = lastDayRange();
 const filters = reactive({
   kind: 'access', level: '', status: '', host: '', method: '',
-  pathPrefix: '', reason: '', rejectReason: '', since: '', until: '',
+  pathPrefix: '', reason: '', rejectReason: '',
+  since: defaultRange.since, until: defaultRange.until,
 });
 const advanced = ref(false);
 const rows = ref<LogEntry[]>([]);
@@ -35,6 +48,8 @@ const statusText = computed(() => {
 
 async function load(append = false): Promise<void> {
   if (loading.value) return;
+  // 翻页沿用同一窗口，只有重新查询时才把默认窗口推到当前时间。
+  if (!append && rollingRange) Object.assign(filters, lastDayRange());
   loading.value = true;
   error.value = '';
   try {
@@ -67,10 +82,18 @@ function pickKind(k: string): void {
   void nextTick(() => { const b = document.querySelector('.logtable__body'); if (b) b.scrollTop = 0; });
 }
 function reset(): void {
-  Object.assign(filters, { level: '', status: '', host: '', method: '', pathPrefix: '', reason: '', rejectReason: '', since: '', until: '' });
+  rollingRange = true;
+  Object.assign(filters, {
+    level: '', status: '', host: '', method: '', pathPrefix: '', reason: '', rejectReason: '',
+    ...lastDayRange(),
+  });
   void load();
 }
-function onFilters(v: typeof filters): void { Object.assign(filters, v); }
+function onFilters(v: typeof filters): void {
+  // 用户改过起止就停掉滚动，避免下次刷新把他们选的时刻覆盖掉。
+  if (v.since !== filters.since || v.until !== filters.until) rollingRange = false;
+  Object.assign(filters, v);
+}
 
 onMounted(() => {
   void load();

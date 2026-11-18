@@ -22,3 +22,10 @@
 
 .logs-count { font-size: 11px; color: var(--faint); margin-left: auto; }
 
+/* 时间范围用原生日期选择器：起止两个框之间只留一个箭头，起止含义靠 title 提示。 */
+.date-sep { color: var(--faint); font-size: 11px; }
+.filter-bar input[type="datetime-local"] {
+  width: 186px;
+  font-variant-numeric: tabular-nums;
+}
+

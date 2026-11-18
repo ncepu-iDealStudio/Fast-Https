@@ -82,13 +82,10 @@ func livePath(liveMain, rel string) string {
 	return filepath.Join(filepath.Dir(liveMain), filepath.FromSlash(rel))
 }
 
-func (e *Engine) switchFiles(liveMain, candRoot, recycle string) error {
+func (e *Engine) switchFiles(liveMain, candRoot string) error {
 	fsys := e.files()
 	cand, err := listJSONRel(candRoot)
 	if err != nil {
-		return err
-	}
-	if err := fsys.MkdirAll(filepath.Join(recycle, "conf.d"), 0o700); err != nil {
 		return err
 	}
 	for rel, from := range cand {
@@ -117,27 +114,39 @@ func (e *Engine) switchFiles(liveMain, candRoot, recycle string) error {
 		if _, keep := cand[rel]; keep {
 			continue
 		}
-		src := filepath.Join(liveConfd, ent.Name())
-		dst := filepath.Join(recycle, "conf.d", ent.Name())
-		if err := fsys.Rename(src, dst); err != nil {
-			data, rerr := fsys.ReadFile(src)
-			if rerr != nil {
-				return err
-			}
-			if werr := fsys.WriteAtomic(dst, data, 0o600); werr != nil {
-				return werr
-			}
-			if rerr := fsys.Remove(src); rerr != nil {
-				return rerr
-			}
+		if err := fsys.Remove(filepath.Join(liveConfd, ent.Name())); err != nil && !os.IsNotExist(err) {
+			return err
 		}
 	}
 	return nil
 }
 
-func (e *Engine) restoreFiles(liveMain, restoreRoot string) error {
+// backupTree 把线上配置树复制到临时目录，供失败补偿；不落 state。
+func (e *Engine) backupTree(liveMain, dest string) error {
+	fsys := e.files()
+	files, err := listJSONRel(filepath.Dir(liveMain))
+	if err != nil {
+		return err
+	}
+	for rel, from := range files {
+		data, err := fsys.ReadFile(from)
+		if err != nil {
+			return err
+		}
+		to := filepath.Join(dest, filepath.FromSlash(rel))
+		if err := fsys.MkdirAll(filepath.Dir(to), 0o700); err != nil {
+			return err
+		}
+		if err := fsys.WriteAtomic(to, data, 0o600); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *Engine) restoreFiles(liveMain, backup string) error {
 	if e.RestoreErr != nil {
 		return e.RestoreErr
 	}
-	return e.switchFiles(liveMain, restoreRoot, filepath.Join(filepath.Dir(restoreRoot), ".restore-recycle"))
+	return e.switchFiles(liveMain, backup)
 }

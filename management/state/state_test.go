@@ -42,6 +42,33 @@ func TestAtomicStateWrite(t *testing.T) {
 	}
 }
 
+func TestEnsureMigratesLegacyLayout(t *testing.T) {
+	root := t.TempDir()
+	legacy := filepath.Join(root, "config-versions", "v001")
+	if err := os.MkdirAll(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, "manifest.json"), []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "recycle", "op_x"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	d := Dir{Root: root}
+	if err := d.Ensure(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(d.SnapshotsDir(), "v001", "manifest.json")); err != nil {
+		t.Fatalf("旧版本应迁入 snapshots: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "config-versions")); !os.IsNotExist(err) {
+		t.Fatal("旧 config-versions 目录应被移除")
+	}
+	if _, err := os.Stat(filepath.Join(root, "recycle")); !os.IsNotExist(err) {
+		t.Fatal("recycle 应被删除")
+	}
+}
+
 func TestLockExclusive(t *testing.T) {
 	dir := os.Getenv("S6_LOCK_DIR")
 	role := os.Getenv("S6_LOCK_CHILD")

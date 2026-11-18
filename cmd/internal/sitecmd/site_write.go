@@ -17,7 +17,7 @@ func addSiteWriteCommands(root *cobra.Command) {
 		Use:   "add",
 		Short: cli.T("受控新增站点（走配置事务）", "add a site through the config transaction"),
 		Long: cli.T(
-			"复制当前配置树到候选目录、写入站点文件，再走 config apply 同一套事务（校验、恢复点、reload、可回滚）。\n"+
+			"复制当前配置树到候选目录、写入站点文件，再走 config apply 同一套事务（校验、临时备份、reload、可回滚）。\n"+
 				"带 --domain 时全部字段来自 flag；不带 --domain 且标准输入是终端时进向导。\n"+
 				"站点名由域名规范化得到。同名站点，或同一监听端口上已存在的 server_name，都会以退出码 10 拒绝（同域名挂不同端口是合法的）。\n"+
 				"证书默认按域名命名（config/cert/<域名>.pem）：文件已存在就直接复用，不会覆盖；"+
@@ -200,7 +200,7 @@ func collectAddInput(cmd *cobra.Command, live string, banned []string) (siteops.
 			return siteops.AddInput{}, cli.UsageError(fmt.Errorf("--root or --proxy-pass is required"))
 		}
 		// root 的边界在事务外先校验：路径越界属于使用错误，没必要先建
-		// 恢复点再回滚，否则失败会留下 uncertain 状态，后续命令被
+		// 临时备份再回滚，否则失败会留下 uncertain 状态，后续命令被
 		// RECOVERY_REQUIRED 拦住。
 		if strings.TrimSpace(proxy) == "" {
 			abs, err := pathguard.CheckRoot(root, banned)

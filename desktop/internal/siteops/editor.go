@@ -1,6 +1,6 @@
 package siteops
 
-// 站点写操作全部转交主程序 site 命令的配置事务（校验、恢复点、reload、
+// 站点写操作全部转交主程序 site 命令的配置事务（校验、临时备份、reload、
 // 可回滚），桌面端不自己改站点文件；读取走 site show。这里只做三件纯 UI
 // 的事：表单校验（快速反馈，权威校验仍在 CLI）、弹窗字段与命令 flag 的
 // 翻译、结果文案。
@@ -237,7 +237,7 @@ func DeleteSite(dir, id string) (string, error) {
 }
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
-// 桌面端不改文件名：事务会处理校验、恢复点与 reload，和命令行语义一致。
+// 桌面端不改文件名：事务会处理校验、临时备份与 reload，和命令行语义一致。
 //
 // Windows 特殊处理：事务的 reload 阶段用 GenerateConsoleCtrlEvent 给服务
 // 进程发信号，而该 API 只能发给整个控制台进程组——服务会被打断（表现为

@@ -266,30 +266,6 @@
 .matrix-grid .kv-row { grid-template-columns: 130px minmax(0, 1fr); }
 .card__v.small { font-size: 13px; font-weight: 500; }
 
-/* ---------------------------------------------------------------- 配置版本行
-   三列：版本号 / 说明 / 操作按钮。之前复用 2 列的 .kv-row，第三个子元素被挤到
-   下一行第 1 列，按钮竖排堆在版本号下方。 */
-.ver-row {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-  min-height: 44px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-}
-.ver-row:last-child { border-bottom: 0; }
-.ver-row .k {
-  display: flex; align-items: center; gap: 6px;
-  color: var(--muted);
-}
-.ver-row .v { overflow-wrap: anywhere; }
-.ver-row .n {
-  display: flex; align-items: center; gap: 6px;
-  justify-content: flex-end; white-space: nowrap;
-}
-
 
 
 

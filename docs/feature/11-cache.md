@@ -30,7 +30,7 @@
 CLI：`fast-https cache list / add / update / delete`；`site add|update --cache-zone <区名>`。
 桌面端：左侧「缓存区」页。
 
-缓存区的增删改走配置事务（候选树校验、恢复点、原子切换），并与站点、配置
+缓存区的增删改走配置事务（候选树校验、临时备份、原子切换），并与站点、配置
 变更一样登记 operation 记录（`cache.add` / `cache.update` / `cache.delete`），
 可在 `operation list` 与桌面端「操作记录」里查到；`list` 与 `--dry-run` 不产生记录。
 

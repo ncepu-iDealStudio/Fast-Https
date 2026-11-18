@@ -74,7 +74,7 @@ func runConfigTLSSet(cmd *cobra.Command, _ []string) error {
 		fmt.Fprint(cmd.OutOrStdout(), string(patched))
 		return nil
 	}
-	// 与 site.* 一样走配置事务：候选树里改主配置 tls 段，校验、恢复点、
+	// 与 site.* 一样走配置事务：候选树里改主配置 tls 段，校验、临时备份、
 	// 原子切换与 operation 记录都由事务引擎负责。
 	if _, err := cli.RunSectionTxnCmd(cmd, "config.tls", "config tls",
 		map[string]string{"config": path}, func(candMain string) error {

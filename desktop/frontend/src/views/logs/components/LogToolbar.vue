@@ -41,6 +41,20 @@ function set(key: keyof Filters, value: string): void {
   emit('update:filters', { ...props.filters, [key]: value });
 }
 
+// 原生日期选择器给的是本地时间（2026-11-18T15:00），CLI 要 RFC3339。
+function toLocalInput(v: string): string {
+  if (!v) return '';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function pickTime(key: 'since' | 'until', e: Event): void {
+  const raw = (e.target as HTMLInputElement).value;
+  set(key, raw ? new Date(raw).toISOString() : '');
+  emit('apply');
+}
+
 // 下拉都是固定枚举，选完即应用，不用再点搜索。
 function pick(key: keyof Filters, e: Event): void {
   set(key, (e.target as HTMLSelectElement).value);
@@ -124,9 +138,12 @@ function statusLabel(code: string): string {
       <option value="">{{ t('logs.rejectReasonAll') }}</option>
       <option v-for="r in REJECT_REASONS" :key="r" :value="r">{{ reasonLabel(r) }}</option>
     </select>
-    <input :value="filters.since" type="text" :placeholder="t('logs.sincePh')"
-           @input="set('since', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
-    <input :value="filters.until" type="text" :placeholder="t('logs.untilPh')"
-           @input="set('until', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
+    <input class="date-input" type="datetime-local" :value="toLocalInput(filters.since)"
+           :title="t('logs.since')" :aria-label="t('logs.since')"
+           @change="pickTime('since', $event)" />
+    <span class="date-sep">→</span>
+    <input class="date-input" type="datetime-local" :value="toLocalInput(filters.until)"
+           :title="t('logs.until')" :aria-label="t('logs.until')"
+           @change="pickTime('until', $event)" />
   </div>
 </template>

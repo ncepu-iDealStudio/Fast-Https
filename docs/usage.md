@@ -668,10 +668,11 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `config tls` | 写入顶层 `tls.default_certificate`（`--cert` 与 `--key` 必须成对，文件必须存在）；只重写 `tls` 段、保留注释；两个参数传空清除；`--dry-run` 只打印；`config tls show` 查看 |
 | `config proxy` | 写入顶层 `proxy` 段（`--trusted-proxies`、`--max-hops`、`--preserve-host`）；只重写 `proxy` 段、保留注释；全部传默认值删除该段；`--dry-run` 只打印；`config proxy show` 查看 |
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
-| `config versions` | 列出状态目录里的配置版本快照。`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照不含证书与私钥 |
-| `config diff --candidate` | 比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
-| `config apply --candidate` | 将候选目录受控应用到线上（校验、差异、恢复点、切换、reload、强验证；读不到 `/runtime` 时退回弱验证；失败则还原）。必须 `--yes`。`--dry-run` 不写正式文件、不 reload |
-| `config rollback --version` | 回滚到历史版本，本身是新 operation；先校验目标版本（含证书仍存在），不删除历史版本。必须 `--yes` |
+| `config versions` | 列出状态目录里的配置快照。版本号是 `vYYYY.MM.DD.N`（如 `v2026.11.18.1`，同一天递增），`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照包含主配置、`conf.d` 与服务证书/私钥（不含 ACME 存储目录）；版本永久保留 |
+| `config versions delete <版本>` | 手动删除一个历史版本快照；当前 active 版本不能删，operation 记录保留。必须 `--yes` |
+| `config diff --candidate` | 比较当前配置与候选目录、文件、版本号或操作 ID（`--current` 也可写版本号/操作 ID，用于对比两个历史版本）。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
+| `config apply --candidate` | 将候选目录受控应用到线上（校验、差异、临时备份、切换、reload、强验证；读不到 `/runtime` 时退回弱验证；失败则还原）。成功后自动保存结果快照。必须 `--yes`。`--dry-run` 不写正式文件、不 reload、不建快照 |
+| `config rollback --version\|--operation` | 回滚到历史版本或某个操作的结果。回滚复用目标快照（含证书），追加一条 operation，但不会新建版本；已有版本不删除。必须 `--yes` |
 | `operation list` / `operation get` | 查询落盘的管理操作。`running` 且持有者进程已不在时对账为 `unknown` |
 | `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
 | `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
@@ -757,7 +758,14 @@ Unix 上，事务执行期间忽略 `SIGHUP` 与 `SIGPIPE`，避免 SSH 断开�
 
 Windows 没有 `SIGHUP`。这条断线语义只在 Unix 上实现，Windows 上的断线行为未在本环境验证。
 
-状态目录默认是 `./state`（安装包布局是 `/var/lib/fast-https`）。可用 `FASTHTTPS_STATE_DIR` 指到别处。`operation list` 与 `operation get` 只读这个目录。
+状态目录默认是 `./state`（安装包布局是 `/var/lib/fast-https`），可用 `FASTHTTPS_STATE_DIR` 指到别处。目录里：
+
+- `operations/`：唯一的历史时间线，每条操作一个 JSON，`result.changes` 记录主配置与 `conf.d` 的增删改。
+- `snapshots/`：每次成功操作的结果快照（主配置、`conf.d`、`config/cert` 下的服务证书/私钥，不含 `cert/acme`）。版本号是 `vYYYY.MM.DD.N`，永久保留，不自动清理；可在 `config versions delete` 或桌面端手动删除。
+- `requests.json`：幂等索引，7 天 TTL。
+- `lock`：跨进程锁。
+
+旧版本的 `config-versions/` 会在启动时自动并入 `snapshots/`，`recycle/` 直接删除。`operation list` 与 `operation get` 只读这个目录。
 
 ## 11. 热重载与停机
 

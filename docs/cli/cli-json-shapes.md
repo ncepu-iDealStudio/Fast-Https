@@ -50,7 +50,7 @@
 
 文本模式下错误为 stderr 上一行 `Error: <message>`。`details` 元素是 `cli.ErrorDetail`
 （json tag：`code,omitempty`、`path,omitempty`、`message`）；事务错误会带
-`path:"operation_id"` / `path:"restore_point"` / `path:"config_state"` 以及端口冲突时
+`path:"operation_id"` / `path:"version"` / `path:"config_state"` 以及端口冲突时
 `code:"port_in_use", path:"port"`。
 
 ### 0.3 错误码 → 退出码（`cmd/internal/cli/errors.go`，测试锁定）
@@ -98,17 +98,17 @@
       "changed": true
     }
   ],
-  "restore_point": "v012",
-  "version": "v013",
+  "version": "v2026.11.18.1",
   "rolled_back": false,
   "config_state": "matches_candidate",
   "operation_id": "op_xxx",
   "status": "succeeded",
   "result": {
-    "restore_point": "v012",
-    "version": "v013",
+    "version": "v2026.11.18.1",
     "rolled_back": false,
     "config_state": "matches_candidate",
+    "changes": "<同顶层的 changes>",
+    "certs_restored": ["example.pem", "example-key.pem"],
     "cause": "<失败原因，可省>",
     "last_phase": "<对账时最后阶段，可省>"
   }
@@ -121,16 +121,15 @@
 | `idempotent` | bool | 命中 `--request-id` 幂等重放（结果取自已有 operation 记录） |
 | `identical` | bool | 差异为空（`changes` 长度为 0） |
 | `changes` | array | 差异条目，元素为 `cfgdiff.Change`（json tag：`path`、`op`、`value,omitempty`、`old,omitempty`、`new,omitempty`、`changed,omitempty`）。`op ∈ added/removed/modified`；敏感键（口令/令牌等）只出 `changed:true`，不出新旧值；`changes` 非 null（空数组） |
-| `restore_point` | string | 切换前打的版本快照号（如 `v012`）；**dry-run 时为空串**（不建恢复点） |
-| `version` | string | 提交后当前 active 的配置版本号；dry-run 为空串 |
-| `rolled_back` | bool | 失败后已从恢复点补偿还原 |
-| `config_state` | string | `matches_candidate` \| `matches_restore_point` \| `unchanged` \| `uncertain`（dry-run 恒 `unchanged`） |
+| `version` | string | 提交后的配置版本号；dry-run 为空串。首次操作会先落一个基线版本，因此首次结果是 `v002` |
+| `rolled_back` | bool | 失败后是否已从临时备份补偿还原 |
+| `config_state` | string | `matches_candidate` \| `matches_previous` \| `unchanged` \| `uncertain`（dry-run 恒 `unchanged`） |
 | `operation_id` | string | **仅当产生 operation 记录时出现**（dry-run 无此 key） |
 | `status` | string | operation 状态：`queued/running/succeeded/failed/cancelled/unknown/recovery_required`；仅随 `operation_id` 出现 |
 | `result` | object | 落盘的 operation result map（键见示例）；仅随 `operation_id` 出现 |
 
 文本模式：dry-run 输出 `dry-run: identical` 或 2 空格缩进的差异 JSON；否则一行
-`<operation_id> <status> restore=<restore_point> version=<version>`。
+`<operation_id> <status> version=<version>`。
 `changes` 条目含义同 `config diff`（§2.6）。
 
 **幂等语义**：同一 `--request-id` + 同参数 → 重放已有记录（`idempotent:true`）；
@@ -216,10 +215,10 @@
   | `--ssl-certificate` | string | 证书路径；留空走默认约定 `config/cert/<域名>.pem`（多站点可指向同一张证书） | `""` |
   | `--ssl-certificate-key` | string | 私钥路径；留空走默认约定 `config/cert/<域名>-key.pem` | `""` |
   | `--config` | string | 主配置文件 | 编译期默认路径 |
-  | `--dry-run` | bool | 只生成差异，不应用（不写文件、不 reload、不建恢复点、不记 operation） | `false` |
+  | `--dry-run` | bool | 只生成差异，不应用（不写文件、不 reload、不建快照、不记 operation） | `false` |
   | `--yes` | bool | 确认执行 | `false` |
 - **data JSON**：见 §0.5 事务结果。dry-run 时无 `operation_id/status/result`，
-  `restore_point`/`version` 为空串，`config_state:"unchanged"`。
+  `version` 为空串，`config_state:"unchanged"`。
 - **行为要点**：
   - **`--yes` / `--dry-run`**：带 `--domain`（纯 flag 模式）时，非 dry-run **必须 `--yes`**
     （否则 `USAGE_ERROR`：`add requires --yes; use --dry-run to preview`）；
@@ -268,7 +267,7 @@
 - **命令标识**：`site.enable` / `site.disable`
 - **flags**：`--config`、`--dry-run`（`false`）、`--yes`（`false`，**不需要**，帮助注明 disable/enable 不需要确认）
 - **data JSON**：同 §0.5 事务结果（operation 记录的 args 里有 `enabled`）。
-- **行为要点**：`.json` ↔ `.json.disabled` 改名 + 同一事务（校验/恢复点/reload/可回滚）。
+- **行为要点**：`.json` ↔ `.json.disabled` 改名 + 同一事务（校验/临时备份/reload/可回滚）。
   不要求 `--yes`（可逆）。已经处于目标状态 → `CONFLICT`（10）；不存在 → `NOT_FOUND`（9）；
   内联站点 → `NOT_SUPPORTED`（11）。
 
@@ -361,11 +360,12 @@
   {
     "versions": [
       {
-        "version": "v013",
+        "version": "v2026.11.18.1",
+        "operation_id": "op_20260102_003",
+        "command": "config.apply",
         "created_at": "2026-01-02T03:04:05Z",
         "created_by": "alice",
         "summary": "config apply",
-        "parent": "v012",
         "active": true
       }
     ],
@@ -374,16 +374,25 @@
   ```
   | 字段 | 类型 | 语义 |
   |---|---|---|
-  | `versions` | []object | 版本条目（按版本号降序） |
-  | `versions[].version` | string | 版本号（`vNNN`） |
+  | `versions` | []object | 版本条目（按创建时间降序） |
+  | `versions[].version` | string | 版本号：`vYYYY.MM.DD.N`（同一天递增），旧数据可能是 `vNNN` 或纯时间戳 |
+  | `versions[].operation_id` | string? | `omitempty`，最近一次产生该版本的操作 |
+  | `versions[].command` | string? | `omitempty`，该操作的命令 |
   | `versions[].created_at` | string | 创建时间 |
   | `versions[].created_by` | string | 创建用户 |
   | `versions[].summary` | string? | `omitempty`，创建原因 |
-  | `versions[].parent` | string? | `omitempty`，上一个版本号 |
-  | `versions[].active` | bool | 当前磁盘配置树哈希 == 该快照树哈希（不是存储的标志位） |
+  | `versions[].active` | bool | 当前磁盘配置树哈希 == 该快照树哈希（不是存储的标志位）；同树多个历史快照只有最新的为 `true` |
   | `drift` | bool | 有版本但没有任何一个与磁盘树哈希相同 |
-- **行为要点**：快照不含证书与私钥。空时 `versions: []`（非 null）。
+- **行为要点**：快照包含主配置、`conf.d`、`config/cert` 下的服务证书/私钥（不含 `cert/acme`）。空时 `versions: []`（非 null）。
   状态目录读失败 → `FromStateError`（一般 `INTERNAL_ERROR` 1）。
+
+### 2.4.1 `config versions delete`
+
+- **命令标识**：`config.versions.delete`
+- **用法**：`config versions delete <version> --yes`
+- **data JSON**：`{"version":"v2026.11.18.1","deleted":true}`
+- **行为要点**：删除一个版本快照目录；当前 active 版本 → `CONFLICT`（10），不存在 →
+  `NOT_FOUND`（9），没有 `--yes` → `USAGE_ERROR`（2）。operation 记录保留，不连带删除历史操作。
 
 ### 2.5 `config diff`
 
@@ -392,8 +401,8 @@
   | flag | 类型 | 含义 | 默认 |
   |---|---|---|---|
   | `--config` | string | 主配置文件 | 编译期默认 |
-  | `--current` | string | 当前侧（文件或目录） | 空 → 与 `--config` 相同 |
-  | `--candidate` | string | 候选：目录、主配置文件或版本号（如 `v001`） | `""`（必填） |
+  | `--current` | string | 当前侧（文件、目录、版本号或操作 ID，如 `v2026.11.18.1` / `op_...`） | 空 → 与 `--config` 相同 |
+  | `--candidate` | string | 候选：目录、主配置文件、版本号或操作 ID（如 `v2026.11.18.1` / `op_...`） | `""`（必填） |
 - **data JSON**（`cfgdiff.Result`）：
   ```json
   {
@@ -420,8 +429,8 @@
   | `changes[].old` | any? | `removed`/`modified` 时旧值（敏感键省略） |
   | `changes[].new` | any? | `modified` 时新值（敏感键省略） |
   | `changes[].changed` | bool? | 敏感键的标记：只有 `true`，不带新旧值 |
-- **行为要点**：`--candidate` 缺失 → `USAGE_ERROR`（2）；候选不存在（非 v 开头）→
-  `NOT_FOUND`（9）；版本号不存在 → `NOT_FOUND`（9）。解析失败是错误
+- **行为要点**：`--candidate` 缺失 → `USAGE_ERROR`（2）；候选既不是已有路径、也不是
+  已知版本号或操作 ID → `NOT_FOUND`（9）；版本号不存在 → `NOT_FOUND`（9）。解析失败是错误
   （`CONFIG_INVALID` 5），**不会用空差异冒充一致**。候选路径逃逸（`..`/符号链接）→
   `USAGE_ERROR`（2）。目录或版本快照比较整棵 JSON 树（主文件 + conf.d）。
   文本模式 `identical:true` 时输出一行 `identical: true`，否则缩进 JSON。
@@ -431,30 +440,31 @@
 - **命令标识**：`config.apply`
 - **flags**：`--config`、`--candidate`（string，必填）、`--dry-run`（bool，`false`）、`--yes`（bool，`false`）
 - **data JSON**：§0.5 事务结果。dry-run 无 `operation_id/status/result`、
-  `restore_point:""`、`version:""`、`config_state:"unchanged"`；成功提交时
-  `restore_point` = 应用前的版本快照号，`version` = 新 active 版本号，
-  `result` 里同样带 `restore_point/version/rolled_back:false/config_state:"matches_candidate"`。
+  `version:""`、`config_state:"unchanged"`；成功提交时 `version` = 本次结果版本号
+  （首次操作会先落一个基线版本，占当天序号 1，因此本次结果是序号 2），`result` 同时带
+  `version/rolled_back:false/config_state:"matches_candidate"` 与 `changes`。
 - **行为要点**：
   - **`--yes` / `--dry-run`**：非 dry-run **必须 `--yes`**（`apply requires --yes; use --dry-run to preview`）。
-    `--dry-run` 只输出校验与差异：不写正式文件、不 reload、不建恢复点、不记 operation。
-  - 流程：校验候选 → 生成差异 → 保存恢复点 → 切换文件 → reload → 验证（读得到
-    `/runtime` 用强验证，否则弱验证）→ 提交；失败从恢复点还原（`rolled_back:true`）。
+    `--dry-run` 只输出校验与差异：不写正式文件、不 reload、不建快照、不记 operation。
+  - 流程：校验候选 → 生成差异 → 临时备份 → 切换文件 → reload → 验证（读得到
+    `/runtime` 用强验证，否则弱验证）→ 保存结果快照；失败从临时备份还原（`rolled_back:true`）。
   - 服务未运行也允许提交（配置写好、下次启动生效，stderr 提示）。
   - 错误码：候选校验失败 `CONFIG_INVALID`（5）；端口冲突 `CONFLICT`（10，details 带
     `port_in_use`）；目录不可写 `PERMISSION_DENIED`（3）；补偿还原失败
     `RECOVERY_REQUIRED`（6）；超时 `TIMEOUT`/`OPERATION_UNKNOWN`（details 带
-    `operation_id`、`restore_point`、`config_state`）。
+    `operation_id`、`version`、`config_state`）。
   - `--candidate` 缺失 → `USAGE_ERROR`（2）；路径逃逸 → `USAGE_ERROR`（2）。
 
 ### 2.7 `config rollback`
 
 - **命令标识**：`config.rollback`
-- **flags**：`--config`、`--version`（string，必填，如 `v001`）、`--dry-run`（bool，`false`）、`--yes`（bool，`false`）
-- **data JSON**：同 §0.5 事务结果（`result` / operation args 里含 `version`）。
-- **行为要点**：回滚是一次**新的 operation**（不删历史版本）：先校验目标版本
-  （含引用证书仍存在），再走与 apply 相同的事务。非 dry-run **必须 `--yes`**
-  （`rollback requires --yes; use --dry-run to preview`）。目标版本目录不存在 →
-  `NOT_FOUND`（9）。`--version` 缺失 → `USAGE_ERROR`（2）。
+- **flags**：`--config`、`--version`（string，如 `v2026.11.18.1` 或旧版 `v001`）、`--operation`（string，如 `op_...`）、`--dry-run`（bool，`false`）、`--yes`（bool，`false`）
+- **data JSON**：同 §0.5 事务结果（`result` / operation args 里含 `version`，按操作回滚时另含 `operation`）。
+- **行为要点**：回滚追加一条**新的 operation**，但复用目标版本快照，**不会新建版本**：
+  把快照里的主配置、`conf.d` 与服务证书写回线上，再 reload。`--version` 与
+  `--operation` 必须二选一。非 dry-run **必须 `--yes`**
+  （`rollback requires --yes; use --dry-run to preview`）。目标不存在或操作没有
+  配置版本 → `NOT_FOUND`（9）。两个 flag 都缺或都给 → `USAGE_ERROR`（2）。
 
 ---
 
@@ -1028,10 +1038,12 @@ systemd 依赖它们的文本输出。
   "phase": "committed",
   "args_hash": "<sha256>",
   "result": {
-    "restore_point": "v012",
-    "version": "v013",
+    "version": "v2026.11.18.1",
     "rolled_back": false,
-    "config_state": "matches_candidate"
+    "config_state": "matches_candidate",
+    "changes": [
+      {"path": "conf.d/site.json:server_name", "op": "modified", "old": "a", "new": "b"}
+    ]
   },
   "error": { "code": "OPERATION_FAILED", "message": "..." }
 }
@@ -1045,9 +1057,9 @@ systemd 依赖它们的文本输出。
 | `status` | string | `queued/running/succeeded/failed/cancelled/unknown/recovery_required` |
 | `created_at` / `started_at` / `finished_at` | string | 时间戳（后两个 `omitempty`） |
 | `owner_pid` / `owner_start_key` | int / string? | 持有者进程（崩溃对账用），`omitempty` |
-| `phase` | string? | 最后阶段：`started/validated/restore_point_saved/files_switched/reloaded/verified/committed/compensating/restored/restore_verified` |
+| `phase` | string? | 最后阶段：`started/validated/backup_saved/files_switched/reloaded/verified/committed/compensating/restored/restore_verified` |
 | `args_hash` | string? | 参数哈希（幂等冲突检测），`omitempty` |
-| `result` | object? | 任意 map：`restore_point`、`version`、`rolled_back`、`config_state`，失败补偿时另有 `cause`、对账时 `last_phase`；service reload 的记录含 `verification`、`pid` |
+| `result` | object? | 任意 map：`version`、`rolled_back`、`config_state`、`changes`（主配置 + conf.d 的增删改）、回滚时的 `certs_restored`；失败补偿时另有 `cause`、对账时 `last_phase`；service reload 的记录含 `verification`、`pid` |
 | `error` | object \| null | `{code?, message}`（`json:"error"`，无 omitempty：成功时为 `null`） |
 
 ### 8.1 `operation list`
@@ -1109,10 +1121,10 @@ systemd 依赖它们的文本输出。
   - `delete <name>`：`--dry-run`
 - **data JSON**：
   - `list`：`{"zones":[{name,path,valid,max_size}], "config":"<path>"}`
-  - `add` / `update` / `delete`：`{"config":"<path>", "zones":[...], "operation_id":"op_...", "status":"succeeded", "restore_point":"v001", "version":"v002"}`
+  - `add` / `update` / `delete`：`{"config":"<path>", "zones":[...], "operation_id":"op_...", "status":"succeeded", "version":"v002"}`
   - `--dry-run`：`{"dry_run":true, "config":"<改写后的全文>"}`
-- **行为要点**：三个写命令走配置事务：候选树校验、恢复点、原子切换与
-  operation 记录都由事务引擎负责，与 `site.*` 同一条链路。写盘前按主配置
+- **行为要点**：三个写命令走配置事务：候选树校验、临时备份、原子切换与
+  operation 记录都由事务引擎负责，与 `site.*` 同一条链路。成功后自动保存结果快照。写盘前按主配置
   跑一遍完整校验；`delete` 仍被站点 location 引用时返回 `CONFLICT`（10），
   message 里列出引用位置；`--valid` 为空会被拒绝——没有有效期的缓存区不会
   缓存任何响应。非 dry-run 的写命令可在 `operation list` 或桌面端「操作记录」

@@ -23,9 +23,8 @@
 }
 .ops-err__detail .mono { color: var(--danger); }
 
-/* 窄窗口收起 version 列，保证命令列可读 */
+/* 窄窗口压缩列宽，保证操作列可读 */
 @media (max-width: 1080px) {
-  .opstable__head, .opsrow { grid-template-columns: 150px minmax(0, 1fr) 88px 76px; }
-  .opsrow__restore, .opstable__head > span:nth-child(5) { display: none; }
+  .opstable__head, .opsrow { grid-template-columns: 140px minmax(0, 1fr) 136px 100px; }
 }
 

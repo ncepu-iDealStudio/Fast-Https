@@ -58,7 +58,7 @@ const zh: HelpSection[] = [
   <tr><td>看谁在访问、有没有报错</td><td>「日志」页，切 access / error 标签</td></tr>
   <tr><td>看证书什么时候到期</td><td>「证书」页</td></tr>
   <tr><td>检查哪里出了问题</td><td>「概览」页 →「健康检查」，红色项就是问题所在</td></tr>
-  <tr><td>看每次改动的记录、必要时回滚</td><td>「概览」页「最近操作」；配置历史在「设置」页「配置版本」，可以对比和回滚</td></tr>
+  <tr><td>看每次改动的记录、必要时回滚</td><td>侧边栏「版本更新」：每次配置变更生成一个版本，可对比当前版本、回滚或手动删除</td></tr>
 </table>`
   },
   {
@@ -163,7 +163,7 @@ const en: HelpSection[] = [
   <tr><td>See who is visiting and what failed</td><td>Logs page, switch access / error tabs</td></tr>
   <tr><td>Check when certificates expire</td><td>Certificates page</td></tr>
   <tr><td>Find out what is broken</td><td>Overview page → "Health check"; anything in red is the problem</td></tr>
-  <tr><td>Review every change and roll back if needed</td><td>"Recent operations" on Overview; config history lives under Settings → Config versions</td></tr>
+  <tr><td>Review every change and roll back if needed</td><td>The "Version updates" page in the sidebar: each config change creates a version you can compare with the current one, roll back, or delete</td></tr>
 </table>`
   },
   {

@@ -270,7 +270,7 @@ func runDelete(cmd *cobra.Command, args []string) error {
 
 // commit 校验并写入缓存区列表；dry-run 只打印改写后的配置。
 //
-// 非 dry-run 走配置事务：候选树里改主配置 cache 段，校验、恢复点、原子切换
+// 非 dry-run 走配置事务：候选树里改主配置 cache 段，校验、临时备份、原子切换
 // 与 operation 记录都由事务引擎负责，和 site.* 是同一条链路。
 func commit(cmd *cobra.Command, id, summary, path string, zones []config.CacheZone, dry bool) error {
 	patched, err := config.PreviewCacheZones(path, zones)
@@ -299,12 +299,11 @@ func commit(cmd *cobra.Command, id, summary, path string, zones []config.CacheZo
 	}
 
 	data := map[string]any{
-		"config":        path,
-		"zones":         zones,
-		"operation_id":  res.Operation.ID,
-		"status":        res.Operation.Status,
-		"restore_point": res.RestorePoint,
-		"version":       res.Version,
+		"config":       path,
+		"zones":        zones,
+		"operation_id": res.Operation.ID,
+		"status":       res.Operation.Status,
+		"version":      res.Version,
 	}
 	if cli.JSONMode(cmd) {
 		return cli.EmitOK(cmd, id, data, res.Warnings)

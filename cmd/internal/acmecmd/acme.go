@@ -186,7 +186,7 @@ func setupACME(answers acmeAnswers, opts acmeOptions) error {
 		return nil
 	}
 
-	// 与 site.*、cache、config 段走同一条配置事务：校验、恢复点、原子切换
+	// 与 site.*、cache、config 段走同一条配置事务：校验、临时备份、原子切换
 	// 与 operation 记录都由事务引擎负责。
 	if _, err := cli.RunSectionTxn(cli.SectionTxnInput{
 		LiveMain:  opts.Path,

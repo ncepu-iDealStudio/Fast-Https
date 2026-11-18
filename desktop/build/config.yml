@@ -33,6 +33,10 @@ dev_mode:
       - "*.ts"
     git_ignore: true
   executes:
+    # 桌面端调用同目录的 fast-https.exe；开发时必须先重建 CLI，
+    # 否则会拿旧二进制跑，出现「代码改了却没生效」和旧 state 布局。
+    - cmd: wails3 task cli
+      type: blocking
     - cmd: wails3 build DEV=true
       type: blocking
     - cmd: wails3 task common:dev:frontend

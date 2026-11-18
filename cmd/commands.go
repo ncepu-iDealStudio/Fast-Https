@@ -94,7 +94,7 @@ func commandList() []command {
 		},
 		{
 			name:        "operation",
-			description: cli.T("查询管理操作记录", "query management operations"),
+			description: cli.T("查询管理操作记录（含回滚、失败与重载）", "query management operations (including rollback, failures and reloads)"),
 			register:    inspectcmd.NewOperationCmd,
 		},
 		{
@@ -104,7 +104,7 @@ func commandList() []command {
 		},
 		{
 			name:        "config",
-			description: cli.T("查看解析后的运行时路径", "inspect resolved runtime paths"),
+			description: cli.T("查看路径、显示与校验配置，管理 tls/proxy、版本、差异、应用与回滚", "inspect paths, show and validate config, manage tls/proxy, versions, diffs, applies and rollbacks"),
 			register:    configcmd.NewConfigCmd,
 		},
 		{
