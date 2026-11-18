@@ -1,12 +1,15 @@
 <script setup lang="ts">
 /** 日志表格：结构化七列，状态色编码，滚到底自动续拉。 */
+import { computed } from 'vue';
 import { ChevronDown } from '@lucide/vue';
 import { useI18n } from '../../../composables/useI18n';
+import { quipOfDay } from '../../../content/quips';
 import type { LogEntry } from '../../../types/model';
 
 defineProps<{ rows: LogEntry[]; loading: boolean; hasMore: boolean }>();
 const emit = defineEmits<{ scroll: [e: Event]; more: [] }>();
-const { t } = useI18n();
+const { t, lang } = useI18n();
+const quip = computed(() => quipOfDay(lang()));
 
 function timeText(s?: string): string {
   const m = String(s || '').match(/T(\d{2}:\d{2}:\d{2})(?:\.(\d{1,3}))?/);
@@ -47,7 +50,10 @@ function levelClass(level?: string): string {
       <span>{{ t('logs.colSize') }}</span><span>{{ t('logs.colHost') }} / {{ t('logs.colRemote') }}</span>
     </div>
     <div class="logtable__body" @scroll.passive="emit('scroll', $event)">
-      <div v-if="!rows.length && !loading" class="table__empty">{{ t('logs.empty') }}</div>
+      <div v-if="!rows.length && !loading" class="table__empty">
+        {{ t('logs.empty') }}
+        <span class="table__quip">{{ quip }}</span>
+      </div>
       <div
         v-for="(e, i) in rows" :key="`${e.time}-${i}`"
         class="logrow" :class="`logrow--${tone(e)}`" :title="e.raw || e.message"
