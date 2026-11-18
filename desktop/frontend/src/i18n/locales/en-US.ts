@@ -21,6 +21,7 @@ export const enUS: Record<string, string> = {
 
   // ---- Help dialog shell (content lives in src/help-content.js) ----
   'help.open': 'Help',
+  'help.repo': 'GitHub repository',
   'help.title': 'Help',
   'help.toc': 'Contents',
   'help.builtInNote': 'Help is built into the app — no browser needed.',
@@ -58,6 +59,7 @@ export const enUS: Record<string, string> = {
   'status.subDegraded': 'Process up, port unreachable',
   'status.subStopped': 'No listening ports detected',
   'status.refreshing': 'Refreshes every 2 s',
+  'status.star': "Star it — it won't buy coffee, but it makes our day.",
   'status.refreshEvery': 'Refreshes every 2 s',
   'status.uptimeMinutes': 'Up {m} min',
   'status.uptimeLess': 'Up less than 1 min',

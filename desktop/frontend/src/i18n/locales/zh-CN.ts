@@ -21,6 +21,7 @@ export const zhCN: Record<string, string> = {
 
   // ---- 帮助弹窗（文案见 src/help-content.js，这里只放壳） ----
   'help.open': '帮助文档',
+  'help.repo': 'GitHub 仓库',
   'help.title': '使用帮助',
   'help.toc': '目录',
   'help.builtInNote': '帮助就在应用里，不用跳到浏览器。',
@@ -58,6 +59,7 @@ export const zhCN: Record<string, string> = {
   'status.subDegraded': '进程在，端口不可达',
   'status.subStopped': '未检测到监听端口',
   'status.refreshing': '状态每 2 秒刷新',
+  'status.star': 'Star 一下，服务器会更稳（大概）',
   'status.refreshEvery': '每 2 秒刷新',
   'status.uptimeMinutes': '运行 {m} 分钟',
   'status.uptimeLess': '运行不足 1 分钟',

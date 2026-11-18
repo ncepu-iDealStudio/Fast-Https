@@ -9,7 +9,7 @@ import { computed, ref } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import FhDialog from '../ui/FhDialog.vue';
 import FhButton from '../ui/FhButton.vue';
-import { openHelp } from '../../services/api/app';
+import { openHelp, openRepo } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 
 interface HelpSection { id: string; title: string; html: string }
@@ -257,6 +257,17 @@ async function openFull(): Promise<void> {
     error.value = messageOf(e);
   }
 }
+
+/** 帮助弹窗里的正式入口：系统浏览器打开 GitHub 仓库。 */
+async function openRepoPage(): Promise<void> {
+  error.value = '';
+  result.value = '';
+  try {
+    await openRepo();
+  } catch (e) {
+    error.value = messageOf(e);
+  }
+}
 </script>
 
 <template>
@@ -287,6 +298,7 @@ async function openFull(): Promise<void> {
     <p v-if="error" class="dialog-error">{{ error }}</p>
 
     <template #footer>
+      <FhButton @click="openRepoPage">{{ t('help.repo') }}</FhButton>
       <FhButton @click="openFull">{{ t('help.full') }}</FhButton>
       <FhButton variant="primary" @click="emit('update:open', false)">
         {{ t('common.close') }}

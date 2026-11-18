@@ -79,6 +79,7 @@ export interface DesktopServiceContract {
   HideWindow(): Promise<void>;
   QuitApp(): Promise<void>;
   OpenHelp(): Promise<string>;
+  OpenRepo(): Promise<void>;
   ReadConfigForm(): Promise<ConfigForm>;
   SaveConfigForm(values: Record<string, string>): Promise<string>;
   ReadSiteDetail(id: string): Promise<SiteDetail>;

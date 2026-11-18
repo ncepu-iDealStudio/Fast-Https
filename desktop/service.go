@@ -73,6 +73,19 @@ func (s *DesktopService) QuitApp() {
 
 // ------------------------------------------------------------ 账户菜单：帮助文档
 
+// RepoURL 是项目开源地址。地址写在 Go 侧而不是让前端传参：
+// bindings 对页面开放，开放任意 URL 等于给前端一个打开任意链接的口子。
+const RepoURL = "https://github.com/ncepu-iDealStudio/Fast-Https"
+
+// OpenRepo 用系统默认浏览器打开项目主页。
+// 重定向交给系统浏览器，桌面端不在 WebView 内嵌网页。
+func (s *DesktopService) OpenRepo() error {
+	if appRef == nil {
+		return fmt.Errorf("应用尚未就绪")
+	}
+	return appRef.Browser.OpenURL(RepoURL)
+}
+
 // OpenHelp 打开随发行包一起分发的中文使用文档。
 // 安装布局下 docs/ 与 exe 同级；开发时 exe 在 desktop/bin/，回退到仓库根。
 func (s *DesktopService) OpenHelp() (string, error) {

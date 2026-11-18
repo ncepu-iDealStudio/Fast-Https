@@ -21,6 +21,10 @@ export function openConfigDir(path: string): Promise<string> {
 export function openHelp(): Promise<string> {
   return service.OpenHelp();
 }
+/** 用系统默认浏览器打开项目 GitHub 主页。 */
+export function openRepo(): Promise<void> {
+  return service.OpenRepo();
+}
 export function pickPath(kind: string): Promise<string> {
   return service.PickPath(kind);
 }

@@ -63,6 +63,8 @@
               color var(--dur-1) var(--ease);
 }
 .fbtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+/* GitHub 入口：常态与其它状态栏按钮一致，悬停用暖色，不抢眼。 */
+.fbtn--github:hover:not(:disabled) { border-color: #e3b341; color: #e3b341; }
 .fbtn:disabled { opacity: .45; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .fbtn { transition: none; }
