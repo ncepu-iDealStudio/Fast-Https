@@ -31,12 +31,12 @@ have() { command -v "$1" >/dev/null 2>&1; }
 
 [ -d "$DIST" ] || die "dist 目录不存在：$DIST"
 shopt -s nullglob
-debs=("$DIST"/fast-https_*_linux_*.deb)
-rpms=("$DIST"/fast-https_*_linux_*.rpm)
-apks=("$DIST"/fast-https_*_linux_*.apk)
+debs=("$DIST"/fast-https_linux_*.deb)
+rpms=("$DIST"/fast-https_linux_*.rpm)
+apks=("$DIST"/fast-https_linux_*.apk)
 [ "${#debs[@]}" -gt 0 ] || die "dist 里没有 .deb：先跑 goreleaser release --snapshot（或 -Release）"
 
-# goreleaser 的文件名形如 fast-https_<version>_linux_amd64.deb
+# goreleaser 的文件名形如 fast-https_linux_amd64.deb（不带版本号）
 arch_of() { sed -E 's/.*_linux_([a-z0-9]+)\.[a-z]+$/\1/' <<<"$1"; }
 
 rm -rf "$OUT/apt" "$OUT/yum" "$OUT/apk"

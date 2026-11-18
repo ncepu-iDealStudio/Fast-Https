@@ -2,6 +2,7 @@ package packaging
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -160,6 +161,207 @@ func TestWindowsWizardBranding(t *testing.T) {
 		if !strings.Contains(proj, want) {
 			t.Errorf("桌面端安装向导缺少定制项：%s", want)
 		}
+	}
+}
+
+// TestWindowsInstallerIcons 锁住安装/卸载程序的图标：
+// 两个 Windows 安装器都要用应用图标（setup.exe 与 uninstall.exe），
+// 主安装器的「应用和功能」图标必须指向带图标的 uninstall.exe——
+// fast-https.exe 没有内嵌图标资源，指向它只会显示系统默认图标。
+func TestWindowsInstallerIcons(t *testing.T) {
+	for _, rel := range []string{
+		"desktop/build/windows/nsis/project.nsi",
+		"build/installer/windows/fast-https.nsi",
+	} {
+		nsi := readPkgFile(t, rel)
+		for _, want := range []string{"MUI_ICON", "MUI_UNICON", "icon.ico"} {
+			if !strings.Contains(nsi, want) {
+				t.Errorf("%s 应设置 %s（缺省会用 NSIS 默认图标）", rel, want)
+			}
+		}
+	}
+
+	server := readPkgFile(t, "build/installer/windows/fast-https.nsi")
+	if !strings.Contains(server, `"DisplayIcon" "$INSTDIR\uninstall.exe"`) {
+		t.Error(`fast-https.nsi 的 DisplayIcon 应指向 "$INSTDIR\uninstall.exe"`)
+	}
+	if strings.Contains(server, `"DisplayIcon" "$INSTDIR\${APP_EXE}"`) {
+		t.Error("fast-https.nsi 的 DisplayIcon 不应指向没有图标的 fast-https.exe")
+	}
+}
+
+// TestServerInstallerRegViewOnlyInsideBlocks 锁住 SetRegView 的位置：
+// NSIS 只允许它出现在 Section / Function 内，写在顶层会直接编译失败
+// （本次修复过程中就踩过一次）。逐行扫描，防止以后又挪到顶层。
+func TestServerInstallerRegViewOnlyInsideBlocks(t *testing.T) {
+	src := readPkgFile(t, "build/installer/windows/fast-https.nsi")
+	inBlock := nsisInBlock(src)
+	for i, line := range strings.Split(src, "\n") {
+		code := strings.TrimSpace(line)
+		if !strings.HasPrefix(code, "SetRegView") {
+			continue
+		}
+		if !inBlock[i] {
+			t.Errorf("第 %d 行 SetRegView 不在 Section/Function 内，makensis 会报错：%s", i+1, code)
+		}
+	}
+}
+
+// TestServerInstallerInstallDirMigration 锁住安装目录的跨视图兼容：
+// 不再用 InstallDirRegKey（它固定读 32 位视图），改为先读 64 位、读不到
+// 再回落旧的 32 位，最后切回 64 位，避免升级时丢自定义安装目录。
+func TestServerInstallerInstallDirMigration(t *testing.T) {
+	src := readPkgFile(t, "build/installer/windows/fast-https.nsi")
+	if strings.Contains(src, "InstallDirRegKey") {
+		t.Error("不应再用 InstallDirRegKey：它固定读 32 位视图，跨视图升级会丢安装目录")
+	}
+
+	onInit := nsisBlockBody(t, src, "Function .onInit", "FunctionEnd")
+	read := `ReadRegStr $R0 HKLM "Software\${APP_NAME}" "InstallDir"`
+	assertOrder(t, onInit, "onInit 的安装目录读取顺序",
+		"SetRegView 64", read, "SetRegView 32", read, "SetRegView 64")
+}
+
+// TestServerInstallerCleansLegacyRegView 锁住旧 32 位条目的清理：
+// 安装时先删旧视图，避免「应用和功能」同时出现两个 Fast-Https；
+// 卸载时两个视图都删，免得旧版本残留清不掉。
+func TestServerInstallerCleansLegacyRegView(t *testing.T) {
+	src := readPkgFile(t, "build/installer/windows/fast-https.nsi")
+
+	install := nsisBlockBody(t, src, `Section "Fast-Https 核心文件（必选）" SEC_CORE`, "SectionEnd")
+	assertOrder(t, install, "安装段清理旧 32 位条目",
+		"SetRegView 32",
+		`DeleteRegKey HKLM "${UNINST_KEY}"`,
+		`DeleteRegKey HKLM "Software\${APP_NAME}"`,
+		"SetRegView 64",
+	)
+	if !strings.Contains(install, `WriteRegStr HKLM "${UNINST_KEY}" "DisplayName"`) {
+		t.Error("安装段应在清理之后重新写入卸载项")
+	}
+
+	uninst := nsisBlockBody(t, src, `Section "Uninstall"`, "SectionEnd")
+	for _, want := range []string{
+		"SetRegView 64",
+		"SetRegView 32",
+		`DeleteRegKey HKLM "${UNINST_KEY}"`,
+		`DeleteRegKey HKLM "Software\${APP_NAME}"`,
+	} {
+		if !strings.Contains(uninst, want) {
+			t.Errorf("卸载段缺少清理项：%s", want)
+		}
+	}
+}
+
+// TestServerInstallerShortcutNaming 锁住用户可见的命名：
+// 快捷方式统一叫 Fast-Https，卸载项名字不带版本号（版本由 DisplayVersion 提供）；
+// 升级/卸载时旧的「Fast-Https 桌面管理端」「Fast-Https 安装目录」仍要清掉。
+func TestServerInstallerShortcutNaming(t *testing.T) {
+	src := readPkgFile(t, "build/installer/windows/fast-https.nsi")
+	if !strings.Contains(src, `"DisplayName" "${APP_NAME}"`) {
+		t.Error(`卸载项 DisplayName 应为 "${APP_NAME}"`)
+	}
+	if strings.Contains(src, `"DisplayName" "${APP_NAME} ${APP_VERSION}`) {
+		t.Error("DisplayName 不应再拼版本号后缀")
+	}
+
+	install := nsisBlockBody(t, src, `Section "Fast-Https 核心文件（必选）" SEC_CORE`, "SectionEnd")
+	if !strings.Contains(install, `CreateShortcut "$DESKTOP\Fast-Https.lnk"`) {
+		t.Error(`桌面快捷方式应命名为 Fast-Https.lnk`)
+	}
+	if !strings.Contains(install, `CreateShortcut "$SMPROGRAMS\${APP_NAME}\Fast-Https.lnk"`) {
+		t.Error(`开始菜单里的程序快捷方式应命名为 Fast-Https.lnk`)
+	}
+	if strings.Contains(install, `CreateShortcut "$DESKTOP\Fast-Https 桌面管理端.lnk"`) {
+		t.Error("不应再创建旧命名的桌面快捷方式")
+	}
+
+	uninst := nsisBlockBody(t, src, `Section "Uninstall"`, "SectionEnd")
+	for _, name := range []string{
+		`Fast-Https.lnk`,
+		`Fast-Https 桌面管理端.lnk`,
+		`Fast-Https 安装目录.lnk`,
+	} {
+		if !strings.Contains(uninst, `Delete "$DESKTOP\`+name+`"`) {
+			t.Errorf("卸载段应删除桌面快捷方式 %s", name)
+		}
+	}
+}
+
+// TestServerInstallerCompiles 用真实 makensis 编译一遍安装脚本。
+// 结构性断言看不出的语法/上下文错误（如 SetRegView 放在顶层）只能靠编译发现；
+// 未安装 NSIS 的机器跳过，不阻塞 Linux CI。
+func TestServerInstallerCompiles(t *testing.T) {
+	makensis, err := exec.LookPath("makensis")
+	if err != nil {
+		t.Skip("未安装 makensis，跳过 NSIS 编译校验")
+	}
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	stage := t.TempDir()
+	if err := os.WriteFile(filepath.Join(stage, "fast-https.exe"), []byte("dummy"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "fast-https-setup.exe")
+
+	cmd := exec.Command(makensis,
+		"/DAPP_VERSION=1.7.1", "/DAPP_VERSION4=1.7.1.0", "/DAPP_ARCH=amd64",
+		"/DSTAGE_DIR="+stage, "/DOUT_FILE="+out,
+		"fast-https.nsi")
+	cmd.Dir = filepath.Join(repoRoot, "build", "installer", "windows")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("makensis 编译失败: %v\n%s", err, output)
+	}
+	if _, err := os.Stat(out); err != nil {
+		t.Fatalf("makensis 未生成安装包: %v", err)
+	}
+}
+
+// nsisInBlock 标记每一行是否位于 Section / Function 内。
+// SectionIn 之类的同类指令不会被误判成 Section 开头。
+func nsisInBlock(src string) []bool {
+	lines := strings.Split(src, "\n")
+	in := make([]bool, len(lines))
+	depth := false
+	for i, line := range lines {
+		lower := strings.ToLower(strings.TrimSpace(line))
+		if strings.HasPrefix(lower, "section ") || lower == "section" || strings.HasPrefix(lower, "function ") {
+			depth = true
+		}
+		in[i] = depth
+		if strings.HasPrefix(lower, "sectionend") || strings.HasPrefix(lower, "functionend") {
+			depth = false
+		}
+	}
+	return in
+}
+
+// nsisBlockBody 取从 header 起、到第一个 endMarker 止的块内容。
+func nsisBlockBody(t *testing.T, src, header, endMarker string) string {
+	t.Helper()
+	start := strings.Index(src, header)
+	if start < 0 {
+		t.Fatalf("找不到块起点：%s", header)
+	}
+	rest := src[start:]
+	end := strings.Index(rest, endMarker)
+	if end < 0 {
+		t.Fatalf("块 %s 缺少结束标记 %s", header, endMarker)
+	}
+	return rest[:end]
+}
+
+// assertOrder 断言 parts 按给定顺序出现（同名片段可重复）。
+func assertOrder(t *testing.T, src, what string, parts ...string) {
+	t.Helper()
+	pos := 0
+	for _, part := range parts {
+		idx := strings.Index(src[pos:], part)
+		if idx < 0 {
+			t.Fatalf("%s：缺少或顺序不对 %q", what, part)
+		}
+		pos += idx + len(part)
 	}
 }
 

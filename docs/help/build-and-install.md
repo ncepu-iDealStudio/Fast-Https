@@ -44,17 +44,17 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 ```text
 fast-https_{Windows_x86_64,Windows_arm64}.zip
 fast-https_{Linux,Darwin}_{x86_64,arm64}.tar.gz
-fast-https_<version>_linux_{amd64,arm64}.{deb,rpm,apk}
-fast-https-<version>-windows-<arch>-setup.exe
+fast-https_linux_{amd64,arm64}.{deb,rpm,apk}
+fast-https-windows-<arch>-setup.exe
 checksums.txt
 ```
 
 ## 安装 Linux 包
 
 ```bash
-sudo apt install ./fast-https_1.5.0-next_linux_amd64.deb   # Debian / Ubuntu
-sudo dnf install ./fast-https-1.5.0-next-1.x86_64.rpm      # RHEL / openEuler
-sudo apk add --allow-untrusted fast-https_1.5.0-next_linux_amd64.apk
+sudo apt install ./fast-https_linux_amd64.deb            # Debian / Ubuntu
+sudo dnf install ./fast-https_linux_amd64.rpm            # RHEL / openEuler
+sudo apk add --allow-untrusted fast-https_linux_amd64.apk # Alpine
 ```
 
 装完文件落在哪，见 [package-layout.md](package-layout.md)。

@@ -35,8 +35,8 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 ```text
 fast-https_{Windows_x86_64,Windows_arm64}.zip
 fast-https_{Linux,Darwin}_{x86_64,arm64}.tar.gz
-fast-https_<version>_linux_{amd64,arm64}.{deb,rpm,apk}
-fast-https-<version>-windows-<arch>-setup.exe
+fast-https_linux_{amd64,arm64}.{deb,rpm,apk}
+fast-https-windows-<arch>-setup.exe
 checksums.txt
 ```
 
@@ -57,7 +57,7 @@ checksums.txt
 
 ## Windows 安装包（NSIS）
 
-脚本在 `build/installer/windows/fast-https.nsi`，由 `build/package.ps1` 逐个 Windows zip 生成，产出 `dist/fast-https-<version>-windows-<arch>-setup.exe`。
+脚本在 `build/installer/windows/fast-https.nsi`，由 `build/package.ps1` 逐个 Windows zip 生成，产出 `dist/fast-https-windows-<arch>-setup.exe`。
 
 - 安装目录 `%ProgramFiles%\Fast-Https`，写入卸载信息与开始菜单快捷方式（使用文档、安装目录、卸载）
 - 安装包会带上对应架构的 `fast-https-desktop.exe`（桌面管理端，图形入口），桌面与开始菜单快捷方式指向它；`fast-https.exe` 是控制台子系统的命令行服务端，在终端里执行会正常等待并输出；双击（无参数）启动时自动隐藏控制台窗口，日常从桌面管理端启停
@@ -69,7 +69,7 @@ checksums.txt
 ```powershell
 makensis /DAPP_VERSION=<version> /DAPP_VERSION4=<version>.0 /DAPP_ARCH=amd64 `
          /DSTAGE_DIR=dist\.stage\amd64 `
-         /DOUT_FILE=dist\fast-https-<version>-windows-amd64-setup.exe `
+         /DOUT_FILE=dist\fast-https-windows-amd64-setup.exe `
          build\installer\windows\fast-https.nsi
 ```
 

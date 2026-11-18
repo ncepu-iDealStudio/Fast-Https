@@ -120,7 +120,7 @@ The two are aimed at different jobs: a general-purpose web server covers more pr
 
 ```bash
 # Option 1: release package
-# Windows: run fast-https-<version>-windows-<arch>-setup.exe.
+# Windows: run fast-https-windows-<arch>-setup.exe.
 # Linux / macOS: download the archive from https://gitee.com/ncepu-bj/fast-https/releases and unpack it.
 ./fast-https start
 

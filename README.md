@@ -122,7 +122,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 
 ```bash
 # 方式一：安装包
-# Windows 用 dist 里的 fast-https-<version>-windows-<arch>-setup.exe 安装；
+# Windows 用 dist 里的 fast-https-windows-<arch>-setup.exe 安装；
 # 其他平台到 https://gitee.com/ncepu-bj/fast-https/releases 下载压缩包，解压后进入目录
 ./fast-https start
 

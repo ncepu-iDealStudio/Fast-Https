@@ -35,13 +35,12 @@ Unicode true
 !define DESKTOP_EXE "fast-https-desktop.exe"
 !define MONITOR_EXE "fast-https-monitor.exe"
 !define APP_PUBLISHER "NCEPU BJ"
-!define APP_URL "https://gitee.com/ncepu-bj/fast-https"
+!define APP_URL "https://github.com/ncepu-iDealStudio/Fast-Https"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_NAME}"
 
 Name "${APP_NAME} ${APP_VERSION} (${APP_ARCH})"
 OutFile "${OUT_FILE}"
 InstallDir "$PROGRAMFILES64\${APP_NAME}"
-InstallDirRegKey HKLM "Software\${APP_NAME}" "InstallDir"
 ; 按需提权：本进程以普通用户启动（双击即可，不弹 UAC），自绘向导负责
 ; 界面；点「安装」后向导用 RunAs 重新拉起本程序 /S（那时才弹一次 UAC）
 ; 执行真正的安装段。静默模式（/S）由调用方保证管理员身份。
@@ -67,6 +66,11 @@ VIAddVersionKey "LegalCopyright" "GPL-2.0"
 !define MUI_FINISHPAGE_NOAUTOCLOSE
 !define MUI_UNFINISHPAGE_NOAUTOCLOSE
 
+; ---- 图标：与桌面端安装包同一套（MUI_ICON 给安装包，MUI_UNICON 给卸载程序）。
+; 不设时 NSIS 会用默认图标，「应用和功能」里的卸载项就是一个空白纸箱。----
+!define MUI_ICON "..\..\..\desktop\build\windows\icon.ico"
+!define MUI_UNICON "..\..\..\desktop\build\windows\icon.ico"
+
 ; ---- 定制向导：品牌图与桌面端安装向导同一套（由应用图标生成，见
 ; desktop/build/windows/nsis/gen-wizard-bitmaps.ps1）----
 !define MUI_WELCOMEFINISHPAGE_BITMAP "..\..\..\desktop\build\windows\nsis\wizard-side.bmp"
@@ -90,6 +94,20 @@ VIAddVersionKey "LegalCopyright" "GPL-2.0"
 ; 向导弹不出来。Exec+Quit 是两个问题的合解。静默模式（/S）直接走安装段。
 
 Function .onInit
+  ; 安装目录：先读 64 位视图，读不到再回落旧版本写在 32 位视图的位置。
+  ; NSIS 引擎是 32 位，默认写 WOW6432Node，Windows 会把 amd64 程序的
+  ; 卸载项标成「32-位」；安装与卸载段都统一切到 64 位视图。
+  SetRegView 64
+  ReadRegStr $R0 HKLM "Software\${APP_NAME}" "InstallDir"
+  ${If} $R0 == ""
+    SetRegView 32
+    ReadRegStr $R0 HKLM "Software\${APP_NAME}" "InstallDir"
+  ${EndIf}
+  SetRegView 64
+  ${If} $R0 != ""
+    StrCpy $INSTDIR $R0
+  ${EndIf}
+
   IfSilent oninit_done
   SetOutPath "$PLUGINSDIR"
   File "/oname=wizard.ps1" "wizard.ps1"
@@ -135,6 +153,13 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   nsExec::ExecToLog 'taskkill /F /IM ${MONITOR_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${DESKTOP_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${APP_EXE}'
+
+  ; 旧版本的卸载项与安装信息写在 32 位视图，升级时先清掉，
+  ; 否则「应用和功能」会同时留下 32 位与 64 位两个 Fast-Https。
+  SetRegView 32
+  DeleteRegKey HKLM "${UNINST_KEY}"
+  DeleteRegKey HKLM "Software\${APP_NAME}"
+  SetRegView 64
 
   ; 用户改过的配置装完再放回去，升级不覆盖
   StrCpy $R0 "0"
@@ -183,15 +208,17 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
   ${EndIf}
 
   ${If} ${SC_DESKTOP} == "0"
-    ; 用户取消桌面快捷方式：清掉升级残留的旧图标
+    ; 用户取消桌面快捷方式：清掉升级残留（含旧版本的命名）
+    Delete "$DESKTOP\Fast-Https.lnk"
     Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
     Delete "$DESKTOP\Fast-Https 安装目录.lnk"
   ${EndIf}
   ${If} ${SC_DESKTOP} != "0"
+    ; 快捷方式统一叫 Fast-Https；版本号只在卸载项里体现。
     ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
-      CreateShortcut "$DESKTOP\Fast-Https 桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
+      CreateShortcut "$DESKTOP\Fast-Https.lnk" "$INSTDIR\${DESKTOP_EXE}"
     ${Else}
-      CreateShortcut "$DESKTOP\Fast-Https 安装目录.lnk" "$INSTDIR"
+      CreateShortcut "$DESKTOP\Fast-Https.lnk" "$INSTDIR"
     ${EndIf}
   ${EndIf}
 
@@ -200,17 +227,20 @@ Section "Fast-Https 核心文件（必选）" SEC_CORE
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\使用文档.lnk" "$INSTDIR\docs\usage.html"
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\安装目录.lnk" "$INSTDIR"
     ${If} ${FileExists} "$INSTDIR\${DESKTOP_EXE}"
-      CreateShortcut "$SMPROGRAMS\${APP_NAME}\桌面管理端.lnk" "$INSTDIR\${DESKTOP_EXE}"
+      CreateShortcut "$SMPROGRAMS\${APP_NAME}\Fast-Https.lnk" "$INSTDIR\${DESKTOP_EXE}"
     ${EndIf}
     CreateShortcut "$SMPROGRAMS\${APP_NAME}\卸载.lnk" "$INSTDIR\uninstall.exe"
   ${EndIf}
 
-  WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME} ${APP_VERSION} (${APP_ARCH})"
+  ; 程序名不带版本号：版本列由 DisplayVersion 提供。
+  WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${APP_PUBLISHER}"
   WriteRegStr HKLM "${UNINST_KEY}" "URLInfoAbout" "${APP_URL}"
   WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\${APP_EXE}"
+  ; fast-https.exe 是服务端二进制，没有内嵌图标资源；指向它会让
+  ; 「应用和功能」显示系统默认图标。uninstall.exe 已带 MUI_UNICON。
+  WriteRegStr HKLM "${UNINST_KEY}" "DisplayIcon" "$INSTDIR\uninstall.exe"
   WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${UNINST_KEY}" "NoRepair" 1
@@ -232,6 +262,9 @@ FunctionEnd
 ; ------------------------------------------------------------ 卸载
 
 Section "Uninstall"
+  ; 与安装时一致：卸载项与安装信息都在 64 位视图
+  SetRegView 64
+
   ; 顺序与安装一致：Monitor 先停，避免它把卸载过程记成一条假的「不可达」
   nsExec::ExecToLog 'taskkill /F /IM ${MONITOR_EXE}'
   nsExec::ExecToLog 'taskkill /F /IM ${DESKTOP_EXE}'
@@ -253,11 +286,19 @@ Section "Uninstall"
   ; 再通配兜底一次，开始菜单整组删除
   ReadRegStr $R1 HKLM "Software\${APP_NAME}" "ShortcutDesktop"
   ${If} $R1 != "0"
+    Delete "$DESKTOP\Fast-Https.lnk"
     Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
     Delete "$DESKTOP\Fast-Https 安装目录.lnk"
   ${EndIf}
   DeleteRegKey HKLM "Software\${APP_NAME}"
 
+  ; 旧版本残留在 32 位视图的条目（新卸载器也要能清干净）
+  SetRegView 32
+  DeleteRegKey HKLM "${UNINST_KEY}"
+  DeleteRegKey HKLM "Software\${APP_NAME}"
+  SetRegView 64
+
+  Delete "$DESKTOP\Fast-Https.lnk"
   Delete "$DESKTOP\Fast-Https 桌面管理端.lnk"
   Delete "$DESKTOP\Fast-Https 安装目录.lnk"
   Delete "$SMPROGRAMS\${APP_NAME}\*.lnk"

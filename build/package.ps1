@@ -228,7 +228,7 @@ if (-not $NoInstaller) {
 
         Copy-Item (Join-Path $root "LICENSE") $stage -Force
 
-        $outFile = Join-Path $root "dist\fast-https-$version-windows-$arch-setup.exe"
+        $outFile = Join-Path $root "dist\fast-https-windows-$arch-setup.exe"
         if (Test-Path $outFile) { Remove-Item $outFile -Force }
 
         $nsi = Join-Path $PSScriptRoot "installer\windows\fast-https.nsi"
