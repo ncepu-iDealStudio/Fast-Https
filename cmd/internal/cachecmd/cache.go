@@ -3,6 +3,7 @@ package cachecmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -295,15 +296,19 @@ func commit(cmd *cobra.Command, id, path string, zones []config.CacheZone, dry b
 	return nil
 }
 
-// validatePatchedConfig 把改写结果写成同目录临时文件后跑完整校验，
-// 这样相对路径（证书、include）与线上文件的解析基准一致。
+// validatePatchedConfig 把改写结果写成同目录临时文件后跑完整校验。
+//
+// 用候选树语义：include 与相对证书路径按配置目录解析，还没生成的自签证书
+// 只告警不报错——否则「装完包还没 start 过」时，连删除缓存区都会被证书
+// 缺失挡住（改动本身与证书无关）。
 func validatePatchedConfig(path string, patched []byte) error {
 	tmp := path + ".cache-check"
 	if err := os.WriteFile(tmp, patched, 0o644); err != nil {
 		return err
 	}
 	defer func() { _ = os.Remove(tmp) }()
-	return config.ValidateConfigFile(tmp)
+	_, err := config.ValidateConfigFileAsCandidate(tmp, filepath.Dir(path))
+	return err
 }
 
 // cleanValid 去空白与空项，保持书写顺序。

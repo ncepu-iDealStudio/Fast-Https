@@ -1,7 +1,7 @@
 {
   "log_root": "./logs",
   "cache": [
-    {"name": "edge", "path": "./cache", "valid": ["any:10s"], "max_size": 4096}
+    {"name": "default_cache", "path": "./cache", "valid": ["200:1h", "404:1m", "any:5m"], "max_size": 1073741824}
   ],
   "security": {
     "host_check": "off",

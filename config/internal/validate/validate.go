@@ -47,6 +47,20 @@ func ValidateConfigFileWithWarnings(configPath string) ([]string, error) {
 	return validateConfigAt(configPath, liveValidateOpts(filepath.Dir(configPath)))
 }
 
+// ValidateConfigFileAsCandidate 以候选树语义校验一个尚未落盘的配置文件：
+// include 与相对证书路径按 baseDir 解析，缺失的自动生成站点证书降级为告警。
+// 只改主配置的写入口（如 cache 命令）用它，避免「还没启动过、证书没生成」
+// 把与证书无关的改动一起挡掉。
+func ValidateConfigFileAsCandidate(configPath, baseDir string) ([]string, error) {
+	return validateConfigAt(configPath, validateOpts{
+		includeBase:      baseDir,
+		includeFallbacks: []string{"."},
+		treeRoot:         baseDir,
+		certBase:         baseDir,
+		certBases:        []string{baseDir},
+	})
+}
+
 // ValidateConfigTree 校验一棵候选目录：<root>/fast-https.json 与其 http.include。
 // include 与相对证书路径按 root 解析，不读线上 conf.d；证书若不在候选树里，
 // 再查额外的解析基准（线上配置目录）与运行期证书目录。

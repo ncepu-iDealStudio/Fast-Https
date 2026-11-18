@@ -114,6 +114,7 @@ func TestSetupUsesCustomWizard(t *testing.T) {
 		"[switch]$SelfTest", // 无头自检：XAML 与命名元素可加载
 		"$PreviewPng",       // 无头预览：调样式可截图
 		"'/S'",              // 静默引擎契约：安装/卸载都以 /S 调起自身
+		"-WorkingDirectory", // 装完启动应用时固定工作目录，避免锁住 dist/下载目录
 	} {
 		if !strings.Contains(wizard, want) {
 			t.Errorf("wizard.ps1 缺少约定项：%s", want)

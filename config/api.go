@@ -21,6 +21,12 @@ func ValidateConfigFileWithWarnings(path string) ([]string, error) {
 	return validate.ValidateConfigFileWithWarnings(path)
 }
 
+// ValidateConfigFileAsCandidate 按候选树语义校验未落盘的配置：缺失的
+// 自动生成证书只告警。供只改主配置的写入口使用。
+func ValidateConfigFileAsCandidate(path, baseDir string) ([]string, error) {
+	return validate.ValidateConfigFileAsCandidate(path, baseDir)
+}
+
 func ValidateConfigTree(root string, certBases ...string) ([]string, error) {
 	return validate.ValidateConfigTree(root, certBases...)
 }

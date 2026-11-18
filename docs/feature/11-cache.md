@@ -10,16 +10,16 @@
 ## 使用
 
 ```json
-// fast-https.json：缓存区可以定义多个
+// fast-https.json：缓存区可以定义多个；随包默认预置一个可共用的 default_cache
 "cache": [
-  { "name": "edge", "path": "./cache/edge", "valid": ["200:1h", "404:1m", "any:5m"], "max_size": 1073741824 }
+  { "name": "default_cache", "path": "./cache", "valid": ["200:1h", "404:1m", "any:5m"], "max_size": 1073741824 }
 ]
 ```
 
 ```json
 // conf.d/blog.json：站点只写缓存区名
 "location": [
-  { "url": "/", "type": "proxy", "proxy_pass": "http://127.0.0.1:8080", "proxy_cache": "edge" }
+  { "url": "/", "type": "proxy", "proxy_pass": "http://127.0.0.1:8080", "proxy_cache": "default_cache" }
 ]
 ```
 

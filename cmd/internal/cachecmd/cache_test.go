@@ -102,6 +102,27 @@ func TestCacheDeleteRefusesReferencedZone(t *testing.T) {
 	}
 }
 
+// 装完包还没 start 过、自签证书尚未生成时，缓存区的增删仍要可用：
+// 校验按候选树语义把证书缺失降级为告警，不能因为证书挡住无关改动。
+func TestCacheOpsTolerateMissingAutoCert(t *testing.T) {
+	mainPath, sites := writeEnv(t)
+	site := `{"listen": [80, "443 ssl h2"], "server_name": "localhost",
+  "ssl_certificate": "./cert/localhost.pem",
+  "ssl_certificate_key": "./cert/localhost-key.pem",
+  "location": [{"url": "/", "type": "local", "root": "./httpdoc/root"}]}`
+	if err := os.WriteFile(filepath.Join(sites, "default.json"), []byte(site), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := runCache(t, mainPath, "add", "--name", "default_cache",
+		"--path", "./cache", "--valid", "200:1h", "--valid", "any:5m"); err != nil {
+		t.Fatalf("证书未生成时添加缓存区不应失败: %v", err)
+	}
+	if _, err := runCache(t, mainPath, "delete", "default_cache"); err != nil {
+		t.Fatalf("证书未生成时删除缓存区不应失败: %v", err)
+	}
+}
+
 // 非法 valid 必须在写盘前被完整校验拦下。
 func TestCacheAddRejectsInvalidValid(t *testing.T) {
 	mainPath, _ := writeEnv(t)
