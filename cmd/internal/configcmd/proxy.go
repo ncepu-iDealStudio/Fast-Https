@@ -2,6 +2,7 @@ package configcmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"fast-https/cmd/internal/cli"
@@ -116,12 +117,17 @@ func runConfigProxySet(cmd *cobra.Command, _ []string) error {
 		fmt.Fprint(cmd.OutOrStdout(), string(patched))
 		return nil
 	}
-	// 完整校验在写盘之前：非法 CIDR、负数链长都在这里拦下。
-	if err := validatePatchedConfig(path, patched); err != nil {
-		return configInvalid("config.proxy", err)
-	}
-	if err := config.WriteProxySection(path, &section); err != nil {
-		return configInvalid("config.proxy", err)
+	// 与 site.* 一样走配置事务：候选树里改主配置 proxy 段，校验、恢复点、
+	// 原子切换与 operation 记录都由事务引擎负责。
+	if _, err := cli.RunSectionTxnCmd(cmd, "config.proxy", "config proxy",
+		map[string]string{"config": path}, func(candMain string) error {
+			body, err := config.PreviewProxySection(candMain, &section)
+			if err != nil {
+				return configInvalid("config.proxy", err)
+			}
+			return os.WriteFile(candMain, body, 0o644)
+		}); err != nil {
+		return err
 	}
 	if config.IsDefaultProxy(section) {
 		fmt.Fprintf(cmd.OutOrStdout(), "已清除 proxy 配置（%s）；下次 reload 或启动时生效\n", path)

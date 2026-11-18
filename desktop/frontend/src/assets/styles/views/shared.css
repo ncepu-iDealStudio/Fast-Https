@@ -220,6 +220,8 @@
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
 .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+/* 重置与查询是一组：都作用于筛选条件，放在筛选行末尾 */
+.filter-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
 .filter-toggle {
   display: inline-flex; align-items: center; gap: 4px;
   margin-bottom: 10px; padding: 0;

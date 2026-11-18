@@ -80,9 +80,6 @@ function statusLabel(code: string): string {
         @click="emit('pick-kind', k.key)"
       >{{ t(k.label) }}</button>
     </div>
-    <button class="icon-btn" :title="t('logs.reset')" @click="emit('reset')">
-      <RotateCcw :size="14" />
-    </button>
     <span class="logs-count mono">{{ statusText }}</span>
   </div>
 
@@ -103,7 +100,14 @@ function statusLabel(code: string): string {
     </select>
     <input :value="filters.pathPrefix" type="text" :placeholder="t('logs.pathPh')"
            @input="set('pathPrefix', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
-    <button class="icon-btn" :title="t('logs.apply')" @click="emit('apply')"><Search :size="14" /></button>
+    <span class="filter-actions">
+      <button class="icon-btn" :title="t('logs.reset')" @click="emit('reset')">
+        <RotateCcw :size="14" />
+      </button>
+      <button class="icon-btn" :title="t('logs.apply')" @click="emit('apply')">
+        <Search :size="14" />
+      </button>
+    </span>
   </div>
 
   <button class="filter-toggle" @click="emit('update:advanced', !advanced)">

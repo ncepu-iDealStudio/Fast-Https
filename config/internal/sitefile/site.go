@@ -143,25 +143,34 @@ func SiteDirsFromFile(path string) ([]string, error) {
 	if err := schema.Unmarshal(content, &root); err != nil {
 		return nil, fmt.Errorf("parse config json failed: %w", err)
 	}
-	return siteDirsFromInclude(root.HTTP.Include), nil
+	return siteDirsFromInclude(root.HTTP.Include, filepath.Dir(path)), nil
 }
 
 // siteDirsFromInclude 把 include 配置转成存在的目录绝对路径列表。
-func siteDirsFromInclude(includes []string) []string {
+// 相对路径先按主配置所在目录解析（自定义 --config 也能用），
+// 再回落到工作目录与运行期 ETC 基址。
+func siteDirsFromInclude(includes []string, baseDir string) []string {
 	var dirs []string
 	seen := make(map[string]struct{}, len(includes))
 	for _, includePath := range includes {
 		if strings.TrimSpace(includePath) == "" {
 			continue
 		}
-		fullPath := includePath
-		if !filepath.IsAbs(fullPath) {
-			if _, err := os.Stat(fullPath); err != nil {
-				fullPath = paths.ETCPath(includePath)
+		candidates := []string{includePath}
+		if !filepath.IsAbs(includePath) {
+			if baseDir != "" {
+				candidates = append(candidates, filepath.Join(baseDir, includePath))
+			}
+			candidates = append(candidates, paths.ETCPath(includePath))
+		}
+		fullPath := ""
+		for _, candidate := range candidates {
+			if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+				fullPath = candidate
+				break
 			}
 		}
-		info, err := os.Stat(fullPath)
-		if err != nil || !info.IsDir() {
+		if fullPath == "" {
 			continue
 		}
 		abs, err := filepath.Abs(fullPath)
@@ -196,7 +205,7 @@ func SnapshotServer(mainPath, name string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("parse config json failed: %w", err)
 	}
 
-	dirs := siteDirsFromInclude(root.HTTP.Include)
+	dirs := siteDirsFromInclude(root.HTTP.Include, filepath.Dir(mainPath))
 
 	// 先按站点名（文件名主干）找：site show 的参数就是 site init 用的名字，
 	// 与 server_name 不一定相同。

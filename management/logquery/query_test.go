@@ -275,6 +275,23 @@ func TestOutputTruncation(t *testing.T) {
 	}
 }
 
+// 应用还没启动、日志文件不存在时返回空结果，而不是 LOG_SOURCE_UNAVAILABLE。
+func TestMissingLogIsEmptyResult(t *testing.T) {
+	res, warnings, err := Run(Query{Dir: t.TempDir(), Kind: "access", Limit: 10})
+	if err != nil {
+		t.Fatalf("缺失日志文件不应报错：%v", err)
+	}
+	if len(res.Records) != 0 {
+		t.Fatalf("records = %+v，应为空", res.Records)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v，应为空", warnings)
+	}
+	if res.Source.File != logging.AccessLogName {
+		t.Fatalf("source = %q，应为 %q", res.Source.File, logging.AccessLogName)
+	}
+}
+
 func TestRejectSymlink(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "real.log")

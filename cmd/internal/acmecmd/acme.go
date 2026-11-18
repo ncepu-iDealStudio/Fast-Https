@@ -45,6 +45,7 @@ type acmeAnswers struct {
 // acmeOptions 是命令层可注入的运行时依赖，测试用它替换 stdin/stdout。
 type acmeOptions struct {
 	Path           string
+	RequestID      string
 	NonInteractive bool
 	DryRun         bool
 	// Accessible 强制 huh 走逐行问答模式。测试里用它避开 tty 检测，
@@ -134,8 +135,9 @@ func runAcmeSetup(cmd *cobra.Command) error {
 
 	plain, _ := flags.GetBool("plain")
 	opts := acmeOptions{
-		Path:   path,
-		DryRun: dryRun,
+		Path:      path,
+		RequestID: cli.EnsureRequestID(cmd),
+		DryRun:    dryRun,
 		// --plain 强制走逐行问答：一题一行，适合脚本录制或不喜欢全屏 TUI 的场景。
 		Accessible: plain,
 		// 标准输入不是终端（systemd、容器、管道）时无法交互，
@@ -184,7 +186,22 @@ func setupACME(answers acmeAnswers, opts acmeOptions) error {
 		return nil
 	}
 
-	if err := config.WriteACMESection(opts.Path, cfg); err != nil {
+	// 与 site.*、cache、config 段走同一条配置事务：校验、恢复点、原子切换
+	// 与 operation 记录都由事务引擎负责。
+	if _, err := cli.RunSectionTxn(cli.SectionTxnInput{
+		LiveMain:  opts.Path,
+		RequestID: opts.RequestID,
+		ID:        "acme.setup",
+		Summary:   "acme setup",
+		Args:      map[string]string{"config": opts.Path},
+		Mutate: func(candMain string) error {
+			patched, err := config.PreviewACMESection(candMain, cfg)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(candMain, patched, 0o644)
+		},
+	}); err != nil {
 		return err
 	}
 	fmt.Fprintf(opts.Out, "acme 配置已写入 %s\n", opts.Path)

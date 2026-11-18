@@ -30,6 +30,10 @@
 CLI：`fast-https cache list / add / update / delete`；`site add|update --cache-zone <区名>`。
 桌面端：左侧「缓存区」页。
 
+缓存区的增删改走配置事务（候选树校验、恢复点、原子切换），并与站点、配置
+变更一样登记 operation 记录（`cache.add` / `cache.update` / `cache.delete`），
+可在 `operation list` 与桌面端「操作记录」里查到；`list` 与 `--dry-run` 不产生记录。
+
 ## 实现方案（modules/cache/、modules/proxy/cache.go）
 
 - **键**：`区名|$host$request_uri` 取 MD5（`GetMd5`）；按 MD5 尾部两位分目录存储，避免单目录文件爆炸。区名前缀保证两个区即使 URI 相同也不会互相命中。

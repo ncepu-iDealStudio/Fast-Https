@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"fast-https/config"
+	"fast-https/management/operation"
+	"fast-https/management/state"
 )
 
 // writeEnv 写一个带 include 目录的最小主配置（一个内联站点，无缓存区）。
@@ -120,6 +122,35 @@ func TestCacheOpsTolerateMissingAutoCert(t *testing.T) {
 	}
 	if _, err := runCache(t, mainPath, "delete", "default_cache"); err != nil {
 		t.Fatalf("证书未生成时删除缓存区不应失败: %v", err)
+	}
+}
+
+// 缓存区写操作要留 operation 记录：桌面端「操作记录」与 operation list 都读它。
+func TestCacheOpsAreRecorded(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("FASTHTTPS_STATE_DIR", stateDir)
+	mainPath, _ := writeEnv(t)
+
+	if _, err := runCache(t, mainPath, "add", "--name", "default_cache",
+		"--path", "./cache", "--valid", "200:1h"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runCache(t, mainPath, "delete", "default_cache"); err != nil {
+		t.Fatal(err)
+	}
+
+	recs, err := operation.Store{Dir: state.Dir{Root: stateDir}}.List(operation.ListFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, r := range recs {
+		got[r.Command] = r.Status
+	}
+	for _, id := range []string{"cache.add", "cache.delete"} {
+		if got[id] != operation.StatusSucceeded {
+			t.Fatalf("%s 记录缺失或状态不对：%+v", id, got)
+		}
 	}
 }
 

@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"fast-https/cmd/internal/cli"
+	"fast-https/management/operation"
+	"fast-https/management/state"
 )
 
 // proxyFixture 造一份能通过完整校验的主配置。
@@ -37,6 +39,32 @@ func runProxy(t *testing.T, args ...string) (string, error) {
 	cmd.SetArgs(args)
 	err := cmd.Execute()
 	return out.String(), err
+}
+
+// 文本级写命令也要留 operation 记录，与 site.* 事务命令一样能在
+// 桌面端「操作记录」和 operation list 里查到。
+func TestConfigProxyIsRecorded(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("FASTHTTPS_STATE_DIR", stateDir)
+	main := proxyFixture(t)
+
+	if _, err := runProxy(t, "--config", main, "--max-hops", "5"); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := operation.Store{Dir: state.Dir{Root: stateDir}}.List(operation.ListFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range recs {
+		if r.Command != "config.proxy" {
+			continue
+		}
+		if r.Status != operation.StatusSucceeded {
+			t.Fatalf("config.proxy 状态 = %s，记录为 %+v", r.Status, r)
+		}
+		return
+	}
+	t.Fatalf("没有 config.proxy 记录：%+v", recs)
 }
 
 func TestConfigProxySetShowAndClear(t *testing.T) {

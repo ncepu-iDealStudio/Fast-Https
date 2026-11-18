@@ -3,7 +3,6 @@ package cachecmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -180,7 +179,7 @@ func runAdd(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	zones = append(zones, config.CacheZone{Name: name, Path: strings.TrimSpace(dir), Valid: valid, MaxSize: maxSize})
-	return commit(cmd, "cache.add", path, zones, dry)
+	return commit(cmd, "cache.add", "cache add "+name, path, zones, dry)
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
@@ -230,7 +229,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return &cli.CLIError{Code: cli.CodeNotFound, Command: "cache.update",
 			Message: fmt.Sprintf("cache zone %q not found", name)}
 	}
-	return commit(cmd, "cache.update", path, zones, dry)
+	return commit(cmd, "cache.update", "cache update "+name, path, zones, dry)
 }
 
 func runDelete(cmd *cobra.Command, args []string) error {
@@ -266,11 +265,14 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		return &cli.CLIError{Code: cli.CodeConflict, Command: "cache.delete",
 			Message: fmt.Sprintf("cache zone %q is still referenced by: %s", name, strings.Join(refs, "; "))}
 	}
-	return commit(cmd, "cache.delete", path, out, dry)
+	return commit(cmd, "cache.delete", "cache delete "+name, path, out, dry)
 }
 
 // commit 校验并写入缓存区列表；dry-run 只打印改写后的配置。
-func commit(cmd *cobra.Command, id, path string, zones []config.CacheZone, dry bool) error {
+//
+// 非 dry-run 走配置事务：候选树里改主配置 cache 段，校验、恢复点、原子切换
+// 与 operation 记录都由事务引擎负责，和 site.* 是同一条链路。
+func commit(cmd *cobra.Command, id, summary, path string, zones []config.CacheZone, dry bool) error {
 	patched, err := config.PreviewCacheZones(path, zones)
 	if err != nil {
 		return configInvalid(id, err)
@@ -282,33 +284,34 @@ func commit(cmd *cobra.Command, id, path string, zones []config.CacheZone, dry b
 		fmt.Fprint(cmd.OutOrStdout(), string(patched))
 		return nil
 	}
-	// 写盘前跑一遍完整校验：重复区名、站点引用未知区、非法 valid 都在这里拦下。
-	if err := validatePatchedConfig(path, patched); err != nil {
-		return configInvalid(id, err)
-	}
-	if err := config.WriteCacheZones(path, zones); err != nil {
-		return configInvalid(id, err)
-	}
-	if cli.JSONMode(cmd) {
-		return cli.EmitOK(cmd, id, map[string]any{"config": path, "zones": zones}, nil)
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "缓存区已写入 %s；下次 reload 或启动时生效\n", path)
-	return nil
-}
 
-// validatePatchedConfig 把改写结果写成同目录临时文件后跑完整校验。
-//
-// 用候选树语义：include 与相对证书路径按配置目录解析，还没生成的自签证书
-// 只告警不报错——否则「装完包还没 start 过」时，连删除缓存区都会被证书
-// 缺失挡住（改动本身与证书无关）。
-func validatePatchedConfig(path string, patched []byte) error {
-	tmp := path + ".cache-check"
-	if err := os.WriteFile(tmp, patched, 0o644); err != nil {
+	res, err := cli.RunSectionTxnCmd(cmd, id, summary,
+		map[string]string{"config": path, "zones": fmt.Sprintf("%v", zones)},
+		func(candMain string) error {
+			body, err := config.PreviewCacheZones(candMain, zones)
+			if err != nil {
+				return configInvalid(id, err)
+			}
+			return os.WriteFile(candMain, body, 0o644)
+		})
+	if err != nil {
 		return err
 	}
-	defer func() { _ = os.Remove(tmp) }()
-	_, err := config.ValidateConfigFileAsCandidate(tmp, filepath.Dir(path))
-	return err
+
+	data := map[string]any{
+		"config":        path,
+		"zones":         zones,
+		"operation_id":  res.Operation.ID,
+		"status":        res.Operation.Status,
+		"restore_point": res.RestorePoint,
+		"version":       res.Version,
+	}
+	if cli.JSONMode(cmd) {
+		return cli.EmitOK(cmd, id, data, res.Warnings)
+	}
+	cli.PrintWarnings(cmd.ErrOrStderr(), res.Warnings)
+	fmt.Fprintf(cmd.OutOrStdout(), "缓存区已写入 %s；下次 reload 或启动时生效\n", path)
+	return nil
 }
 
 // cleanValid 去空白与空项，保持书写顺序。

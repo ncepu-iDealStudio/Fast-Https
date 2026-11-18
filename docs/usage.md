@@ -737,15 +737,15 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 | 6 | `OPERATION_FAILED`、`RECOVERY_REQUIRED` | 操作失败；恢复失败需人工处理 |
 | 7 | `OPERATION_UNKNOWN` | 状态未知，需查询 operation |
 | 8 | `TIMEOUT` | 超时 |
-| 9 | `NOT_FOUND`、`LOG_SOURCE_UNAVAILABLE` | 资源不存在；日志文件不存在或是符号链接 |
+| 9 | `NOT_FOUND`、`LOG_SOURCE_UNAVAILABLE` | 资源不存在；日志源不可读（如符号链接；文件不存在按空结果处理） |
 | 10 | `CONFLICT`、`REQUEST_ID_CONFLICT` | 冲突 / 幂等键冲突 |
 | 11 | `UNMET_DEPENDENCY`、`NOT_SUPPORTED` | 依赖或环境不满足 / 功能未实现 |
 
-管理类命令按这张表退出。例如配置校验失败是 5，站点或日志文件不存在是 9。旧的 `start` / `stop` / `reload` / `status` 仍用原来的文本和退出码。
+管理类命令按这张表退出。例如配置校验失败是 5，站点文件不存在是 9；日志文件不存在按空结果返回（退出 0）。旧的 `start` / `stop` / `reload` / `status` 仍用原来的文本和退出码。
 
 ### 10.3 `--request-id`、operation 与 SSH 断线
 
-`service reload`、`config apply`、`config rollback`、`site add`、`site update`、`site delete`、`site enable`、`site disable` 会在状态目录写下一条 operation。`--request-id` 由调用方提供：
+`service reload`、`config apply`、`config rollback`、`config proxy`、`config tls`、`acme setup`、`cache add`、`cache update`、`cache delete`、`site add`、`site update`、`site delete`、`site enable`、`site disable` 都会在状态目录写下一条 operation。`--request-id` 由调用方提供：
 
 - 相同的 `--request-id` 加上相同参数：返回已有 operation，不重复执行。
 - 相同的 `--request-id` 但参数不同：退出码 10，错误码 `REQUEST_ID_CONFLICT`。

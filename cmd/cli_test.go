@@ -1445,18 +1445,23 @@ func TestPromptInjectionLogIsData(t *testing.T) {
 	}
 }
 
-func TestMissingLogUnavailable(t *testing.T) {
+// 应用还没启动、日志文件不存在时按空结果处理；建出空文件后同样为空。
+func TestMissingLogIsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	cfg := writeLogConfig(t, dir)
 
 	out, _, code := runCLI(t, "logs", "access", "--config", cfg, "--json")
-	if code != 9 {
+	if code != 0 {
 		t.Fatalf("文件不存在 exit = %d\n%s", code, out)
 	}
 	doc := decodeOneDocument(t, out)
-	errObj, _ := doc["error"].(map[string]any)
-	if errObj["code"] != "LOG_SOURCE_UNAVAILABLE" {
-		t.Fatalf("error = %v", doc["error"])
+	if ok, _ := doc["ok"].(bool); !ok {
+		t.Fatalf("文件不存在应返回成功封套：%v", doc)
+	}
+	data, _ := doc["data"].(map[string]any)
+	records, _ := data["records"].([]any)
+	if len(records) != 0 {
+		t.Fatalf("文件不存在应返回空列表：%v", records)
 	}
 
 	if err := os.WriteFile(filepath.Join(dir, logging.AccessLogName), nil, 0o644); err != nil {
@@ -1467,8 +1472,8 @@ func TestMissingLogUnavailable(t *testing.T) {
 		t.Fatalf("空文件 exit = %d\n%s", code, out)
 	}
 	doc = decodeOneDocument(t, out)
-	data, _ := doc["data"].(map[string]any)
-	records, _ := data["records"].([]any)
+	data, _ = doc["data"].(map[string]any)
+	records, _ = data["records"].([]any)
 	if len(records) != 0 {
 		t.Fatalf("空文件应返回空列表：%v", records)
 	}

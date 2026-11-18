@@ -975,8 +975,9 @@ systemd 依赖它们的文本输出。
   | `truncated` | bool | `scan_truncated \|\| output_truncated \|\| 任一字段被截断` |
   | `limit` | int | 归一化后的 limit（回显） |
 - **不含原始行、不含 user_agent**；结果只含固定白名单字段。Bearer/Basic 凭据与
-  查询串秘密脱敏。非 JSON 行跳过并 warning。日志文件不存在或为符号链接 →
-  `LOG_SOURCE_UNAVAILABLE`（9）；过滤条件非法 → `USAGE_ERROR`（2）；无权限 →
+  查询串秘密脱敏。非 JSON 行跳过并 warning。日志文件不存在按空结果返回
+  （`ok:true`、`records:[]`，退出 0）——应用还没启动时就是这种状态；符号链接 →
+  `LOG_SOURCE_UNAVAILABLE`（9）。过滤条件非法 → `USAGE_ERROR`（2）；无权限 →
   `PERMISSION_DENIED`（3）。
 
 ### 7.1 `logs access`
@@ -1108,8 +1109,11 @@ systemd 依赖它们的文本输出。
   - `delete <name>`：`--dry-run`
 - **data JSON**：
   - `list`：`{"zones":[{name,path,valid,max_size}], "config":"<path>"}`
-  - `add` / `update` / `delete`：`{"config":"<path>", "zones":[...]}`
+  - `add` / `update` / `delete`：`{"config":"<path>", "zones":[...], "operation_id":"op_...", "status":"succeeded", "restore_point":"v001", "version":"v002"}`
   - `--dry-run`：`{"dry_run":true, "config":"<改写后的全文>"}`
-- **行为要点**：写盘前按主配置跑一遍完整校验；`delete` 仍被站点 location
-  引用时返回 `CONFLICT`（10），message 里列出引用位置；`--valid` 为空会被
-  拒绝——没有有效期的缓存区不会缓存任何响应。
+- **行为要点**：三个写命令走配置事务：候选树校验、恢复点、原子切换与
+  operation 记录都由事务引擎负责，与 `site.*` 同一条链路。写盘前按主配置
+  跑一遍完整校验；`delete` 仍被站点 location 引用时返回 `CONFLICT`（10），
+  message 里列出引用位置；`--valid` 为空会被拒绝——没有有效期的缓存区不会
+  缓存任何响应。非 dry-run 的写命令可在 `operation list` 或桌面端「操作记录」
+  里查到。

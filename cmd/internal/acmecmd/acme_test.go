@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fast-https/config"
 	"fast-https/modules/certmanager"
+	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,19 +41,40 @@ func (r *lineReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// tempACMEConfig 复制一份随包默认配置到临时目录，测试只改副本。
+// tempACMEConfig 造一份能通过完整事务校验的临时配置树：主配置复制随包默认值，
+// 另补一个 conf.d 站点（事务会连同 include 目录一起复制/校验）。
 func tempACMEConfig(t *testing.T) string {
 	t.Helper()
-	// TestMain 已把工作目录切到仓库根，这里直接用仓库相对路径。
 	raw, err := os.ReadFile(filepath.Join("config", "fast-https.json"))
 	if err != nil {
 		t.Fatalf("read default config: %v", err)
 	}
-	path := filepath.Join(t.TempDir(), "fast-https.json")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fast-https.json")
 	if err := os.WriteFile(path, raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	sites := filepath.Join(dir, "conf.d")
+	if err := os.MkdirAll(sites, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	site := fmt.Sprintf(`{"listen": %d, "server_name": "acme.local",
+  "location": [{"url": "/", "type": "local", "root": "."}]}`, freePort(t))
+	if err := os.WriteFile(filepath.Join(sites, "default.json"), []byte(site), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	return path
+}
+
+// freePort 预留一个空闲端口，避免候选树预检与机器上已有服务冲突。
+func freePort(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	return ln.Addr().(*net.TCPAddr).Port
 }
 
 // readAcmeSection 解析写出的文件。这里不用 config.ValidateConfigFile：

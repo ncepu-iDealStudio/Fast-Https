@@ -189,6 +189,17 @@ func Run(q Query) (Result, []string, error) {
 	path := filepath.Join(q.Dir, fileName)
 	f, size, err := openLog(path, fileName)
 	if err != nil {
+		var src *SourceError
+		// 应用还没启动、日志文件尚未产生：这是正常状态，返回空结果而不是
+		// LOG_SOURCE_UNAVAILABLE。符号链接等真正不能读的源仍然报错。
+		if errors.As(err, &src) && src.Kind == "missing" {
+			return Result{
+				Records:   []Record{},
+				Source:    Source{File: fileName},
+				TimeRange: Range{Since: since},
+				Limit:     limit,
+			}, warnings, nil
+		}
 		return Result{}, nil, err
 	}
 	defer f.Close()

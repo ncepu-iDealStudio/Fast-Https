@@ -74,12 +74,17 @@ func runConfigTLSSet(cmd *cobra.Command, _ []string) error {
 		fmt.Fprint(cmd.OutOrStdout(), string(patched))
 		return nil
 	}
-	// 完整校验在写盘之前：证书/私钥不存在、include 写坏都在这里拦下。
-	if err := validatePatchedConfig(path, patched); err != nil {
-		return configInvalid("config.tls", err)
-	}
-	if err := config.WriteTLSSection(path, section); err != nil {
-		return configInvalid("config.tls", err)
+	// 与 site.* 一样走配置事务：候选树里改主配置 tls 段，校验、恢复点、
+	// 原子切换与 operation 记录都由事务引擎负责。
+	if _, err := cli.RunSectionTxnCmd(cmd, "config.tls", "config tls",
+		map[string]string{"config": path}, func(candMain string) error {
+			body, err := config.PreviewTLSSection(candMain, section)
+			if err != nil {
+				return configInvalid("config.tls", err)
+			}
+			return os.WriteFile(candMain, body, 0o644)
+		}); err != nil {
+		return err
 	}
 	if cert == "" {
 		fmt.Fprintf(cmd.OutOrStdout(), "已清除 tls.default_certificate（%s）；下次 reload 或启动时生效\n", path)
@@ -100,20 +105,6 @@ func runConfigTLSShow(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "certificate: %s\nkey:         %s\n", c.DefaultCertificate.Certificate, c.DefaultCertificate.Key)
-	return nil
-}
-
-// validatePatchedConfig 把改写结果写成同目录临时文件后跑完整校验，
-// 这样相对路径（证书、include）与线上文件的解析基准一致。
-func validatePatchedConfig(path string, patched []byte) error {
-	tmp := path + ".tls-check"
-	if err := os.WriteFile(tmp, patched, 0o644); err != nil {
-		return err
-	}
-	defer func() { _ = os.Remove(tmp) }()
-	if err := config.ValidateConfigFile(tmp); err != nil {
-		return err
-	}
 	return nil
 }
 
