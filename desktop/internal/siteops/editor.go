@@ -153,6 +153,10 @@ func planAdd(in SiteInput) ([][]string, error) {
 	add = append(add, zipArgs(zip)...)
 	add = append(add, "--zip-min-length", strconv.Itoa(minLen))
 	add = append(add, zipSkipTypesArgs(skip)...)
+	if zone := strings.TrimSpace(in.CacheZone); zone != "" {
+		// 缓存区随 site add 一起写入：区名写错时建站直接失败，不会留下半个站点。
+		add = append(add, "--cache-zone", zone)
+	}
 	if p.tls {
 		add = append(add, "--tls")
 	}
@@ -331,10 +335,8 @@ func fillAdvanced(d *SiteDetail, loc map[string]any) {
 		d.AuthRealm = cli.Str(auth, "realm")
 	}
 
-	if cache := cli.AsMap(loc["proxy_cache"]); cache != nil {
-		d.CachePath = cli.Str(cache, "path")
-		d.CacheValid = cli.Strs(cache, "valid")
-		d.CacheMaxSize = cli.Int(cache, "max_size")
+	if zone, ok := loc["proxy_cache"].(string); ok {
+		d.CacheZone = strings.TrimSpace(zone)
 	}
 }
 
@@ -435,9 +437,8 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 		changed = true
 	}
 
-	if cur.CachePath != in.CachePath || !sameStringSet(cur.CacheValid, in.CacheValid) ||
-		cur.CacheMaxSize != in.CacheMaxSize {
-		args = append(args, cacheArgs(in)...)
+	if strings.TrimSpace(cur.CacheZone) != strings.TrimSpace(in.CacheZone) {
+		args = append(args, cacheZoneArgs(in)...)
 		changed = true
 	}
 
@@ -462,12 +463,12 @@ func advancedArgs(in SiteInput) []string {
 	}
 	args = append(args, limitArgs(in)...)
 	args = append(args, authArgs(in)...)
-	args = append(args, cacheArgs(in)...)
+	args = append(args, cacheZoneArgs(in)...)
 	return args
 }
 
-// nonZipAdvancedArgs 是 advancedArgs 里除压缩以外的部分。
-// 新建站点时压缩直接随 site add 写入，剩下的字段才需要补 site update。
+// nonZipAdvancedArgs 是 advancedArgs 里除压缩与缓存区以外的部分。
+// 新建站点时压缩与缓存区直接随 site add 写入，剩下的字段才需要补 site update。
 func nonZipAdvancedArgs(in SiteInput) []string {
 	var args []string
 	if p := strings.TrimSpace(in.SymlinkPolicy); p != "" {
@@ -475,15 +476,14 @@ func nonZipAdvancedArgs(in SiteInput) []string {
 	}
 	args = append(args, limitArgs(in)...)
 	args = append(args, authArgs(in)...)
-	args = append(args, cacheArgs(in)...)
 	return args
 }
 
-// hasNonZipAdvanced 报告除压缩外是否还填了高级配置。
+// hasNonZipAdvanced 报告除压缩与缓存区外是否还填了高级配置。
 func hasNonZipAdvanced(in SiteInput) bool {
 	return strings.TrimSpace(in.SymlinkPolicy) != "" ||
 		in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
-		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CachePath) != ""
+		in.LimitNodelay || in.AuthOn
 }
 
 // hasAdvanced 报告用户是否在弹窗里填过任何高级配置。
@@ -492,7 +492,7 @@ func hasAdvanced(in SiteInput) bool {
 	return len(in.Zip) > 0 || in.ZipMinLength > 0 || len(in.ZipSkipTypes) > 0 ||
 		strings.TrimSpace(in.SymlinkPolicy) != "" ||
 		in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
-		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CachePath) != ""
+		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CacheZone) != ""
 }
 
 // zipArgs 生成响应压缩参数。空列表用 --zip= 表示清除，
@@ -542,22 +542,13 @@ func limitArgs(in SiteInput) []string {
 	return args
 }
 
-// cacheArgs 生成反向代理缓存参数。目录留空表示清除整块 proxy_cache。
-func cacheArgs(in SiteInput) []string {
-	path := strings.TrimSpace(in.CachePath)
-	if path == "" {
-		return []string{"--cache-path="}
+// cacheZoneArgs 生成反向代理缓存参数。区名留空表示清除 proxy_cache。
+func cacheZoneArgs(in SiteInput) []string {
+	zone := strings.TrimSpace(in.CacheZone)
+	if zone == "" {
+		return []string{"--cache-zone="}
 	}
-	args := []string{"--cache-path", path}
-	for _, v := range in.CacheValid {
-		if s := strings.TrimSpace(v); s != "" {
-			args = append(args, "--cache-valid", s)
-		}
-	}
-	if in.CacheMaxSize > 0 {
-		args = append(args, "--cache-max-size", strconv.Itoa(in.CacheMaxSize))
-	}
-	return args
+	return []string{"--cache-zone", zone}
 }
 
 // planAuth 处理 Basic 认证：关掉时清空四个值，开着时只在密码真的变了才传

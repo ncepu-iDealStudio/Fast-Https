@@ -15,7 +15,7 @@ type (
 	Server          = model.Server
 	Path            = model.Path
 	Header          = model.Header
-	Cache           = model.Cache
+	CacheZone       = model.CacheZone
 	PathAuth        = model.PathAuth
 	PathLimit       = model.PathLimit
 	ServerLimit     = model.ServerLimit

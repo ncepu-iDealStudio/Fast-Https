@@ -180,40 +180,38 @@ func readEntryHead(realPath string) (CacheHead, string, int, error) {
 	return head.Head, head.FirstLine, head.Size, nil
 }
 
-// LoadCache 在启动时扫描配置里的缓存目录，重建内存索引。
+// LoadCache 在启动时扫描主配置里的缓存区目录，重建内存索引。
 func (CC *CacheContainer) LoadCache() {
 	now := int(time.Now().Unix())
-	for _, server := range config.Current().Servers {
-		for _, path := range server.Path {
-			if path.ProxyCache.Path == "" {
-				continue
-			}
-			files, err := GetDirFiles(path.ProxyCache.Path)
+	for _, zone := range config.Current().Cache {
+		if zone.Path == "" {
+			continue
+		}
+		files, err := GetDirFiles(zone.Path)
+		if err != nil {
+			logging.PrintWarn("proxy cache scan failed: ", err)
+			continue
+		}
+		for _, file := range files {
+			head, firstLine, size, err := readEntryHead(file)
 			if err != nil {
-				logging.PrintWarn("proxy cache scan failed: ", err)
+				logging.PrintWarn("proxy cache skip unreadable file: ", err)
 				continue
 			}
-			for _, file := range files {
-				head, firstLine, size, err := readEntryHead(file)
-				if err != nil {
-					logging.PrintWarn("proxy cache skip unreadable file: ", err)
-					continue
-				}
-				// 旧格式条目没有可回放的响应行，丢弃而不进索引。
-				if firstLine == "" || head.Md5 == "" {
-					continue
-				}
-				// 已过期条目不得进索引：Touch 的读即续期会在首次命中时
-				// 把它刷新成"永不过期"，陈旧内容将被无限回放。顺手删掉
-				// 磁盘文件，避免它每次重启都被重新扫出来。
-				if head.Expire <= now {
-					RemoveFromDisk(CacheNode(head))
-					continue
-				}
-				node := CacheNode(head)
-				CC.Index.Set(&node)
-				CC.admit(node.Md5, size, 0)
+			// 旧格式条目没有可回放的响应行，丢弃而不进索引。
+			if firstLine == "" || head.Md5 == "" {
+				continue
 			}
+			// 已过期条目不得进索引：Touch 的读即续期会在首次命中时
+			// 把它刷新成"永不过期"，陈旧内容将被无限回放。顺手删掉
+			// 磁盘文件，避免它每次重启都被重新扫出来。
+			if head.Expire <= now {
+				RemoveFromDisk(CacheNode(head))
+				continue
+			}
+			node := CacheNode(head)
+			CC.Index.Set(&node)
+			CC.admit(node.Md5, size, 0)
 		}
 	}
 }

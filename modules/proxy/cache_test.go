@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fast-https/config"
 	"fast-https/core"
 	"fast-https/modules/cache"
 	"fast-https/runtime/request"
@@ -10,7 +11,7 @@ import (
 
 func TestStoreSkipsNonCacheableMethod(t *testing.T) {
 	dir := t.TempDir()
-	pc := NewProxyCache("$request_uri", []string{"any:1h"}, dir, nil, 0)
+	pc := NewProxyCache(config.CacheZone{Name: "z", Path: dir, Valid: []string{"any:1h"}})
 	ev := &core.Event{RR: core.RRcircle{
 		Req: &request.Request{Method: "POST", Headers: map[string]string{}},
 		Res: &response.Response{
@@ -43,7 +44,7 @@ func TestExpireFor(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			pc := NewProxyCache("$host$request_uri", c.valid, "./cache", nil, 0)
+			pc := NewProxyCache(config.CacheZone{Name: "z", Path: "./cache", Valid: c.valid})
 			if got := pc.ExpireFor(c.status); got != c.want {
 				t.Errorf("ExpireFor(%d) = %d, want %d", c.status, got, c.want)
 			}
@@ -51,30 +52,21 @@ func TestExpireFor(t *testing.T) {
 	}
 }
 
+// 方法固定为 GET / HEAD：缓存区是共享的，不能让 PUT/POST 污染。
 func TestMethodAllowed(t *testing.T) {
-	cases := []struct {
-		name    string
-		methods []string
-		method  string
-		want    bool
-	}{
-		{"default allows GET", nil, "GET", true},
-		{"default allows HEAD", nil, "HEAD", true},
-		{"default matches case-insensitively", nil, "get", true},
-		{"default rejects POST", nil, "POST", false},
-		{"default rejects PUT", nil, "PUT", false},
-		{"default rejects DELETE", nil, "DELETE", false},
-		{"configured allows POST", []string{"GET", "POST"}, "POST", true},
-		{"configured still rejects PUT", []string{"GET", "POST"}, "PUT", false},
-		{"configured tolerates spaces", []string{" get "}, "GET", true},
+	pc := &ProxyCache{}
+	cases := map[string]bool{
+		"GET":    true,
+		"HEAD":   true,
+		"get":    true,
+		"POST":   false,
+		"PUT":    false,
+		"DELETE": false,
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			pc := NewProxyCache("k", nil, "./cache", c.methods, 0)
-			if got := pc.methodAllowed(c.method); got != c.want {
-				t.Errorf("methodAllowed(%q) = %v, want %v", c.method, got, c.want)
-			}
-		})
+	for method, want := range cases {
+		if got := pc.methodAllowed(method); got != want {
+			t.Errorf("methodAllowed(%q) = %v, want %v", method, got, want)
+		}
 	}
 }
 

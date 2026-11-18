@@ -74,7 +74,7 @@ systemd 236+ 在启动前按 `User=` 建好目录并设属主权限，停止时�
 | 配置字段 | 基准 |
 | --- | --- |
 | `ssl_certificate`、`ssl_certificate_key`、`http.include`、`acme.storage` | ETC 目录 |
-| `location[].root`、`error_page`、`proxy_cache.path` | DATA 目录 |
+| `location[].root`、`error_page`、`cache[].path` | DATA 目录 |
 | `log_root` | 工作目录（默认值来自 `DEFAULT_LOG_ROOT` 常量，通常不用写） |
 
 1.5.0 的配置把路径写成 `./config/cert/x.pem`。拆掉安装根下的 `config` 层后，这些文本会多出一级前缀，`absPathIn` 会在目标不存在时自动剥掉 `config/` 再试一次，所以老配置不用改。

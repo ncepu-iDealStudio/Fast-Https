@@ -62,11 +62,13 @@ type AddInput struct {
 	Zip          *[]string
 	ZipMinLength *int
 	ZipSkipTypes *[]string
+	// CacheZone 是主配置 cache 段里的缓存区名；空串表示不启用缓存。
+	CacheZone string
 }
 
 // UpdateInput 是 site update 的白名单字段。未设置的指针表示不改。
 //
-// Zip / Limit / Auth / Cache 作用于站点的第一个 location（主 location）。
+// Zip / Limit / Auth / CacheZone 作用于站点的第一个 location（主 location）。
 // 它们用指针表达三态：nil 不改；指向零值表示清除该配置；指向有值则写入。
 type UpdateInput struct {
 	Name       string
@@ -82,7 +84,8 @@ type UpdateInput struct {
 	ZipSkipTypes *[]string
 	Limit        *config.PathLimit
 	Auth         *config.PathAuth
-	Cache        *config.Cache
+	// CacheZone 三态：nil 不改；指向空串表示关闭缓存；否则写入缓存区名。
+	CacheZone *string
 	// SymlinkPolicy 三态：nil 不改；指向空串表示回到默认策略；否则写入取值。
 	SymlinkPolicy *string
 	Banned        []string
@@ -310,6 +313,7 @@ func Add(dirs []string, in AddInput) (string, error) {
 		loc.Index = []string{"index.html", "index.htm"}
 		loc.SymlinkPolicy = policy
 	}
+	loc.ProxyCache = strings.TrimSpace(in.CacheZone)
 	// 压缩同时作用于静态与代理响应，两种站点都写入默认值。
 	zip, minLen, skip, err := addCompression(in)
 	if err != nil {
@@ -516,7 +520,7 @@ func validMIMEPattern(v string) bool {
 // 这里遇到空串或 "***" 就保留文件里的原密码，避免把真实口令写成星号。
 func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
 	if in.Zip == nil && in.ZipMinLength == nil && in.ZipSkipTypes == nil &&
-		in.Limit == nil && in.Auth == nil && in.Cache == nil && in.SymlinkPolicy == nil {
+		in.Limit == nil && in.Auth == nil && in.CacheZone == nil && in.SymlinkPolicy == nil {
 		return nil
 	}
 	loc := primaryLoc(cur)
@@ -592,17 +596,10 @@ func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
 		}
 	}
 
-	if in.Cache != nil {
-		v := *in.Cache
-		v.Path = strings.TrimSpace(v.Path)
-		if v.Path == "" && len(v.Valid) == 0 && v.MaxSize == 0 {
-			loc.Cache = &config.Cache{} // 全空 = 关闭缓存
-		} else {
-			if v.Path == "" {
-				return fmt.Errorf("%w: --cache-path is required when enabling proxy cache", ErrUsage)
-			}
-			loc.Cache = &v
-		}
+	if in.CacheZone != nil {
+		// 只写缓存区名；目录、容量与有效期都在主配置 cache 段里。
+		// 空串表示关闭缓存，补丁会删掉 proxy_cache 键。
+		loc.ProxyCache = strings.TrimSpace(*in.CacheZone)
 	}
 
 	return nil

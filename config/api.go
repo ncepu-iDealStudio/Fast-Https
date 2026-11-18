@@ -2,6 +2,7 @@ package config
 
 import (
 	"fast-https/config/internal/acme"
+	"fast-https/config/internal/cacheconf"
 	"fast-https/config/internal/loader"
 	"fast-https/config/internal/paths"
 	"fast-https/config/internal/proxyconf"
@@ -65,6 +66,22 @@ func ReadProxySection(path string) (ProxyConfig, error) { return proxyconf.ReadP
 
 // IsDefaultProxy 报告 proxy 段是否等价于未配置；与写入时的删段判断共用同一逻辑。
 func IsDefaultProxy(c ProxyConfig) bool { return proxyconf.IsDefault(c) }
+
+// cache 段读写：缓存区在主配置定义，站点用 proxy_cache 引用区名。
+func ReadCacheZones(path string) ([]CacheZone, error) { return cacheconf.ReadCacheZones(path) }
+
+func PreviewCacheZones(path string, zones []CacheZone) ([]byte, error) {
+	return cacheconf.PreviewCacheZones(path, zones)
+}
+
+func WriteCacheZones(path string, zones []CacheZone) error {
+	return cacheconf.WriteCacheZones(path, zones)
+}
+
+// CacheZoneRefs 列出引用某个缓存区的站点位置，供删除前检查。
+func CacheZoneRefs(mainPath, zone string) ([]string, error) {
+	return cacheconf.CacheZoneRefs(mainPath, zone)
+}
 
 // 只读扫描。
 func ListenPortsFromFile(path string) ([]int, error) { return scan.ListenPortsFromFile(path) }

@@ -5,41 +5,41 @@
 
 /* ---------------------------------------------------------------- 分区 */
 .fset {
-  padding: 4px 0 12px;
+  padding: 6px 0 16px;
   border-bottom: 1px solid var(--line);
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
-.fset:last-of-type { border-bottom: 0; }
+.fset:last-of-type { border-bottom: 0; padding-bottom: 4px; }
 
 .fset__head {
-  font-size: 11px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
   color: var(--faint);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .fset__row {
   display: grid;
   grid-template-columns: 110px minmax(0, 1fr);
-  gap: 14px;
+  gap: 16px;
   align-items: start;
-  padding: 5px 0;
+  padding: 7px 0;
 }
 .fset__label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding-top: 7px;
-  font-size: 12.5px;
+  gap: 3px;
+  padding-top: 8px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.4;
 }
 .fset__label small {
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 400;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--faint);
 }
 .fset__ctrl { min-width: 0; }
@@ -50,20 +50,34 @@
 .fset__ctrl input[type="password"],
 .fset__ctrl select {
   height: var(--input-h);
-  padding: 0 10px;
+  padding: 0 12px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
   font: inherit;
   font-size: 13px;
-  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+  box-shadow: 0 1px 1px rgba(16, 20, 28, .03);
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
 }
+.fset__ctrl input:hover,
+.fset__ctrl select:hover { border-color: var(--muted); }
 .fset__ctrl input:focus,
 .fset__ctrl select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* 下拉统一去掉系统样式，换成与整体一致的细箭头 */
+.fset__ctrl select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23808898' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
 }
 
 .fset__ctrl .wide { width: 100%; }
@@ -75,7 +89,7 @@
 .joined {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .joined input { flex: 1; min-width: 0; }
 .joined .fh-btn { flex: 0 0 auto; height: var(--input-h); }
@@ -85,19 +99,54 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 18px;
+  gap: 8px 20px;
   min-height: var(--input-h);
 }
 .check-field {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 13px;
   color: var(--text);
   white-space: nowrap;
   cursor: pointer;
+  user-select: none;
 }
-.check-field input { margin: 0; flex: 0 0 auto; }
+/* 自绘复选框：与输入框同一套边框和聚焦环，选中用主题色填充。 */
+.check-field input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background-color: var(--bg);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 11px;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease),
+    box-shadow var(--dur-1) var(--ease), transform var(--dur-1) var(--ease);
+}
+.check-field input[type="checkbox"]:hover:not(:disabled) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.check-field input[type="checkbox"]:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.check-field input[type="checkbox"]:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+}
+.check-field input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+.check-field input[type="checkbox"]:not(:disabled):active { transform: scale(.92); }
 .check-field.is-off { color: var(--faint); cursor: default; }
 
 /* 端口组：HTTP / HTTPS 两个小字段并排 */
@@ -121,24 +170,27 @@
 .mini-field {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 8px;
+  font-size: 12.5px;
   color: var(--muted);
   white-space: nowrap;
 }
 .mini-field input[type="text"],
 .mini-field input[type="number"],
 .mini-field input[type="password"] {
-  height: 30px;
-  padding: 0 8px;
+  height: var(--input-h);
+  padding: 0 10px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
-  font-size: 12px;
+  font: inherit;
+  font-size: 13px;
   width: 120px;
+  box-shadow: 0 1px 1px rgba(16, 20, 28, .03);
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
+.mini-field input:hover { border-color: var(--muted); }
 .mini-field input:focus {
   outline: none;
   border-color: var(--accent);
@@ -148,17 +200,18 @@
 
 /* ---------------------------------------------------------------- 高级配置 */
 .adv {
-  margin-top: 12px;
+  margin-top: 16px;
   border-top: 1px solid var(--line);
-  padding-top: 10px;
+  padding-top: 12px;
 }
 .adv > summary {
   cursor: pointer;
   list-style: none;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
-  padding: 2px 0;
+  padding: 4px 0;
+  transition: color var(--dur-1) var(--ease);
 }
 .adv > summary::-webkit-details-marker { display: none; }
 .adv > summary::before { content: "▸ "; color: var(--faint); }
@@ -170,53 +223,72 @@
 .adv__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 10px;
+  gap: 14px;
+  margin-top: 12px;
 }
 .adv__block {
   min-width: 0;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: var(--shadow-1);
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.adv__block:hover {
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-2);
 }
 .adv__title {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
-.adv__fields { display: grid; gap: 8px; }
+.adv__fields { display: grid; gap: 10px; }
 .adv__fields--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .adv__fields--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .stack-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--muted);
 }
 .stack-field span { line-height: 1.4; }
 .stack-field input[type="text"],
 .stack-field input[type="number"],
-.stack-field input[type="password"] {
+.stack-field input[type="password"],
+.stack-field select {
   width: 100%;
   min-width: 0;
-  height: 30px;
-  padding: 0 8px;
+  height: 32px;
+  padding: 0 10px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-sm);
   background: var(--bg);
   color: var(--text);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13px;
+  box-shadow: 0 1px 1px rgba(16, 20, 28, .03);
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
+.stack-field input:hover,
+.stack-field select:hover { border-color: var(--muted); }
 .stack-field.span-2 { grid-column: span 2; }
+/* select 的箭头要写在 background 简写之后，否则会被重置掉。 */
+.stack-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23808898' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
 .stack-field input:focus,
+.stack-field select:focus,
 .adv__block .joined input:focus {
   outline: none;
   border-color: var(--accent);

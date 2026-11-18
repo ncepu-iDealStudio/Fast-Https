@@ -45,7 +45,7 @@ func writeLive(t *testing.T, name string) (liveMain, docroot string, eng *txn.En
 	if err := os.WriteFile(filepath.Join(liveDir, "conf.d", "live.json"), []byte(site), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	main := `{"http":{"include":["conf.d"]}}`
+	main := `{"cache":[{"name":"edge","path":"./cache","valid":["any:10s"],"max_size":0}],"http":{"include":["conf.d"]}}`
 	liveMain = filepath.Join(liveDir, "fast-https.json")
 	if err := os.WriteFile(liveMain, []byte(main), 0o644); err != nil {
 		t.Fatal(err)

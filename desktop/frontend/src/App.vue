@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue';
 import AppLayout from './components/layout/AppLayout.vue';
 import PageTitle from './components/common/PageTitle.vue';
 import SitesView from './views/sites/index.vue';
+import CacheView from './views/cache/index.vue';
 import CertsView from './views/certs/index.vue';
 import LogsView from './views/logs/index.vue';
 import OperationsView from './views/operations/index.vue';
@@ -16,7 +17,7 @@ const app = useAppStore();
 const { t } = useI18n();
 
 const PANE_TITLES: Record<PaneKey, string> = {
-  monitor: 'monitor.center', sites: 'nav.sites',
+  monitor: 'monitor.center', sites: 'nav.sites', cache: 'nav.cache',
   certs: 'nav.certs', logs: 'nav.logs',
   operations: 'nav.operations', versions: 'settings.versionsTitle',
   settings: 'settings.configTitle',
@@ -42,9 +43,14 @@ onMounted(() => {
 
 <template>
   <AppLayout>
-    <PageTitle v-if="app.pane !== 'monitor'" :title="paneTitle" />
+    <!-- 站点 / 缓存区 / 证书自带标题栏：主操作按钮要放在标题右侧。 -->
+    <PageTitle
+      v-if="app.pane !== 'monitor' && app.pane !== 'sites' && app.pane !== 'cache' && app.pane !== 'certs'"
+      :title="paneTitle"
+    />
     <MonitorView v-if="app.pane === 'monitor'" />
     <SitesView v-else-if="app.pane === 'sites'" />
+    <CacheView v-else-if="app.pane === 'cache'" />
     <CertsView v-else-if="app.pane === 'certs'" />
     <LogsView v-else-if="app.pane === 'logs'" />
     <OperationsView v-else-if="app.pane === 'operations'" />

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fast-https-desktop/internal/cacheops"
 	"fast-https-desktop/internal/configops"
 	"fast-https-desktop/internal/model"
 	"fast-https-desktop/internal/siteops"
@@ -156,6 +157,25 @@ func (s *DesktopService) SetSiteEnabled(id string, enabled bool) (string, error)
 		s.invalidateAfterSiteWrite()
 	}
 	return msg, err
+}
+
+// ------------------------------------------------------------ 缓存区页
+
+// ListCacheZones 列出主配置里的缓存区，站点弹窗的下拉框也用它。
+func (s *DesktopService) ListCacheZones() ([]model.CacheZone, error) {
+	return cacheops.List(s.baseDir)
+}
+
+func (s *DesktopService) AddCacheZone(zone model.CacheZone) (string, error) {
+	return cacheops.Add(s.baseDir, zone)
+}
+
+func (s *DesktopService) SaveCacheZone(name string, zone model.CacheZone) (string, error) {
+	return cacheops.Save(s.baseDir, name, zone)
+}
+
+func (s *DesktopService) DeleteCacheZone(name string) (string, error) {
+	return cacheops.Delete(s.baseDir, name)
 }
 
 // ------------------------------------------------------------ 本机状态与操作

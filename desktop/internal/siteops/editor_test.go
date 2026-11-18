@@ -156,7 +156,7 @@ func TestPlanAddWithAdvanced(t *testing.T) {
 		ZipMinLength: 1024, ZipSkipTypes: []string{"image/*"},
 		LimitRate: 100, LimitBurst: 50, LimitMem: 1024, LimitNodelay: true,
 		AuthOn: true, AuthUser: "u", AuthPass: "p", AuthRealm: "realm",
-		CachePath: "./cache", CacheValid: []string{"10s", "1m"}, CacheMaxSize: 4096,
+		CacheZone: "edge",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -170,8 +170,11 @@ func TestPlanAddWithAdvanced(t *testing.T) {
 			t.Errorf("site add 缺少压缩参数 %q：%s", want, add)
 		}
 	}
-	if strings.Contains(add, "--limit-rate") || strings.Contains(add, "--auth-type") || strings.Contains(add, "--cache-path") {
+	if strings.Contains(add, "--limit-rate") || strings.Contains(add, "--auth-type") {
 		t.Errorf("site add 不应带其他高级配置：%s", add)
+	}
+	if !strings.Contains(add, "--cache-zone edge") {
+		t.Errorf("缓存区应随 site add 写入：%s", add)
 	}
 
 	upd := strings.Join(plan[1], " ")
@@ -181,15 +184,25 @@ func TestPlanAddWithAdvanced(t *testing.T) {
 	for _, want := range []string{
 		"--limit-rate 100", "--limit-burst 50", "--limit-mem 1024", "--limit-nodelay",
 		"--auth-type basic", "--auth-user u", "--auth-pass p", "--auth-realm realm",
-		"--cache-path ./cache", "--cache-valid 10s", "--cache-valid 1m", "--cache-max-size 4096",
 		"--yes",
 	} {
 		if !strings.Contains(upd, want) {
 			t.Errorf("补全命令缺少 %q：%s", want, upd)
 		}
 	}
-	if strings.Contains(upd, "--zip") {
-		t.Errorf("压缩已随 site add 写入，update 不应重复：%s", upd)
+	if strings.Contains(upd, "--zip") || strings.Contains(upd, "--cache-zone") {
+		t.Errorf("压缩与缓存区已随 site add 写入，update 不应重复：%s", upd)
+	}
+}
+
+// TestCacheZoneArgs 锁住缓存区名的传递：留空时只关闭缓存。
+func TestCacheZoneArgs(t *testing.T) {
+	on := strings.Join(cacheZoneArgs(model.SiteInput{CacheZone: "edge"}), " ")
+	if on != "--cache-zone edge" {
+		t.Fatalf("cacheZoneArgs = %q", on)
+	}
+	if off := strings.Join(cacheZoneArgs(model.SiteInput{}), " "); off != "--cache-zone=" {
+		t.Fatalf("关闭缓存应只传 --cache-zone=，得到 %s", off)
 	}
 }
 
@@ -294,6 +307,26 @@ func TestPlanUpdateDiffsAgainstCurrent(t *testing.T) {
 	joined = strings.Join(args, " ")
 	if !strings.Contains(joined, "--proxy-pass http://127.0.0.1:9000") {
 		t.Fatalf("切到 proxy 应带 --proxy-pass：%s", joined)
+	}
+}
+
+// TLS 但不开 h2：监听串原样传 "443 ssl"，不额外补 h2。
+func TestPlanAddTLSWithoutH2(t *testing.T) {
+	plan, err := planAdd(model.SiteInput{
+		Name: "a.example", Listen: "443 ssl", Type: "local", Root: "./www",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Join(plan[0], " ")
+	if !strings.Contains(args, "--listen 443 ssl") {
+		t.Fatalf("缺少监听参数：%s", args)
+	}
+	if !containsArg(plan[0], "--tls") {
+		t.Fatalf("有 ssl 监听应带 --tls：%s", args)
+	}
+	if strings.Contains(args, "h2") {
+		t.Fatalf("未开 h2 不应出现 h2：%s", args)
 	}
 }
 

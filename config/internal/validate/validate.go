@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -19,6 +20,7 @@ import (
 	"fast-https/config/internal/schema"
 	"fast-https/config/internal/source"
 	"fast-https/infra/logging"
+	"fast-https/infra/timeutil"
 )
 
 // CheckConfig check whether config is correct
@@ -165,7 +167,85 @@ func validateConfigAt(configPath string, opts validateOpts) ([]string, error) {
 	if w := acme.HTTP01Port80Warning(root.Acme, allServers); w != "" {
 		warnings = append(warnings, w)
 	}
+	unusedZones, err := validateCacheZones(root.Cache, allServers)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range unusedZones {
+		warnings = append(warnings, fmt.Sprintf("cache zone %q is defined but not used by any site", name))
+	}
+	for _, zone := range root.Cache {
+		if len(zone.Valid) == 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"cache zone %q has no valid rules and will not cache any response", zone.Name))
+		}
+	}
 	return warnings, nil
+}
+
+// validateCacheZones 校验主配置的缓存区定义与站点引用，返回未被引用的区名。
+// 站点只存缓存区名，目录与容量都属于主配置，所以引用必须能在 cache 段里找到。
+func validateCacheZones(zones []schema.CacheZone, servers []schema.Server) ([]string, error) {
+	names := make(map[string]bool, len(zones))
+	for i, z := range zones {
+		name := strings.TrimSpace(z.Name)
+		if name == "" {
+			return nil, fmt.Errorf("cache[%d].name is required", i)
+		}
+		if names[name] {
+			return nil, fmt.Errorf("cache zone %q is defined more than once", name)
+		}
+		names[name] = true
+		if strings.TrimSpace(z.Path) == "" {
+			return nil, fmt.Errorf("cache zone %q: path is required", name)
+		}
+		for _, item := range z.Valid {
+			if err := validateCacheValid(item); err != nil {
+				return nil, fmt.Errorf("cache zone %q: %w", name, err)
+			}
+		}
+	}
+
+	used := make(map[string]bool)
+	for _, server := range servers {
+		for _, loc := range server.Locations {
+			ref := strings.TrimSpace(string(loc.ProxyCache))
+			if ref == "" {
+				continue
+			}
+			if !names[ref] {
+				return nil, fmt.Errorf("location %q references unknown cache zone %q", loc.URL, ref)
+			}
+			used[ref] = true
+		}
+	}
+	var unused []string
+	for name := range names {
+		if !used[name] {
+			unused = append(unused, name)
+		}
+	}
+	sort.Strings(unused)
+	return unused, nil
+}
+
+// validateCacheValid 校验一条有效期写法：状态码:时长，状态码为 any 或三位数。
+func validateCacheValid(item string) error {
+	name, duration, ok := strings.Cut(item, ":")
+	if !ok {
+		return fmt.Errorf("valid entry %q must look like 200:10m or any:1h", item)
+	}
+	name = strings.TrimSpace(name)
+	if name != "any" {
+		code, err := strconv.Atoi(name)
+		if err != nil || code < 100 || code > 599 {
+			return fmt.Errorf("valid entry %q: status must be any or a three-digit code", item)
+		}
+	}
+	if timeutil.ParseTime(strings.TrimSpace(duration)) <= 0 {
+		return fmt.Errorf("valid entry %q: duration must be positive, e.g. 10s or 1m", item)
+	}
+	return nil
 }
 
 // validateIncludes 校验 include 目录/文件，返回解析后的 server 块。

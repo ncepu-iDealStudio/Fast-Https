@@ -49,7 +49,7 @@ type ListenCfg struct {
 	Type           uint16 // 0 1 2 3 4
 	ProxyAddr      string
 	ProxySetHeader []config.Header
-	ProxyCache     config.Cache
+	ProxyCache     string
 	AppFireWall    []string
 	ReWrite        string
 

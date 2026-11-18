@@ -4,9 +4,10 @@ import { useI18n } from '../../composables/useI18n';
 import FhDialog from '../ui/FhDialog.vue';
 import FhButton from '../ui/FhButton.vue';
 import { addSite, readSiteDetail, saveSiteDetail } from '../../services/api/site';
+import { listCacheZones } from '../../services/api/cache';
 import { pickAbsPath } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
-import type { SiteInput } from '../../services/api/types';
+import type { SiteInput, CacheZone } from '../../services/api/types';
 
 const props = defineProps<{ open: boolean; editingId?: string }>();
 const emit = defineEmits<{ 'update:open': [v: boolean]; saved: [] }>();
@@ -21,8 +22,9 @@ const raw = ref('');
 const form = reactive({
   // 本机建站基本都从 localhost 起步，默认填好省一次输入；多域名仍可继续写。
   name: 'localhost',
-  // 监听：两个开关决定 listen，端口单独一行。勾了 HTTPS 才需要证书。
+  // 监听：HTTPS 只决定 ssl，HTTP/2 是独立开关。
   https: false,
+  h2: true,
   keepHttp: false,
   httpPort: '80',
   httpsPort: '443',
@@ -46,10 +48,21 @@ const form = reactive({
   authUser: '',
   authPass: '',
   authRealm: '',
-  cachePath: '',
-  cacheValid: '',
-  cacheMaxSize: 0,
+  // 缓存只选缓存区名；目录、容量与有效期都在主配置的 cache 段里。
+  cacheZone: '',
 });
+
+// 主配置里可用的缓存区，用于下拉选择。
+const zones = ref<CacheZone[]>([]);
+
+async function loadZones(): Promise<void> {
+  try {
+    zones.value = await listCacheZones();
+  } catch {
+    // 读不到缓存区不该挡住建站/改站：下拉留空，提示去设置页配置。
+    zones.value = [];
+  }
+}
 
 /**
  * 端口输入框是 type="number"，Vue 的 v-model 会自动把值转成 number，
@@ -64,9 +77,11 @@ function portText(v: string | number): string {
 function syncListen(): void {
   const http = portText(form.httpPort) || '80';
   const https = portText(form.httpsPort) || '443';
+  // ssl 由 HTTPS 决定，h2 是独立开关且只在 TLS 下有意义。
+  const suffix = form.https ? ' ssl' + (form.h2 ? ' h2' : '') : '';
   if (!form.https) form.listen = http;
-  else if (form.keepHttp) form.listen = `${http}, ${https} ssl h2`;
-  else form.listen = `${https} ssl h2`;
+  else if (form.keepHttp) form.listen = `${http}, ${https}${suffix}`;
+  else form.listen = `${https}${suffix}`;
 }
 
 /** listen 里出现 ssl 才算 TLS：证书区、提交时的证书字段都以它为准。 */
@@ -116,7 +131,7 @@ function portsOf(listen: string): { http: string; https: string } {
 let hydrating = false;
 
 watch(
-  () => [form.https, form.keepHttp, form.httpPort, form.httpsPort],
+  () => [form.https, form.h2, form.keepHttp, form.httpPort, form.httpsPort],
   () => { if (!hydrating) syncListen(); },
   { flush: 'sync' },
 );
@@ -130,15 +145,16 @@ watch(() => props.open, async (open) => {
   error.value = '';
   info.value = [];
   raw.value = '';
+  void loadZones();
   if (!props.editingId) {
     Object.assign(form, {
-      name: 'localhost', https: false, keepHttp: false, httpPort: '80', httpsPort: '443', listen: '80',
+      name: 'localhost', https: false, h2: true, keepHttp: false, httpPort: '80', httpsPort: '443', listen: '80',
       type: 'local', root: '', proxyScheme: 'http://', proxy: '', cert: '', certKey: '',
       zipGzip: true, zipBr: true, zipMinLength: 1024,
       zipSkipTypes: 'image/*, video/*, audio/*, font/woff2, application/zip, application/gzip',
       limitRate: 0, limitBurst: 0, limitMem: 0,
       limitNodelay: false, authOn: false, authUser: '', authPass: '', authRealm: '',
-      cachePath: '', cacheValid: '', cacheMaxSize: 0,
+      cacheZone: '',
     });
     return;
   }
@@ -151,6 +167,7 @@ watch(() => props.open, async (open) => {
     try {
       form.name = d.name;
       form.https = tls;
+      form.h2 = /\bh2\b/i.test(d.listen ?? '');
       // 同时配了非 ssl 端口（如 "80, 443 ssl h2"）才勾「同时保留 HTTP」。
       form.keepHttp = tls && !!ports.http;
       form.httpPort = ports.http || '80';
@@ -179,9 +196,7 @@ watch(() => props.open, async (open) => {
     form.authUser = d.authUser ?? '';
     form.authPass = '';
     form.authRealm = d.authRealm ?? '';
-    form.cachePath = d.cachePath ?? '';
-    form.cacheValid = (d.cacheValid ?? []).join(', ');
-    form.cacheMaxSize = d.cacheMaxSize ?? 0;
+    form.cacheZone = d.cacheZone ?? '';
     info.value = [
       { k: t('dialog.site.index'), v: d.index ?? '' },
       { k: t('dialog.site.path'), v: d.path ?? '' },
@@ -222,9 +237,7 @@ function buildPayload(): SiteInput {
     authUser: form.authOn ? form.authUser : '',
     authPass: form.authOn ? form.authPass : '',
     authRealm: form.authOn ? form.authRealm : '',
-    cachePath: form.cachePath.trim(),
-    cacheValid: form.cacheValid.split(',').map((s) => s.trim()).filter(Boolean),
-    cacheMaxSize: toInt(form.cacheMaxSize),
+    cacheZone: form.cacheZone,
   };
 }
 
@@ -365,6 +378,10 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
             <label class="check-field">
               <input v-model="form.https" type="checkbox" />
               <span>{{ t('dialog.site.httpsOn') }}</span>
+            </label>
+            <label class="check-field" :class="{ 'is-off': !form.https }" :title="t('dialog.site.h2Hint')">
+              <input v-model="form.h2" type="checkbox" :disabled="!form.https" />
+              <span>{{ t('dialog.site.h2On') }}</span>
             </label>
             <label class="check-field" :class="{ 'is-off': !form.https }">
               <input v-model="form.keepHttp" type="checkbox" :disabled="!form.https" />
@@ -514,20 +531,17 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
 
         <div class="adv__block">
           <div class="adv__title">{{ t('dialog.site.cache') }}</div>
-          <div class="joined">
-            <input v-model="form.cachePath" type="text" placeholder="./cache" />
-          </div>
-          <div class="adv__fields adv__fields--2">
-            <label class="stack-field">
-              <span>{{ t('dialog.site.cacheValid') }}</span>
-              <input v-model="form.cacheValid" type="text" placeholder="10s, 1m" />
-            </label>
-            <label class="stack-field">
-              <span>{{ t('dialog.site.cacheMaxSize') }}</span>
-              <input v-model.number="form.cacheMaxSize" type="number" min="0" />
-            </label>
-          </div>
-          <small class="field-note">{{ t('dialog.site.cacheNote') }}</small>
+          <label class="stack-field">
+            <span>{{ t('dialog.site.cacheZone') }}</span>
+            <select v-model="form.cacheZone">
+              <option value="">{{ t('dialog.site.cacheOff') }}</option>
+              <option v-for="z in zones" :key="z.name" :value="z.name">
+                {{ z.name }} · {{ z.path }}
+              </option>
+            </select>
+          </label>
+          <small class="field-note">{{ t('dialog.site.cacheZoneHint') }}</small>
+          <small v-if="zones.length === 0" class="field-note">{{ t('dialog.site.cacheNone') }}</small>
         </div>
       </div>
     </details>

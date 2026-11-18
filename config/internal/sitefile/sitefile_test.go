@@ -283,20 +283,15 @@ func TestPatchAuth(t *testing.T) {
 }
 
 func TestPatchCache(t *testing.T) {
-	cache := model.Cache{Path: "./cache", Valid: []string{"10s", "1m"}}
 	want := SiteInput{
 		Listens:    []string{"8080"},
 		ServerName: "a.local",
-		Locations:  []SiteLocation{{URL: "/", Type: "local", Root: "./httpdoc/root", Cache: &cache}},
+		Locations:  []SiteLocation{{URL: "/", Type: "local", Root: "./httpdoc/root", ProxyCache: "edge"}},
 	}
 	out := patchAdvanced(t, advancedBase(t), want)
 	got := reparse(t, out)
-	if got.Locations[0].Cache == nil {
-		t.Fatalf("proxy_cache 没写进去:\n%s", out)
-	}
-	c := got.Locations[0].Cache
-	if c.Path != "./cache" || strings.Join(c.Valid, ",") != "10s,1m" {
-		t.Fatalf("proxy_cache 值不对: %+v", c)
+	if got.Locations[0].ProxyCache != "edge" {
+		t.Fatalf("proxy_cache 值不对: %+v\n%s", got.Locations[0], out)
 	}
 }
 
@@ -306,13 +301,12 @@ func TestPatchAdvancedClears(t *testing.T) {
 	emptyZip := []string{}
 	emptyLimit := model.PathLimit{}
 	emptyAuth := model.PathAuth{}
-	emptyCache := model.Cache{}
 	want := SiteInput{
 		Listens:    []string{"8080"},
 		ServerName: "a.local",
 		Locations: []SiteLocation{{
 			URL: "/", Type: "local", Root: "./httpdoc/root",
-			Zip: &emptyZip, Limit: &emptyLimit, Auth: &emptyAuth, Cache: &emptyCache,
+			Zip: &emptyZip, Limit: &emptyLimit, Auth: &emptyAuth,
 		}},
 	}
 	out := patchAdvanced(t, withAll, want)

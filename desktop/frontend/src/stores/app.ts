@@ -5,7 +5,7 @@ import { readStoredLang, storeLang } from '../i18n/config';
 import { switchLang } from '../i18n';
 
 export type PaneKey =
-  | 'monitor' | 'sites' | 'certs' | 'logs'
+  | 'monitor' | 'sites' | 'cache' | 'certs' | 'logs'
   | 'operations' | 'versions' | 'settings';
 
 /** 澶栬涓夋€侊細浜?/ 鏆?/ 璺熼殢绯荤粺銆傝窡闅忔ā寮忎笅 data-mode 闅忕郴缁熷疄鏃跺垏鎹€?*/
@@ -19,7 +19,7 @@ const RAIL_KEY = 'fast-https.railCollapsed';
 // 涓嶈繘瀵艰埅锛屼篃涓嶈鎴愪负銆屼笂娆″仠鐣欑殑椤甸潰銆嶁€斺€斿惁鍒欏埛鏂板悗鍗″湪璁剧疆椤典笖
 // 渚ф爮娌℃湁浠讳綍楂樹寒椤癸紝鐢ㄦ埛浠ヤ负鐣岄潰鍧忎簡銆?
 const NAV_PANES: readonly PaneKey[] = [
-  'monitor', 'sites', 'certs', 'logs', 'operations', 'versions',
+  'monitor', 'sites', 'cache', 'certs', 'logs', 'operations', 'versions',
 ];
 
 function initialPane(): PaneKey {
@@ -29,7 +29,7 @@ function initialPane(): PaneKey {
 
 function initialMode(): ThemeMode {
   const saved = localStorage.getItem(MODE_KEY) as ThemeMode | null;
-  return saved === 'dark' || saved === 'system' ? saved : 'light';
+  return saved === 'light' || saved === 'system' ? saved : 'dark';
 }
 
 export const useAppStore = defineStore('app', () => {

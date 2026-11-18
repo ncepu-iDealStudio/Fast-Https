@@ -1,6 +1,6 @@
 <script setup lang="ts">
-/** 日志页工具栏：四类切换 / 刷新 / 重置 / 实时 / 筛选框 / 高级筛选。 */
-import { RotateCcw, ChevronDown, Pause, Play, Search } from '@lucide/vue';
+/** 日志页工具栏：四类切换 / 重置 / 筛选框 / 高级筛选。 */
+import { RotateCcw, ChevronDown, Search } from '@lucide/vue';
 import { useI18n } from '../../../composables/useI18n';
 
 interface Filters {
@@ -11,8 +11,6 @@ interface Filters {
 const props = defineProps<{
   filters: Filters;
   advanced: boolean;
-  loading: boolean;
-  live: boolean;
   statusText: string;
   kinds: { key: string; label: string }[];
 }>();
@@ -20,9 +18,7 @@ const emit = defineEmits<{
   'update:filters': [v: Filters];
   'update:advanced': [v: boolean];
   'pick-kind': [k: string];
-  refresh: [];
   reset: [];
-  'toggle-live': [];
   apply: [];
 }>();
 const { t } = useI18n();
@@ -86,13 +82,6 @@ function statusLabel(code: string): string {
     </div>
     <button class="icon-btn" :title="t('logs.reset')" @click="emit('reset')">
       <RotateCcw :size="14" />
-    </button>
-    <button
-      class="icon-btn live-btn" :class="{ 'live-btn--on': live }"
-      :title="live ? t('logs.autoRefreshOn') : t('logs.autoRefreshOff')"
-      @click="emit('toggle-live')"
-    >
-      <component :is="live ? Pause : Play" :size="14" />
     </button>
     <span class="logs-count mono">{{ statusText }}</span>
   </div>

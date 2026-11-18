@@ -117,7 +117,7 @@
 .spark-purple { color: #825AC8; }
 
 /* ---------------------------------------------------------------- 组件健康 */
-.comp-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.comp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
 .comp {
   background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-lg);
   padding: 12px 14px;
@@ -150,7 +150,7 @@
 
 /* ---------------------------------------------------------------- 底部双栏 */
 .monitor-bottom {
-  display: grid; grid-template-columns: 1.42fr 1fr; gap: 10px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
   /* 空间够时吃掉剩余高度；不够时保持最小 240px，让页面滚动而不是压缩内容 */
   flex: 1 1 auto; min-height: 240px;
 }

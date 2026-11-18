@@ -4,6 +4,7 @@ package cmd
 import (
 	"errors"
 	"fast-https/cmd/internal/acmecmd"
+	"fast-https/cmd/internal/cachecmd"
 	"fast-https/cmd/internal/cli"
 	"fast-https/cmd/internal/configcmd"
 	"fast-https/cmd/internal/inspectcmd"
@@ -110,6 +111,11 @@ func commandList() []command {
 			name:        "site",
 			description: cli.T("管理 http.include 目录下的站点文件", "manage site files under http.include"),
 			register:    sitecmd.NewSiteCmd,
+		},
+		{
+			name:        "cache",
+			description: cli.T("管理主配置里的缓存区", "manage cache zones in the main config"),
+			register:    cachecmd.NewCacheCmd,
 		},
 	}
 }

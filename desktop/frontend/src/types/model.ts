@@ -21,6 +21,7 @@ export interface Overview {
   ports: string[];
   siteCount: number;
   tlsCount: number;
+  cacheZoneCount: number;
   nearestCertDays: number;
   configDirty: boolean;
   paths: RuntimePaths;

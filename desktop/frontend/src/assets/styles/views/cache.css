@@ -1,0 +1,54 @@
+/* 缓存区页（views/cache/index.vue）：弹窗表单复用 .adv__fields--2，
+   这里补跨列与有效期逐条编辑的样式。 */
+.cache-form > .span-2 { grid-column: span 2; }
+
+/* 有效期：状态码 / 时长 / 单位 / 删除。 */
+.valid-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px 96px 30px;
+  gap: var(--sp-2);
+  align-items: center;
+}
+.valid-row + .valid-row { margin-top: var(--sp-1); }
+.valid-row select,
+.valid-row input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  box-shadow: 0 1px 1px rgba(16, 20, 28, .03);
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.valid-row select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23808898' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+.valid-row select:hover,
+.valid-row input[type="number"]:hover { border-color: var(--muted); }
+.valid-row select:focus,
+.valid-row input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+.valid-add {
+  align-self: flex-start;
+  margin-top: var(--sp-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.valid-add:hover { text-decoration: underline; }

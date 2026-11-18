@@ -9,7 +9,7 @@
       "zip": ["gzip"],
       "limit": {"mem":0,"rate":50,"burst":100,"nodelay":false},
       "auth": {"type":"basic","user":"admin","pswd":"s3cret","realm":""},
-      "proxy_cache": {"path":"./cache","valid":["10s"],"key":"","methods":null,"max_size":0}
+      "proxy_cache": "edge"
     }
   ]
 }

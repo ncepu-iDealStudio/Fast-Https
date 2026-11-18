@@ -148,7 +148,7 @@ func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Prox
 			return proxy, nil
 		}
 
-		proxy := Newproxy(cfg.ProxyAddr, int(cfg.Type), cfg.ProxyCache.Key != "")
+		proxy := Newproxy(cfg.ProxyAddr, int(cfg.Type), cfg.ProxyCache != "")
 		if err := proxy.ProxyInit(ev); err != nil { // only one type error: `ProxyErrorDialUpstream`
 			return nil, err
 		}
@@ -164,7 +164,7 @@ func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Prox
 			return nil, derr
 		}
 		fresh.ev = ev
-		fresh.ProxyNeedCache = cfg.ProxyCache.Key != ""
+		fresh.ProxyNeedCache = cfg.ProxyCache != ""
 		return fresh, nil
 	})
 	if err != nil {
@@ -501,8 +501,10 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	}
 
 	if proxy.ProxyNeedCache {
-		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid,
-			cfg.ProxyCache.Path, cfg.ProxyCache.Methods, cfg.ProxyCache.MaxSize)
+		// 站点只存缓存区名，目录与有效期来自主配置；配置校验保证名字存在，
+		// 这里取不到时用零值区，CacheKey 返回空串即退化为不缓存。
+		zone, _ := config.Current().CacheZoneByName(cfg.ProxyCache)
+		proxyCache := NewProxyCache(zone)
 		proxy.proxyNeedCache(cfg, proxyCache, req_data, ev)
 	} else {
 		proxy.proxyNoCache(cfg, req_data, ev)

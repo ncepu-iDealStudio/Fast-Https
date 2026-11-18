@@ -6,6 +6,7 @@ import { useI18n } from '../../composables/useI18n';
 import { useSitesStore } from '../../stores/sites';
 import { useOverviewStore } from '../../stores/overview';
 import FhButton from '../../components/ui/FhButton.vue';
+import PageTitle from '../../components/common/PageTitle.vue';
 import SiteDialog from '../../components/common/SiteDialog.vue';
 import SiteList from './components/SiteList.vue';
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue';
@@ -101,14 +102,15 @@ async function onOpen(url: string): Promise<void> {
 </script>
 
 <template>
-  <div class="main__body">
-
-    <div class="toolbar">
+  <PageTitle :title="t('nav.sites')">
+    <span class="page-title__actions">
       <FhButton variant="primary" @click="openAdd">
         <Plus :size="14" /><span>{{ t('sites.add') }}</span>
       </FhButton>
-    </div>
+    </span>
+  </PageTitle>
 
+  <div class="main__body">
     <p v-if="sites.error" class="notice notice--err">{{ sites.error }}</p>
     <p v-else-if="notice" class="notice">{{ notice }}</p>
 

@@ -494,17 +494,31 @@ fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops
 
 ### 6.5 代理缓存
 
+缓存区定义在主配置的 `cache` 段（可多个），目录、容量与有效期只写一次；
+
 ```json
-"proxy_cache": {
-  "path": "./cache",
-  "key": "$request_uri",
-  "valid": ["200:1h", "404:1m", "any:5m"],
-  "methods": ["GET", "HEAD"],
-  "max_size": 1073741824
-}
+// fast-https.json
+"cache": [
+  { "name": "edge", "path": "./cache/edge", "valid": ["200:1h", "404:1m", "any:5m"], "max_size": 1073741824 }
+]
 ```
 
-`valid` 的格式是 `状态码:时长`，`any` 匹配其余状态码；命中会顺延一个周期（读即续期）。`key` 支持变量插值。
+站点 location 用 `proxy_cache` 引用区名：
+
+```json
+// conf.d/blog.json
+"location": [
+  { "url": "/", "type": "proxy", "proxy_pass": "http://127.0.0.1:8080", "proxy_cache": "edge" }
+]
+```
+
+`valid` 的格式是 `状态码:时长`，`any` 匹配其余状态码；命中会顺延一个周期（读即续期）。
+缓存键由程序生成（`$host$request_uri`，带区名前缀），方法固定 GET/HEAD。
+目录相对程序数据目录（Windows 归档为 exe 所在目录，Linux 包为 `/usr/share/fast-https`）。
+
+缓存区可用 `fast-https cache list / add / update / delete` 管理，或到桌面端
+「缓存区」页维护；站点弹窗里直接选择缓存区。删除仍被站点引用的缓存区会被拒绝。
+站点命令只接受已定义的区名：`site add|update --cache-zone edge`，写错会在执行前报错。
 
 ### 6.6 Basic 认证与限流
 

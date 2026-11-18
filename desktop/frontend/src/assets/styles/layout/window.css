@@ -137,6 +137,11 @@
   padding: 18px 32px 2px;
 }
 .page-title h1 { margin: 0; font-size: var(--fs-xl); font-weight: 600; letter-spacing: -.01em; }
+/* 标题右侧的主操作区（添加站点 / 新增缓存区等）。 */
+.page-title__actions {
+  margin-left: auto;
+  display: flex; align-items: center; gap: var(--sp-2);
+}
 
 .main__body {
   flex: 1 1 auto; min-height: 0; overflow-y: auto;

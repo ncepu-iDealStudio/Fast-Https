@@ -412,6 +412,15 @@ func runCertList(dir string) (any, error) {
 	})
 }
 
+// runCacheList 读主配置里的缓存区；数量用于监控中心的健康卡。
+func runCacheList(dir string) (any, error) {
+	paths := ResolvePaths(dir)
+	return cached("cache.list:"+paths.Config, 5*time.Second, func() (any, error) {
+		data, _, err := cli.RunJSON[any](dir, "cache", "list")
+		return data, err
+	})
+}
+
 // certRows 把 cert list 的证书条目映射成界面行。
 func certRows(data map[string]any) []Cert {
 	var out []Cert
@@ -511,6 +520,11 @@ func CollectOverview(dir string) Overview {
 				ov.NearestCertDays = c.DaysLeft
 			}
 		}
+	}
+
+	// cache list：主配置 cache 段里定义的缓存区数量。
+	if data, err := runCacheList(dir); err == nil {
+		ov.CacheZoneCount = len(cli.AsSlice(cli.AsMap(data)["zones"]))
 	}
 
 	// config show：config_dirty_hint（仅服务在跑时由主程序给出）。

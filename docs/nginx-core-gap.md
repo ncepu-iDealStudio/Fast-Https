@@ -48,7 +48,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | 重写引擎 | `rewrite` 正则替换，`last` / `break`，多种状态码 | 只有固定 301 | 暂缓完整引擎。301 保持现状 |
 | 代理超时和缓冲 | `proxy_connect_timeout`、`proxy_read_timeout`、缓冲开关 | 连接建立后有固定 20 秒读写 deadline，不能按 location 配置；拨号本身没有超时，上游不响应时受操作系统 TCP 超时约束 | 完整配置暂缓；拨号超时应单独补 |
 | 可信代理和真实 IP | `real_ip`、`set_real_ip_from` | 限流和黑名单使用连接上的地址，前面挂 CDN 或负载均衡时所有客户端会被认成同一个 IP | 有反代层时必须做，纯直连可等 |
-| 代理缓存 | `proxy_cache`、过期、陈旧响应、清理 | 按 key 落盘的缓存，已支持状态码到有效期的匹配、命中回放、`methods` 方法过滤、`Set-Cookie` 剥离与 `max_size` 软上限。仍缺 `proxy_cache_lock` 请求合并和 purge 接口 | 按需补缺项，不整体重写 |
+| 代理缓存 | `proxy_cache`、过期、陈旧响应、清理 | 缓存区在主配置 `cache` 段定义（目录/容量/有效期），站点用 `proxy_cache` 引用区名；键固定 `$host$request_uri` 并带区名前缀。已支持状态码到有效期的匹配、命中回放、只缓存 GET/HEAD、`Set-Cookie` 剥离与 `max_size` 软上限。仍缺 `proxy_cache_lock` 请求合并和 purge 接口 | 按需补缺项，不整体重写 |
 | 证书自动申请 | 常配合外部 ACME 客户端 | `acme` 配置段内置 ACME：后台申请与续期、签发成功热替换、失败回落自签。只实现 `http-01` 与 `tls-alpn-01` | 已落地。`dns-01`（通配符）仍用外部客户端 |
 | HTTP/3 | `http3` / QUIC | 没有 | 暂缓 |
 | 二进制热升级 | 新可执行文件接手监听，旧进程退出 | 能热更新配置和同一端口的证书，不能热替换二进制 | 暂缓 |
@@ -56,7 +56,7 @@ Fast-Https 已经能当一台小型 Web 服务器用：多端口监听、静态�
 | 多进程 worker | `worker_processes`、`accept_mutex`、共享内存 | 每个连接一个协程，没有 worker 进程模型和共享内存 | 不做 |
 | FastCGI、uWSGI、SCGI、gRPC | 把请求交给应用进程或 gRPC 后端 | 没有。HTTP 反向代理可以转到本机 HTTP 端口 | 不做 |
 | `auth_request` | 用子请求问认证服务 | 只有配置文件里的 Basic 口令 | 不做 |
-| 配置变量语言 | `set`、`map`、`if`、`geo` | JSON 字段，没有表达式。`proxy_cache.key`、`proxy_set_header` 里的 `$变量` 只是一次性字符串替换，不是表达式求值 | 不做 |
+| 配置变量语言 | `set`、`map`、`if`、`geo` | JSON 字段，没有表达式。`proxy_set_header` 里的 `$变量` 只是一次性字符串替换，不是表达式求值 | 不做 |
 | WebDAV、SSI、目录列表、地理、切流、视频 | 专用模块 | 没有 | 不做 |
 | UDP、`proxy_protocol`、邮件 | `stream` 的其余部分和 mail | TCP 转发是字节管道 | 不做 |
 

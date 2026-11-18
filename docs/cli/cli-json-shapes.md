@@ -1091,3 +1091,25 @@ systemd 依赖它们的文本输出。
 | acme show | **无 JSON（纯文本）** | — |
 | logs access / error / query | `logs.access` / `logs.error` / `logs.query` | `logquery.Result` |
 | operation list / get | `operation.list` / `operation.get` | `{operations:[Record]}` / `Record` |
+| cache list / add / update / delete | `cache.list` / `cache.add` / `cache.update` / `cache.delete` | §10 |
+
+---
+
+## 10. cache 命令组
+
+主配置 `cache` 段的管理命令：缓存区（目录、容量、有效期）在这里定义，
+站点 location 用 `proxy_cache` 引用区名。
+
+- **命令标识**：`cache.list` / `cache.add` / `cache.update` / `cache.delete`
+- **flags**：
+  - `list`：无专属。
+  - `add`：`--name`、`--path`、`--valid`（可重复，必填）、`--max-size`、`--dry-run`
+  - `update <name>`：`--path`、`--valid`、`--max-size`、`--dry-run`
+  - `delete <name>`：`--dry-run`
+- **data JSON**：
+  - `list`：`{"zones":[{name,path,valid,max_size}], "config":"<path>"}`
+  - `add` / `update` / `delete`：`{"config":"<path>", "zones":[...]}`
+  - `--dry-run`：`{"dry_run":true, "config":"<改写后的全文>"}`
+- **行为要点**：写盘前按主配置跑一遍完整校验；`delete` 仍被站点 location
+  引用时返回 `CONFLICT`（10），message 里列出引用位置；`--valid` 为空会被
+  拒绝——没有有效期的缓存区不会缓存任何响应。

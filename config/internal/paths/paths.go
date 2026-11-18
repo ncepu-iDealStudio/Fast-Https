@@ -16,6 +16,10 @@ import (
 // still open the files that were configured.
 func ResolveRuntimePaths(cfg *model.Fast_Https) {
 	cfg.LogRoot = LogPath(cfg.LogRoot)
+	// 缓存目录属于主配置的缓存区，站点只按名字引用。
+	for i := range cfg.Cache {
+		cfg.Cache[i].Path = DataPath(cfg.Cache[i].Path)
+	}
 	cfg.TLS.DefaultCertificate.Certificate = ETCPath(cfg.TLS.DefaultCertificate.Certificate)
 	cfg.TLS.DefaultCertificate.Key = ETCPath(cfg.TLS.DefaultCertificate.Key)
 	for i := range cfg.Include {
@@ -27,7 +31,6 @@ func ResolveRuntimePaths(cfg *model.Fast_Https) {
 		server.SSLCertificateKey = ETCPath(server.SSLCertificateKey)
 		for j := range server.Path {
 			server.Path[j].Root = DataPath(server.Path[j].Root)
-			server.Path[j].ProxyCache.Path = DataPath(server.Path[j].ProxyCache.Path)
 			server.Path[j].ErrorNotFound = DataPath(server.Path[j].ErrorNotFound)
 			server.Path[j].ErrorProxy = DataPath(server.Path[j].ErrorProxy)
 		}

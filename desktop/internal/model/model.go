@@ -30,6 +30,7 @@ type Overview struct {
 	Ports           []string     `json:"ports"`
 	SiteCount       int          `json:"siteCount"`
 	TLSCount        int          `json:"tlsCount"`
+	CacheZoneCount  int          `json:"cacheZoneCount"`
 	NearestCertDays int          `json:"nearestCertDays"`
 	ConfigDirty     bool         `json:"configDirty"`
 	Paths           RuntimePaths `json:"paths"`
@@ -107,9 +108,9 @@ type SiteInput struct {
 	AuthUser     string   `json:"authUser"`
 	AuthPass     string   `json:"authPass"`
 	AuthRealm    string   `json:"authRealm"`
-	CachePath    string   `json:"cachePath"`
-	CacheValid   []string `json:"cacheValid"`
-	CacheMaxSize int      `json:"cacheMaxSize"`
+	// CacheZone 是主配置 cache 段里的缓存区名；空串表示不启用缓存。
+	// 目录、容量与有效期都属于缓存区，站点只引用名字。
+	CacheZone string `json:"cacheZone"`
 }
 
 // SiteDetail 是详情弹窗一次拉取的内容：表单字段 + 只读信息 + 是否可编辑。
@@ -146,9 +147,18 @@ type SiteDetail struct {
 	AuthUser     string   `json:"authUser"`
 	AuthPass     string   `json:"authPass"`
 	AuthRealm    string   `json:"authRealm"`
-	CachePath    string   `json:"cachePath"`
-	CacheValid   []string `json:"cacheValid"`
-	CacheMaxSize int      `json:"cacheMaxSize"`
+	// CacheZone 是主配置 cache 段里的缓存区名；空串表示不启用缓存。
+	// 目录、容量与有效期都属于缓存区，站点只引用名字。
+	CacheZone string `json:"cacheZone"`
+}
+
+// CacheZone 是主配置 cache 段里的一个缓存区。目录、容量与有效期只在这里
+// 定义一次，站点通过名字引用。
+type CacheZone struct {
+	Name    string   `json:"name"`
+	Path    string   `json:"path"`
+	Valid   []string `json:"valid"`
+	MaxSize int      `json:"max_size"`
 }
 
 type ConfigField struct {

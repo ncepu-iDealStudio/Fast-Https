@@ -6,6 +6,7 @@ package schema
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -116,7 +117,7 @@ type Path struct {
 	ProxyPass      string          `json:"proxy_pass"`
 	ProxySetHeader []model.Header  `json:"proxy_set_header"`
 	AppFireWall    []string        `json:"appfirewall"`
-	ProxyCache     model.Cache     `json:"proxy_cache"`
+	ProxyCache     CacheRef        `json:"proxy_cache"`
 	Limit          model.PathLimit `json:"limit"`
 	Auth           model.PathAuth  `json:"auth"`
 	ErrorPage      ErrorPage       `json:"error_page"`
@@ -163,12 +164,43 @@ type Config struct {
 	Pid      string                `json:"pid"`
 	LogRoot  string                `json:"log_root"`
 	Engine   Engine                `json:"engine"`
+	Cache    []CacheZone           `json:"cache"`
 	WAF      *model.WAFConfig      `json:"waf"`
 	Acme     *model.AcmeConfig     `json:"acme"`
 	Security *model.SecurityConfig `json:"security"`
 	TLS      TLS                   `json:"tls"`
 	Proxy    Proxy                 `json:"proxy"`
 	HTTP     HTTP                  `json:"http"`
+}
+
+// CacheZone 是主配置 cache 段的元素。
+type CacheZone struct {
+	Name    string   `json:"name"`
+	Path    string   `json:"path"`
+	Valid   []string `json:"valid"`
+	MaxSize int      `json:"max_size"`
+}
+
+// CacheRef 是 location 上的负责任引用：只接受缓存区名。
+// 旧写法（对象形式的 path/valid/key）在解析期就报错，避免把整块目录配置
+// 悄悄留在站点文件里，与主配置的缓存区定义并存。
+type CacheRef string
+
+func (r *CacheRef) UnmarshalJSON(b []byte) error {
+	trimmed := bytes.TrimSpace(b)
+	if len(trimmed) > 0 && trimmed[0] == '{' {
+		return fmt.Errorf("proxy_cache 现在只接受缓存区名；目录、容量与有效期请移到主配置的 cache 段")
+	}
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		*r = ""
+		return nil
+	}
+	var v string
+	if err := json.Unmarshal(trimmed, &v); err != nil {
+		return fmt.Errorf("proxy_cache 必须是缓存区名（字符串）：%w", err)
+	}
+	*r = CacheRef(strings.TrimSpace(v))
+	return nil
 }
 
 // Proxy 是全局代理策略段：可信代理、X-Forwarded-For 链长上限与 Host 透传。

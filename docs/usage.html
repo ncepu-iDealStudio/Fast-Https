@@ -454,14 +454,18 @@ fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops
 </ul>
 <p><code>--zip-min-length</code>、<code>--zip-skip-types</code> 覆盖，<code>--zip=</code> 关闭压缩。</p>
 <h3 id="sec-26">6.5 代理缓存</h3>
-<pre><code class="language-json">&#34;proxy_cache&#34;: {
-  &#34;path&#34;: &#34;./cache&#34;,
-  &#34;key&#34;: &#34;$request_uri&#34;,
-  &#34;valid&#34;: [&#34;200:1h&#34;, &#34;404:1m&#34;, &#34;any:5m&#34;],
-  &#34;methods&#34;: [&#34;GET&#34;, &#34;HEAD&#34;],
-  &#34;max_size&#34;: 1073741824
-}</code></pre>
-<p><code>valid</code> 的格式是 <code>状态码:时长</code>，<code>any</code> 匹配其余状态码；命中会顺延一个周期（读即续期）。<code>key</code> 支持变量插值。</p>
+<p>缓存区定义在主配置的 <code>cache</code> 段（可多个），目录、容量与有效期只写一次；</p>
+<pre><code class="language-json">// fast-https.json
+&#34;cache&#34;: [
+  { &#34;name&#34;: &#34;edge&#34;, &#34;path&#34;: &#34;./cache/edge&#34;, &#34;valid&#34;: [&#34;200:1h&#34;, &#34;404:1m&#34;, &#34;any:5m&#34;], &#34;max_size&#34;: 1073741824 }
+]</code></pre>
+<p>站点 location 用 <code>proxy_cache</code> 引用区名：</p>
+<pre><code class="language-json">// conf.d/blog.json
+&#34;location&#34;: [
+  { &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;proxy&#34;, &#34;proxy_pass&#34;: &#34;http://127.0.0.1:8080&#34;, &#34;proxy_cache&#34;: &#34;edge&#34; }
+]</code></pre>
+<p><code>valid</code> 的格式是 <code>状态码:时长</code>，<code>any</code> 匹配其余状态码；命中会顺延一个周期（读即续期）。 缓存键由程序生成（<code>$host$request_uri</code>，带区名前缀），方法固定 GET/HEAD。 目录相对程序数据目录（Windows 归档为 exe 所在目录，Linux 包为 <code>/usr/share/fast-https</code>）。</p>
+<p>缓存区可用 <code>fast-https cache list / add / update / delete</code> 管理，或到桌面端 「缓存区」页维护；站点弹窗里直接选择缓存区。删除仍被站点引用的缓存区会被拒绝。 站点命令只接受已定义的区名：<code>site add|update --cache-zone edge</code>，写错会在执行前报错。</p>
 <h3 id="sec-27">6.6 Basic 认证与限流</h3>
 <pre><code class="language-json">{
   &#34;url&#34;: &#34;/admin/&#34;,

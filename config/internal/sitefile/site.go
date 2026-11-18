@@ -32,9 +32,12 @@ func IsTreeConfigFile(name string) bool {
 
 // SiteLocation 是站点文件里一个 location 的可编辑子集。
 //
-// Zip / Limit / Auth / Cache 用指针表示「本次不改」：nil 表示这个字段不参与
+// Zip / Limit / Auth 用指针表示「本次不改」：nil 表示这个字段不参与
 // 差异比对，文件里的原值原样保留。这样 site update 只改用户点名的字段，
 // 不会把没动过的高级配置写成零值。
+//
+// ProxyCache 是缓存区名字符串，空串表示不启用缓存。目录、容量与有效期
+// 都属于主配置 cache 段，站点文件只引用缓存区名。
 type SiteLocation struct {
 	URL  string `json:"url"`
 	Type string `json:"type"`
@@ -51,7 +54,7 @@ type SiteLocation struct {
 	ZipSkipTypes *[]string        `json:"zip_skip_types,omitempty"`
 	Limit        *model.PathLimit `json:"limit,omitempty"`
 	Auth         *model.PathAuth  `json:"auth,omitempty"`
-	Cache        *model.Cache     `json:"proxy_cache,omitempty"`
+	ProxyCache   string           `json:"proxy_cache,omitempty"`
 }
 
 // SiteInput 是生成 conf.d/<name>.json 的输入。

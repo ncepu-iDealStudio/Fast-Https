@@ -40,19 +40,13 @@ type Header struct {
 	HeaderValue string `json:"HeaderValue"`
 }
 
-type Cache struct {
+// CacheZone 是主配置 cache 段里的一个缓存区：目录、容量与有效期只在这里
+// 定义一次，站点通过名字引用。对齐 nginx 的 proxy_cache_path + proxy_cache。
+type CacheZone struct {
+	Name    string   `json:"name"`
 	Path    string   `json:"path"`
 	Valid   []string `json:"valid"`
-	Key     string   `json:"key"`
-	Methods []string `json:"methods"` // 允许读写的请求方法，留空等价于 GET 与 HEAD
 	MaxSize int      `json:"max_size"`
-}
-
-// IsZero 报告这个缓存配置是否等于「未配置」：没有 path 就没有缓存目录，
-// 此时删掉 proxy_cache 键。
-func (c Cache) IsZero() bool {
-	return strings.TrimSpace(c.Path) == "" && len(c.Valid) == 0 &&
-		strings.TrimSpace(c.Key) == "" && len(c.Methods) == 0 && c.MaxSize == 0
 }
 
 type PathAuth struct {
@@ -138,7 +132,7 @@ type Path struct {
 	ProxyData      string
 	ProxySetHeader []Header
 	AppFireWall    []string
-	ProxyCache     Cache
+	ProxyCache     string
 	Limit          PathLimit
 	Auth           PathAuth
 	ErrorNotFound  string
@@ -196,6 +190,8 @@ type Fast_Https struct {
 	LogRoot string
 
 	Servers      []Server
+	// Cache 是主配置里的缓存区定义，站点只按名字引用。
+	Cache        []CacheZone
 	ServerEngine Engine
 	Limit        ServerLimit
 	BlackList    []string
@@ -207,6 +203,20 @@ type Fast_Https struct {
 	Security     *SecurityConfig
 	TLS          TLSConfig
 	Proxy        Proxy
+}
+
+// CacheZoneByName 返回指定名字的缓存区。名字为空或未定义时返回 false。
+func (c *Fast_Https) CacheZoneByName(name string) (CacheZone, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return CacheZone{}, false
+	}
+	for _, zone := range c.Cache {
+		if zone.Name == name {
+			return zone, true
+		}
+	}
+	return CacheZone{}, false
 }
 
 // ForwardedForConfig 是 proxy.forwarded_for 段的原始配置。

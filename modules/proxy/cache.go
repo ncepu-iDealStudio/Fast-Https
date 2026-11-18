@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fast-https/config"
 	"fast-https/core"
 	"fast-https/infra/timeutil"
 	"fast-https/modules/cache"
@@ -13,34 +14,29 @@ import (
 // 只放行幂等方法：其余方法可能改变上游状态，缓存它们的响应会造成数据错乱。
 var defaultCacheMethods = []string{"GET", "HEAD"}
 
-// ProxyCache 保存某个 location 的 proxy_cache 配置。
+// ProxyCache 是某个 location 引用的缓存区策略。
 type ProxyCache struct {
-	key     string
+	zone    string
 	valid   []string
 	path    string
-	methods []string
 	maxSize int
 }
 
-// NewProxyCache 构造一个 location 的缓存策略。
-// methods 为空时使用 defaultCacheMethods。
-func NewProxyCache(key string, valid []string, path string, methods []string, maxSize int) *ProxyCache {
+// NewProxyCache 用主配置里的缓存区构造 location 的策略。
+// 站点不再持有目录、容量与键：这些都属于缓存区。
+func NewProxyCache(zone config.CacheZone) *ProxyCache {
 	return &ProxyCache{
-		key:     key,
-		valid:   valid,
-		path:    path,
-		methods: methods,
-		maxSize: maxSize,
+		zone:    zone.Name,
+		valid:   zone.Valid,
+		path:    zone.Path,
+		maxSize: zone.MaxSize,
 	}
 }
 
-// methodAllowed 判断该请求方法是否允许读写缓存。
+// methodAllowed 判断该请求方法允许读写缓存。方法固定为 GET 与 HEAD：
+// 集群共享的缓存区不应该被 PUT/POST 的响应污染。
 func (pc *ProxyCache) methodAllowed(method string) bool {
-	methods := pc.methods
-	if len(methods) == 0 {
-		methods = defaultCacheMethods
-	}
-	for _, allowed := range methods {
+	for _, allowed := range defaultCacheMethods {
 		if strings.EqualFold(strings.TrimSpace(allowed), method) {
 			return true
 		}
@@ -48,12 +44,13 @@ func (pc *ProxyCache) methodAllowed(method string) bool {
 	return false
 }
 
-// CacheKey 返回该请求的缓存键；未配置 key 或 path 时返回空串。
+// CacheKey 返回该请求的缓存键；未引用缓存区或区没有目录时返回空串。
+// 键里带区名：两个区即使 URI 相同也不会命中彼此的条目。
 func (pc *ProxyCache) CacheKey(ev *core.Event) string {
-	if pc.key == "" || pc.path == "" {
+	if pc.zone == "" || pc.path == "" {
 		return ""
 	}
-	return cache.GetMd5(ev.GetCommandParsedStr(pc.key))
+	return cache.GetMd5(pc.zone + "|" + ev.GetCommandParsedStr("$host$request_uri"))
 }
 
 // ExpireFor 返回状态码对应的缓存时长（秒），0 表示该响应不缓存。

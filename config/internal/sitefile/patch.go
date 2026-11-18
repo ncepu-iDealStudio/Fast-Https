@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"fast-https/config/internal/model"
 	"fast-https/config/internal/schema"
 	"fast-https/infra/jsonc"
 )
@@ -154,13 +153,8 @@ func locationAdvancedEdits(base []jsonc.Step, before, after SiteLocation) []json
 		}
 	}
 
-	if after.Cache != nil {
-		if after.Cache.IsZero() {
-			edits = append(edits, delEditAt(base, "proxy_cache"))
-		} else if before.Cache == nil || !sameCache(*before.Cache, *after.Cache) {
-			edits = append(edits, setEditAt(base, "proxy_cache", mustJSON(after.Cache)))
-		}
-	}
+	// proxy_cache 只存缓存区名：清空即删键，改名即写入新名字。
+	edits = append(edits, stringFieldEditsAt(base, "proxy_cache", before.ProxyCache, after.ProxyCache)...)
 
 	return edits
 }
@@ -205,15 +199,6 @@ func normalizeMIMETypes(in []string) []string {
 		out = append(out, v)
 	}
 	return out
-}
-
-// sameCache 逐字段比对：Cache 含 slice，不能直接用 !=。
-func sameCache(a, b model.Cache) bool {
-	return sameText(a.Path, b.Path) &&
-		sameStrings(a.Valid, b.Valid) &&
-		sameText(a.Key, b.Key) &&
-		sameStrings(a.Methods, b.Methods) &&
-		a.MaxSize == b.MaxSize
 }
 
 // stringFieldEditsAt 处理值可能被清空的字段：新值为空且旧值非空时删掉这个键，

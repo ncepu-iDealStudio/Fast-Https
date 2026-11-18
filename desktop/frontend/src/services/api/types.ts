@@ -30,9 +30,16 @@ export interface SiteInput {
   authUser: string;
   authPass: string;
   authRealm: string;
-  cachePath: string;
-  cacheValid: string[];
-  cacheMaxSize: number;
+  /** 主配置 cache 段里的缓存区名；空串表示不启用缓存。 */
+  cacheZone: string;
+}
+
+/** 主配置 cache 段里的一个缓存区。 */
+export interface CacheZone {
+  name: string;
+  path: string;
+  valid: string[];
+  max_size: number;
 }
 
 export interface SiteDetail extends SiteInput {
@@ -87,6 +94,10 @@ export interface DesktopServiceContract {
   SaveSiteDetail(input: SiteInput): Promise<string>;
   DeleteSite(id: string): Promise<string>;
   SetSiteEnabled(id: string, enabled: boolean): Promise<string>;
+  ListCacheZones(): Promise<CacheZone[]>;
+  AddCacheZone(zone: CacheZone): Promise<string>;
+  SaveCacheZone(name: string, zone: CacheZone): Promise<string>;
+  DeleteCacheZone(name: string): Promise<string>;
   GetOverview(): Promise<Overview>;
   ListSites(): Promise<Site[]>;
   ListCerts(): Promise<Cert[]>;

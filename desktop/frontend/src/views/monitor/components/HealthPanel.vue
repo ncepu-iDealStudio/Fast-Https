@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 组件健康度四卡：图标 + 名称 + 状态徽标 + 描述 + 右下角查看链接。
+ * 组件健康卡：图标 + 名称 + 状态徽标 + 描述 + 右下角查看链接。
  * 每张卡是一个可跳转的入口，action 为空则不显示链接。
  */
 import { ChevronRight } from '@lucide/vue';

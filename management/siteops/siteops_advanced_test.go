@@ -137,13 +137,10 @@ func TestUpdateAuth(t *testing.T) {
 }
 
 func TestUpdateCache(t *testing.T) {
-	cache := config.Cache{Path: "./cache", Valid: []string{"10s"}}
-	out := updateAdvanced(t, UpdateInput{Cache: &cache})
-	if !strings.Contains(out, `"proxy_cache"`) {
+	zone := "edge"
+	out := updateAdvanced(t, UpdateInput{CacheZone: &zone})
+	if !strings.Contains(out, `"proxy_cache": "edge"`) {
 		t.Fatalf("proxy_cache 没写进去:\n%s", out)
-	}
-	if !strings.Contains(out, `"./cache"`) {
-		t.Fatalf("缓存目录不对:\n%s", out)
 	}
 }
 
@@ -205,8 +202,8 @@ func TestUpdateAdvancedClears(t *testing.T) {
 	zip := []string{"gzip"}
 	limit := config.PathLimit{Rate: 10}
 	auth := config.PathAuth{AuthType: "basic", User: "admin", Pswd: "pw"}
-	cache := config.Cache{Path: "./c"}
-	out := updateAdvanced(t, UpdateInput{Zip: &zip, Limit: &limit, Auth: &auth, Cache: &cache})
+	zone := "edge"
+	out := updateAdvanced(t, UpdateInput{Zip: &zip, Limit: &limit, Auth: &auth, CacheZone: &zone})
 	for _, key := range []string{`"zip"`, `"limit"`, `"auth"`, `"proxy_cache"`} {
 		if !strings.Contains(out, key) {
 			t.Fatalf("前置条件失败，%s 没写进去:\n%s", key, out)
@@ -214,8 +211,9 @@ func TestUpdateAdvancedClears(t *testing.T) {
 	}
 
 	// 一次性清掉四个
-	ez, el, ea, ec := []string{}, config.PathLimit{}, config.PathAuth{}, config.Cache{}
-	out2 := updateAdvanced2(t, out, UpdateInput{Zip: &ez, Limit: &el, Auth: &ea, Cache: &ec})
+	ez, el, ea := []string{}, config.PathLimit{}, config.PathAuth{}
+	emptyZone := ""
+	out2 := updateAdvanced2(t, out, UpdateInput{Zip: &ez, Limit: &el, Auth: &ea, CacheZone: &emptyZone})
 	for _, key := range []string{`"zip"`, `"limit"`, `"auth"`, `"proxy_cache"`} {
 		if strings.Contains(out2, key) {
 			t.Fatalf("%s 应被删掉:\n%s", key, out2)
@@ -233,7 +231,6 @@ func TestUpdateAdvancedValidation(t *testing.T) {
 		{"负数限流", UpdateInput{Limit: &config.PathLimit{Rate: -1}}},
 		{"认证缺用户名", UpdateInput{Auth: &config.PathAuth{AuthType: "basic", Pswd: "pw"}}},
 		{"首次开户缺口令", UpdateInput{Auth: &config.PathAuth{AuthType: "basic", User: "admin"}}},
-		{"缓存缺目录", UpdateInput{Cache: &config.Cache{Valid: []string{"10s"}}}},
 	}
 	for _, c := range cases {
 		cur := &config.SiteInput{Locations: []config.SiteLocation{{URL: "/", Type: "local", Root: "."}}}

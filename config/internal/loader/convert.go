@@ -117,6 +117,7 @@ func processRoot(configPath string) (model.Fast_Https, error) {
 	cfg.Waf = jc.WAF
 	cfg.Acme = jc.Acme
 	cfg.Security = jc.Security
+	cfg.Cache = convertCacheZones(jc.Cache)
 	cfg.TLS = model.TLSConfig{DefaultCertificate: model.Certificate{
 		Certificate: jc.TLS.DefaultCertificate.Certificate,
 		Key:         jc.TLS.DefaultCertificate.Key,
@@ -131,6 +132,25 @@ func processRoot(configPath string) (model.Fast_Https, error) {
 	}
 	SetDefault(&cfg)
 	return cfg, nil
+}
+
+// convertCacheZones 把主配置的 cache 段转成运行期定义。
+// 名称与目录去空白；空名称由校验层报错，这里不做静默丢弃，
+// 否则重名校验会少一条记录、错误信息对不上配置。
+func convertCacheZones(zones []schema.CacheZone) []model.CacheZone {
+	if len(zones) == 0 {
+		return nil
+	}
+	out := make([]model.CacheZone, 0, len(zones))
+	for _, z := range zones {
+		out = append(out, model.CacheZone{
+			Name:    strings.TrimSpace(z.Name),
+			Path:    strings.TrimSpace(z.Path),
+			Valid:   z.Valid,
+			MaxSize: z.MaxSize,
+		})
+	}
+	return out
 }
 
 // convertProxy 把 proxy 段转成运行期策略：preserve_host 缺省为 true，
@@ -249,7 +269,7 @@ func convertPath(jl schema.Path) model.Path {
 		ProxyData:      trimProxyPass(jl.ProxyPass),
 		ProxySetHeader: jl.ProxySetHeader,
 		AppFireWall:    jl.AppFireWall,
-		ProxyCache:     jl.ProxyCache,
+		ProxyCache:     string(jl.ProxyCache),
 		Limit:          jl.Limit,
 		Auth:           jl.Auth,
 		ErrorNotFound:  jl.ErrorPage.NotFound,

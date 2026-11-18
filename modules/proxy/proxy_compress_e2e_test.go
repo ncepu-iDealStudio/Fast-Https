@@ -51,12 +51,14 @@ func TestProxyCompressEndToEnd(t *testing.T) {
 	t.Run("缓存命中按请求重新协商", func(t *testing.T) {
 		addr := startCompressUpstream(t, upstreamBody)
 		cacheDir := t.TempDir()
+		snap := config.Current().Cache
+		config.Current().Cache = append(snap, config.CacheZone{
+			Name: "e2e", Path: cacheDir, Valid: []string{"200:60s"}, MaxSize: 1 << 20,
+		})
+		t.Cleanup(func() { config.Current().Cache = snap })
 		cfg := &listener.ListenCfg{
 			ProxyAddr: addr, Type: config.PROXY_HTTP, PreserveHost: true, Zip: config.ZIP_GZIP_BR,
-			ProxyCache: config.Cache{
-				Path: cacheDir, Valid: []string{"200:60s"},
-				Key: "$request_uri", Methods: []string{"GET"}, MaxSize: 1 << 20,
-			},
+			ProxyCache: "e2e",
 		}
 
 		// 第一次未命中，gzip 压缩并写入缓存（缓存里存未压缩正文）。
@@ -64,7 +66,7 @@ func TestProxyCompressEndToEnd(t *testing.T) {
 		if headers["content-encoding"] != "gzip" {
 			t.Fatalf("首次响应应 gzip，实得 %q", headers["content-encoding"])
 		}
-		waitCacheEntry(t, cache.GetMd5("$request_uri"))
+		waitCacheEntry(t, cache.GetMd5("e2e|api.example/cached"))
 
 		// 命中缓存、客户端不接受压缩：返回原文，不带 Content-Encoding。
 		_, headers, body = doProxyRequest(t, cfg, "/cached", "")
@@ -104,6 +106,9 @@ func doProxyRequest(t *testing.T, cfg *listener.ListenCfg, path, accept string) 
 	}
 	ev.RR.ReqBuf = make([]byte, 4096)
 	ev.RR.Res = response.ResponseInit()
+	// 真实链路里变量表由解析阶段填好；直接调 ProxyEvent 时补上同一步，
+	// 缓存键才能取到 $host 与 $request_uri。
+	core.DefaultParseCommandHandler(cfg, ev)
 	// 直接调 ProxyEvent 时没有运行时事件循环，按 EventWrite 的契约把响应写回连接。
 	ev.EventWrite = func(e *core.Event, _ []byte) error {
 		_, err := e.Conn.Write(e.ResponseBytes())

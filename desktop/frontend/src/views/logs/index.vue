@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 日志页编排壳：筛选状态 / 分页 / 实时刷新，界面交给 LogToolbar + LogTable。 */
+/** 日志页编排壳：筛选状态 / 分页 / 自动刷新，界面交给 LogToolbar + LogTable。 */
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { queryLogs } from '../../services/api/log';
@@ -23,9 +23,9 @@ const hasMore = ref(false);
 const cursor = ref('');
 const loading = ref(false);
 const error = ref('');
-const live = ref(true);
 
-let liveTimer: number | null = null;
+// 日志本身是持续写入的，页面固定每 5 秒拉一次最新内容，不提供暂停/继续开关。
+let refreshTimer: number | null = null;
 
 const statusText = computed(() => {
   const n = rows.value.length;
@@ -70,26 +70,23 @@ function reset(): void {
   Object.assign(filters, { level: '', status: '', host: '', method: '', pathPrefix: '', reason: '', rejectReason: '', since: '', until: '' });
   void load();
 }
-function setLive(on: boolean): void {
-  live.value = on;
-  if (liveTimer) { window.clearInterval(liveTimer); liveTimer = null; }
-  if (on) liveTimer = window.setInterval(() => { void load(); }, 5000);
-}
 function onFilters(v: typeof filters): void { Object.assign(filters, v); }
 
-onMounted(() => { void load(); setLive(live.value); });
-onUnmounted(() => { if (liveTimer) window.clearInterval(liveTimer); });
+onMounted(() => {
+  void load();
+  refreshTimer = window.setInterval(() => { void load(); }, 5000);
+});
+onUnmounted(() => { if (refreshTimer) window.clearInterval(refreshTimer); });
 </script>
 
 <template>
   <div class="main__body logs-page">
 
     <LogToolbar
-      :filters="filters" :advanced="advanced" :loading="loading" :live="live"
+      :filters="filters" :advanced="advanced"
       :status-text="statusText" :kinds="KINDS"
       @update:filters="onFilters" @update:advanced="advanced = $event"
-      @pick-kind="pickKind" @refresh="load()" @reset="reset"
-      @toggle-live="setLive(!live)" @apply="load()"
+      @pick-kind="pickKind" @reset="reset" @apply="load()"
     />
 
     <p v-if="error" class="notice notice--err">{{ error }}</p>
