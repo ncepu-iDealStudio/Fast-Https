@@ -1,0 +1,73 @@
+/* 搴曢儴妯甫锛氬乏娈点€屾湰鏈虹鐞嗐€嶏紙瀹藉害=渚ф爮瀹斤紝涓ユ牸瀵归綈锛夛紝鍙虫鐘舵€佷俊鎭€?   涓よ€呭乏鍙冲苟鎺掋€佸悓楂橈紝涓棿绔栫嚎鍒嗛殧 鈥斺€?涓嶅啀鏄笂涓嬪爢鍙犮€?   楂樺害 38px锛屾瘮鏃х増 40px 鏇寸獎銆?*/
+.dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+  flex: 0 0 7px;
+}
+.dot.state-ok { background: var(--ok); }
+.dot.state-warn { background: var(--warn); }
+.dot.state-off { background: var(--faint); }
+
+.footbar {
+  flex: 0 0 38px;
+  height: 38px;
+  display: flex;
+  align-items: stretch;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  overflow: visible;
+  position: relative;
+}
+
+/* 宸︽锛欰ccountMenu 鏍硅妭鐐瑰氨鏄繖娈碉紝瀹藉害璺熶晶鏍忚蛋 */
+.footbar__account {
+  width: var(--sidebar-w);
+  flex: 0 0 var(--sidebar-w);
+  display: flex;
+  transition: width .18s ease, flex-basis .18s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .footbar__account { transition: none; }
+}
+.window--rail .footbar__account { justify-content: center; }
+.window--rail .footbar__account .acct-name { display: none; }
+.window--rail .footbar__account .side-foot { justify-content: center; padding: 0; }
+
+/* 鍙虫锛氱姸鎬佷俊鎭?*/
+.footbar__status {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 16px;
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.footbar__status strong { color: var(--text); font-weight: 600; }
+.footbar__sep { color: var(--line-strong); }
+.footbar__hint { color: var(--faint); font-size: 11px; }
+.footbar__err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; }
+.footbar__spacer { flex: 1; }
+.footbar__checked { color: var(--faint); font-size: 10.5px; }
+
+/* 鐘舵€佹爮鍐呯殑鍥炬爣鎸夐挳锛?4px 瑙佹柟锛屾瘮椤甸潰涓婄殑 icon-btn 鏇寸揣鍑?*/
+.fbtn {
+  width: 24px; height: 24px; flex: 0 0 24px;
+  display: grid; place-items: center;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-xs);
+  background: var(--bg); color: var(--muted);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease),
+              color var(--dur-1) var(--ease);
+}
+.fbtn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.fbtn:disabled { opacity: .45; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .fbtn { transition: none; }
+}
+
+@media (max-width: 900px) {
+  .footbar__hint, .footbar__checked { display: none; }
+}

@@ -57,7 +57,7 @@ go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/fast-h
 | Windows NSIS | `wails3 task windows:create:nsis:installer` | `bin/fast-https-desktop-amd64-installer.exe` |
 | Linux desktop deb | `wails3 task linux:create:deb` | `bin/fast-https-desktop_<version>_<arch>.deb` |
 
-- NSIS 的组件页里，**桌面快捷方式**与**开始菜单**是两个可勾选、可取消的 Section；`build/package.ps1` 会把对应架构的 `fast-https-desktop.exe` 一起打进安装包，快捷方式指向它。主程序 `fast-https.exe` 是 `-H=windowsgui` 的命令行服务端，双击没有窗口，图形入口只有桌面管理端。
+- NSIS 的组件页里，**桌面快捷方式**与**开始菜单**是两个可勾选、可取消的 Section；`build/package.ps1` 会把对应架构的 `fast-https-desktop.exe` 一起打进安装包，快捷方式指向它。主程序 `fast-https.exe` 是控制台子系统，在 cmd/PowerShell 里会正常等待并输出；双击（无参数）启动时自动隐藏控制台窗口，图形入口只有桌面管理端。
 - `MicrosoftEdgeWebview2Setup.exe` 是打包时由 `wails3 generate webview2bootstrapper` 生成的中间产物（已忽略、不入库），走 `wails3 task windows:package` 会自动重新生成；手工跑 `makensis` 前需要先生成它。
 - goreleaser 产出的 desktop deb / rpm / apk 是「主程序包 + 桌面端」的完整包：除 `/usr/bin/fast-https-desktop`、图标与 `.desktop` 外，还带 `/usr/bin/fast-https`（与独立主程序包同一个二进制）、`/etc/fast-https` 配置与站点片段、`/usr/share/fast-https` 站点资源、systemd unit、logrotate 与安装维护脚本。离线只装这一个包就能 `fast-https start`，装完在应用菜单可见。它与独立主程序包声明 `Conflicts: fast-https` / `Replaces: fast-https`，避免同一文件被两个包各装一份；实机验证见 `tests/packaging/distro/desktop-deb.sh`。
 - `build/package.ps1` 先准备前端与 `.desktop`，再由 goreleaser 用 `purego` 无 CGO 交叉编译 Linux 二进制，产出 `dist/fast-https-desktop_<version>_linux_{amd64,arm64}.{deb,rpm,apk}`；依赖名按格式分别用 Debian / Fedora / Alpine 的 GTK4 + WebKitGTK 6.0 包。Linux 主机上仍可跑 `wails3 task linux:create:deb` 走原生 CGO 构建。`frontend/bindings/` 是 `wails3 generate bindings` 的生成物，已加入 git 忽略——走 `wails3 build` 会自动生成，手工只跑 `npm run build` 前要先执行一次生成命令。
@@ -189,7 +189,9 @@ scripts/
 
 ## 主题
 
-左下角「本机管理」点击弹出账户菜单，里面包含：亮色／暗色、五档中性色（石墨、暖灰、松绿、赭石、靛灰，默认亮色 + 石墨）、语言（简体中文 / English，可扩展）、设置页、隐藏到后台托盘、帮助文档。主题与语言偏好都保存在本机 `localStorage`。
+左下角「本机管理」点击弹出账户菜单，里面包含：亮色／暗色、五档中性色（石墨、暖灰、松绿、赭石、靛灰，默认亮色 + 石墨）、语言（简体中文 / English，可扩展）、设置页、**开机自启动**、隐藏到后台托盘、帮助文档。主题与语言偏好都保存在本机 `localStorage`。
+
+「开机自启动」是菜单里的勾选项，状态直接读注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`（不落 `localStorage`，每次打开菜单刷新）；勾选写入当前用户自启项，值为桌面端自身路径加 `--tray`，登录后只驻留托盘、不弹主窗口。写入失败时菜单底部回显系统错误，勾选态保持原样。
 
 「帮助文档」在**应用内弹窗**展示（左目录 + 右正文，中英双语，内容在 `src/help-content.js`，命令输出都是实测过的），不再跳浏览器；弹窗底部的「完整命令参考…」才用系统浏览器打开发行包里的 `docs/usage.html`。顶部工具按钮与左侧「设置」导航项已移除，统一从本机管理菜单进入。
 

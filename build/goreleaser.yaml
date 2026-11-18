@@ -31,8 +31,10 @@ builds:
       - amd64
     binary: fast-https
     main: ./fast-https.go
+    # 控制台子系统：cmd/PowerShell 会等待进程退出，输出顺序正常。
+    # 双击启动时由 cmd 包在 windows 上自行隐藏控制台窗口。
     ldflags:
-      - "-s -w -H=windowsgui"
+      - "-s -w"
 
   - id: windows-arm64
     env:
@@ -44,7 +46,7 @@ builds:
     binary: fast-https
     main: ./fast-https.go
     ldflags:
-      - "-s -w -H=windowsgui"
+      - "-s -w"
 
   # 发行版包专用：带 rpm tag，运行期资源定位到 /usr/share/fast-https/
   - id: linux-pkg

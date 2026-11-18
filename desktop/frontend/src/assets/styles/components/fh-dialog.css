@@ -1,0 +1,48 @@
+/* FhDialog.vue —— Reka UI headless 原语的外观层，沿用旧版 .dialog 规格。 */
+.fh-dialog__overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(16, 20, 28, .34);
+  animation: fh-overlay-in var(--dur-2) var(--ease);
+}
+.fh-dialog {
+  position: fixed; z-index: 61; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100vw - 48px); max-height: 86vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  padding: 22px 24px 18px;
+  background: var(--bg); border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
+  animation: fh-dialog-in var(--dur-2) var(--ease);
+}
+.fh-dialog__head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+}
+.fh-dialog__title { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+.fh-dialog__close {
+  display: inline-grid; place-items: center; width: 26px; height: 26px;
+  border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--muted);
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.fh-dialog__close:hover { background: var(--accent-soft); color: var(--text); }
+.fh-dialog__desc { margin: 0 0 var(--sp-3); font-size: 13px; line-height: 1.8; color: var(--muted); }
+/* 内容自己滚动，头尾固定：长表单滚到底也能看到「保存」 */
+.fh-dialog__body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto;
+  margin-top: var(--sp-3);
+  padding-right: 2px;
+  scrollbar-gutter: stable;
+}
+.fh-dialog__footer {
+  flex: 0 0 auto;
+  display: flex; justify-content: flex-end; gap: 10px;
+  margin-top: var(--sp-4); padding-top: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+@keyframes fh-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fh-dialog-in {
+  from { opacity: 0; transform: translate(-50%, -48%) scale(.985); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}

@@ -28,7 +28,7 @@ sudo systemctl enable --now fast-https && systemctl status fast-https --no-pager
 
 同一个二进制，两种路径，靠编译期 build tag 区分，运行时不判断：
 
-- **归档 / Docker / Windows**（解压即用）：全部相对工作目录，`./config`、`./logs`、`./httpdoc`
+- **归档 / Docker / Windows**（解压即用）：全部相对程序根目录，`./config`、`./logs`、`./httpdoc`；从其他目录执行时程序会自动切到根目录
 - **deb / rpm / apk**（系统安装）：按 FHS 分到 `/etc/fast-https`、`/usr/share/fast-https`、`/var/log/fast-https`、`/run/fast-https`
 
 所以"配置文件在哪"这个问题，答案取决于怎么装的。外部程序不要自己猜，用 `fast-https config path --json` 问主程序。

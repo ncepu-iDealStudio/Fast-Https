@@ -79,6 +79,31 @@ function Ensure-Utf8Bom {
     [System.IO.File]::WriteAllText($Path, $text, (New-Object System.Text.UTF8Encoding($true)))
 }
 
+function Clear-DistTemp {
+    # goreleaser --clean 删 dist 时，残留的 .tmp-* 常被 Docker Desktop 或
+    # 杀软短暂占用，一次 unlink 失败就会把整个打包停在最后一步。这里先
+    # 自己清一遍（带重试），清不掉再给出可执行的提示，而不是甩一句 exit 1。
+    param([string]$Dir)
+    if (-not (Test-Path -LiteralPath $Dir)) { return }
+    foreach ($f in @(Get-ChildItem -LiteralPath $Dir -Force -Filter ".tmp-*")) {
+        $done = $false
+        for ($i = 0; $i -lt 6; $i++) {
+            try {
+                Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop
+                $done = $true
+                break
+            }
+            catch {
+                Start-Sleep -Milliseconds 500
+            }
+        }
+        if (-not $done) {
+            Write-Warning "清不掉 $($f.Name)：文件仍被占用"
+            Write-Warning "多半是 Docker Desktop 或杀软正在扫描它。关掉 Docker Desktop 后重跑，或手动删除：$($f.FullName)"
+        }
+    }
+}
+
 function ConvertTo-Version4 {
     param([string]$Version)
     $nums = [regex]::Matches($Version, '\d+') | ForEach-Object { $_.Value }
@@ -155,6 +180,7 @@ if (-not $SkipBuild) {
     if (-not $Release) { $grArgs += "--snapshot" }
     # 本地打包不发布：-Publish 才真正上传，需要 GITHUB_TOKEN
     if (-not $Publish) { $grArgs += "--skip=publish" }
+    Clear-DistTemp (Join-Path $root "dist")
     Write-Host "==> goreleaser $($grArgs -join ' ')"
     # 同 Prepare-Desktop：goreleaser 的进度日志走 stderr，放宽 Stop 语义
     $prevEap = $ErrorActionPreference
@@ -188,8 +214,8 @@ if (-not $NoInstaller) {
         New-Item -ItemType Directory -Path $stage -Force | Out-Null
         Expand-Archive -Path $zip.FullName -DestinationPath $stage -Force
 
-        # 桌面管理端 exe 是安装包里的图形入口：fast-https.exe 是 -H=windowsgui
-        # 编译的命令行服务端，双击不会出现窗口，快捷方式应指向桌面管理端。
+        # 桌面管理端 exe 是安装包里的图形入口：fast-https.exe 是控制台子系统的
+        # 命令行服务端，双击（无参数）会自行隐藏窗口，快捷方式应指向桌面管理端。
         $desktopExe = Join-Path $root $(if ($arch -eq "arm64") { "desktop\bin\fast-https-desktop-arm64.exe" } else { "desktop\bin\fast-https-desktop.exe" })
         if (Test-Path $desktopExe) {
             $target = Join-Path $stage "fast-https-desktop.exe"

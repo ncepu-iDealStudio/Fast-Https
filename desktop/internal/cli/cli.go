@@ -73,6 +73,8 @@ func command(dir string, args []string) (*exec.Cmd, error) {
 	}
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
+	// 主程序是控制台子系统，桌面端每次调 CLI 都要隐藏窗口，否则频闪。
+	hideConsole(cmd)
 	return cmd, nil
 }
 
@@ -203,6 +205,20 @@ func Strs(m map[string]any, key string) []string {
 	return out
 }
 
+// envelopeError 从命令失败时留在 stdout 的封套里取错误。
+// 不是失败封套（空输出、纯文本输出）时返回 nil，让调用方走原有的兜底。
+func envelopeError(out []byte) error {
+	trimmed := bytes.TrimSpace(out)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return nil
+	}
+	var env Envelope[json.RawMessage]
+	if json.Unmarshal(trimmed, &env) != nil {
+		return nil
+	}
+	return env.Err()
+}
+
 // RunJSON 执行一条命令并解出 --json 的 data。
 // args 里不用带 --json，这里统一补上。
 func RunJSON[T any](dir string, args ...string) (T, []string, error) {
@@ -217,6 +233,12 @@ func RunJSON[T any](dir string, args ...string) (T, []string, error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
+		// 主程序的失败封套写在 stdout（stderr 只放日志），命令行退出码非 0
+		// 时 Go 仍会把 stdout 一起返回：先试着解封套拿到 error.message，
+		// 否则界面只能看到「失败：exit status 10」这种没信息量的东西。
+		if e := envelopeError(out); e != nil {
+			return zero, nil, e
+		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()

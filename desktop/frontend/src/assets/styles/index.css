@@ -1,0 +1,5 @@
+/* 全局样式唯一入口：main.ts 只 import 这一个文件。
+   顺序固定：设计令牌 → 组件 → 布局 → 视图，后层可覆盖前层。 */
+@import './components/index.css';
+@import './layout/index.css';
+@import './views/index.css';

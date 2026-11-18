@@ -12,6 +12,7 @@ import (
 	"fast-https-desktop/internal/view"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -32,6 +33,8 @@ type parsedSite struct {
 	pass    string
 	listens []string
 	tls     bool
+	cert    string
+	certKey string
 }
 
 // parseSiteInput 做快速校验并归一化。域名即 CLI 的站点名（文件名主干），
@@ -83,6 +86,14 @@ func parseSiteInput(in SiteInput) (parsedSite, error) {
 	if len(p.listens) == 0 {
 		return p, fmt.Errorf("listen 至少需要一个监听端口")
 	}
+	p.cert = strings.TrimSpace(in.Cert)
+	p.certKey = strings.TrimSpace(in.CertKey)
+	if (p.cert == "") != (p.certKey == "") {
+		return p, fmt.Errorf("证书与私钥路径要一起填，或者都留空交给首次启动自动生成")
+	}
+	if p.cert != "" && !p.tls {
+		return p, fmt.Errorf("填了证书就必须有 ssl 监听（协议选 HTTPS 或 HTTP + HTTPS）")
+	}
 	return p, nil
 }
 
@@ -122,6 +133,11 @@ func planAdd(in SiteInput) ([][]string, error) {
 	if p.tls {
 		add = append(add, "--tls")
 	}
+	// 证书留空就走 CLI 的默认约定（首次 start 生成）；填写则指定路径，
+	// 用于多站点共用同一张证书（如通配符证书）。
+	if p.cert != "" {
+		add = append(add, "--ssl-certificate", p.cert, "--ssl-certificate-key", p.certKey)
+	}
 	add = append(add, "--yes")
 	plan := [][]string{add}
 
@@ -154,6 +170,9 @@ func runSite(dir string, args ...string) (any, error) {
 
 // AddSite 受控新增站点：转交 site add（多域名再补一条 site update）。
 func AddSite(dir string, in SiteInput) (string, error) {
+	if err := requireAbsRoot(in.Root); err != nil {
+		return "", err
+	}
 	plan, err := planAdd(in)
 	if err != nil {
 		return "", err
@@ -186,7 +205,9 @@ func DeleteSite(dir, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return txnMessage(data, "删除", id), nil
+	// 证书按域名落在 config/cert 下、删除站点时刻意保留：这里明确说一句，
+	// 免得用户以为证书跟着 json 一起没了（CLI 的同类提示写在 stderr，桌面端拿不到）。
+	return txnMessage(data, "删除", id) + "\n提示：证书文件仍保留在 config/cert，重建同名站点可直接复用。", nil
 }
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
@@ -320,11 +341,26 @@ func planUpdate(id string, cur SiteDetail, in SiteInput) ([]string, error) {
 			changed = true
 		}
 	} else if p.typ != cur.Type || p.root != cur.Root {
+		// 只有真的改了 root 才要求绝对路径：老配置里写的是相对路径，
+		// 不动它就不该因为「顺手保存其它字段」被拦下来。
+		if err := requireAbsRoot(p.root); err != nil {
+			return nil, err
+		}
 		args = append(args, "--root", p.root)
 		changed = true
 	}
 	if advArgs, advChanged := planAdvanced(cur, in); advChanged {
 		args = append(args, advArgs...)
+		changed = true
+	}
+	// 证书路径：留空表示交回默认约定（CLI 侧清空后由首次 start 重新生成）。
+	// 用 --flag=value 形式传，避免路径里的空格或中文被拆开。
+	if p.cert != strings.TrimSpace(cur.Cert) {
+		args = append(args, "--ssl-certificate="+p.cert)
+		changed = true
+	}
+	if p.certKey != strings.TrimSpace(cur.CertKey) {
+		args = append(args, "--ssl-certificate-key="+p.certKey)
 		changed = true
 	}
 	if !changed {
@@ -520,6 +556,30 @@ func SaveSiteDetail(dir string, in SiteInput) (string, error) {
 		return "", err
 	}
 	return txnMessage(data, "更新", id), nil
+}
+
+// requireAbsRoot 校验站点根目录：必须是存在的绝对路径。
+//
+// 之前试过把相对路径按运行目录展开，结果 "..\..\..\front\www" 被算成
+// "E:\front\www" —— 用户根本不知道是相对谁算的，报错也看不懂。根目录就
+// 该是绝对路径：浏览… 返回的本来就是绝对路径，手填也写绝对路径，没有歧义。
+// 空值放行（proxy 站点不需要 root）。
+func requireAbsRoot(root string) error {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return nil
+	}
+	if !filepath.IsAbs(root) {
+		return fmt.Errorf(`站点根目录要填绝对路径（例如 D:\www\site），也可以点「浏览…」选目录`)
+	}
+	info, err := os.Stat(root)
+	if err != nil {
+		return fmt.Errorf("站点根目录不存在：%s", root)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("站点根目录不是文件夹：%s", root)
+	}
+	return nil
 }
 
 // splitListenText 把弹窗的监听输入拆成单条监听。

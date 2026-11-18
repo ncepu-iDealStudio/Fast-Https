@@ -5,15 +5,26 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build": "node scripts/i18n-check.mjs && vue-tsc --noEmit -p tsconfig.json && vite build",
     "build:dev": "vite build --minify false --mode development",
-    "build": "node scripts/i18n-check.mjs && vite build --mode production",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
     "i18n:check": "node scripts/i18n-check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@wailsio/runtime": "3.1.0"
+    "@lucide/vue": "^1.72.0",
+    "@vueuse/core": "^15.0.0",
+    "@wailsio/runtime": "3.1.0",
+    "pinia": "^4.1.0",
+    "reka-ui": "^2.11.0",
+    "vue": "^3.5.45",
+    "vue-i18n": "^11.4.19"
   },
   "devDependencies": {
-    "vite": "^8.2.4"
+    "@types/node": "^22.20.5",
+    "@vitejs/plugin-vue": "^6.0.11",
+    "typescript": "~5.9.3",
+    "vite": "^8.2.4",
+    "vue-tsc": "^3.3.14"
   }
 }

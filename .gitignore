@@ -34,3 +34,6 @@ tests/test_data/*
 
 # 运行期状态：配置版本、操作记录、锁与请求登记，跑一次服务就会生成
 state/
+# 前端逐页截图的本地验证产物，不入库
+desktop/frontend/shots/
+.loomy-attachments/

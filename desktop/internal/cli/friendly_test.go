@@ -14,6 +14,7 @@ func TestFriendlyMessage(t *testing.T) {
 		{"no server configured", "no server configured: add http.server or a server file under http.include", "site disable", "停用唯一站点"},
 		{"already enabled", "CONFLICT: site conflict: site default is already enabled", "site enable", "已经是启用状态"},
 		{"already disabled", "CONFLICT: site conflict: site default is already disabled", "site disable", "已经是停用状态"},
+		{"server_name taken", "CONFLICT: site conflict: server_name localhost already used by default on port 80", "site add", "这个域名在这个端口上已经被别的站点占用了"},
 		{"not found", "NOT_FOUND: site not found: foo", "site show", "找不到该站点"},
 		{"not supported inline", "NOT_SUPPORTED: site foo is inline in the main config (http.server)", "site update", "内联在主配置"},
 		{"log missing", "LOG_SOURCE_UNAVAILABLE: log file not found: access.log", "logs access", "日志文件还不存在"},

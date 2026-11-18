@@ -31,8 +31,19 @@ tasks:
     cmds:
       - task: "{{.GOOS}}:run"
 
+  # 桌面端只重建自己（fast-https-desktop.exe），同目录的 fast-https.exe 不会跟着更新。
+  # 开发时忘了重建就会拿旧 CLI 跑，出现「代码明明改了却没生效」的错觉，所以 dev 前先构建。
+  cli:
+    desc: 构建主程序 CLI 到 bin/（桌面端从同目录调用）
+    summary: 构建主程序 CLI
+    dir: ..
+    cmds:
+      # 输出到 desktop/bin，和桌面端 exe 放在一起（桌面端就是从同目录调用它）
+      - go build -o desktop/{{.BIN_DIR}}/fast-https.exe .
+
   dev:
     desc: 启动开发模式（Vite dev server + 热重载）
-    summary: 开发模式
+    summary: 开发模式，先构建主程序 CLI 再起界面
     cmds:
+      - task: cli
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}

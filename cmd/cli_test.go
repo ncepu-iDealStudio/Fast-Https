@@ -1668,6 +1668,18 @@ func TestVersionCommandPrintsVersion(t *testing.T) {
 	}
 }
 
+// --version 是脚本里更常见的写法，输出要与 version 子命令完全一致。
+func TestVersionFlagPrintsVersion(t *testing.T) {
+	got, err := runCmd(t, LangZH, "--version")
+	if err != nil {
+		t.Fatalf("--version: %v", err)
+	}
+	want := "fast-https " + config.CURRENT_VERSION + "\n"
+	if got != want {
+		t.Fatalf("--version 输出 = %q, want %q", got, want)
+	}
+}
+
 // 版本号不随帮助语言变化，否则脚本解析就得处理两种格式。
 func TestVersionOutputIsLanguageIndependent(t *testing.T) {
 	zh, err := runCmd(t, LangZH, "version")

@@ -1,0 +1,43 @@
+.versions-page { display: flex; flex-direction: column; min-height: 0; }
+
+.verlist {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.verlist__row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.verlist__row:last-child { border-bottom: 0; }
+.verlist__row:hover { background: var(--surface); }
+
+/* 当前版本左侧加一道细条，一眼看出「现在用的是哪个」 */
+.verlist__row--active { border-left: 2px solid var(--ok); }
+
+.verlist__ver {
+  display: flex; align-items: center; gap: 6px;
+  color: var(--text); font-weight: 500;
+}
+.verlist__meta { overflow-wrap: anywhere; }
+.verlist__ops {
+  display: flex; align-items: center; gap: 6px;
+  justify-content: flex-end; white-space: nowrap;
+}
+
+/* 漂移提示里放图标时不要被 flex 拉散 */
+.alert-strip__title { display: inline-flex; align-items: center; gap: 5px; }
+
+@media (max-width: 1080px) {
+  .verlist__row { grid-template-columns: 108px minmax(0, 1fr) auto; gap: 10px; }
+  .verlist__ops .fh-btn span { display: none; }
+}
+

@@ -48,6 +48,12 @@ func FriendlyMessage(msg, cmd string) string {
 	if strings.Contains(m, "already exists") {
 		return "同名站点或域名已存在，请换一个名称。\nA site with that name or domain already exists; please choose another."
 	}
+	// 同一端口上的 server_name 重复：新增/改站点撞上已有站点就是这个错。
+	// 冲突判据是「域名 + 端口」，所以提示里点明端口，别让用户以为域名被锁死。
+	if strings.Contains(m, "server_name") && strings.Contains(m, "already used by") {
+		return "这个域名在这个端口上已经被别的站点占用了（同一端口上的 server_name 必须唯一）：" + clip(msg, 160) + "\n" +
+			"That server_name is already served on this listen port by another site; change the domain or the port."
+	}
 	if strings.Contains(m, "site conflict") || strings.Contains(m, "conflict") {
 		return "操作与当前状态冲突，请刷新列表后再试。\nThe operation conflicts with the current state; refresh the list and try again."
 	}

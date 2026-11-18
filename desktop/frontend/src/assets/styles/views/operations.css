@@ -1,0 +1,3 @@
+/* 操作记录页壳（views/operations/index.vue）：页面级布局。
+   表格见 operations-table.css，详情见 operations-detail.css。 */
+.ops-page { display: flex; flex-direction: column; min-height: 0; }
