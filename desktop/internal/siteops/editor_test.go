@@ -450,3 +450,73 @@ func TestSetSiteEnabledNormalizesName(t *testing.T) {
 		t.Fatal("缺少站点名应报错")
 	}
 }
+
+// 路径代理（额外 location）的三个纯函数：命令拼装、前置校验、变更判定。
+func TestExtraLocationHelpers(t *testing.T) {
+	dir := t.TempDir()
+
+	args, err := locationSetArgs("web", []model.SiteLocation{
+		{URL: " /api ", Type: "proxy", ProxyPass: "http://127.0.0.1:9000"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9000"}`
+	if len(args) != 6 || args[0] != "site" || args[1] != "location" || args[2] != "set" ||
+		args[3] != "web" || args[4] != "--location" || args[5] != want {
+		t.Fatalf("args = %v", args)
+	}
+	// 空列表也要生成命令，交给 set 清空额外 location。
+	if args, _ = locationSetArgs("web", nil); len(args) != 4 {
+		t.Fatalf("empty args = %v", args)
+	}
+
+	good := []model.SiteLocation{
+		{URL: "/api", Type: "proxy", ProxyPass: "https://127.0.0.1:9000"},
+		{URL: "/assets", Root: dir},
+	}
+	if err := validateExtraLocations(good); err != nil {
+		t.Fatalf("合法配置被拒绝：%v", err)
+	}
+
+	bad := []struct {
+		name string
+		loc  model.SiteLocation
+	}{
+		{"空 url", model.SiteLocation{Type: "proxy", ProxyPass: "http://a"}},
+		{"主 location", model.SiteLocation{URL: "/", Type: "proxy", ProxyPass: "http://a"}},
+		{"无前导斜杠", model.SiteLocation{URL: "api", Type: "proxy", ProxyPass: "http://a"}},
+		{"含空格", model.SiteLocation{URL: "/a b", Type: "proxy", ProxyPass: "http://a"}},
+		{"上游缺协议", model.SiteLocation{URL: "/x", Type: "proxy", ProxyPass: "127.0.0.1:9000"}},
+		{"静态缺目录", model.SiteLocation{URL: "/s", Type: "local"}},
+		{"目录不存在", model.SiteLocation{URL: "/s", Root: filepath.Join(dir, "nope")}},
+		{"未知类型", model.SiteLocation{URL: "/t", Type: "rewrite"}},
+	}
+	for _, c := range bad {
+		if err := validateExtraLocations([]model.SiteLocation{c.loc}); err == nil {
+			t.Fatalf("%s 应被拒绝", c.name)
+		}
+	}
+	if err := validateExtraLocations([]model.SiteLocation{
+		{URL: "/api", Type: "proxy", ProxyPass: "http://a"},
+		{URL: "/api", Type: "proxy", ProxyPass: "http://b"},
+	}); err == nil {
+		t.Fatal("重复 url 应被拒绝")
+	}
+
+	if !sameLocations(nil, nil) {
+		t.Fatal("两个空列表应视为相同")
+	}
+	if !sameLocations(
+		[]model.SiteLocation{{URL: " /api ", Type: " proxy "}},
+		[]model.SiteLocation{{URL: "/api", Type: "proxy"}},
+	) {
+		t.Fatal("忽略首尾空白后应视为相同")
+	}
+	if sameLocations(
+		[]model.SiteLocation{{URL: "/api", Type: "proxy", ProxyPass: "http://a"}},
+		[]model.SiteLocation{{URL: "/api", Type: "proxy", ProxyPass: "http://b"}},
+	) {
+		t.Fatal("上游变化应视为不同")
+	}
+}

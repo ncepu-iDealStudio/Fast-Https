@@ -326,6 +326,16 @@ export const enUS: Record<string, string> = {
   'dialog.site.cacheOff': 'No caching',
   'dialog.site.cacheZoneHint': 'The directory, size and TTLs live in the main config cache section (Cache zones page); a site only references the zone name. Cache keys are generated automatically.',
   'dialog.site.cacheNone': 'No cache zones yet: create one on the Cache zones page, or run fast-https cache add.',
+  'dialog.site.pathProxy': 'Path proxy',
+  'dialog.site.pathProxyHint': 'Route a path to a backend within the same site, e.g. /api. Longest prefix wins; when proxy_pass carries a URI, the matched prefix is replaced following nginx rules.',
+  'dialog.site.pathEmpty': 'No extra paths yet. Add one to proxy /api to a backend or point /static at another directory.',
+  'dialog.site.pathUrlPh': 'Path, e.g. /api',
+  'dialog.site.pathTypeProxy': 'Proxy',
+  'dialog.site.pathTypeLocal': 'Static',
+  'dialog.site.pathRootPh': 'Absolute directory',
+  'dialog.site.pathPassPh': 'http://127.0.0.1:9000',
+  'dialog.site.pathAdd': '+ Add path',
+  'dialog.site.pathRemove': 'Remove path',
 
   // ---- Certificates page ----
   'certs.configured': 'Configured certificates',

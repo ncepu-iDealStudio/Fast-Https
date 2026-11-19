@@ -7,6 +7,7 @@ package siteops
 
 import (
 	"encoding/json"
+	"errors"
 	"fast-https-desktop/internal/cli"
 	"fast-https-desktop/internal/model"
 	"fast-https-desktop/internal/pathutil"
@@ -195,9 +196,13 @@ func runSite(dir string, args ...string) (any, error) {
 	return data, nil
 }
 
-// AddSite 受控新增站点：转交 site add（多域名再补一条 site update）。
+// AddSite 受控新增站点：转交 site add（多域名再补一条 site update），
+// 有额外 location 时再调一次 site location set。
 func AddSite(dir string, in SiteInput) (string, error) {
 	if err := requireAbsRoot(in.Root); err != nil {
+		return "", err
+	}
+	if err := validateExtraLocations(in.Locations); err != nil {
 		return "", err
 	}
 	plan, err := planAdd(in)
@@ -216,10 +221,25 @@ func AddSite(dir string, in SiteInput) (string, error) {
 		}
 		msgs = append(msgs, txnMessage(data, "创建", primary))
 	}
-	if len(msgs) > 1 {
-		return msgs[0] + "多域名已通过 site update 补全。", nil
+	if len(in.Locations) > 0 {
+		args, err := locationSetArgs(primary, in.Locations)
+		if err != nil {
+			return "", err
+		}
+		data, err := runSite(dir, args...)
+		if err != nil {
+			return "", fmt.Errorf("站点已创建但路径代理保存失败：%w", err)
+		}
+		msgs = append(msgs, txnMessage(data, "创建", primary))
 	}
-	return msgs[0], nil
+	msg := msgs[0]
+	if len(plan) > 1 {
+		msg += "多域名已通过 site update 补全。"
+	}
+	if len(in.Locations) > 0 {
+		msg += "路径代理已保存（site location set）。"
+	}
+	return msg, nil
 }
 
 // DeleteSite 受控删除站点配置（不删内容目录与证书），转交 site delete。
@@ -295,15 +315,47 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 		d.Path = d.Source
 	}
 	d.Listen = formatListenValue(srv["listen"])
-	if locs := cli.AsSlice(srv["location"]); len(locs) > 0 {
-		if loc, ok := locs[0].(map[string]any); ok {
-			d.Type = cli.Str(loc, "type")
-			// 站点根统一用绝对路径展示：默认配置里的 ./httpdoc/root 看不出基准。
-			d.Root = pathutil.Resolve(dir, cli.Str(loc, "root"))
-			d.ProxyPass = cli.Str(loc, "proxy_pass")
-			d.Index = strings.Join(cli.Strs(loc, "index"), " ")
-			fillAdvanced(&d, loc)
+	locs := cli.AsSlice(srv["location"])
+	// 主 location 按 url 定位（"/" 或省略），不能假定它是第一个：
+	// 手写的站点文件可能把 /api 写在前面。
+	mainIdx := -1
+	for i, item := range locs {
+		loc, ok := item.(map[string]any)
+		if !ok {
+			continue
 		}
+		u := strings.TrimSpace(cli.Str(loc, "url"))
+		if u != "" && u != "/" {
+			continue
+		}
+		mainIdx = i
+		d.Type = cli.Str(loc, "type")
+		// 站点根统一用绝对路径展示：默认配置里的 ./httpdoc/root 看不出基准。
+		d.Root = pathutil.Resolve(dir, cli.Str(loc, "root"))
+		d.ProxyPass = cli.Str(loc, "proxy_pass")
+		d.Index = strings.Join(cli.Strs(loc, "index"), " ")
+		fillAdvanced(&d, loc)
+		break
+	}
+	// 除主 location 外的额外路径：/api 反代、/static 子目录等。
+	for i, item := range locs {
+		if i == mainIdx {
+			continue
+		}
+		loc, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		u := strings.TrimSpace(cli.Str(loc, "url"))
+		if u == "" || u == "/" {
+			continue
+		}
+		d.Locations = append(d.Locations, model.SiteLocation{
+			URL:       u,
+			Type:      cli.Str(loc, "type"),
+			Root:      pathutil.Resolve(dir, cli.Str(loc, "root")),
+			ProxyPass: cli.Str(loc, "proxy_pass"),
+		})
 	}
 	if d.Type == "" {
 		d.Type = "local"
@@ -393,7 +445,7 @@ func planUpdate(id string, cur SiteDetail, in SiteInput) ([]string, error) {
 		changed = true
 	}
 	if !changed {
-		return nil, fmt.Errorf("没有需要保存的改动")
+		return nil, errNoChanges
 	}
 	args = append(args, "--yes")
 	return args, nil
@@ -627,14 +679,118 @@ func SaveSiteDetail(dir string, in SiteInput) (string, error) {
 		return "", fmt.Errorf("主配置里的内联站点请在设置页修改")
 	}
 	args, err := planUpdate(id, cur, in)
-	if err != nil {
+	mainChanged := err == nil
+	if err != nil && !errors.Is(err, errNoChanges) {
 		return "", err
 	}
-	data, err := runSite(dir, args...)
-	if err != nil {
+	extrasChanged := !sameLocations(cur.Locations, in.Locations)
+	if !mainChanged && !extrasChanged {
+		return "", errNoChanges
+	}
+	if err := validateExtraLocations(in.Locations); err != nil {
 		return "", err
 	}
-	return txnMessage(data, "更新", id), nil
+	msg := ""
+	if mainChanged {
+		data, err := runSite(dir, args...)
+		if err != nil {
+			return "", err
+		}
+		msg = txnMessage(data, "更新", id)
+	}
+	if extrasChanged {
+		setArgs, err := locationSetArgs(id, in.Locations)
+		if err != nil {
+			return "", err
+		}
+		data, err := runSite(dir, setArgs...)
+		if err != nil {
+			if msg != "" {
+				return "", fmt.Errorf("站点已更新但路径代理保存失败：%w", err)
+			}
+			return "", err
+		}
+		if msg == "" {
+			msg = txnMessage(data, "更新", id) + "（路径代理）。"
+		}
+	}
+	return msg, nil
+}
+
+// errNoChanges 表示表单没有任何变化：调用方可以据此区分「保存成功」与「无事可做」。
+var errNoChanges = errors.New("没有需要保存的改动")
+
+// cliLocation 是传给 `site location set --location` 的 JSON：字段名与站点文件一致。
+type cliLocation struct {
+	URL       string `json:"url"`
+	Type      string `json:"type"`
+	Root      string `json:"root,omitempty"`
+	ProxyPass string `json:"proxy_pass,omitempty"`
+}
+
+// locationSetArgs 生成整体替换额外 location 的命令；空列表表示清空。
+func locationSetArgs(id string, extras []model.SiteLocation) ([]string, error) {
+	args := []string{"site", "location", "set", id}
+	for _, loc := range extras {
+		value, err := json.Marshal(cliLocation{
+			URL: strings.TrimSpace(loc.URL), Type: strings.TrimSpace(loc.Type),
+			Root: strings.TrimSpace(loc.Root), ProxyPass: strings.TrimSpace(loc.ProxyPass),
+		})
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, "--location", string(value))
+	}
+	return args, nil
+}
+
+// validateExtraLocations 在调用 CLI 前做同样的基础校验，避免站点已经改完
+// 才发现路径代理不合法，留下半套配置。
+func validateExtraLocations(extras []model.SiteLocation) error {
+	seen := make(map[string]bool, len(extras))
+	for _, loc := range extras {
+		u := strings.TrimSpace(loc.URL)
+		if u == "" || !strings.HasPrefix(u, "/") || u == "/" || strings.ContainsAny(u, " \t") {
+			return fmt.Errorf("路径代理必须以 / 开头、不能是 /，也不能含空格：%q", loc.URL)
+		}
+		if seen[u] {
+			return fmt.Errorf("路径代理重复：%s", u)
+		}
+		seen[u] = true
+		switch strings.TrimSpace(loc.Type) {
+		case "proxy":
+			p := strings.TrimSpace(loc.ProxyPass)
+			if !strings.HasPrefix(p, "http://") && !strings.HasPrefix(p, "https://") {
+				return fmt.Errorf("路径代理 %s 的上游必须以 http:// 或 https:// 开头", u)
+			}
+		case "local", "":
+			if strings.TrimSpace(loc.Root) == "" {
+				return fmt.Errorf("静态路径 %s 需要填目录", u)
+			}
+			if err := requireAbsRoot(loc.Root); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("路径 %s 的类型只支持 local 或 proxy", u)
+		}
+	}
+	return nil
+}
+
+// sameLocations 按字段比较额外 location 列表，未改动时不触发第二次事务。
+func sameLocations(a, b []model.SiteLocation) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if strings.TrimSpace(a[i].URL) != strings.TrimSpace(b[i].URL) ||
+			strings.TrimSpace(a[i].Type) != strings.TrimSpace(b[i].Type) ||
+			strings.TrimSpace(a[i].Root) != strings.TrimSpace(b[i].Root) ||
+			strings.TrimSpace(a[i].ProxyPass) != strings.TrimSpace(b[i].ProxyPass) {
+			return false
+		}
+	}
+	return true
 }
 
 // requireAbsRoot 校验站点根目录：必须是存在的绝对路径。

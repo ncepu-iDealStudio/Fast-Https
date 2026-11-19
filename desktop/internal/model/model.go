@@ -76,6 +76,15 @@ type Cert struct {
 	Note string `json:"note"`
 }
 
+// SiteLocation 是站点里除主 location 外的额外路径（/api 反代、/static 静态）。
+// 桌面端只管理基础字段，避免把高级配置的编辑面铺得过大。
+type SiteLocation struct {
+	URL       string `json:"url"`
+	Type      string `json:"type"`
+	Root      string `json:"root"`
+	ProxyPass string `json:"proxyPass"`
+}
+
 // SiteInput 是「添加 / 编辑站点」弹窗提交的字段，与 site add / site update
 // 的 flag 一一对应：域名、监听、类型（root / proxy_pass）。证书路径、首页与
 // 文件名由 CLI 的事务自行处理（fillCerts / 站点名即文件名），不进表单。
@@ -111,6 +120,8 @@ type SiteInput struct {
 	// CacheZone 是主配置 cache 段里的缓存区名；空串表示不启用缓存。
 	// 目录、容量与有效期都属于缓存区，站点只引用名字。
 	CacheZone string `json:"cacheZone"`
+	// Locations 是主 location 之外的额外路径，桌面端整体替换。
+	Locations []SiteLocation `json:"locations"`
 }
 
 // SiteDetail 是详情弹窗一次拉取的内容：表单字段 + 只读信息 + 是否可编辑。
@@ -150,6 +161,8 @@ type SiteDetail struct {
 	// CacheZone 是主配置 cache 段里的缓存区名；空串表示不启用缓存。
 	// 目录、容量与有效期都属于缓存区，站点只引用名字。
 	CacheZone string `json:"cacheZone"`
+	// Locations 是主 location 之外的额外路径，编辑弹窗按列表回填。
+	Locations []SiteLocation `json:"locations"`
 }
 
 // CacheZone 是主配置 cache 段里的一个缓存区。目录、容量与有效期只在这里

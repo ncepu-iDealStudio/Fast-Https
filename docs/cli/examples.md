@@ -77,3 +77,21 @@
 ```
 
 退出码：`0`。`unhealthy` 表示状态文件在、最近一次采集失败；上面的 `not_installed` 表示没有状态文件。`version` 为 `dev` 是因为这次没有用 `-ldflags` 注入版本。
+
+## `site location list web --json`
+
+2026-11-19：临时目录里一份主配置（`http.include: ["./conf.d"]`）与站点 `web`（`/` 为 local，root 指向临时目录），服务未启动。
+
+```text
+{"ok":true,"command":"site.location.list","request_id":null,"data":{"locations":[{"url":"/","type":"local","root":"C:/Users/JFENG2~1/AppData/Local/Temp/fh-ex-7e73410c77d84625b2d7b05e1ea8a5cb/www","index":["index.html","index.htm"]}],"site":"web"},"warnings":[]}
+```
+
+退出码：`0`。`locations` 与站点文件同序，字段名与站点文件一致（`proxy_pass`、`index` 等），`root` 保留配置里的写法。
+
+## `site location add web --url /api --type proxy --proxy-pass http://127.0.0.1:9000 --dry-run --json`
+
+```text
+{"ok":true,"command":"site.location.add","request_id":"req_263d3094dc52bd0d","data":{"changes":[{"path":"conf.d/web.json:location[1]","op":"added","value":{"proxy_pass":"http://127.0.0.1:9000","type":"proxy","url":"/api"}}],"config_state":"unchanged","dry_run":true,"idempotent":false,"identical":false,"rolled_back":false,"version":""},"warnings":[]}
+```
+
+退出码：`0`。dry-run 不写盘、不建版本（`version` 为空串、`config_state:"unchanged"`），差异显示为 `location[1]` 追加。

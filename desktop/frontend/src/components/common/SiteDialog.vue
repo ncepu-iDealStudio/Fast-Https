@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { Trash2 } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import FhDialog from '../ui/FhDialog.vue';
 import FhButton from '../ui/FhButton.vue';
@@ -7,7 +8,7 @@ import { addSite, readSiteDetail, saveSiteDetail } from '../../services/api/site
 import { listCacheZones } from '../../services/api/cache';
 import { pickAbsPath } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
-import type { SiteInput, CacheZone } from '../../services/api/types';
+import type { SiteInput, CacheZone, SiteLocation } from '../../services/api/types';
 
 const props = defineProps<{ open: boolean; editingId?: string }>();
 const emit = defineEmits<{ 'update:open': [v: boolean]; saved: [] }>();
@@ -54,6 +55,8 @@ const form = reactive({
 
 // 主配置里可用的缓存区，用于下拉选择。
 const zones = ref<CacheZone[]>([]);
+// 主 location 之外的额外路径（/api 反代、/static 子目录），整体提交。
+const extraLocations = ref<SiteLocation[]>([]);
 
 async function loadZones(): Promise<void> {
   try {
@@ -156,6 +159,7 @@ watch(() => props.open, async (open) => {
       limitNodelay: false, authOn: false, authUser: '', authPass: '', authRealm: '',
       cacheZone: '',
     });
+    extraLocations.value = [];
     return;
   }
   busy.value = true;
@@ -197,6 +201,7 @@ watch(() => props.open, async (open) => {
     form.authPass = '';
     form.authRealm = d.authRealm ?? '';
     form.cacheZone = d.cacheZone ?? '';
+    extraLocations.value = (d.locations ?? []).map((l) => ({ ...l }));
     info.value = [
       { k: t('dialog.site.index'), v: d.index ?? '' },
       { k: t('dialog.site.path'), v: d.path ?? '' },
@@ -239,6 +244,9 @@ function buildPayload(): SiteInput {
     authRealm: form.authOn ? form.authRealm : '',
     // 缓存只服务于反向代理响应；静态站点写进去也不会生效，保存时清掉。
     cacheZone: form.type === 'proxy' ? form.cacheZone : '',
+    locations: extraLocations.value.map((l) => ({
+      url: l.url.trim(), type: l.type, root: l.root.trim(), proxyPass: l.proxyPass.trim(),
+    })),
   };
 }
 
@@ -290,6 +298,22 @@ async function browse(): Promise<void> {
  */
 function normalizeRoot(): void {
   if (form.root.trim()) form.root = normalizePath(form.root);
+}
+
+/** 额外路径：/api 转发到后端、/static 指向另一个目录。 */
+function addLocation(): void {
+  extraLocations.value.push({ url: '', type: 'proxy', root: '', proxyPass: '' });
+}
+function removeLocation(i: number): void {
+  extraLocations.value.splice(i, 1);
+}
+async function browseLocationRoot(loc: SiteLocation): Promise<void> {
+  try {
+    const p = await pickAbsPath('dir', loc.root);
+    if (p) loc.root = normalizePath(p);
+  } catch (e) {
+    if (!isCancel(e)) error.value = messageOf(e);
+  }
 }
 
 /** 证书/私钥走文件选择器；留空则由首次启动按域名自动生成。 */
@@ -543,6 +567,29 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
           </label>
           <small class="field-note">{{ t('dialog.site.cacheZoneHint') }}</small>
           <small v-if="zones.length === 0" class="field-note">{{ t('dialog.site.cacheNone') }}</small>
+        </div>
+
+        <div class="adv__block adv__block--wide">
+          <div class="adv__title">{{ t('dialog.site.pathProxy') }}</div>
+          <div v-if="!extraLocations.length" class="field-note">{{ t('dialog.site.pathEmpty') }}</div>
+          <div v-for="(loc, i) in extraLocations" :key="i" class="path-rule">
+            <input v-model="loc.url" type="text" :placeholder="t('dialog.site.pathUrlPh')" />
+            <select v-model="loc.type">
+              <option value="proxy">{{ t('dialog.site.pathTypeProxy') }}</option>
+              <option value="local">{{ t('dialog.site.pathTypeLocal') }}</option>
+            </select>
+            <div v-if="loc.type === 'local'" class="joined">
+              <input v-model="loc.root" type="text" :placeholder="t('dialog.site.pathRootPh')" />
+              <FhButton size="small" @click="browseLocationRoot(loc)">{{ t('dialog.site.browse') }}</FhButton>
+            </div>
+            <input v-else v-model="loc.proxyPass" type="text" :placeholder="t('dialog.site.pathPassPh')" />
+            <button
+              type="button" class="icon-btn icon-btn--danger"
+              :title="t('dialog.site.pathRemove')" @click="removeLocation(i)"
+            ><Trash2 :size="14" /></button>
+          </div>
+          <button type="button" class="valid-add" @click="addLocation">{{ t('dialog.site.pathAdd') }}</button>
+          <small class="field-note">{{ t('dialog.site.pathProxyHint') }}</small>
         </div>
       </div>
     </details>

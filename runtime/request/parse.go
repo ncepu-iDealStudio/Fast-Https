@@ -260,9 +260,15 @@ func (r *Request) IsKeepalive() bool {
 }
 
 // get request row bytes
-func (r *Request) ByteRow() []byte {
+func (r *Request) ByteRow() []byte { return r.byteRow(r.Path) }
+
+// ByteRowTo 用给定请求目标重建请求行，头部与正文不变。
+// 代理按 nginx 语义改写上游路径时使用：不改 Req.Path，日志与缓存键仍是原始请求。
+func (r *Request) ByteRowTo(target string) []byte { return r.byteRow(target) }
+
+func (r *Request) byteRow(target string) []byte {
 	rowStr := r.Method + " " +
-		r.Path + " " +
+		target + " " +
 		r.Protocol + "\r\n"
 	for k, v := range r.Headers {
 		rowStr = rowStr + k + ": " + v + "\r\n"

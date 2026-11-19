@@ -32,6 +32,16 @@ export interface SiteInput {
   authRealm: string;
   /** 主配置 cache 段里的缓存区名；空串表示不启用缓存。 */
   cacheZone: string;
+  /** 主 location 之外的额外路径（/api 反代、/static 子目录）。 */
+  locations: SiteLocation[];
+}
+
+/** 站点里除主 location 外的额外路径，桌面端只管理基础字段。 */
+export interface SiteLocation {
+  url: string;
+  type: string;
+  root: string;
+  proxyPass: string;
 }
 
 /** 主配置 cache 段里的一个缓存区。 */

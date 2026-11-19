@@ -7,7 +7,6 @@ import (
 	"fast-https/config"
 	"fast-https/core"
 	"fast-https/infra/logging"
-	"fast-https/modules/cache"
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/events"
 	"fast-https/runtime/listener"
@@ -301,11 +300,7 @@ func (s *Server) Reload() {
 		logging.ConsoleLog.Error().Msgf("reload kept previous log files: %s", err.Error())
 	}
 
-	// 缓存区目录随新配置就位：新增或改目录的区不用等第一条响应被缓存
-	// 才出现在磁盘上。
-	cache.GCacheContainer.EnsureDirs()
-
-	// 数据面钩子（ACME 的 acme-tls/1 provider 等）必须先按新配置就位：
+	// 数据面钩子（ACME 的 acme-tls/1 provider、缓存区目录等）必须先按新配置就位：
 	// listenSsl 在构造 tls.Config 时读它们，晚一步这一次重建就白做。
 	core.RunBeforeListenReload()
 

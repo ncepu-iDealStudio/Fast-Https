@@ -38,6 +38,7 @@ docs/
 | 看整体架构图（分层与请求链） | [architecture.html](architecture.html)、[images/architecture.png](images/architecture.png) |
 | 看代码分层与依赖约束 | [develop/2-code-standards.md](develop/2-code-standards.md)、[architecture-map.md](architecture-map.md) |
 | 了解历史决策与演进 | [develop/README.md](develop/README.md)（`plans/` 未实施，`archive/` 已归档） |
+| 照抄常见配置（静态、反代、路径代理、缓存、TLS） | [config-examples.md](config-examples.md) |
 | 写脚本调用管理命令（字段、错误码、退出码） | [cli/command-spec.md](cli/command-spec.md)、[cli/cli-json-shapes.md](cli/cli-json-shapes.md)、[cli/examples.md](cli/examples.md) |
 | 看 CLI / Monitor 的设计依据与分步实施记录 | [feature/fast-https-CLI改造开发计划.md](feature/fast-https-CLI改造开发计划.md)、[feature/fast-https-Monitor改造开发计划.md](feature/fast-https-Monitor改造开发计划.md) |
 | 规划 AI Agent 能力 | [fast-https AI agent功能设计与开发规范.md](fast-https%20AI%20agent功能设计与开发规范.md) |

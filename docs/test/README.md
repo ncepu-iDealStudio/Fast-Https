@@ -27,6 +27,7 @@ docs/test/
 | 报告 | [reports/r11-acceptance.md](reports/r11-acceptance.md) | **R-11 验收报告**：header 超限返回 431（h1 一次到齐/分片、真实 TCP、h2、畸形头仍 400） | 五项验收全部通过，无需新增代码 |
 | 报告 | [reports/r12-acceptance.md](reports/r12-acceptance.md) | **R-12 验收报告**：空 body 上游响应的连接复用（HEAD / 204 / 304 / 1xx interim，含完整链路 E2E） | 十三项验收全部通过；两次请求只 accept 一次 |
 | 报告 | [reports/cache-zone-acceptance.md](reports/cache-zone-acceptance.md) | **缓存区重构验收**：主配置 `cache` 段、站点 `proxy_cache` 引用、CLI `cache` 命令组、桌面端缓存区页 | CLI 十步真实调用 + 真实进程 E2E + 覆盖率全部通过；旧对象写法解析期拒绝 |
+| 报告 | [reports/path-proxy-acceptance.md](reports/path-proxy-acceptance.md) | **路径代理（多 location）验收**：`proxy_pass` URI 解析与 nginx 式改写、前缀匹配、`site location` 与桌面端入口 | 单元 + CLI + 桌面端辅助函数 + 真实进程 E2E 四条链路全部通过；`/api` 保留路径、`/strip` 去前缀符合预期 |
 | 用例 | [cases/boundary-cases.md](cases/boundary-cases.md) | 边界测试用例集：协议边界、注入面、数值边界、并发边界、公开语料 | 用例已全部落库，见文内对应测试文件 |
 | 方案 | [cases/stress-test-plan.md](cases/stress-test-plan.md) | 压力测试方案：4C4G3M 环境下的反代与静态资源负载 | 仅方案，压测脚本未实现（见 [v1.5.0-plan](../develop/archive/v1.5.0-plan.md)） |
 | 实测 | [verification/distro-packages.md](verification/distro-packages.md) | 发行版安装包实机验证：deb / rpm / apk / 升级迁移 | 2026-11-05 四个场景 ALL-PASS |
@@ -47,6 +48,19 @@ docs/test/
 | 桌面端 | `cd desktop && go test ./internal/...` | 设置页字段、站点参数翻译、CLI 转交 | [verification/desktop-tls-config.md](verification/desktop-tls-config.md)、[verification/desktop-proxy-config.md](verification/desktop-proxy-config.md)、[verification/desktop-default-config.md](verification/desktop-default-config.md)、[verification/desktop-site-compression.md](verification/desktop-site-compression.md) |
 | 前端 | `cd desktop/frontend && npm run typecheck && npm run i18n:check` | 类型、双语字典键对齐 | 同上 |
 | 手工验证 | 按 verification/ 下的步骤操作 GUI 或容器 | 图形界面、安装包这类自动化覆盖不到的部分 | `verification/` |
+
+## 最近一次全量检查（2026-11-19，路径代理）
+
+| 命令 | 结果 |
+| --- | --- |
+| `go test -count=1 ./...` | 全部 `ok` |
+| `go test -count=1 -v -run TestPathProxyE2E ./tests/client_test` | 4 个子测试全 PASS（静态根、静态子目录、保留前缀反代、去前缀反代） |
+| `go test -count=1 ./tests/arch` | `ok` |
+| `go test -count=1 -cover ./modules/proxy ./runtime/request ./runtime/filters ./config/internal/loader ./infra/jsonc ./management/siteops ./cmd/internal/sitecmd` | 全部 `ok`，覆盖率 67.5% ~ 88.0% |
+| `cd desktop && go test -count=1 -cover ./internal/siteops` | `ok`，52.8% |
+| `cd desktop/frontend && npm run typecheck` | 通过 |
+
+明细见 [reports/path-proxy-acceptance.md](reports/path-proxy-acceptance.md)。
 
 ## 最近一次全量检查（2026-11-18，缓存区重构）
 
@@ -96,6 +110,7 @@ docs/test/
 - 2026-11-17 边缘加固 R-10 落地：所有拒绝统一写 `reject_reason` / `rule` / `remote_ip`，覆盖路径穿越（`path_traversal`）、Windows 非法路径（`invalid_path`）、隐藏路径（`hidden_path`）、符号链接策略（`symlink_rejected`）、超限（`header_too_large` / `body_too_large`，h1+h2）、未知 SNI（`unknown_sni`，safe.log 与控制台双写）与压缩跳过（`compression_skipped`：配置跳过和 `accept_encoding`，静态与代理，debug）；黑名单/限流/location 限流/WAF/host_check 补同一组字段。拒绝日志不记原始路径。`logs query` 新增 `--reject-reason`，记录输出带三个字段，桌面端同步，详见 [16-logging.md](../feature/16-logging.md)。
 - 2026-11-17 边缘加固 R-10 验收：三项验收全部通过；真实进程 `TestRejectLogE2E` 覆盖穿越/超限/两种压缩跳过/未知 SNI 并用 `logs query --reject-reason` 查回，已加入 CI；host_check warn/enforce、代理压缩跳过与 Windows 非法路径（`invalid_path`）补齐；桌面端日志页提供拒绝原因枚举筛选与原因/规则展示列，详见 [reports/r10-acceptance.md](reports/r10-acceptance.md)。
 - 2026-11-18 缓存区重构验收：缓存区从站点 location 对象迁移为主配置 `cache` 段，站点只写 `proxy_cache: "<区名>"`，旧对象写法在解析期报错；CLI 新增 `cache list/add/update/delete` 与 `site --cache-zone`，桌面端新增独立缓存区页。CLI 十步真实调用、`site add` 的 H2 开/关（`ssl` vs `ssl h2`）与缓存区落盘、真实进程 E2E（缓存命中/`no-cache` 回源/POST 不缓存/重启恢复、ALPN 协商）与覆盖率检查全部通过，详见 [reports/cache-zone-acceptance.md](reports/cache-zone-acceptance.md)。
+- 2026-11-19 路径代理验收：`proxy_pass` 拆出 host 与 URI，运行时按 nginx 语义替换命中的 location 前缀；新增 `site location list/add/update/delete/set` 与桌面端站点弹窗「路径代理」列表。单测覆盖 URI 拆分、上游改写、数组元素删除与 CLI 全部子命令，真实进程 E2E 跑通「`/` 静态 + `/assets` 静态子目录 + `/api` 保留路径反代 + `/strip` 去前缀反代」，详见 [reports/path-proxy-acceptance.md](reports/path-proxy-acceptance.md)。
 
 ## 旧文件名对照
 

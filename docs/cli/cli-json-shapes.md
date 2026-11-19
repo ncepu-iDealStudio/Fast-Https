@@ -80,7 +80,7 @@
 
 ### 0.5 写类命令共用的 data：事务结果（`cli.EmitTxnResult`）
 
-`site add/update/delete/enable/disable` 与 `config apply/rollback` 的 `data` 都是
+`site add/update/delete/enable/disable`、`site location add/update/delete/set` 与 `config apply/rollback` 的 `data` 都是
 `txn.Result` 的投影（map 构造，key 固定）：
 
 ```json
@@ -270,6 +270,34 @@
 - **行为要点**：`.json` ↔ `.json.disabled` 改名 + 同一事务（校验/临时备份/reload/可回滚）。
   不要求 `--yes`（可逆）。已经处于目标状态 → `CONFLICT`（10）；不存在 → `NOT_FOUND`（9）；
   内联站点 → `NOT_SUPPORTED`（11）。
+
+### 1.7 `site location list/add/update/delete/set`
+
+- **命令标识**：`site.location.list` / `site.location.add` / `site.location.update` /
+  `site.location.delete` / `site.location.set`
+- **flags**：
+
+  | 子命令 | flags |
+  |---|---|
+  | `list <site>` | `--config` |
+  | `add <site>` | `--url`（必填，`/` 开头）、`--type`（`local`/`proxy`，默认 `proxy`）、`--root`（local）、`--proxy-pass`（proxy）、`--config`、`--dry-run` |
+  | `update <site>` | `--url`（必填，用于定位）、`--type`、`--root`、`--proxy-pass`（至少一个）、`--config`、`--dry-run` |
+  | `delete <site>` | `--url`、`--config`、`--dry-run`、`--yes`（必需） |
+  | `set <site>` | `--location`（可重复，JSON 对象；不传表示清空）、`--config`、`--dry-run` |
+
+- **data JSON**：
+  - `list`：`{"site":"web","locations":[{"url":"/","type":"local","root":"./httpdoc/root","index":["index.html","index.htm"]},{"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9000"}]}`
+  - 其余四个：同 §0.5 事务结果。
+- **行为要点**：
+  - `url` 必须以 `/` 开头、不含空白、不能是 `/`，并且必须能编译为正则（运行期按正则匹配），
+    否则 `USAGE_ERROR`（2）。
+  - 主 location `/` 只由 `site add/update` 维护；`location add/delete` 拒绝 `/`。
+  - `proxy` 需要以 `http://` 或 `https://` 开头的 `--proxy-pass`；`local` 需要已存在的绝对
+    `--root`（含 `..` 或落在禁入目录 → `USAGE_ERROR`）。
+  - `delete` 非 dry-run 必须 `--yes`。
+  - `set` 只提交基础字段：已存在的 URL 原地补 `url/type/root/proxy_pass`，`zip`、`limit`、
+    `auth`、`proxy_cache`、`try`、`error_page` 等手写字段与注释原样保留；消失的 URL 删除，
+    新 URL 追加。
 
 ---
 

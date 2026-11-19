@@ -224,6 +224,7 @@ fast-https site delete blog --yes
 
 - **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。新建站点默认开启 `br+gzip` 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。
 - **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`、`--ssl-certificate*`，以及主 location 上的高级配置 `--zip`、`--zip-min-length`、`--zip-skip-types`、`--limit-*`、`--auth-*`、`--cache-*`、`--symlink-policy`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
+- **site location**：`list / add / update / delete / set` 管理主 location 之外的路径（例如 `/api` 反代）；`add/update` 用 `--url`、`--type`、`--root`、`--proxy-pass`，`delete` 需要 `--yes`。主 location `/` 不允许删除。
 - **符号链接策略**：`site add/update` 的 `--symlink-policy` 取 `check-at-load`（默认）、`reject`、`allow`，只对 `local` 站点生效；`site update --symlink-policy=` 传空串表示删掉该键、回到默认。代理站点带此参数返回退出码 2。
 - **site disable / enable**：把 `<name>.json` 改名为 `<name>.json.disabled` 或改回（`include` 只加载 `*.json`）。`site list --json` 里停用站点为 `enabled: false`。
 - **site delete**：必须 `--yes`。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 `config rollback` 找回。
@@ -323,6 +324,20 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `appfirewall` | 应用防火墙开关，例如 `["xss", "sqli"]` |
 | `error_page` | `{"not_found": "./httpdoc/404.html", "proxy": "./httpdoc/502.html"}` |
 | `allow_methods` | 只允许列出的方法，例如 `["GET", "HEAD"]`；越界返回 405 并带 `Allow` 头。缺省不限制，`HEAD` 随 `GET` 自动放行 |
+
+一个站点可以有多个 location。匹配规则与 nginx 的前缀语义一致：从路径起点命中的
+优先，同类里匹配更长的优先。例如 `/` 静态 + `/api` 反代：
+
+```json
+"location": [
+  { "url": "/", "type": "local", "root": "./httpdoc/root" },
+  { "url": "/api", "type": "proxy", "proxy_pass": "http://127.0.0.1:9000" }
+]
+```
+
+`/api/users` 会命中代理，其余路径走静态根。主 location `/` 用 `site update`
+管理，额外路径用 `site location add/update/delete`（或桌面端站点弹窗的
+「路径代理」）。
 
 `proxy_set_header` 的 `HeaderValue` 支持变量插值：
 
@@ -452,6 +467,15 @@ fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops
 ```
 
 `proxy_pass` 缺少 `http://` / `https://` 前缀时会按 `local` 处理，不会报错，这是最容易踩的坑。
+
+`proxy_pass` 带路径时按 nginx 规则替换命中的 location 前缀：
+
+```json
+{ "url": "/api", "type": "proxy", "proxy_pass": "http://127.0.0.1:9000/" }
+```
+
+`/api/users` 转发到上游时变成 `/users`；写成 `http://127.0.0.1:9000`（不带路径）
+则原样转发 `/api/users`。
 
 ### 6.3 TCP 转发
 

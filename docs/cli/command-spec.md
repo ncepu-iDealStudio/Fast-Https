@@ -97,7 +97,8 @@
 
 ## operation 与 `--request-id`
 
-适用：`service reload`、`config apply`、`config rollback`、`site add/update/delete/enable/disable`。
+适用：`service reload`、`config apply`、`config rollback`、`site add/update/delete/enable/disable`、
+`site location add/update/delete/set`。
 
 - 相同 `request_id` + 相同参数：返回已有记录，不重复副作用。
 - 相同 `request_id` + 不同参数：退出码 10，`REQUEST_ID_CONFLICT`。

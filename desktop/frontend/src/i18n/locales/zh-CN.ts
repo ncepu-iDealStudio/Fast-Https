@@ -326,6 +326,16 @@ export const zhCN: Record<string, string> = {
   'dialog.site.cacheOff': '不启用缓存',
   'dialog.site.cacheZoneHint': '缓存目录、容量与有效期定义在主配置的 cache 段（左侧「缓存区」页），站点只引用区名；缓存键由程序自动生成。',
   'dialog.site.cacheNone': '还没有缓存区：请先到左侧「缓存区」页新建，或运行 fast-https cache add。',
+  'dialog.site.pathProxy': '路径代理',
+  'dialog.site.pathProxyHint': '在同一个站点里把某个路径转发到后端，例如 /api；匹配按最长前缀，proxy_pass 带路径时按 nginx 规则替换前缀。',
+  'dialog.site.pathEmpty': '还没有额外路径。需要 /api 转发到后端、或 /static 指到另一个目录时再加。',
+  'dialog.site.pathUrlPh': '路径，例如 /api',
+  'dialog.site.pathTypeProxy': '反向代理',
+  'dialog.site.pathTypeLocal': '静态目录',
+  'dialog.site.pathRootPh': '目录绝对路径',
+  'dialog.site.pathPassPh': 'http://127.0.0.1:9000',
+  'dialog.site.pathAdd': '+ 新增路径',
+  'dialog.site.pathRemove': '删除路径',
 
   // ---- 证书页 ----
   'certs.configured': '已配置的证书',

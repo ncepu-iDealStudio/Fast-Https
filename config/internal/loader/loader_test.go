@@ -82,6 +82,24 @@ func TestTrimProxyPass(t *testing.T) {
 	}
 }
 
+func TestSplitProxyPass(t *testing.T) {
+	cases := []struct {
+		in, addr, uri string
+	}{
+		{"http://127.0.0.1:9000", "127.0.0.1:9000", ""},
+		{"http://127.0.0.1:9000/", "127.0.0.1:9000", "/"},
+		{"https://backend:8443/v1", "backend:8443", "/v1"},
+		{"http://[::1]:9000/api/", "[::1]:9000", "/api/"},
+		{"", "", ""},
+	}
+	for _, c := range cases {
+		addr, uri := splitProxyPass(c.in)
+		if addr != c.addr || uri != c.uri {
+			t.Errorf("splitProxyPass(%q) = (%q,%q), want (%q,%q)", c.in, addr, uri, c.addr, c.uri)
+		}
+	}
+}
+
 func TestNormalizeMethods(t *testing.T) {
 	got := normalizeMethods([]string{" get ", "Post", ""})
 	if len(got) != 2 || got[0] != "GET" || got[1] != "POST" {

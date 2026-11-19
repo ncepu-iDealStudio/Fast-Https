@@ -130,6 +130,9 @@ type Path struct {
 	Rewrite        string
 	Trys           []Try
 	ProxyData      string
+	// ProxyPassPath 是 proxy_pass 里的 URI 部分（如 http://x/v1/ 的 /v1/）。
+	// 非空时按 nginx 语义用它替换命中的 location 前缀；为空则原样转发请求路径。
+	ProxyPassPath  string
 	ProxySetHeader []Header
 	AppFireWall    []string
 	ProxyCache     string
