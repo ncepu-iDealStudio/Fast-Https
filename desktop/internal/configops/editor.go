@@ -38,6 +38,10 @@ type fieldSpec struct {
 // 字段名与 config/schema.go、config/config.go、config/acme.go 保持一致，
 // 包括历史拼写 http.blaklist。http.server[] 与 acme.cas 结构复杂，不进表单。
 //
+// group / label / help 都是给界面用的元数据。group 用稳定 id（basic、security…）
+// 由前端按当前语言翻译；label / help 是中文兜底文案，前端同样按字段 path
+// 取字典项，缺失时回落到这里的原文。
+//
 // 控件选择按字段的业务含义来，不要一律用文本框：
 //   - 枚举值（off/warn/enforce 这类）用下拉，避免用户手打错
 //   - 开关用勾选框
@@ -45,46 +49,46 @@ type fieldSpec struct {
 //   - 路径给浏览按钮（目录用 dir，文件用 file）
 //   - 只有真正自由文本（HSTS 策略、CSP、MIME 类型）才用输入框
 var configSpecs = []fieldSpec{
-	{"pid", "pid 文件路径", "基础", "text", "预留字段，通常留空", nil, "file"},
-	{"log_root", "日志根目录", "基础", "text", "相对路径按启动目录解析；留空用默认 ./logs", nil, "dir"},
+	{"pid", "pid 文件路径", "basic", "text", "预留字段，通常留空", nil, "file"},
+	{"log_root", "日志根目录", "basic", "text", "相对路径按启动目录解析；留空用默认 ./logs", nil, "dir"},
 
-	{"security.host_check", "Host 校验", "安全", "select", "off 回落首个 server；warn 只记录；enforce 返回 421", []string{"off", "warn", "enforce"}, ""},
-	{"security.headers.nosniff", "X-Content-Type-Options", "安全", "bool", "写入 nosniff 响应头", nil, ""},
-	{"security.headers.hsts", "HSTS", "安全", "text", "留空关闭；例 max-age=31536000; includeSubDomains。误开会让 HTTP 站点被浏览器锁死", nil, ""},
-	{"security.headers.x_frame_options", "X-Frame-Options", "安全", "select", "留空关闭", []string{"", "DENY", "SAMEORIGIN"}, ""},
-	{"security.headers.referrer_policy", "Referrer-Policy", "安全", "select", "留空关闭", []string{"", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"}, ""},
-	{"security.headers.content_security_policy", "Content-Security-Policy", "安全", "textarea", "留空关闭；策略较长时可分行写", nil, ""},
+	{"security.host_check", "Host 校验", "security", "select", "off 回落首个 server；warn 只记录；enforce 返回 421", []string{"off", "warn", "enforce"}, ""},
+	{"security.headers.nosniff", "X-Content-Type-Options", "security", "bool", "写入 nosniff 响应头", nil, ""},
+	{"security.headers.hsts", "HSTS", "security", "text", "留空关闭；例 max-age=31536000; includeSubDomains。误开会让 HTTP 站点被浏览器锁死", nil, ""},
+	{"security.headers.x_frame_options", "X-Frame-Options", "security", "select", "留空关闭", []string{"", "DENY", "SAMEORIGIN"}, ""},
+	{"security.headers.referrer_policy", "Referrer-Policy", "security", "select", "留空关闭", []string{"", "no-referrer", "no-referrer-when-downgrade", "origin", "origin-when-cross-origin", "same-origin", "strict-origin", "strict-origin-when-cross-origin", "unsafe-url"}, ""},
+	{"security.headers.content_security_policy", "Content-Security-Policy", "security", "textarea", "留空关闭；策略较长时可分行写", nil, ""},
 
-	{"waf.mode", "WAF 模式", "WAF", "select", "enforce 阻断 / monitor 只记录 / disabled 不启用", []string{"", "enforce", "monitor", "disabled"}, ""},
+	{"waf.mode", "WAF 模式", "waf", "select", "enforce 阻断 / monitor 只记录 / disabled 不启用", []string{"", "enforce", "monitor", "disabled"}, ""},
 
-	{"acme.enabled", "启用自动签发", "ACME", "bool", "关闭后走静态证书", nil, ""},
-	{"acme.email", "ACME 邮箱", "ACME", "email", "用于注册 ACME 账户", nil, ""},
-	{"acme.staging", "使用 staging 环境", "ACME", "bool", "测试时避免触发正式 CA 速率限制", nil, ""},
-	{"acme.challenge", "挑战方式", "ACME", "multiselect", "至少选一个；不在列表里的自定义值会保留", []string{"http-01", "tls-alpn-01", "dns-01"}, ""},
-	{"acme.renew_before_days", "提前续期天数", "ACME", "number", "0 表示用默认 30 天", nil, ""},
-	{"acme.fallback_self_signed", "证书失败回落自签", "ACME", "bool", "默认回落；显式 false 则不回落", nil, ""},
-	{"acme.storage", "ACME 缓存目录", "ACME", "text", "留空用默认路径", nil, "dir"},
+	{"acme.enabled", "启用自动签发", "acme", "bool", "关闭后走静态证书", nil, ""},
+	{"acme.email", "ACME 邮箱", "acme", "email", "用于注册 ACME 账户", nil, ""},
+	{"acme.staging", "使用 staging 环境", "acme", "bool", "测试时避免触发正式 CA 速率限制", nil, ""},
+	{"acme.challenge", "挑战方式", "acme", "multiselect", "至少选一个；不在列表里的自定义值会保留", []string{"http-01", "tls-alpn-01", "dns-01"}, ""},
+	{"acme.renew_before_days", "提前续期天数", "acme", "number", "0 表示用默认 30 天", nil, ""},
+	{"acme.fallback_self_signed", "证书失败回落自签", "acme", "bool", "默认回落；显式 false 则不回落", nil, ""},
+	{"acme.storage", "ACME 缓存目录", "acme", "text", "留空用默认路径", nil, "dir"},
 
-	{"tls.default_certificate.certificate", "默认证书", "TLS", "text", "未知 SNI 时使用；与私钥成对配置，留空则回落该端口第一张证书", nil, "file"},
-	{"tls.default_certificate.key", "默认证书私钥", "TLS", "text", "与默认证书成对出现", nil, "file"},
+	{"tls.default_certificate.certificate", "默认证书", "tls", "text", "未知 SNI 时使用；与私钥成对配置，留空则回落该端口第一张证书", nil, "file"},
+	{"tls.default_certificate.key", "默认证书私钥", "tls", "text", "与默认证书成对出现", nil, "file"},
 
-	{"proxy.trusted_proxies", "可信代理", "代理", "list", "只有来自这些 IP/CIDR 的请求才保留入站 X-Forwarded-For；每行一个", nil, ""},
-	{"proxy.forwarded_for.max_hops", "X-Forwarded-For 链长上限", "代理", "number", "0 表示不限制；达到上限后不再追加并记一条告警日志", nil, ""},
-	{"proxy.preserve_host", "透传客户端 Host", "代理", "bool", "默认开启；关闭时转发给上游的 Host 改成上游地址", nil, ""},
-	{"proxy.upstream_timeout", "上游超时（秒）", "代理", "number", "0 表示默认 20 秒", nil, ""},
-	{"proxy.tunnel_idle_timeout", "隧道空闲断开（秒）", "代理", "number", "websocket / tcp 隧道无数据超过该时长即断开；0 表示不断开", nil, ""},
+	{"proxy.trusted_proxies", "可信代理", "proxy", "list", "只有来自这些 IP/CIDR 的请求才保留入站 X-Forwarded-For；每行一个", nil, ""},
+	{"proxy.forwarded_for.max_hops", "X-Forwarded-For 链长上限", "proxy", "number", "0 表示不限制；达到上限后不再追加并记一条告警日志", nil, ""},
+	{"proxy.preserve_host", "透传客户端 Host", "proxy", "bool", "默认开启；关闭时转发给上游的 Host 改成上游地址", nil, ""},
+	{"proxy.upstream_timeout", "上游超时（秒）", "proxy", "number", "0 表示默认 20 秒", nil, ""},
+	{"proxy.tunnel_idle_timeout", "隧道空闲断开（秒）", "proxy", "number", "websocket / tcp 隧道无数据超过该时长即断开；0 表示不断开", nil, ""},
 
-	{"http.include", "include 目录 / 文件", "HTTP", "pathlist", "每行一个；站点文件通常放在 conf.d", nil, "dir"},
-	{"http.default_type", "默认 MIME 类型", "HTTP", "text", "", nil, ""},
-	{"http.servers_limit.max_header_size", "请求头上限（字节）", "HTTP", "number", "", nil, ""},
-	{"http.servers_limit.max_body_size", "请求体上限（字节）", "HTTP", "number", "", nil, ""},
-	{"http.servers_limit.read_timeout", "读请求超时（秒）", "HTTP", "number", "0 表示默认 30 秒", nil, ""},
-	{"http.servers_limit.write_timeout", "写响应超时（秒）", "HTTP", "number", "0 表示默认 30 秒", nil, ""},
-	{"http.servers_limit.body_timeout", "读 body 单次超时（秒）", "HTTP", "number", "0 表示默认 1 秒", nil, ""},
-	{"http.servers_limit.limit", "限流 rate", "HTTP", "number", "0 表示不限", nil, ""},
-	{"http.servers_limit.burst", "限流 burst", "HTTP", "number", "0 表示不限", nil, ""},
-	{"http.blaklist", "黑名单", "HTTP", "list", "历史键名 blaklist，每行一个", nil, ""},
-	{"http.log_format", "访问日志字段", "HTTP", "multiselect", "按需勾选，顺序即日志字段顺序", []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}, ""},
+	{"http.include", "include 目录 / 文件", "http", "pathlist", "每行一个；站点文件通常放在 conf.d", nil, "dir"},
+	{"http.default_type", "默认 MIME 类型", "http", "text", "", nil, ""},
+	{"http.servers_limit.max_header_size", "请求头上限（字节）", "http", "number", "", nil, ""},
+	{"http.servers_limit.max_body_size", "请求体上限（字节）", "http", "number", "", nil, ""},
+	{"http.servers_limit.read_timeout", "读请求超时（秒）", "http", "number", "0 表示默认 30 秒", nil, ""},
+	{"http.servers_limit.write_timeout", "写响应超时（秒）", "http", "number", "0 表示默认 30 秒", nil, ""},
+	{"http.servers_limit.body_timeout", "读 body 单次超时（秒）", "http", "number", "0 表示默认 1 秒", nil, ""},
+	{"http.servers_limit.limit", "限流 rate", "http", "number", "0 表示不限", nil, ""},
+	{"http.servers_limit.burst", "限流 burst", "http", "number", "0 表示不限", nil, ""},
+	{"http.blaklist", "黑名单", "http", "list", "历史键名 blaklist，每行一个", nil, ""},
+	{"http.log_format", "访问日志字段", "http", "multiselect", "按需勾选，顺序即日志字段顺序", []string{"ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"}, ""},
 }
 
 // engine（is_master / id / register_port / slave_*）是 schema 里为兼容存量配置

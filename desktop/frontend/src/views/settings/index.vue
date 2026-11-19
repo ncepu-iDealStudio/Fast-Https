@@ -12,7 +12,7 @@ import ConfigField from './components/ConfigField.vue';
 import RuntimePathRow from './components/RuntimePathRow.vue';
 import type { ConfigField as Field, ConfigForm } from '../../types/config';
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const form = ref<ConfigForm | null>(null);
 const initial = ref<Record<string, string>>({});
 const values = ref<Record<string, string>>({});
@@ -34,6 +34,13 @@ const groups = computed(() => {
   }
   return [...map.entries()].map(([name, fields]) => ({ name, fields }));
 });
+
+// 分组名由 Go 侧下发稳定 id（basic / security / waf / acme / http），
+// 展示时按当前语言取字典项，找不到翻译时原样显示 id。
+function groupTitle(name: string): string {
+  const key = `settings.group.${name}`;
+  return te(key) ? t(key) : name;
+}
 
 const changed = computed(() => {
   const out: Record<string, string> = {};
@@ -133,9 +140,9 @@ onMounted(() => { void load(); });
     </div>
 
     <div v-for="g in groups" :key="g.name" class="card">
-      <div class="card-head"><h3>{{ g.name }}</h3></div>
+      <div class="card-head"><h3>{{ groupTitle(g.name) }}</h3></div>
 
-      <template v-if="g.name === '基础'">
+      <template v-if="g.name === 'basic'">
         <RuntimePathRow
           :label="`pid ${t('settings.readonly')}`" :hint="t('settings.pidReadonlyHint')" :value="runtimePid"
         />

@@ -13,9 +13,21 @@ const emit = defineEmits<{
   change: [v: string];
   browse: [];
 }>();
-const { t } = useI18n();
+const { t, te } = useI18n();
 
 const value = computed(() => props.value ?? '');
+
+// 字段名与帮助文案由 Go 侧 configSpecs 下发（默认中文）。语言切换后
+// 按字段 path 取对应字典项，没有翻译时回落到后端原文。
+const label = computed(() => {
+  const key = `settings.field.${props.field.path}.label`;
+  return te(key) ? t(key) : props.field.label;
+});
+const help = computed(() => {
+  if (!props.field.help) return '';
+  const key = `settings.field.${props.field.path}.help`;
+  return te(key) ? t(key) : props.field.help;
+});
 
 function multiChecked(opt: string): boolean {
   return value.value.split('\n').map((s) => s.trim()).includes(opt);
@@ -47,7 +59,7 @@ function delPathRow(i: number): void {
   <div class="cfg-row" :class="{ 'cfg-row--missing': field.missing }">
     <label class="cfg-row__label">
       <span class="cfg-row__title">
-        <span>{{ field.label }}</span>
+        <span>{{ label }}</span>
         <!-- 未配置只用一个图标示意：这一列几乎每行都缺省，铺满「未配置」
              文字反而把真正要看的字段淹掉。语义放在 title/aria 上。 -->
         <span
@@ -60,7 +72,7 @@ function delPathRow(i: number): void {
           <CircleAlert :size="13" />
         </span>
       </span>
-      <small v-if="field.help">{{ field.help }}</small>
+      <small v-if="help">{{ help }}</small>
     </label>
     <div class="cfg-row__control">
       <!-- 多选 -->
