@@ -6,7 +6,7 @@ import { useI18n } from '../../composables/useI18n';
 import { quipOfDay } from '../../content/quips';
 import { listCacheZones, addCacheZone, saveCacheZone, deleteCacheZone } from '../../services/api/cache';
 import { messageOf } from '../../services/api/base';
-import { pickPath } from '../../services/api/app';
+import { getDataDir, joinPath, pickAbsPath } from '../../services/api/app';
 import FhButton from '../../components/ui/FhButton.vue';
 import PageTitle from '../../components/common/PageTitle.vue';
 import FhDialog from '../../components/ui/FhDialog.vue';
@@ -29,11 +29,18 @@ const formError = ref('');
 const form = reactive({ name: '', path: '', maxSize: 0 });
 // 用户手动改过目录后，不再让名称联动覆盖它。
 const pathTouched = ref(false);
+// 数据目录的绝对路径：新建时拼出 ./cache/<名称> 对应的完整路径，
+// 界面里不再出现看不出基准的相对写法。
+const dataDir = ref('');
 
 watch(() => form.name, (name) => {
   if (editingName.value || pathTouched.value) return;
   const n = name.trim();
-  form.path = n ? `./cache/${n}` : '';
+  if (!n) {
+    form.path = '';
+    return;
+  }
+  form.path = dataDir.value ? joinPath(dataDir.value, `cache/${n}`) : `./cache/${n}`;
 });
 
 const delOpen = ref(false);
@@ -157,13 +164,15 @@ function openEdit(z: CacheZone): void {
 
 async function browsePath(): Promise<void> {
   try {
-    const p = await pickPath('dir');
+    // 从当前目录打开；用户取消不当作错误。
+    const p = await pickAbsPath('dir', form.path);
     if (p) {
       form.path = p;
       pathTouched.value = true;
     }
   } catch (e) {
-    formError.value = messageOf(e);
+    const msg = String((e as { message?: string })?.message ?? e ?? '');
+    if (!/cancel/i.test(msg)) formError.value = messageOf(e);
   }
 }
 
@@ -241,7 +250,14 @@ async function doDelete(): Promise<void> {
   }
 }
 
-onMounted(() => { void load(); });
+onMounted(async () => {
+  try {
+    dataDir.value = await getDataDir();
+  } catch {
+    // 取不到就退回相对写法，不影响缓存区本身。
+  }
+  void load();
+});
 </script>
 
 <template>

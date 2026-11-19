@@ -10,15 +10,21 @@ import (
 
 	"fast-https-desktop/internal/cli"
 	"fast-https-desktop/internal/model"
+	"fast-https-desktop/internal/pathutil"
 )
 
-// List 读取主配置里的缓存区。
+// List 读取主配置里的缓存区。目录统一展开成绝对路径给界面显示：
+// 相对写法（./cache/edge）分不清是相对程序目录还是用户目录。
 func List(dir string) ([]model.CacheZone, error) {
 	data, _, err := cli.RunJSON[any](dir, "cache", "list")
 	if err != nil {
 		return nil, err
 	}
-	return parseZones(cli.AsMap(data)), nil
+	zones := parseZones(cli.AsMap(data))
+	for i := range zones {
+		zones[i].Path = pathutil.Resolve(dir, zones[i].Path)
+	}
+	return zones, nil
 }
 
 func parseZones(data map[string]any) []model.CacheZone {
@@ -35,11 +41,12 @@ func parseZones(data map[string]any) []model.CacheZone {
 	return out
 }
 
-// Add 新增缓存区。
+// Add 新增缓存区。界面传来的是绝对路径，写配置时收回到数据目录下的相对写法。
 func Add(dir string, z model.CacheZone) (string, error) {
 	if err := validate(z); err != nil {
 		return "", err
 	}
+	z.Path = pathutil.Compact(dir, z.Path)
 	args := []string{"cache", "add", "--name", strings.TrimSpace(z.Name), "--path", strings.TrimSpace(z.Path)}
 	args = append(args, zoneArgs(z)...)
 	saveArgs := append(args, "--max-size", strconv.Itoa(z.MaxSize))
@@ -59,6 +66,7 @@ func Save(dir, name string, z model.CacheZone) (string, error) {
 	if err := validate(z); err != nil {
 		return "", err
 	}
+	z.Path = pathutil.Compact(dir, z.Path)
 	args := []string{"cache", "update", name, "--path", strings.TrimSpace(z.Path)}
 	args = append(args, zoneArgs(z)...)
 	saveArgs := append(args, "--max-size", strconv.Itoa(z.MaxSize))

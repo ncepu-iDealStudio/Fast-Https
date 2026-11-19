@@ -5,7 +5,7 @@ import { RefreshCw, Save, CheckCircle2 } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { readConfigForm, saveConfigForm } from '../../services/api/log';
 import { runCommand } from '../../services/api/command';
-import { pickPath, getRuntimePaths } from '../../services/api/app';
+import { pickAbsPath, getRuntimePaths } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
 import FhButton from '../../components/ui/FhButton.vue';
 import ConfigField from './components/ConfigField.vue';
@@ -72,10 +72,12 @@ async function load(): Promise<void> {
 async function browse(path: string): Promise<void> {
   const f = form.value?.fields.find((x) => x.path === path);
   try {
-    const p = await pickPath(f?.browse === 'file' ? 'file' : 'dir');
+    // 从字段当前值打开，选中后填绝对路径；取消不当作错误。
+    const p = await pickAbsPath(f?.browse === 'file' ? 'file' : 'dir', values.value[path] ?? '');
     if (p) setValue(path, p);
   } catch (e) {
-    error.value = messageOf(e);
+    const msg = String((e as { message?: string })?.message ?? e ?? '');
+    if (!/cancel/i.test(msg)) error.value = messageOf(e);
   }
 }
 

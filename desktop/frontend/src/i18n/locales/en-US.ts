@@ -537,7 +537,7 @@ export const enUS: Record<string, string> = {
   'cache.delTitle': 'Delete cache zone?',
   'cache.delBody': 'Cache zone {name} will be deleted. A zone still referenced by a site is refused; cache files on disk are kept by default.',
   'cache.delPurge': 'Also delete the cache directory on disk (cannot be undone)',
-  'cache.dialogHint': 'The cache directory defaults to ./cache/<name> and can be browsed; size and TTLs can be updated anytime, and sites reference the zone by name via proxy_cache.',
+  'cache.dialogHint': 'The cache directory defaults to cache/<name> under the data directory and is shown as an absolute path; it can also be browsed. Size and TTLs can be updated anytime, and sites reference the zone by name via proxy_cache.',
   'cache.browse': 'Browse…',
   'cache.name': 'Name',
   'cache.namePh': 'edge',

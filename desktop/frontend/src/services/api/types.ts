@@ -115,6 +115,8 @@ export interface DesktopServiceContract {
   ImportLocalCA(): Promise<string>;
   QueryLogs(query: LogQuery): Promise<LogPage>;
   CertTrustGuide(): Promise<CertTrustGuide>;
-  PickPath(kind: string): Promise<string>;
+  PickPath(kind: string, initial: string): Promise<string>;
+  /** 程序数据目录的绝对路径，用于把配置里的相对目录拼成可读路径。 */
+  DataDir(): Promise<string>;
   RunCommand(args: string[]): Promise<unknown>;
 }

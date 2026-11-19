@@ -538,7 +538,7 @@ export const zhCN: Record<string, string> = {
   'cache.delTitle': '删除缓存区？',
   'cache.delBody': '将删除缓存区 {name}。仍被站点引用的缓存区会被拒绝删除；默认保留磁盘上的缓存文件。',
   'cache.delPurge': '同时删除磁盘上的缓存目录（不可恢复）',
-  'cache.dialogHint': '缓存目录默认使用 ./cache/<名称>，也可以浏览选择；容量与有效期可随时更新，站点用 proxy_cache 引用缓存区名。',
+  'cache.dialogHint': '缓存目录默认是数据目录下的 cache/<名称>，界面按绝对路径显示，也可以浏览选择；容量与有效期可随时更新，站点用 proxy_cache 引用缓存区名。',
   'cache.browse': '浏览…',
   'cache.name': '名称',
   'cache.namePh': 'edge',

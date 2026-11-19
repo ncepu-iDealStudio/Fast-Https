@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fast-https-desktop/internal/cli"
 	"fast-https-desktop/internal/model"
+	"fast-https-desktop/internal/pathutil"
 	"fast-https-desktop/internal/view"
 	"fmt"
 	"net/url"
@@ -297,7 +298,8 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 	if locs := cli.AsSlice(srv["location"]); len(locs) > 0 {
 		if loc, ok := locs[0].(map[string]any); ok {
 			d.Type = cli.Str(loc, "type")
-			d.Root = cli.Str(loc, "root")
+			// 站点根统一用绝对路径展示：默认配置里的 ./httpdoc/root 看不出基准。
+			d.Root = pathutil.Resolve(dir, cli.Str(loc, "root"))
 			d.ProxyPass = cli.Str(loc, "proxy_pass")
 			d.Index = strings.Join(cli.Strs(loc, "index"), " ")
 			fillAdvanced(&d, loc)

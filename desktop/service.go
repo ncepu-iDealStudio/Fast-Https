@@ -184,6 +184,12 @@ func (s *DesktopService) DeleteCacheZone(name string, purge bool) (string, error
 	return cacheops.Delete(s.baseDir, name, purge)
 }
 
+// DataDir 返回程序数据目录（归档布局下就是 exe 所在目录）。
+// 界面用它把 ./cache/<名称> 这类配置写法拼成可读的绝对路径。
+func (s *DesktopService) DataDir() string {
+	return s.baseDir
+}
+
 // ------------------------------------------------------------ 本机状态与操作
 
 func (s *DesktopService) GetOverview() (model.Overview, error) {
@@ -306,15 +312,28 @@ func (s *DesktopService) CertTrustGuide() (model.CertTrustGuide, error) {
 
 // PickPath 调系统原生选择框，返回相对 config 目录的路径。
 // kind 为 "dir" 时选目录，否则选文件；用户取消返回空串。
+// initial 是打开时定位到的目录：优先用它，取不到再退回 config 目录。
 //
 // 相对写法是给配置字段用的（整目录搬迁不失效）。需要绝对路径的地方
 // （站点根目录）由前端 pickAbsPath 用同一个基准还原，别在这里改语义。
-func (s *DesktopService) PickPath(kind string) (string, error) {
+func (s *DesktopService) PickPath(kind, initial string) (string, error) {
 	if appRef == nil {
 		return "", fmt.Errorf("应用尚未就绪")
 	}
 	etcDir := filepath.Dir(view.ResolvePaths(s.baseDir).Config)
-	d := appRef.Dialog.OpenFile().SetDirectory(etcDir)
+	start := etcDir
+	if p := strings.TrimSpace(initial); p != "" {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(s.baseDir, p)
+		}
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			start = p
+		} else if info, err := os.Stat(filepath.Dir(p)); err == nil && info.IsDir() {
+			// 选文件时 initial 可能是文件名，退到它所在的目录。
+			start = filepath.Dir(p)
+		}
+	}
+	d := appRef.Dialog.OpenFile().SetDirectory(start)
 	if mainWindow != nil {
 		d.AttachToWindow(mainWindow)
 	}
