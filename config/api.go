@@ -34,6 +34,9 @@ func ResolveRuntimePaths(cfg *Fast_Https) { paths.ResolveRuntimePaths(cfg) }
 
 func ResolveCandidateRoot(path string) (string, error) { return paths.ResolveCandidateRoot(path) }
 
+// DataPath 把站点根、缓存目录一类的相对路径按数据目录解析成绝对路径。
+func DataPath(path string) string { return paths.DataPath(path) }
+
 // SetDefault 补齐系统级默认值并把相对路径解析成绝对路径。
 func SetDefault(cfg *Fast_Https) { loader.SetDefault(cfg) }
 

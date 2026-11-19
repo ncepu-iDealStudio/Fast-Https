@@ -70,15 +70,22 @@ func Save(dir, name string, z model.CacheZone) (string, error) {
 }
 
 // Delete 删除缓存区；仍被站点引用时 CLI 会拒绝并列出引用位置。
-func Delete(dir, name string) (string, error) {
+// purge 为真时连同磁盘目录一起删除，默认只删配置。
+func Delete(dir, name string, purge bool) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", fmt.Errorf("缺少缓存区名")
 	}
 	args := []string{"cache", "delete", name}
+	if purge {
+		args = append(args, "--purge")
+	}
 	_, _, err := cli.RunJSON[any](dir, args...)
 	if err != nil {
 		return "", fmt.Errorf("%s", cli.FriendlyError(err, strings.Join(args, " ")))
+	}
+	if purge {
+		return "缓存区 " + name + " 已删除，磁盘缓存目录已清理", nil
 	}
 	return "缓存区 " + name + " 已删除" + note(), nil
 }

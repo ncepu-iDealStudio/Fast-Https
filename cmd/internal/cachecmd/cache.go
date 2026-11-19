@@ -3,6 +3,7 @@ package cachecmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -101,15 +102,17 @@ func newDeleteCmd() *cobra.Command {
 		Short: cli.T("删除缓存区", "delete a cache zone"),
 		Long: cli.T(
 			"删除一个缓存区。仍被站点 location 引用时拒绝删除：先把站点改成别的区或关闭缓存。\n"+
-				"只删配置，不删除磁盘上的缓存目录。",
+				"默认只删配置，磁盘上的缓存文件保留；加 --purge 才会连同该区目录一起删除。",
 			"Delete a cache zone. It is refused while any site location still references it: point the site at another\n"+
-				"zone or disable caching first. Only the config entry is removed; cache files on disk are kept."),
+				"zone or disable caching first. By default only the config entry is removed and cache files stay on disk;\n"+
+				"--purge also removes the zone directory."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE:         runDelete,
 	}
 	cli.AddConfigFlag(c)
 	c.Flags().Bool("dry-run", false, cli.T("只打印改写后的配置，不写盘", "print the patched config instead of writing it"))
+	c.Flags().Bool("purge", false, cli.T("同时删除该缓存区的磁盘目录", "also delete the zone directory on disk"))
 	return c
 }
 
@@ -243,9 +246,11 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	}
 	out := zones[:0]
 	found := false
+	var removed config.CacheZone
 	for _, z := range zones {
 		if z.Name == name {
 			found = true
+			removed = z
 			continue
 		}
 		out = append(out, z)
@@ -265,7 +270,37 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		return &cli.CLIError{Code: cli.CodeConflict, Command: "cache.delete",
 			Message: fmt.Sprintf("cache zone %q is still referenced by: %s", name, strings.Join(refs, "; "))}
 	}
-	return commit(cmd, "cache.delete", "cache delete "+name, path, out, dry)
+	if err := commit(cmd, "cache.delete", "cache delete "+name, path, out, dry); err != nil {
+		return err
+	}
+	if purge, _ := cmd.Flags().GetBool("purge"); purge && !dry {
+		purgeDir(cmd, removed.Path)
+	}
+	return nil
+}
+
+// purgeDir 删除缓存区对应的磁盘目录。--purge 是显式选择，但目录为数据根或盘符根时
+// 仍然拒绝：那等于把别的数据一起清掉。失败只告警，配置已经删掉了，不回滚。
+func purgeDir(cmd *cobra.Command, raw string) {
+	dir := strings.TrimSpace(raw)
+	if dir == "" {
+		return
+	}
+	dir = config.DataPath(dir)
+	cleaned := filepath.Clean(dir)
+	if cleaned == "." || cleaned == string(filepath.Separator) || filepath.Dir(cleaned) == cleaned {
+		fmt.Fprintf(cmd.ErrOrStderr(),
+			cli.T("warning: 拒绝删除可疑的缓存目录 %s\n", "warning: refusing to purge suspicious cache directory %s\n"), cleaned)
+		return
+	}
+	if err := os.RemoveAll(cleaned); err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(),
+			cli.T("warning: 删除缓存目录 %s 失败：%v\n", "warning: delete cache directory %s failed: %v\n"), cleaned, err)
+		return
+	}
+	if !cli.JSONMode(cmd) {
+		fmt.Fprintf(cmd.OutOrStdout(), cli.T("已删除缓存目录 %s\n", "cache directory removed: %s\n"), cleaned)
+	}
 }
 
 // commit 校验并写入缓存区列表；dry-run 只打印改写后的配置。

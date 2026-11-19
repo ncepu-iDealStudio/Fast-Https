@@ -104,6 +104,38 @@ func TestCacheDeleteRefusesReferencedZone(t *testing.T) {
 	}
 }
 
+// --purge 才删磁盘目录：默认只删配置，目录与缓存文件保留。
+func TestCacheDeletePurgeOnlyWhenAsked(t *testing.T) {
+	mainPath, _ := writeEnv(t)
+	keepDir := filepath.Join(t.TempDir(), "cache", "keep")
+	purgeDir := filepath.Join(t.TempDir(), "cache", "purge")
+	for _, dir := range []string{keepDir, purgeDir} {
+		if err := os.MkdirAll(filepath.Join(dir, "aa", "bb"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := runCache(t, mainPath, "add", "--name", "keep", "--path", keepDir, "--valid", "any:10s"); err != nil {
+		t.Fatalf("add keep: %v", err)
+	}
+	if _, err := runCache(t, mainPath, "add", "--name", "purge", "--path", purgeDir, "--valid", "any:10s"); err != nil {
+		t.Fatalf("add purge: %v", err)
+	}
+
+	if _, err := runCache(t, mainPath, "delete", "keep"); err != nil {
+		t.Fatalf("delete keep: %v", err)
+	}
+	if _, err := os.Stat(keepDir); err != nil {
+		t.Fatalf("不带 --purge 应保留目录: %v", err)
+	}
+
+	if _, err := runCache(t, mainPath, "delete", "purge", "--purge"); err != nil {
+		t.Fatalf("delete purge: %v", err)
+	}
+	if _, err := os.Stat(purgeDir); !os.IsNotExist(err) {
+		t.Fatalf("带 --purge 应删除目录, stat err = %v", err)
+	}
+}
+
 // 装完包还没 start 过、自签证书尚未生成时，缓存区的增删仍要可用：
 // 校验按候选树语义把证书缺失降级为告警，不能因为证书挡住无关改动。
 func TestCacheOpsTolerateMissingAutoCert(t *testing.T) {

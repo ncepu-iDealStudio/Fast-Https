@@ -33,12 +33,14 @@ const pathTouched = ref(false);
 watch(() => form.name, (name) => {
   if (editingName.value || pathTouched.value) return;
   const n = name.trim();
-  form.path = n ? `./.cache/${n}` : '';
+  form.path = n ? `./cache/${n}` : '';
 });
 
 const delOpen = ref(false);
 const delName = ref('');
 const delBusy = ref(false);
+// 默认只删配置；勾选后才连同磁盘目录一起清掉。
+const delPurge = ref(false);
 
 // 有效期在界面上按「状态码 + 时长 + 单位」编辑，提交时才拼成 any:30s / 200:10m。
 type Unit = 's' | 'm' | 'h' | 'd';
@@ -216,6 +218,7 @@ async function submit(): Promise<void> {
 
 function askDelete(name: string): void {
   delName.value = name;
+  delPurge.value = false;
   delOpen.value = true;
 }
 
@@ -226,7 +229,7 @@ async function doDelete(): Promise<void> {
   error.value = '';
   notice.value = '';
   try {
-    notice.value = await deleteCacheZone(name);
+    notice.value = await deleteCacheZone(name, delPurge.value);
     delOpen.value = false;
     await load();
   } catch (e) {
@@ -341,6 +344,11 @@ onMounted(() => { void load(); });
       :message="t('cache.delBody', { name: delName })"
       :loading="delBusy"
       @confirm="doDelete"
-    />
+    >
+      <label class="check-field">
+        <input v-model="delPurge" type="checkbox" />
+        <span>{{ t('cache.delPurge') }}</span>
+      </label>
+    </ConfirmDialog>
   </div>
 </template>

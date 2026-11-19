@@ -180,8 +180,8 @@ func (s *DesktopService) SaveCacheZone(name string, zone model.CacheZone) (strin
 	return cacheops.Save(s.baseDir, name, zone)
 }
 
-func (s *DesktopService) DeleteCacheZone(name string) (string, error) {
-	return cacheops.Delete(s.baseDir, name)
+func (s *DesktopService) DeleteCacheZone(name string, purge bool) (string, error) {
+	return cacheops.Delete(s.baseDir, name, purge)
 }
 
 // ------------------------------------------------------------ 本机状态与操作

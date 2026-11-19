@@ -12,7 +12,7 @@
 ```json
 // fast-https.json：缓存区可以定义多个；随包默认预置一个可共用的 default_cache
 "cache": [
-  { "name": "default_cache", "path": "./cache", "valid": ["200:1h", "404:1m", "any:5m"], "max_size": 1073741824 }
+  { "name": "default_cache", "path": "./cache/default_cache", "valid": ["200:1h", "404:1m", "any:5m"], "max_size": 1073741824 }
 ]
 ```
 

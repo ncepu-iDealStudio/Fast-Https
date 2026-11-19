@@ -98,7 +98,7 @@ export interface DesktopServiceContract {
   ListCacheZones(): Promise<CacheZone[]>;
   AddCacheZone(zone: CacheZone): Promise<string>;
   SaveCacheZone(name: string, zone: CacheZone): Promise<string>;
-  DeleteCacheZone(name: string): Promise<string>;
+  DeleteCacheZone(name: string, purge: boolean): Promise<string>;
   GetOverview(): Promise<Overview>;
   ListSites(): Promise<Site[]>;
   ListCerts(): Promise<Cert[]>;

@@ -11,6 +11,6 @@ export function addCacheZone(zone: CacheZone): Promise<string> {
 export function saveCacheZone(name: string, zone: CacheZone): Promise<string> {
   return service.SaveCacheZone(name, zone);
 }
-export function deleteCacheZone(name: string): Promise<string> {
-  return service.DeleteCacheZone(name);
+export function deleteCacheZone(name: string, purge: boolean): Promise<string> {
+  return service.DeleteCacheZone(name, purge);
 }
