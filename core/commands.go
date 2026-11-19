@@ -6,20 +6,11 @@ import (
 )
 
 func DefaultParseCommandHandler(cfg *listener.ListenCfg, ev *Event) {
-	ip := ""
-	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
-	// 如果找到了该字符
-	if index != -1 {
-		// 截取字符串，不包括该字符及其后面的字符
-		ip = ev.Conn.RemoteAddr().String()[:index]
-	}
-
-	xForWardFor := ev.RR.Req.GetHeader("X-Forwarded-For")
-	if xForWardFor == "" {
-		xForWardFor = ip
-	} else {
-		xForWardFor = xForWardFor + ", " + ip
-	}
+	ip := ClientIP(ev)
+	// 与转发阶段共用同一套策略，避免 $proxy_add_x_forwarded_for 与
+	// 实际发出的 X-Forwarded-For 语义漂移。解析阶段读的是原始请求头，
+	// ChangeHead 的改写不会造成重复追加。
+	xForWardFor := forwardedForChain(cfg, ev, false)
 
 	ev.RR.CircleCommandVal.Map = map[string]string{
 		"request_method":            ev.RR.Req.Method,

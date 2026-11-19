@@ -180,40 +180,52 @@ func readEntryHead(realPath string) (CacheHead, string, int, error) {
 	return head.Head, head.FirstLine, head.Size, nil
 }
 
-// LoadCache 在启动时扫描配置里的缓存目录，重建内存索引。
+// EnsureDirs 确保配置里每个缓存区目录已经在磁盘上存在。
+// 缓存条目本身是懒写入的，但目录属于缓存区定义的一部分：配置生效后就该能在
+// 磁盘上看到，而不是等第一条响应被缓存后才出现。创建失败只告警，不阻断加载。
+func (CC *CacheContainer) EnsureDirs() {
+	for _, zone := range config.Current().Cache {
+		if zone.Path == "" {
+			continue
+		}
+		if err := os.MkdirAll(zone.Path, 0o755); err != nil {
+			logging.PrintWarn("proxy cache create directory failed: ", err)
+		}
+	}
+}
+
+// LoadCache 在启动时扫描主配置里的缓存区目录，重建内存索引。
 func (CC *CacheContainer) LoadCache() {
 	now := int(time.Now().Unix())
-	for _, server := range config.Current().Servers {
-		for _, path := range server.Path {
-			if path.ProxyCache.Path == "" {
-				continue
-			}
-			files, err := GetDirFiles(path.ProxyCache.Path)
+	for _, zone := range config.Current().Cache {
+		if zone.Path == "" {
+			continue
+		}
+		files, err := GetDirFiles(zone.Path)
+		if err != nil {
+			logging.PrintWarn("proxy cache scan failed: ", err)
+			continue
+		}
+		for _, file := range files {
+			head, firstLine, size, err := readEntryHead(file)
 			if err != nil {
-				logging.PrintWarn("proxy cache scan failed: ", err)
+				logging.PrintWarn("proxy cache skip unreadable file: ", err)
 				continue
 			}
-			for _, file := range files {
-				head, firstLine, size, err := readEntryHead(file)
-				if err != nil {
-					logging.PrintWarn("proxy cache skip unreadable file: ", err)
-					continue
-				}
-				// 旧格式条目没有可回放的响应行，丢弃而不进索引。
-				if firstLine == "" || head.Md5 == "" {
-					continue
-				}
-				// 已过期条目不得进索引：Touch 的读即续期会在首次命中时
-				// 把它刷新成"永不过期"，陈旧内容将被无限回放。顺手删掉
-				// 磁盘文件，避免它每次重启都被重新扫出来。
-				if head.Expire <= now {
-					RemoveFromDisk(CacheNode(head))
-					continue
-				}
-				node := CacheNode(head)
-				CC.Index.Set(&node)
-				CC.admit(node.Md5, size, 0)
+			// 旧格式条目没有可回放的响应行，丢弃而不进索引。
+			if firstLine == "" || head.Md5 == "" {
+				continue
 			}
+			// 已过期条目不得进索引：Touch 的读即续期会在首次命中时
+			// 把它刷新成"永不过期"，陈旧内容将被无限回放。顺手删掉
+			// 磁盘文件，避免它每次重启都被重新扫出来。
+			if head.Expire <= now {
+				RemoveFromDisk(CacheNode(head))
+				continue
+			}
+			node := CacheNode(head)
+			CC.Index.Set(&node)
+			CC.admit(node.Md5, size, 0)
 		}
 	}
 }

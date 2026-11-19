@@ -1,0 +1,43 @@
+# server_name 解析用例：空格分隔的多域名取全部 / 取首个。
+names:
+  - name: 单域名
+    in: example.com
+    want: [example.com]
+  - name: 多域名空格分隔
+    in: a.example b.example
+    want: [a.example, b.example]
+  - name: 多域名多余空白
+    in: "  a.example   b.example  "
+    want: [a.example, b.example]
+  - name: 三个域名
+    in: a.com b.com c.com
+    want: [a.com, b.com, c.com]
+  - name: 空字符串
+    in: ""
+    want: []
+  - name: 纯空白
+    in: "   "
+    want: []
+  - name: IP 地址
+    in: 192.168.1.10
+    want: [192.168.1.10]
+  - name: localhost
+    in: localhost
+    want: [localhost]
+  - name: 混合域名与 localhost
+    in: example.com localhost
+    want: [example.com, localhost]
+
+primary:
+  - name: 单域名
+    in: example.com
+    want: example.com
+  - name: 多域名取第一个
+    in: a.example b.example
+    want: a.example
+  - name: 空字符串
+    in: ""
+    want: ""
+  - name: 纯空白
+    in: "   "
+    want: ""

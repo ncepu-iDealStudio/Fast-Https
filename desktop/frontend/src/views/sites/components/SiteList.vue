@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /** 站点列表：行点击展开访问链接，行内编辑/启停/删除。 */
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ChevronRight, Pencil, Power, Trash2, Copy, ExternalLink, Globe } from '@lucide/vue';
 import { useI18n } from '../../../composables/useI18n';
+import { quipOfDay } from '../../../content/quips';
 import type { Site } from '../../../types/model';
 
 const props = defineProps<{
@@ -18,7 +19,8 @@ const emit = defineEmits<{
   copy: [url: string];
   open: [url: string];
 }>();
-const { t } = useI18n();
+const { t, lang } = useI18n();
+const quip = computed(() => quipOfDay(lang()));
 const expanded = ref('');
 
 function toggleExpand(id: string): void {
@@ -104,6 +106,9 @@ function siteURLs(s: Site): string[] {
       </div>
     </template>
 
-    <div v-if="!items.length && !loading" class="table__empty">{{ t('sites.empty') }}</div>
+    <div v-if="!items.length && !loading" class="table__empty">
+      {{ t('sites.empty') }}
+      <span class="table__quip">{{ quip }}</span>
+    </div>
   </div>
 </template>

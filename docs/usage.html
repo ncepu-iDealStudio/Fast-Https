@@ -45,13 +45,13 @@ footer{max-width:1180px;margin:0 auto;padding:16px 24px 40px;color:var(--muted);
 </style>
 </head>
 <body>
-<header class="top"><span class="brand">Fast-Https</span><span class="ver">V1.7.0</span></header>
+<header class="top"><span class="brand">Fast-Https</span><span class="ver">V1.7.1</span></header>
 <div class="layout">
-<nav class="toc"><p class="toc-title">目录</p><ul><li><a href="#sec-2">1. 能力一览</a></li><li><a href="#sec-3">2. 获取与安装</a></li><li class="lvl3"><a href="#sec-4">发行包</a></li><li class="lvl3"><a href="#sec-5">Linux 发行版包（deb / rpm / apk）</a></li><li class="lvl3"><a href="#sec-6">容器</a></li><li><a href="#sec-7">3. 目录布局</a></li><li><a href="#sec-8">4. 快速开始</a></li><li class="lvl3"><a href="#sec-9">4.1 默认配置</a></li><li class="lvl3"><a href="#sec-10">4.2 启动并验证</a></li><li class="lvl3"><a href="#sec-11">4.3 HTTPS 与 HTTP/2</a></li><li class="lvl3"><a href="#sec-12">4.4 用 site 命令管理站点文件</a></li><li class="lvl3"><a href="#sec-13">4.5 停止</a></li><li><a href="#sec-14">5. 配置文件</a></li><li class="lvl3"><a href="#sec-15">5.1 顶层键</a></li><li class="lvl3"><a href="#sec-16">5.2 <code>http</code> 段</a></li><li class="lvl3"><a href="#sec-17">5.3 <code>server</code> 段</a></li><li class="lvl3"><a href="#sec-18">5.4 <code>location</code> 段</a></li><li class="lvl3"><a href="#sec-19">5.5 <code>security</code> 段</a></li><li><a href="#sec-20">6. 典型配置</a></li><li class="lvl3"><a href="#sec-21">6.1 静态站点 + try_files</a></li><li class="lvl3"><a href="#sec-22">6.2 反向代理</a></li><li class="lvl3"><a href="#sec-23">6.3 TCP 转发</a></li><li class="lvl3"><a href="#sec-24">6.4 压缩</a></li><li class="lvl3"><a href="#sec-25">6.5 代理缓存</a></li><li class="lvl3"><a href="#sec-26">6.6 Basic 认证与限流</a></li><li><a href="#sec-27">7. TLS 与证书</a></li><li class="lvl3"><a href="#sec-28">7.1 ACME 自动签发</a></li><li><a href="#sec-29">8. HTTP/2</a></li><li><a href="#sec-30">9. 日志</a></li><li><a href="#sec-31">10. 命令行</a></li><li class="lvl3"><a href="#sec-32">10.1 帮助信息的语言</a></li><li class="lvl3"><a href="#sec-33">10.2 机器可读输出与退出码</a></li><li class="lvl3"><a href="#sec-34">10.3 <code>--request-id</code>、operation 与 SSH 断线</a></li><li><a href="#sec-35">11. 热重载与停机</a></li><li><a href="#sec-36">12. 排错</a></li><li><a href="#sec-37">13. 已知限制</a></li><li><a href="#sec-38">14. 版本与许可</a></li></ul></nav>
+<nav class="toc"><p class="toc-title">目录</p><ul><li><a href="#sec-2">1. 能力一览</a></li><li><a href="#sec-3">2. 获取与安装</a></li><li class="lvl3"><a href="#sec-4">发行包</a></li><li class="lvl3"><a href="#sec-5">Linux 发行版包（deb / rpm / apk）</a></li><li class="lvl3"><a href="#sec-6">容器</a></li><li><a href="#sec-7">3. 目录布局</a></li><li><a href="#sec-8">4. 快速开始</a></li><li class="lvl3"><a href="#sec-9">4.1 默认配置</a></li><li class="lvl3"><a href="#sec-10">4.2 启动并验证</a></li><li class="lvl3"><a href="#sec-11">4.3 HTTPS 与 HTTP/2</a></li><li class="lvl3"><a href="#sec-12">4.4 用 site 命令管理站点文件</a></li><li class="lvl3"><a href="#sec-13">4.5 停止</a></li><li><a href="#sec-14">5. 配置文件</a></li><li class="lvl3"><a href="#sec-15">5.1 顶层键</a></li><li class="lvl3"><a href="#sec-16">5.2 <code>http</code> 段</a></li><li class="lvl3"><a href="#sec-17">5.3 <code>server</code> 段</a></li><li class="lvl3"><a href="#sec-18">5.4 <code>location</code> 段</a></li><li class="lvl3"><a href="#sec-19">5.5 <code>security</code> 段</a></li><li class="lvl3"><a href="#sec-20">5.6 <code>proxy</code> 段</a></li><li><a href="#sec-21">6. 典型配置</a></li><li class="lvl3"><a href="#sec-22">6.1 静态站点 + try_files</a></li><li class="lvl3"><a href="#sec-23">6.2 反向代理</a></li><li class="lvl3"><a href="#sec-24">6.3 TCP 转发</a></li><li class="lvl3"><a href="#sec-25">6.4 压缩</a></li><li class="lvl3"><a href="#sec-26">6.5 代理缓存</a></li><li class="lvl3"><a href="#sec-27">6.6 Basic 认证与限流</a></li><li><a href="#sec-28">7. TLS 与证书</a></li><li class="lvl3"><a href="#sec-29">7.1 ACME 自动签发</a></li><li class="lvl3"><a href="#sec-30">7.2 未知 SNI 的兜底证书</a></li><li><a href="#sec-31">8. HTTP/2</a></li><li><a href="#sec-32">9. 日志</a></li><li><a href="#sec-33">10. 命令行</a></li><li class="lvl3"><a href="#sec-34">10.1 帮助信息的语言</a></li><li class="lvl3"><a href="#sec-35">10.2 机器可读输出与退出码</a></li><li class="lvl3"><a href="#sec-36">10.3 <code>--request-id</code>、operation 与 SSH 断线</a></li><li><a href="#sec-37">11. 热重载与停机</a></li><li><a href="#sec-38">12. 排错</a></li><li><a href="#sec-39">13. 已知限制</a></li><li><a href="#sec-40">14. 版本与许可</a></li></ul></nav>
 <main>
 <h1 id="sec-1">Fast-Https 使用文档</h1>
 <p>本文面向部署与运维人员，只讲&#34;怎么装、怎么配、怎么跑、怎么排错&#34;。开发、架构与测试相关内容在仓库 <code>docs/</code> 下的其他目录，不随发行包分发。</p>
-<blockquote><p>文档中的路径都相对于解压后的程序根目录。配置里的相对路径按<strong>进程工作目录</strong>解析，因此请始终在根目录启动程序，或改用绝对路径。</p></blockquote>
+<blockquote><p>文档中的路径都相对于解压后的程序根目录。把根目录加入 <code>PATH</code> 后可以从任意目录执行：当前目录没有 <code>config/fast-https.json</code>、而程序所在目录有时，程序会自动切到安装目录。此时命令行里传的相对路径也按安装目录解析，需要固定位置请用绝对路径。</p></blockquote>
 <h2 id="sec-2">1. 能力一览</h2>
 <table>
 <thead><tr><th>能力</th><th>说明</th><th>关键配置</th></tr></thead>
@@ -111,20 +111,31 @@ logs/                       运行日志</code></pre>
     &#34;headers&#34;: {
       &#34;nosniff&#34;: true,
       &#34;hsts&#34;: &#34;&#34;,
-      &#34;x_frame_options&#34;: &#34;&#34;,
-      &#34;referrer_policy&#34;: &#34;&#34;,
+      &#34;x_frame_options&#34;: &#34;SAMEORIGIN&#34;,
+      &#34;referrer_policy&#34;: &#34;strict-origin-when-cross-origin&#34;,
       &#34;content_security_policy&#34;: &#34;&#34;
     }
   },
   &#34;waf&#34;: {
-    &#34;mode&#34;: &#34;disabled&#34;
+    &#34;mode&#34;: &#34;monitor&#34;
+  },
+  &#34;proxy&#34;: {
+    &#34;trusted_proxies&#34;: [&#34;127.0.0.1/32&#34;, &#34;::1/128&#34;],
+    &#34;forwarded_for&#34;: {
+      &#34;max_hops&#34;: 10
+    },
+    &#34;upstream_timeout&#34;: 20,
+    &#34;tunnel_idle_timeout&#34;: 0
   },
   &#34;http&#34;: {
-    &#34;include&#34;: [&#34;./config/conf.d&#34;],
+    &#34;include&#34;: [&#34;./conf.d&#34;],
     &#34;default_type&#34;: &#34;application/octet-stream&#34;,
     &#34;servers_limit&#34;: {
-      &#34;max_header_size&#34;: 4096,
-      &#34;max_body_size&#34;: 524288,
+      &#34;max_header_size&#34;: 8192,
+      &#34;max_body_size&#34;: 8388608,
+      &#34;read_timeout&#34;: 30,
+      &#34;write_timeout&#34;: 30,
+      &#34;body_timeout&#34;: 1,
       &#34;limit&#34;: 0,
       &#34;burst&#34;: 0
     },
@@ -136,7 +147,23 @@ logs/                       运行日志</code></pre>
     &#34;email&#34;: &#34;&#34;
   }
 }</code></pre>
-<p>上面每一项的取值都等于内置默认值，写全是为了在文件里直接看到有哪些系统级开关（<code>waf.mode: disabled</code> 等价于不启用，引擎不构建，零开销）。</p>
+<p>随包配置在安全默认值之上预先打开了几项常用能力，不改也能直接跑：</p>
+<ul>
+<li><code>x_frame_options</code> 与 <code>referrer_policy</code> 默认给出 <code>SAMEORIGIN</code> 和</li>
+</ul>
+<p><code>strict-origin-when-cross-origin</code>；<code>hsts</code> 与 <code>content_security_policy</code> 保持留空， 前者要等全站 HTTPS 稳定后再开，后者与具体站点强相关。</p>
+<ul>
+<li><code>waf.mode</code> 为 <code>monitor</code>：命中只记录、不阻断；规则本身仍由 location 的</li>
+</ul>
+<p><code>appfirewall</code> 选择（见 15 节）。</p>
+<ul>
+<li><code>proxy.trusted_proxies</code> 信任本机回环，前置 nginx / Caddy 时能还原真实客户端 IP；</li>
+</ul>
+<p><code>forwarded_for.max_hops</code> 限制为 10，避免接受无上限的伪造链。</p>
+<ul>
+<li>请求头上限 8 KB、请求体上限 8 MB，覆盖带 Cookie 的页面与常见表单 / JSON 上传。</li>
+</ul>
+<p>要收紧或换掉哪一项，直接改对应字段即可；每一项的取值含义见本章各节。</p>
 <p>随包的 <code>config/conf.d/default.json</code> 是开箱即用的默认站点，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 <code>./httpdoc/root</code>：</p>
 <pre><code class="language-json">{
   &#34;listen&#34;: [80, &#34;443 ssl h2&#34;],
@@ -148,7 +175,10 @@ logs/                       运行日志</code></pre>
       &#34;url&#34;: &#34;/&#34;,
       &#34;type&#34;: &#34;local&#34;,
       &#34;root&#34;: &#34;./httpdoc/root&#34;,
-      &#34;index&#34;: [&#34;index.html&#34;, &#34;index.htm&#34;]
+      &#34;index&#34;: [&#34;index.html&#34;, &#34;index.htm&#34;],
+      &#34;zip&#34;: [&#34;br&#34;, &#34;gzip&#34;],
+      &#34;zip_min_length&#34;: 1024,
+      &#34;zip_skip_types&#34;: [&#34;image/*&#34;, &#34;video/*&#34;, &#34;audio/*&#34;, &#34;font/woff2&#34;, &#34;application/zip&#34;, &#34;application/gzip&#34;]
     }
   ]
 }</code></pre>
@@ -192,11 +222,14 @@ fast-https site enable demo.example --yes
 fast-https site delete demo.example --yes   # 只删配置文件，不删内容目录与证书
 fast-https site list --json                 # 含 enabled、cert_status
 fast-https site add --domain blog.example --listen 80 --root ./httpdoc/root --yes
+fast-https site add --domain static.example --root ./httpdoc/root --symlink-policy reject --yes
+fast-https site update blog --symlink-policy= --yes   # 传空表示回到默认 check-at-load
 fast-https site show blog
 fast-https site delete blog --yes</code></pre>
 <ul>
-<li><strong>site add</strong>：<code>--domain</code> 必填，站点名由域名规范化得到；<code>--root</code> 或 <code>--proxy-pass</code> 二选一。同名或同 <code>server_name</code> 已存在时退出码 10。<code>--root</code> 必须是已存在的目录，不能含 <code>..</code>，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 <code>--yes</code>。</li>
-<li><strong>site update</strong>：只允许 <code>--listen</code>、<code>--server-name</code>、<code>--root</code>、<code>--proxy-pass</code>、<code>--tls</code>。内联在主配置 <code>http.server[]</code> 里的站点返回退出码 11。注释与未建模字段由补丁保留。</li>
+<li><strong>site add</strong>：<code>--domain</code> 必填，站点名由域名规范化得到；<code>--root</code> 或 <code>--proxy-pass</code> 二选一。同名或同 <code>server_name</code> 已存在时退出码 10。<code>--root</code> 必须是已存在的目录，不能含 <code>..</code>，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 <code>--yes</code>。新建站点默认开启 <code>br+gzip</code> 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。</li>
+<li><strong>site update</strong>：只允许 <code>--listen</code>、<code>--server-name</code>、<code>--root</code>、<code>--proxy-pass</code>、<code>--tls</code>、<code>--ssl-certificate*</code>，以及主 location 上的高级配置 <code>--zip</code>、<code>--zip-min-length</code>、<code>--zip-skip-types</code>、<code>--limit-*</code>、<code>--auth-*</code>、<code>--cache-*</code>、<code>--symlink-policy</code>。内联在主配置 <code>http.server[]</code> 里的站点返回退出码 11。注释与未建模字段由补丁保留。</li>
+<li><strong>符号链接策略</strong>：<code>site add/update</code> 的 <code>--symlink-policy</code> 取 <code>check-at-load</code>（默认）、<code>reject</code>、<code>allow</code>，只对 <code>local</code> 站点生效；<code>site update --symlink-policy=</code> 传空串表示删掉该键、回到默认。代理站点带此参数返回退出码 2。</li>
 <li><strong>site disable / enable</strong>：把 <code>&lt;name&gt;.json</code> 改名为 <code>&lt;name&gt;.json.disabled</code> 或改回（<code>include</code> 只加载 <code>*.json</code>）。<code>site list --json</code> 里停用站点为 <code>enabled: false</code>。</li>
 <li><strong>site delete</strong>：必须 <code>--yes</code>。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 <code>config rollback</code> 找回。</li>
 <li><strong>交互式</strong>：<code>fast-https site add</code> 不带 <code>--domain</code> 且标准输入是终端时进向导，一题一屏依次问站点名（也是文件名）、监听端口、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（<code>http://127.0.0.1:8080</code>）；加 <code>--plain</code> 改成逐行问答。最后一屏确认即视为 <code>--yes</code>。标准输入不是终端时不会挂起，会提示改用 <code>--domain</code> 等参数。</li>
@@ -228,6 +261,8 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>http</code></td><td>HTTP 服务主体，见下</td></tr>
 <tr><td><code>acme</code></td><td>ACME 自动签发与续期，见 7.1。缺省即关闭，行为与老版本一致</td></tr>
 <tr><td><code>security</code></td><td>Host 校验与安全响应头，见 5.5。缺省只加 <code>X-Content-Type-Options: nosniff</code></td></tr>
+<tr><td><code>tls</code></td><td>全局 TLS 兜底：<code>default_certificate</code> 指定未知 SNI 使用的证书，见 7.2。缺省回落到该端口第一张证书</td></tr>
+<tr><td><code>proxy</code></td><td>代理转发策略：可信代理、<code>X-Forwarded-For</code> 链长与 Host 透传，见 5.6</td></tr>
 </tbody>
 </table>
 <h3 id="sec-16">5.2 <code>http</code> 段</h3>
@@ -237,11 +272,23 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>server</code></td><td>站点数组，每一项是一个虚拟主机</td></tr>
 <tr><td><code>include</code></td><td>额外加载的目录或 json 文件列表，默认 <code>config/conf.d</code></td></tr>
 <tr><td><code>default_type</code></td><td>未知扩展名的默认 Content-Type</td></tr>
-<tr><td><code>servers_limit</code></td><td><code>max_body_size</code>、<code>max_header_size</code>、<code>limit</code>、<code>burst</code></td></tr>
+<tr><td><code>servers_limit</code></td><td><code>max_body_size</code>、<code>max_header_size</code>、<code>read_timeout</code>、<code>write_timeout</code>、<code>body_timeout</code>、<code>limit</code>、<code>burst</code></td></tr>
 <tr><td><code>blaklist</code></td><td>IP 黑名单（键名是历史拼写，保持兼容）</td></tr>
 <tr><td><code>log_format</code></td><td>访问日志字段顺序，见第 9 节</td></tr>
 </tbody>
 </table>
+<p><code>servers_limit</code> 的大小上限与超时：</p>
+<table>
+<thead><tr><th>键</th><th>默认</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>max_header_size</code></td><td>4096</td><td>431 Request Header Fields Too Large，关闭连接；HTTP/1.1 与 HTTP/2 共用</td></tr>
+<tr><td><code>max_body_size</code></td><td>524288</td><td>413 Payload Too Large，关闭连接；声明长度与流式正文都检查</td></tr>
+<tr><td><code>read_timeout</code></td><td>30</td><td>读取请求头/首包的秒数，HTTP/2 的读头超时也用它</td></tr>
+<tr><td><code>write_timeout</code></td><td>30</td><td>写出响应的秒数</td></tr>
+<tr><td><code>body_timeout</code></td><td>1</td><td>读取 body 时单次读的秒数（不是整个上传的总时长）</td></tr>
+</tbody>
+</table>
+<p>超时写 <code>0</code> 表示使用默认值；负数会在加载/校验时直接报错。</p>
 <h3 id="sec-17">5.3 <code>server</code> 段</h3>
 <table>
 <thead><tr><th>键</th><th>说明</th></tr></thead>
@@ -260,6 +307,7 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>url</code></td><td>匹配规则，支持正则，例如 <code>/</code>、<code>/api/</code>、<code>\.php$</code></td></tr>
 <tr><td><code>type</code></td><td><code>local</code>（静态）、<code>proxy</code>（反向代理）、<code>rewrite</code>（重定向）、<code>devmod</code>（开发模式）</td></tr>
 <tr><td><code>root</code></td><td><code>local</code> 的站点根目录</td></tr>
+<tr><td><code>symlink_policy</code></td><td><code>local</code> 站点根的符号链接策略，只对 <code>local</code> 生效。<code>check-at-load</code>（默认）：加载/重载配置时扫描 root，发现链接就拒绝加载；<code>reject</code>：加载放行，但请求路径下命中任何链接（符号链接或 Windows junction）都返回 404；<code>allow</code>：保持旧行为，链接照常解析</td></tr>
 <tr><td><code>index</code></td><td>默认索引文件名列表</td></tr>
 <tr><td><code>try</code></td><td><code>try_files</code> 语义：<code>[{&#34;uri&#34;: &#34;/&#34;, &#34;file&#34;: [&#34;index.html&#34;], &#34;next&#34;: &#34;@backend&#34;}]</code></td></tr>
 <tr><td><code>rewrite</code></td><td><code>type: rewrite</code> 时的目标地址</td></tr>
@@ -267,6 +315,8 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>proxy_set_header</code></td><td>请求头改写，格式 <code>[{&#34;HeaderKey&#34;: &#34;X-Real-IP&#34;, &#34;HeaderValue&#34;: &#34;$remote_addr&#34;}]</code></td></tr>
 <tr><td><code>proxy_cache</code></td><td>代理缓存，见 6.5</td></tr>
 <tr><td><code>zip</code></td><td>响应压缩，取值 <code>gzip</code>、<code>br</code>，可同时配置</td></tr>
+<tr><td><code>zip_min_length</code></td><td>最小压缩阈值（字节），<code>0</code> 表示不限制</td></tr>
+<tr><td><code>zip_skip_types</code></td><td>跳过压缩的 MIME 类型列表，支持 <code>image/*</code>、<code>image/p*</code>、<code>*/*</code>；留空使用内置的已压缩类型清单</td></tr>
 <tr><td><code>limit</code></td><td><code>mem</code>、<code>rate</code>、<code>burst</code>、<code>nodelay</code></td></tr>
 <tr><td><code>auth</code></td><td><code>{&#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;...&#34;, &#34;pswd&#34;: &#34;...&#34;, &#34;realm&#34;: &#34;...&#34;}</code>。只支持 <code>basic</code>，写了 <code>type</code> 就必须同时写 <code>user</code> 与 <code>pswd</code>（缺任何一项校验就报错）；<code>realm</code> 可选，留空时用站点名</td></tr>
 <tr><td><code>appfirewall</code></td><td>应用防火墙开关，例如 <code>[&#34;xss&#34;, &#34;sqli&#34;]</code></td></tr>
@@ -283,7 +333,7 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>$host</code></td><td>请求的 Host</td></tr>
 <tr><td><code>$proxy_host</code></td><td>上游地址</td></tr>
 <tr><td><code>$remote_addr</code></td><td>客户端 IP</td></tr>
-<tr><td><code>$proxy_add_x_forwarded_for</code></td><td>追加当前客户端 IP 后的 <code>X-Forwarded-For</code></td></tr>
+<tr><td><code>$proxy_add_x_forwarded_for</code></td><td>按 5.6 的代理策略计算出的 <code>X-Forwarded-For</code>（不受信客户端自带的链会被丢弃）</td></tr>
 </tbody>
 </table>
 <h3 id="sec-19">5.5 <code>security</code> 段</h3>
@@ -308,10 +358,54 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>headers.content_security_policy</code></td><td>空</td><td>写入 <code>Content-Security-Policy</code></td></tr>
 </tbody>
 </table>
-<p>安全头在响应写出的唯一出口统一补齐：模块自己设置过同名头时不覆盖，重复调用幂等。</p>
+<p>随包配置把 <code>x_frame_options</code> 设为 <code>SAMEORIGIN</code>、<code>referrer_policy</code> 设为 <code>strict-origin-when-cross-origin</code>；不写 <code>security</code> 段时则只加 <code>nosniff</code>。 安全头在响应写出的唯一出口统一补齐：模块自己设置过同名头时不覆盖，重复调用幂等。</p>
 <blockquote><p>请求路径在解析阶段就完成规范化：解一层 <code>%xx</code>、合并连续的 <code>/</code>、拒绝二次编码（<code>%252f</code>）、反斜杠、控制字符与超过 8192 字节的目标，非法请求直接 400。location 匹配、静态文件解析与日志看到的都是规范化后的路径。</p></blockquote>
-<h2 id="sec-20">6. 典型配置</h2>
-<h3 id="sec-21">6.1 静态站点 + try_files</h3>
+<h3 id="sec-20">5.6 <code>proxy</code> 段</h3>
+<p>全局代理转发策略，对所有 <code>type: proxy</code> 的 location 生效：</p>
+<pre><code class="language-json">&#34;proxy&#34;: {
+  &#34;trusted_proxies&#34;: [&#34;10.0.0.0/8&#34;, &#34;192.168.1.10&#34;],
+  &#34;forwarded_for&#34;: { &#34;max_hops&#34;: 10 },
+  &#34;preserve_host&#34;: true,
+  &#34;upstream_timeout&#34;: 20,
+  &#34;tunnel_idle_timeout&#34;: 0
+}</code></pre>
+<table>
+<thead><tr><th>键</th><th>默认</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>trusted_proxies</code></td><td>空</td><td>可信代理的 IP 或 CIDR 列表。只有直连对端命中这里的请求，才保留客户端自带的 <code>X-Forwarded-For</code></td></tr>
+<tr><td><code>forwarded_for.max_hops</code></td><td><code>0</code></td><td>转发链长度上限，<code>0</code> 表示不限制。链已达到上限时不再追加客户端地址，并写一条含 <code>hops</code> / <code>max_hops</code> 的 Warn 日志</td></tr>
+<tr><td><code>preserve_host</code></td><td><code>true</code></td><td><code>true</code> 原样透传客户端 <code>Host</code>；<code>false</code> 时改写为上游 <code>host:port</code></td></tr>
+<tr><td><code>upstream_timeout</code></td><td><code>20</code></td><td>代理到上游的整体超时（秒）；<code>0</code> 表示用默认值，负数为非法配置</td></tr>
+<tr><td><code>tunnel_idle_timeout</code></td><td><code>0</code></td><td>websocket / tcp 隧道双向都无数据超过该秒数时断开；<code>0</code> 表示不断开</td></tr>
+</tbody>
+</table>
+<p><code>X-Forwarded-For</code> 的生成规则：</p>
+<table>
+<thead><tr><th>直连对端</th><th>入站 <code>X-Forwarded-For</code></th><th>转发给上游的值</th></tr></thead>
+<tbody>
+<tr><td>不在 <code>trusted_proxies</code></td><td>有（客户端伪造）</td><td>丢弃整条，只写真实对端 IP</td></tr>
+<tr><td>不在 <code>trusted_proxies</code></td><td>无</td><td>真实对端 IP</td></tr>
+<tr><td>在 <code>trusted_proxies</code></td><td>有</td><td>入站链 + <code>, </code> + 真实对端 IP</td></tr>
+<tr><td>在 <code>trusted_proxies</code></td><td>无</td><td>真实对端 IP</td></tr>
+</tbody>
+</table>
+<p>达到 <code>forwarded_for.max_hops</code> 时保留入站链、不再追加。显式写了 <code>proxy_set_header</code> 的 <code>X-Forwarded-For</code> 仍然覆盖自动值。</p>
+<p>转发前会剥掉只对单跳有意义的头：<code>Connection</code>、<code>Keep-Alive</code>、 <code>Proxy-Authenticate</code>、<code>Proxy-Authorization</code>、<code>Proxy-Connection</code>、<code>TE</code>、 <code>Trailer</code>、<code>Transfer-Encoding</code>、<code>Upgrade</code>，以及 <code>Connection</code> 里点名的 扩展头（例如 <code>Connection: X-Hop</code> 会连带删掉 <code>X-Hop</code>）。两类例外：</p>
+<ul>
+<li>客户端要求关闭连接（HTTP/1.0 或 <code>Connection: close</code>）时，给上游补一条</li>
+</ul>
+<p><code>Connection: close</code>，让上游按关闭连接结束响应，代理不必等读超时； HTTP/1.0 但显式带 <code>Connection: keep-alive</code> 的请求则补回 <code>keep-alive</code>。</p>
+<ul>
+<li>websocket 升级（<code>Connection: Upgrade</code> + <code>Upgrade: websocket</code>）会重建这</li>
+</ul>
+<p>两个头，否则 101 握手无法完成；<code>Connection</code> 里其余 token 仍然剥掉。</p>
+<p><code>proxy_set_header</code> 在剥离之后应用，因此显式配置可以重新加回某个头。</p>
+<p>命令行：</p>
+<pre><code class="language-bash">fast-https config proxy show
+fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops 10 --preserve-host=false</code></pre>
+<p><code>--trusted-proxies</code> 传空表示清空；三项都回到默认值时删除整个 <code>proxy</code> 段。 写盘前会做完整校验，<code>--dry-run</code> 只打印结果。新配置在下次 reload 或启动时生效。 桌面端在「设置」页的「代理」分组里有同样三项，清空后保存与 CLI 的落盘结果一致。</p>
+<h2 id="sec-21">6. 典型配置</h2>
+<h3 id="sec-22">6.1 静态站点 + try_files</h3>
 <pre><code class="language-json">{
   &#34;url&#34;: &#34;/&#34;,
   &#34;type&#34;: &#34;local&#34;,
@@ -319,7 +413,7 @@ fast-https site delete blog --yes</code></pre>
   &#34;index&#34;: [&#34;index.html&#34;],
   &#34;try&#34;: [{ &#34;uri&#34;: &#34;/&#34;, &#34;file&#34;: [&#34;index.html&#34;], &#34;next&#34;: &#34;&#34; }]
 }</code></pre>
-<h3 id="sec-22">6.2 反向代理</h3>
+<h3 id="sec-23">6.2 反向代理</h3>
 <pre><code class="language-json">{
   &#34;url&#34;: &#34;/api/&#34;,
   &#34;type&#34;: &#34;proxy&#34;,
@@ -330,26 +424,49 @@ fast-https site delete blog --yes</code></pre>
   ]
 }</code></pre>
 <p><code>proxy_pass</code> 缺少 <code>http://</code> / <code>https://</code> 前缀时会按 <code>local</code> 处理，不会报错，这是最容易踩的坑。</p>
-<h3 id="sec-23">6.3 TCP 转发</h3>
+<h3 id="sec-24">6.3 TCP 转发</h3>
 <pre><code class="language-json">{
   &#34;listen&#34;: &#34;9000 tcp&#34;,
   &#34;server_name&#34;: &#34;db&#34;,
   &#34;location&#34;: [{ &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;proxy&#34;, &#34;proxy_pass&#34;: &#34;http://10.0.0.9:3306&#34; }]
 }</code></pre>
 <p><code>listen</code> 带 <code>tcp</code> 时整条连接按四层转发，不解析 HTTP。</p>
-<h3 id="sec-24">6.4 压缩</h3>
-<pre><code class="language-json">{ &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;local&#34;, &#34;root&#34;: &#34;./httpdoc/root&#34;, &#34;zip&#34;: [&#34;gzip&#34;, &#34;br&#34;] }</code></pre>
-<p>按 <code>Accept-Encoding</code> 协商，客户端同时支持时优先给 brotli。</p>
-<h3 id="sec-25">6.5 代理缓存</h3>
-<pre><code class="language-json">&#34;proxy_cache&#34;: {
-  &#34;path&#34;: &#34;./cache&#34;,
-  &#34;key&#34;: &#34;$request_uri&#34;,
-  &#34;valid&#34;: [&#34;200:1h&#34;, &#34;404:1m&#34;, &#34;any:5m&#34;],
-  &#34;methods&#34;: [&#34;GET&#34;, &#34;HEAD&#34;],
-  &#34;max_size&#34;: 1073741824
+<h3 id="sec-25">6.4 压缩</h3>
+<pre><code class="language-json">{
+  &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;local&#34;, &#34;root&#34;: &#34;./httpdoc/root&#34;,
+  &#34;zip&#34;: [&#34;br&#34;, &#34;gzip&#34;],
+  &#34;zip_min_length&#34;: 1024,
+  &#34;zip_skip_types&#34;: [&#34;image/*&#34;, &#34;video/*&#34;, &#34;audio/*&#34;, &#34;font/woff2&#34;, &#34;application/zip&#34;, &#34;application/gzip&#34;]
 }</code></pre>
-<p><code>valid</code> 的格式是 <code>状态码:时长</code>，<code>any</code> 匹配其余状态码；命中会顺延一个周期（读即续期）。<code>key</code> 支持变量插值。</p>
-<h3 id="sec-26">6.6 Basic 认证与限流</h3>
+<p>按 <code>Accept-Encoding</code> 协商：q 值不同时取高者，q 相同时优先给 brotli；<code>gzip;q=0</code> 表示 明确拒绝，显式条目优先于 <code>*</code> 通配符。静态文件与反向代理响应都按这组配置压缩。 响应统一带 <code>Vary: Accept-Encoding</code>，压缩后的 <code>Content-Length</code> 是压缩体长度， <code>HEAD</code> 与 GET 的长度一致。</p>
+<ul>
+<li><code>zip_min_length</code>：小于该字节数的响应不压缩，<code>0</code> 表示不限制。</li>
+<li><code>zip_skip_types</code>：跳过压缩的 MIME 类型，支持精确类型（<code>image/png</code>）、整类通配</li>
+</ul>
+<p>（<code>image/*</code>）、部分通配（<code>image/p*</code>）与全局通配（<code>*/*</code>）。留空时使用内置的 已压缩类型清单（jpeg/png/gif/webp/avif、mp4/webm、mp3/ogg/aac、 zip/gzip/7z/rar/bz2、woff/woff2 等）；配置后整体替换内置清单。</p>
+<ul>
+<li>带 <code>Range</code> 的请求跳过压缩，压缩后 Range 语义不成立。</li>
+<li>代理响应额外跳过：升级连接（websocket）、<code>HEAD</code>、上游已带 <code>Content-Encoding</code>、</li>
+</ul>
+<p><code>204</code> / <code>206</code> / <code>304</code>、带 <code>Content-Range</code> 的响应。</p>
+<ul>
+<li><code>site add</code> 新建站点时默认写入上面这组值（local 与 proxy 都适用），可用 <code>--zip</code>、</li>
+</ul>
+<p><code>--zip-min-length</code>、<code>--zip-skip-types</code> 覆盖，<code>--zip=</code> 关闭压缩。</p>
+<h3 id="sec-26">6.5 代理缓存</h3>
+<p>缓存区定义在主配置的 <code>cache</code> 段（可多个），目录、容量与有效期只写一次；</p>
+<pre><code class="language-json">// fast-https.json
+&#34;cache&#34;: [
+  { &#34;name&#34;: &#34;edge&#34;, &#34;path&#34;: &#34;./cache/edge&#34;, &#34;valid&#34;: [&#34;200:1h&#34;, &#34;404:1m&#34;, &#34;any:5m&#34;], &#34;max_size&#34;: 1073741824 }
+]</code></pre>
+<p>站点 location 用 <code>proxy_cache</code> 引用区名：</p>
+<pre><code class="language-json">// conf.d/blog.json
+&#34;location&#34;: [
+  { &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;proxy&#34;, &#34;proxy_pass&#34;: &#34;http://127.0.0.1:8080&#34;, &#34;proxy_cache&#34;: &#34;edge&#34; }
+]</code></pre>
+<p><code>valid</code> 的格式是 <code>状态码:时长</code>，<code>any</code> 匹配其余状态码；命中会顺延一个周期（读即续期）。 缓存键由程序生成（<code>$host$request_uri</code>，带区名前缀），方法固定 GET/HEAD。 目录相对程序数据目录（Windows 归档为 exe 所在目录，Linux 包为 <code>/usr/share/fast-https</code>）。</p>
+<p>缓存区可用 <code>fast-https cache list / add / update / delete</code> 管理，或到桌面端 「缓存区」页维护；站点弹窗里直接选择缓存区。删除仍被站点引用的缓存区会被拒绝。 站点命令只接受已定义的区名：<code>site add|update --cache-zone edge</code>，写错会在执行前报错。</p>
+<h3 id="sec-27">6.6 Basic 认证与限流</h3>
 <pre><code class="language-json">{
   &#34;url&#34;: &#34;/admin/&#34;,
   &#34;type&#34;: &#34;local&#34;,
@@ -357,15 +474,17 @@ fast-https site delete blog --yes</code></pre>
   &#34;auth&#34;: { &#34;type&#34;: &#34;basic&#34;, &#34;user&#34;: &#34;admin&#34;, &#34;pswd&#34;: &#34;change-me&#34; },
   &#34;limit&#34;: { &#34;rate&#34;: 10, &#34;burst&#34;: 20, &#34;nodelay&#34;: true }
 }</code></pre>
-<h2 id="sec-27">7. TLS 与证书</h2>
+<h2 id="sec-28">7. TLS 与证书</h2>
 <ul>
 <li><strong>SNI 多证书</strong>：同一端口上的多个 <code>server_name</code> 各自持有证书，握手时按 SNI 选择，匹配不到用该端口的第一张。</li>
+<li><strong>匹配规则</strong>：按标准库 <code>VerifyHostname</code> 判定，大小写与结尾的 <code>.</code> 归一化；<code>*.example.com</code> 只匹配一层（<code>a.example.com</code>），不匹配 <code>a.b.example.com</code>。</li>
+<li><strong>同名多证书</strong>：同一域名命中多张证书时（例如同时部署 RSA 与 ECDSA 两张），按客户端 <code>signature_algorithms</code>、<code>supported_groups</code> 选兼容的那张；客户端没带这些扩展或都不兼容时用列表里的第一张。</li>
 <li><strong>自动生成</strong>：首次启动时，若 <code>config/cert/&lt;server_name&gt;.pem</code> 不存在，会用一个本地自签 CA 生成证书。CA 有效期 10 年，域名证书 2 年 3 个月。</li>
 <li><strong>热替换</strong>：执行 <code>reload</code> 后证书从磁盘重新加载，不需要重启进程；启用 ACME 后新证书签发成功也会就地热替换。</li>
 <li><strong>ACME 自动签发与续期</strong>：配置 <code>acme</code> 段后向 Let&#39;s Encrypt / ZeroSSL 申请受信任证书，到期前自动续期，见 7.1。</li>
 <li><strong>外部签发</strong>：仍可用 certbot 等外部工具签发，把 <code>fullchain.pem</code> 与私钥路径填进 <code>ssl_certificate</code> / <code>ssl_certificate_key</code>。</li>
 </ul>
-<h3 id="sec-28">7.1 ACME 自动签发</h3>
+<h3 id="sec-29">7.1 ACME 自动签发</h3>
 <p>不想手写这段 JSON 时，跑 <code>fast-https acme</code> 走一遍交互向导：一题一屏，依次问启用开关、邮箱、CA、挑战方式等，只改写顶层 <code>acme</code> 段，其余配置与注释原样保留。向导的默认值取自当前配置（邮箱、CA、挑战方式、续期天数、缓存目录、回落开关），回车即保留原值，不会退回出厂默认；确认页的摘要也是答完题之后才生成，显示的是这次要写入的内容。不喜欢全屏表单就加 <code>--plain</code> 改成逐行问答；脚本里则用 <code>fast-https acme setup --email you@example.com --non-interactive</code> 全走参数。改完执行 <code>fast-https reload</code> 即可生效，不需要重启进程。</p>
 <pre><code class="language-json">&#34;acme&#34;: {
   &#34;enabled&#34;: true,
@@ -403,14 +522,33 @@ fast-https site delete blog --yes</code></pre>
 </ul>
 <blockquote><p>账户私钥、订单与证书缓存都在 <code>storage</code> 目录下，备份时与 <code>config/cert</code> 一起打包即可。<code>http-01</code> 需要外部能访问本进程的 80 端口（也可以是前置反代转发 <code>/.well-known/acme-challenge/</code>），<code>tls-alpn-01</code> 需要外部能直连 443。</p></blockquote>
 <blockquote><p>本地 CA 的证书 <code>root.crt</code> 放在 <code>httpdoc/root/</code>（首页可直接下载安装），私钥 <code>root.key</code> 放在 <code>config/cert/</code>，不在对外服务的站点根下。旧版本把两者都放在站点根，升级后首次启动会把私钥搬到 <code>config/cert/</code>。如果你自己改过站点根，确认新目录里不含私钥。</p></blockquote>
-<h2 id="sec-29">8. HTTP/2</h2>
+<h3 id="sec-30">7.2 未知 SNI 的兜底证书</h3>
+<p>默认行为是回落到该端口证书列表的第一张，并在控制台与 <code>error.log</code> 里留下一条 <code>reject_reason=unknown_sni</code> 的告警（含 <code>sni</code> 字段），便于发现扫描器或域名配错。想指定一张专门的兜底证书（例如只覆盖主域名的正式证书）时：</p>
+<pre><code class="language-json">&#34;tls&#34;: {
+  &#34;default_certificate&#34;: {
+    &#34;certificate&#34;: &#34;config/cert/default.pem&#34;,
+    &#34;key&#34;: &#34;config/cert/default-key.pem&#34;
+  }
+}</code></pre>
+<ul>
+<li>只有 SNI 未命中任何站点证书（含不带 SNI 的 IP 直连）时才使用它，命中的域名仍按原规则选证书。</li>
+<li><code>certificate</code> 与 <code>key</code> 必须成对出现，文件必须存在，否则 <code>check</code> / 启动校验直接报错。</li>
+<li>配置后未知 SNI 属于预期流量，不再输出 <code>unknown_sni</code> 告警。</li>
+<li>执行 <code>reload</code> 后重新加载，不需要重启进程。</li>
+</ul>
+<p>也可以用命令写入，不必手改文件（只重写 <code>tls</code> 段，注释与其它字段保留）：</p>
+<pre><code class="language-bash">fast-https config tls --cert config/cert/default.pem --key config/cert/default-key.pem
+fast-https config tls show        # 查看当前兜底证书
+fast-https config tls --cert= --key=   # 清除，回到默认回落行为</code></pre>
+<p>写入前会按主配置完整校验（成对、文件存在），<code>--dry-run</code> 只打印改写结果。新配置同样在下次 <code>reload</code> 或启动时生效。</p>
+<h2 id="sec-31">8. HTTP/2</h2>
 <p><code>listen</code> 加上 <code>h2</code> 即可，例如 <code>&#34;listen&#34;: &#34;443 ssl h2&#34;</code>。</p>
 <ul>
 <li>ALPN 只在含 <code>h2</code> 的端口通告 <code>h2</code>，纯 <code>ssl</code> 端口只走 HTTP/1.1，避免浏览器协商到 HTTP/2 后被 HTTP/1.1 解析器处理。</li>
 <li>同一端口同时通告了 <code>http/1.1</code>，不支持 HTTP/2 的客户端会自动降级。</li>
 <li><code>reload</code> 或停止时通过 <code>http.Server.Shutdown</code> 发送 GOAWAY 并等待在途请求，最长 5 秒。</li>
 </ul>
-<h2 id="sec-30">9. 日志</h2>
+<h2 id="sec-32">9. 日志</h2>
 <p>运行日志都写成 JSON，位于 <code>log_root</code> 指向的目录：</p>
 <table>
 <thead><tr><th>文件</th><th>内容</th></tr></thead>
@@ -438,7 +576,7 @@ fast-https site delete blog --yes</code></pre>
 </table>
 <p>修改 <code>log_root</code> 后执行 <code>reload</code> 会重新打开日志文件；新目录打不开时继续写原文件。</p>
 <p>Linux 包会安装 <code>/etc/logrotate.d/fast-https</code>：每天轮转、保留 14 份、单个文件超过 100MB 也提前轮转、gzip 压缩。四个日志文件在进程里常开 fd，所以用 <code>copytruncate</code>——先复制再截断，不需要重启或 <code>reload</code>。该文件是包管理器登记的配置文件（deb conffile、rpm <code>%config(noreplace)</code>），本地修改在升级时保留。归档与 Docker 部署的日志在 <code>./logs</code>，不在这个配置管辖范围，需要自己接 logrotate 或按天清理。</p>
-<h2 id="sec-31">10. 命令行</h2>
+<h2 id="sec-33">10. 命令行</h2>
 <table>
 <thead><tr><th>命令</th><th>作用</th></tr></thead>
 <tbody>
@@ -452,23 +590,26 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>service reload</code></td><td>受控 reload：校验、预检新增端口、发信号，再用 <code>/runtime</code> 做强验证（pid/<code>started_at</code> 不变且 <code>config_generation</code> 加一）；读不到快照时退回弱验证。不改配置文件。<code>--dry-run</code> 只校验与预检。服务没在跑退出码 4。记 operation，支持 <code>--request-id</code> 幂等</td></tr>
 <tr><td><code>runtime status</code></td><td>读取 <code>127.0.0.1:9088/runtime</code> 的瞬时连接与请求状态。连不上退出码 4；<code>schema_version</code> 不认识退出码 11。没有的字段（如 CPU、reading/writing/waiting）省略并在 <code>warnings</code> 说明</td></tr>
 <tr><td><code>runtime stats</code></td><td>进程启动以来的累计计数，响应里 <code>window</code> 为 <code>since_process_start</code>。<code>--since</code>、<code>--domain</code> 尚未支持，传入即退出码 11（<code>NOT_SUPPORTED</code>）。Monitor 只消费这份累计快照，不另算时间窗</td></tr>
-<tr><td><code>config show</code></td><td>显示磁盘上的主配置与 <code>http.include</code> 站点，口令、令牌等敏感值一律脱敏；<code>--section</code> 可选 <code>http</code>、<code>acme</code>、<code>security</code>、<code>waf</code>、<code>sites</code></td></tr>
+<tr><td><code>config show</code></td><td>显示磁盘上的主配置与 <code>http.include</code> 站点，口令、令牌等敏感值一律脱敏；<code>--section</code> 可选 <code>http</code>、<code>acme</code>、<code>security</code>、<code>tls</code>、<code>proxy</code>、<code>waf</code>、<code>sites</code></td></tr>
+<tr><td><code>config tls</code></td><td>写入顶层 <code>tls.default_certificate</code>（<code>--cert</code> 与 <code>--key</code> 必须成对，文件必须存在）；只重写 <code>tls</code> 段、保留注释；两个参数传空清除；<code>--dry-run</code> 只打印；<code>config tls show</code> 查看</td></tr>
+<tr><td><code>config proxy</code></td><td>写入顶层 <code>proxy</code> 段（<code>--trusted-proxies</code>、<code>--max-hops</code>、<code>--preserve-host</code>）；只重写 <code>proxy</code> 段、保留注释；全部传默认值删除该段；<code>--dry-run</code> 只打印；<code>config proxy show</code> 查看</td></tr>
 <tr><td><code>config validate</code></td><td>校验当前配置，或用 <code>--candidate</code> 校验一棵候选目录（<code>fast-https.json</code> + <code>conf.d</code>）；只校验，不应用；失败退出码 5；路径含 <code>..</code> 或符号链接逃出目录时退出码 2</td></tr>
-<tr><td><code>config versions</code></td><td>列出状态目录里的配置版本快照。<code>active</code> 由当前磁盘配置树哈希决定，都不匹配则 <code>drift:true</code>。快照不含证书与私钥</td></tr>
-<tr><td><code>config diff --candidate</code></td><td>比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 <code>changed</code></td></tr>
-<tr><td><code>config apply --candidate</code></td><td>将候选目录受控应用到线上（校验、差异、恢复点、切换、reload、强验证；读不到 <code>/runtime</code> 时退回弱验证；失败则还原）。必须 <code>--yes</code>。<code>--dry-run</code> 不写正式文件、不 reload</td></tr>
-<tr><td><code>config rollback --version</code></td><td>回滚到历史版本，本身是新 operation；先校验目标版本（含证书仍存在），不删除历史版本。必须 <code>--yes</code></td></tr>
+<tr><td><code>config versions</code></td><td>列出状态目录里的配置快照。版本号是 <code>vYYYY.MM.DD.N</code>（如 <code>v2026.11.18.1</code>，同一天递增），<code>active</code> 由当前磁盘配置树哈希决定，都不匹配则 <code>drift:true</code>。快照包含主配置、<code>conf.d</code> 与服务证书/私钥（不含 ACME 存储目录）；版本永久保留</td></tr>
+<tr><td><code>config versions delete &lt;版本&gt;</code></td><td>手动删除一个历史版本快照；当前 active 版本不能删，operation 记录保留。必须 <code>--yes</code></td></tr>
+<tr><td><code>config diff --candidate</code></td><td>比较当前配置与候选目录、文件、版本号或操作 ID（<code>--current</code> 也可写版本号/操作 ID，用于对比两个历史版本）。候选是目录时比较整棵 JSON 树。敏感键只显示 <code>changed</code></td></tr>
+<tr><td><code>config apply --candidate</code></td><td>将候选目录受控应用到线上（校验、差异、临时备份、切换、reload、强验证；读不到 <code>/runtime</code> 时退回弱验证；失败则还原）。成功后自动保存结果快照。必须 <code>--yes</code>。<code>--dry-run</code> 不写正式文件、不 reload、不建快照</td></tr>
+<tr><td>`config rollback --version\</td><td>--operation`</td><td>回滚到历史版本或某个操作的结果。回滚复用目标快照（含证书），追加一条 operation，但不会新建版本；已有版本不删除。必须 <code>--yes</code></td></tr>
 <tr><td><code>operation list</code> / <code>operation get</code></td><td>查询落盘的管理操作。<code>running</code> 且持有者进程已不在时对账为 <code>unknown</code></td></tr>
 <tr><td><code>cert list</code></td><td>按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（<code>valid</code>、<code>expiring</code>、<code>expired</code>、<code>not_yet_valid</code>、<code>missing</code>、<code>unreadable</code>、<code>unknown</code>）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径</td></tr>
 <tr><td><code>cert check --domain &lt;域名&gt;</code></td><td>检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9</td></tr>
 <tr><td><code>logs error</code></td><td>只读 <code>error.log</code>。<code>--since</code>、<code>--limit</code>（默认 100，超过 1000 钳到 1000）、<code>--domain</code>。含 <code>PrintErr</code> 以及控制台 Warn/Error 的镜像（<code>source:&#34;console&#34;</code>，<code>kind:&#34;error&#34;</code>）</td></tr>
 <tr><td><code>logs access</code></td><td>只读 <code>access.log</code>，过滤条件同上，另有 <code>--status</code>（<code>500</code>、<code>4xx</code> 或 <code>400-499</code>）</td></tr>
-<tr><td><code>logs query</code></td><td><code>--kind</code> 必填（<code>access</code>、<code>error</code>、<code>system</code>、<code>safe</code>），一次只查一个文件。另可按 <code>--level</code>、<code>--method</code>、<code>--path-prefix</code>、<code>--reason</code>、<code>--until</code> 过滤。没有 <code>--file</code>，不读已轮转的文件，日志内容只作为数据返回</td></tr>
+<tr><td><code>logs query</code></td><td><code>--kind</code> 必填（<code>access</code>、<code>error</code>、<code>system</code>、<code>safe</code>），一次只查一个文件。另可按 <code>--level</code>、<code>--method</code>、<code>--path-prefix</code>、<code>--reason</code>、<code>--reject-reason</code>、<code>--until</code> 过滤。没有 <code>--file</code>，不读已轮转的文件，日志内容只作为数据返回</td></tr>
 <tr><td><code>diagnose</code></td><td>只读汇总健康检查。失败与不可用分开：<code>runtime</code> 读 <code>/runtime</code>（连不上为 warning）；<code>monitor</code> 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0</td></tr>
 <tr><td><code>monitor status</code></td><td>只读 Monitor 的 <code>status.json</code>。文件不存在时 <code>status</code> 为 <code>not_installed</code>（退出码 0）；采集时间早于 30 秒为 <code>stale</code>。不连接 Monitor 进程，也不负责启停</td></tr>
 <tr><td><code>monitor events</code></td><td>只读 <code>events.jsonl</code>。<code>--since</code>、<code>--limit</code>（默认 100，上限 1000）、<code>--severity</code>（<code>info</code>、<code>warning</code>、<code>error</code>、<code>critical</code>）。坏行跳过并计数，事件文本只作为数据返回</td></tr>
-<tr><td><code>site add</code></td><td>受控新增站点（<code>--domain</code>、<code>--root</code> 或 <code>--proxy-pass</code>、<code>--listen</code>、<code>--tls</code>）。走配置事务，非 dry-run 必须 <code>--yes</code>。同名或同 <code>server_name</code> 退出码 10</td></tr>
-<tr><td><code>site update &lt;name&gt;</code></td><td>受控更新白名单字段（<code>--listen</code>、<code>--server-name</code>、<code>--root</code>、<code>--proxy-pass</code>、<code>--tls</code>）。内联主配置站点退出码 11</td></tr>
+<tr><td><code>site add</code></td><td>受控新增站点（<code>--domain</code>、<code>--root</code> 或 <code>--proxy-pass</code>、<code>--listen</code>、<code>--tls</code>、<code>--symlink-policy</code>）。走配置事务，非 dry-run 必须 <code>--yes</code>。同名或同 <code>server_name</code> 退出码 10</td></tr>
+<tr><td><code>site update &lt;name&gt;</code></td><td>受控更新白名单字段（<code>--listen</code>、<code>--server-name</code>、<code>--root</code>、<code>--proxy-pass</code>、<code>--tls</code> 与主 location 高级配置，含 <code>--symlink-policy</code>）。内联主配置站点退出码 11</td></tr>
 <tr><td><code>site delete &lt;name&gt;</code></td><td>受控删除站点配置（不删内容目录与证书）。必须 <code>--yes</code></td></tr>
 <tr><td><code>site enable &lt;name&gt;</code> / <code>site disable &lt;name&gt;</code></td><td>把 <code>&lt;name&gt;.json</code> 与 <code>&lt;name&gt;.json.disabled</code> 互改并 reload。必须 <code>--yes</code></td></tr>
 <tr><td><code>site list</code></td><td>列出站点文件、监听、<code>server_name</code> 与 location 类型；加 <code>--json</code> 输出封套（含 <code>enabled</code>、<code>cert_status</code>）</td></tr>
@@ -484,14 +625,14 @@ fast-https site delete blog --yes</code></pre>
 <li><code>start</code> 与 <code>reload</code> 都会先校验配置：失败直接停下并说明原因，<code>reload</code> 此时不动运行中的配置。</li>
 <li>安装与卸载不走二进制：deb / rpm / apk 负责文件落位，<code>systemctl enable --now fast-https</code> 负责常驻。1.5.0 起不再提供 <code>install</code> / <code>uninstall</code> 子命令，老用户改用包管理器即可。</li>
 </ul>
-<h3 id="sec-32">10.1 帮助信息的语言</h3>
+<h3 id="sec-34">10.1 帮助信息的语言</h3>
 <p>帮助、用法与 flag 说明默认是中文。需要英文时用 <code>--lang en</code>，或者设置环境变量 <code>FAST_HTTPS_LANG=en</code>：</p>
 <pre><code class="language-bash">fast-https site add --help             # 中文
 fast-https --lang en site add --help   # 英文
 FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <p><code>--lang</code> 优先于环境变量；两者都没给时按中文输出。语言只在进程启动时读一次，不影响运行期日志。</p>
 <p>手册页也是两份：<code>man fast-https</code> 读到的是中文页，<code>LANG=en_US.UTF-8 man fast-https</code> 读英文页（装在 <code>/usr/share/man/en/man1/</code>）。</p>
-<h3 id="sec-33">10.2 机器可读输出与退出码</h3>
+<h3 id="sec-35">10.2 机器可读输出与退出码</h3>
 <p>根命令有三个全局选项：<code>--json</code>、<code>--timeout</code>、<code>--request-id</code>。目前 <code>--json</code> 在下列命令上有效：<code>service version</code>、<code>service status</code>、<code>service reload</code>、<code>runtime status</code>、<code>runtime stats</code>、<code>monitor status</code>、<code>monitor events</code>、<code>config show</code>、<code>config validate</code>、<code>config versions</code>、<code>config diff</code>、<code>config apply</code>、<code>config rollback</code>、<code>site list</code>、<code>site show</code>、<code>site add</code>、<code>site update</code>、<code>site delete</code>、<code>site enable</code>、<code>site disable</code>、<code>cert list</code>、<code>cert check</code>、<code>logs error</code>、<code>logs access</code>、<code>logs query</code>、<code>diagnose</code>、<code>operation list</code>、<code>operation get</code>，以及保持原格式的 <code>config path</code>。<code>--request-id</code> 用于修改类命令的幂等。<code>config path --json</code> 现有六个键，其中 <code>state</code> 是新增的管理状态目录。</p>
 <p><code>--json</code> 下标准输出只有一个 JSON 文档，控制台日志改到标准错误。采用封套的命令输出如下格式：</p>
 <pre><code class="language-json">{&#34;ok&#34;:true,&#34;command&#34;:&#34;service.version&#34;,&#34;request_id&#34;:null,&#34;data&#34;:{},&#34;warnings&#34;:[]}
@@ -510,14 +651,14 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <tr><td>6</td><td><code>OPERATION_FAILED</code>、<code>RECOVERY_REQUIRED</code></td><td>操作失败；恢复失败需人工处理</td></tr>
 <tr><td>7</td><td><code>OPERATION_UNKNOWN</code></td><td>状态未知，需查询 operation</td></tr>
 <tr><td>8</td><td><code>TIMEOUT</code></td><td>超时</td></tr>
-<tr><td>9</td><td><code>NOT_FOUND</code>、<code>LOG_SOURCE_UNAVAILABLE</code></td><td>资源不存在；日志文件不存在或是符号链接</td></tr>
+<tr><td>9</td><td><code>NOT_FOUND</code>、<code>LOG_SOURCE_UNAVAILABLE</code></td><td>资源不存在；日志源不可读（如符号链接；文件不存在按空结果处理）</td></tr>
 <tr><td>10</td><td><code>CONFLICT</code>、<code>REQUEST_ID_CONFLICT</code></td><td>冲突 / 幂等键冲突</td></tr>
 <tr><td>11</td><td><code>UNMET_DEPENDENCY</code>、<code>NOT_SUPPORTED</code></td><td>依赖或环境不满足 / 功能未实现</td></tr>
 </tbody>
 </table>
-<p>管理类命令按这张表退出。例如配置校验失败是 5，站点或日志文件不存在是 9。旧的 <code>start</code> / <code>stop</code> / <code>reload</code> / <code>status</code> 仍用原来的文本和退出码。</p>
-<h3 id="sec-34">10.3 <code>--request-id</code>、operation 与 SSH 断线</h3>
-<p><code>service reload</code>、<code>config apply</code>、<code>config rollback</code>、<code>site add</code>、<code>site update</code>、<code>site delete</code>、<code>site enable</code>、<code>site disable</code> 会在状态目录写下一条 operation。<code>--request-id</code> 由调用方提供：</p>
+<p>管理类命令按这张表退出。例如配置校验失败是 5，站点文件不存在是 9；日志文件不存在按空结果返回（退出 0）。旧的 <code>start</code> / <code>stop</code> / <code>reload</code> / <code>status</code> 仍用原来的文本和退出码。</p>
+<h3 id="sec-36">10.3 <code>--request-id</code>、operation 与 SSH 断线</h3>
+<p><code>service reload</code>、<code>config apply</code>、<code>config rollback</code>、<code>config proxy</code>、<code>config tls</code>、<code>acme setup</code>、<code>cache add</code>、<code>cache update</code>、<code>cache delete</code>、<code>site add</code>、<code>site update</code>、<code>site delete</code>、<code>site enable</code>、<code>site disable</code> 都会在状态目录写下一条 operation。<code>--request-id</code> 由调用方提供：</p>
 <ul>
 <li>相同的 <code>--request-id</code> 加上相同参数：返回已有 operation，不重复执行。</li>
 <li>相同的 <code>--request-id</code> 但参数不同：退出码 10，错误码 <code>REQUEST_ID_CONFLICT</code>。</li>
@@ -526,11 +667,18 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <p><code>--dry-run</code> 不写正式配置、不 reload，默认也不建 operation。非 dry-run 的 <code>config apply</code>、<code>config rollback</code> 和受控站点写命令必须加 <code>--yes</code>（<code>--confirm</code> 同义）。</p>
 <p>Unix 上，事务执行期间忽略 <code>SIGHUP</code> 与 <code>SIGPIPE</code>，避免 SSH 断开把正在写状态的进程杀掉。命令超时或调用方断开后，用响应里的 <code>operation_id</code> 执行 <code>operation get</code>。若记录仍是 <code>running</code> 而持有者进程已经不在，查询时会把它对账成 <code>unknown</code>。不要在状态未明时换一个新的 <code>--request-id</code> 再执行一次。</p>
 <p>Windows 没有 <code>SIGHUP</code>。这条断线语义只在 Unix 上实现，Windows 上的断线行为未在本环境验证。</p>
-<p>状态目录默认是 <code>./state</code>（安装包布局是 <code>/var/lib/fast-https</code>）。可用 <code>FASTHTTPS_STATE_DIR</code> 指到别处。<code>operation list</code> 与 <code>operation get</code> 只读这个目录。</p>
-<h2 id="sec-35">11. 热重载与停机</h2>
+<p>状态目录默认是 <code>./state</code>（安装包布局是 <code>/var/lib/fast-https</code>），可用 <code>FASTHTTPS_STATE_DIR</code> 指到别处。目录里：</p>
+<ul>
+<li><code>operations/</code>：唯一的历史时间线，每条操作一个 JSON，<code>result.changes</code> 记录主配置与 <code>conf.d</code> 的增删改。</li>
+<li><code>snapshots/</code>：每次成功操作的结果快照（主配置、<code>conf.d</code>、<code>config/cert</code> 下的服务证书/私钥，不含 <code>cert/acme</code>）。版本号是 <code>vYYYY.MM.DD.N</code>，永久保留，不自动清理；可在 <code>config versions delete</code> 或桌面端手动删除。</li>
+<li><code>requests.json</code>：幂等索引，7 天 TTL。</li>
+<li><code>lock</code>：跨进程锁。</li>
+</ul>
+<p>旧版本的 <code>config-versions/</code> 会在启动时自动并入 <code>snapshots/</code>，<code>recycle/</code> 直接删除。<code>operation list</code> 与 <code>operation get</code> 只读这个目录。</p>
+<h2 id="sec-37">11. 热重载与停机</h2>
 <p><code>reload</code> 的流程是：解析并校验新配置 → 校验失败则继续用旧快照 → 校验通过则原子替换快照 → 按差异增删改监听器 → 重新打开证书表与日志文件。整个过程中已有连接不受影响。</p>
 <p>守护进程模式下的等价操作是向主进程发送 <code>SIGINT</code>。停止时先停止接受新连接，再等待在途请求完成。</p>
-<h2 id="sec-36">12. 排错</h2>
+<h2 id="sec-38">12. 排错</h2>
 <table>
 <thead><tr><th>现象</th><th>原因与处理</th></tr></thead>
 <tbody>
@@ -546,7 +694,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <tr><td>日志没有写到新目录</td><td>新 <code>log_root</code> 打不开时程序继续写原文件，检查目录权限</td></tr>
 </tbody>
 </table>
-<h2 id="sec-37">13. 已知限制</h2>
+<h2 id="sec-39">13. 已知限制</h2>
 <table>
 <thead><tr><th>项</th><th>说明</th></tr></thead>
 <tbody>
@@ -559,10 +707,10 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文</code></pre>
 <tr><td>Monitor 进程</td><td>采集进程是独立二进制 <code>fast-https-monitor</code>，随 deb / rpm / apk 与归档发布，包内另有独立单元 <code>fast-https-monitor.service</code>；CLI 不启停它，只读 <code>status.json</code> 与 <code>events.jsonl</code>，文件不存在时 <code>monitor status</code> 为 <code>not_installed</code></td></tr>
 </tbody>
 </table>
-<h2 id="sec-38">14. 版本与许可</h2>
+<h2 id="sec-40">14. 版本与许可</h2>
 <p>版本号取自 <code>config/consts.go</code> 的 <code>CURRENT_VERSION</code>，启动横幅会打印。许可证见发行包内的 <code>LICENSE</code>。</p>
 </main>
 </div>
-<footer>本文档由 docs/usage.md 生成，请勿直接编辑 HTML。版本 V1.7.0。</footer>
+<footer>本文档由 docs/usage.md 生成，请勿直接编辑 HTML。版本 V1.7.1。</footer>
 </body>
 </html>

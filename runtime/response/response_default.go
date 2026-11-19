@@ -90,6 +90,42 @@ func DefaultPayloadTooLarge() *Response {
 	return res
 }
 
+// DefaultRequestHeaderFieldsTooLarge 是 431：请求头超过 max_header_size。
+//
+// 与 400 区分开：客户端据此知道该精简 Cookie / 头字段，而不是怀疑
+// 请求语法写错了（RFC 7231 §6.5.11）。
+func DefaultRequestHeaderFieldsTooLarge() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(431, "REQUESTHEADERFIELDSTOOLARGE")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", CachedDate())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("431 Request Header Fields Too Large",
+		"The request header section exceeds the size limit configured by the server."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
+// DefaultExpectationFailed 是 417：Expect 头里的期望无法满足。
+//
+// 目前只支持 100-continue；其它期望按 RFC 7231 §5.1.1 回 417，
+// 让客户端知道不是服务端读超时或请求语法错误。
+func DefaultExpectationFailed() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(417, "EXPECTATIONFAILED")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", CachedDate())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("417 Expectation Failed",
+		"The expectation given in the Expect header cannot be met by this server."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
 func DefaultNotFound() *Response {
 	res := ResponseInit()
 	res.SetFirstLine(404, "NOTFOUND")
@@ -124,6 +160,19 @@ func DefaultServerError() *Response {
 
 	res.SetHeader("Content-Type", "text/html")
 	body := []byte(DefaultResponseBody("500 Server Error", "The server encountered an internal error and was unable to complete your request."))
+	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
+	res.SetBody(body)
+	return res
+}
+
+func DefaultBadGateway() *Response {
+	res := ResponseInit()
+	res.SetFirstLine(502, "BADGATEWAY")
+	res.SetHeader("Server", "Fast-Https")
+	res.SetHeader("Date", CachedDate())
+
+	res.SetHeader("Content-Type", "text/html")
+	body := []byte(DefaultResponseBody("502 Bad Gateway", "The upstream server returned an invalid or oversized response."))
 	res.SetHeader("Content-Length", strconv.Itoa(len(body)))
 	res.SetBody(body)
 	return res

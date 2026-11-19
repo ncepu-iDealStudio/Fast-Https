@@ -20,12 +20,22 @@
 - `ConnState` 在连接关闭/hijack 时放行 Accept，防止 Serve 阻塞泄漏。
 - `h2Handler.ServeHTTP` 把 `*http.Request` 翻译成既有 `core.Event`（`fillRequest`：method/path/query/headers/body），进入与 HTTP/1.1 **完全相同**的 EventHandler 管线——模块无需感知协议差异。
 - 响应方向：模块写出的 `response.Response` 经 `h2ResponseWriter` 翻译回 `http.ResponseWriter`；跳过逐跳头（Connection/Upgrade 等），Content-Length 交给标准库按实际写出计算（HEAD 保留模块给出的值）。
+- 限额与 HTTP/1.1 对齐：`http.servers_limit.max_header_size` 同时写入 `http.Server.MaxHeaderBytes`
+  （协议栈据此设置 `SETTINGS_MAX_HEADER_LIST_SIZE`，并留 64 KB 余量让 431 先于连接错误），
+  应用层再按 RFC 7540 §6.5.2 的字段开销估算一次，超限回 **431**；`max_body_size` 对声明长度与
+  流式正文都生效，超限回 **413**。
+- 超时：读头与空闲超时用 `read_timeout`，每次写无进展超过 `write_timeout` 断开；
+  正文读取按 `body_timeout` 逐次计时，超时回 **408**。
+- `Expect: 100-continue` 由协议栈在首次读 body 时自动回 100；无法满足的其它期望回 **417**。
+  读取正文后从转发头里移除 `Expect`，避免上游再回一个 100。
 - reload/停机时对每条 h2 连接执行 5s 宽限的 `Shutdown`。
-- 约束：`MaxConcurrentStreams` 250、读头超时 30s；标准库内部日志经 `h2LogWriter` 转入项目日志。
+- 约束：`MaxConcurrentStreams` 250；读头超时复用 `servers_limit.read_timeout`；
+  标准库内部日志经 `h2LogWriter` 转入项目日志。
 
 ## 测试
 
-`tests/client_test/h2_e2e_test.go`：真实 TLS + ALPN 集成测试（子进程起真实服务），覆盖协商、静态正文、404；`runtime/events/shutdown_test.go`。
+`tests/client_test/h2_e2e_test.go`：真实 TLS + ALPN 集成测试（子进程起真实服务），覆盖协商、静态正文、404；
+`runtime/events/h2_helpers_test.go` 覆盖 431 / 413 / 417；`runtime/events/shutdown_test.go` 覆盖停机。
 
 ## 已知限制
 

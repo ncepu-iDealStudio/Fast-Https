@@ -4,6 +4,7 @@ package svcctl
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -126,7 +127,7 @@ func readRunningPID(pidPath string, alive func(pid int) bool) (int, error) {
 		return 0, fmt.Errorf("%w: %v", ErrNotRunning, err)
 	}
 	var m map[string]int
-	if err := jsonUnmarshalPID(raw, &m); err != nil {
+	if err := json.Unmarshal(raw, &m); err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrNotRunning, err)
 	}
 	pid := m["pid"]
@@ -138,10 +139,6 @@ func readRunningPID(pidPath string, alive func(pid int) bool) (int, error) {
 		return 0, ErrNotRunning
 	}
 	return pid, nil
-}
-
-func jsonUnmarshalPID(raw []byte, m *map[string]int) error {
-	return jsonUnmarshal(raw, m)
 }
 
 // PrecheckAddedPorts 对「新配置有、当前回环连不上」的端口试绑定。

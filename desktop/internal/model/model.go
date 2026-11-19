@@ -30,6 +30,7 @@ type Overview struct {
 	Ports           []string     `json:"ports"`
 	SiteCount       int          `json:"siteCount"`
 	TLSCount        int          `json:"tlsCount"`
+	CacheZoneCount  int          `json:"cacheZoneCount"`
 	NearestCertDays int          `json:"nearestCertDays"`
 	ConfigDirty     bool         `json:"configDirty"`
 	Paths           RuntimePaths `json:"paths"`
@@ -86,6 +87,9 @@ type SiteInput struct {
 	Type      string `json:"type"`
 	Root      string `json:"root"`
 	ProxyPass string `json:"proxyPass"`
+	// SymlinkPolicy 是静态根符号链接策略（allow / reject / check-at-load），
+	// 留空表示默认；只对 local 生效。
+	SymlinkPolicy string `json:"symlinkPolicy"`
 	// Cert / CertKey 是 TLS 证书与私钥路径。留空表示走默认约定
 	// （config/cert/<域名>.pem，首次 start 生成）；填写可让多个站点共用一张证书。
 	Cert    string `json:"cert"`
@@ -93,18 +97,20 @@ type SiteInput struct {
 
 	// 高级配置（主 location）：响应压缩、限流、Basic 认证、代理缓存。
 	// 编辑模式才提交；添加站点时 site add 不支持这些字段，前端不会带。
-	Zip           []string `json:"zip"`
-	LimitRate     int      `json:"limitRate"`
-	LimitBurst    int      `json:"limitBurst"`
-	LimitMem      int      `json:"limitMem"`
-	LimitNodelay  bool     `json:"limitNodelay"`
-	AuthOn        bool     `json:"authOn"`
-	AuthUser      string   `json:"authUser"`
-	AuthPass      string   `json:"authPass"`
-	AuthRealm     string   `json:"authRealm"`
-	CachePath     string   `json:"cachePath"`
-	CacheValid    []string `json:"cacheValid"`
-	CacheMaxSize  int      `json:"cacheMaxSize"`
+	Zip          []string `json:"zip"`
+	ZipMinLength int      `json:"zipMinLength"`
+	ZipSkipTypes []string `json:"zipSkipTypes"`
+	LimitRate    int      `json:"limitRate"`
+	LimitBurst   int      `json:"limitBurst"`
+	LimitMem     int      `json:"limitMem"`
+	LimitNodelay bool     `json:"limitNodelay"`
+	AuthOn       bool     `json:"authOn"`
+	AuthUser     string   `json:"authUser"`
+	AuthPass     string   `json:"authPass"`
+	AuthRealm    string   `json:"authRealm"`
+	// CacheZone 是主配置 cache 段里的缓存区名；空串表示不启用缓存。
+	// 目录、容量与有效期都属于缓存区，站点只引用名字。
+	CacheZone string `json:"cacheZone"`
 }
 
 // SiteDetail 是详情弹窗一次拉取的内容：表单字段 + 只读信息 + 是否可编辑。
@@ -121,14 +127,18 @@ type SiteDetail struct {
 	Type      string `json:"type"`
 	Root      string `json:"root"`
 	ProxyPass string `json:"proxyPass"`
-	Cert      string `json:"cert"`
-	CertKey   string `json:"certKey"`
-	Index     string `json:"index"`
-	Raw       string `json:"raw"`
+	// SymlinkPolicy 是主 location 的符号链接策略，空表示默认。
+	SymlinkPolicy string `json:"symlinkPolicy"`
+	Cert          string `json:"cert"`
+	CertKey       string `json:"certKey"`
+	Index         string `json:"index"`
+	Raw           string `json:"raw"`
 
 	// 高级配置，回填弹窗用。AuthPass 恒为脱敏值或空串：site show 已经
 	// 把 pswd 抹成 ***，这里再原样透出，前端留空即表示不修改。
 	Zip          []string `json:"zip"`
+	ZipMinLength int      `json:"zipMinLength"`
+	ZipSkipTypes []string `json:"zipSkipTypes"`
 	LimitRate    int      `json:"limitRate"`
 	LimitBurst   int      `json:"limitBurst"`
 	LimitMem     int      `json:"limitMem"`
@@ -137,9 +147,18 @@ type SiteDetail struct {
 	AuthUser     string   `json:"authUser"`
 	AuthPass     string   `json:"authPass"`
 	AuthRealm    string   `json:"authRealm"`
-	CachePath    string   `json:"cachePath"`
-	CacheValid   []string `json:"cacheValid"`
-	CacheMaxSize int      `json:"cacheMaxSize"`
+	// CacheZone 是主配置 cache 段里的缓存区名；空串表示不启用缓存。
+	// 目录、容量与有效期都属于缓存区，站点只引用名字。
+	CacheZone string `json:"cacheZone"`
+}
+
+// CacheZone 是主配置 cache 段里的一个缓存区。目录、容量与有效期只在这里
+// 定义一次，站点通过名字引用。
+type CacheZone struct {
+	Name    string   `json:"name"`
+	Path    string   `json:"path"`
+	Valid   []string `json:"valid"`
+	MaxSize int      `json:"max_size"`
 }
 
 type ConfigField struct {
@@ -181,6 +200,11 @@ type LogEntry struct {
 	Size       string `json:"size"`
 	Host       string `json:"host"`
 	RemoteAddr string `json:"remoteAddr"`
+	// 统一拒绝日志字段（R-10）；Reason 是安全类的既有字段，供旧日志回退。
+	RejectReason string `json:"rejectReason"`
+	Rule         string `json:"rule"`
+	RemoteIP     string `json:"remoteIp"`
+	Reason       string `json:"reason"`
 }
 
 // LogQuery 对应 logs query 的白名单过滤条件。
@@ -193,9 +217,11 @@ type LogQuery struct {
 	Method     string `json:"method"`
 	PathPrefix string `json:"pathPrefix"` // --path-prefix
 	Reason     string `json:"reason"`
-	Since      string `json:"since"`  // 时长（1h）或 RFC3339
-	Until      string `json:"until"`  // 筛选条件：只看此刻之前的记录
-	Cursor     string `json:"cursor"` // 分页游标（上一页最早一条的时间）；有值时收窄 until
+	// RejectReason 对应 logs query --reject-reason（统一拒绝日志，R-10）。
+	RejectReason string `json:"rejectReason"`
+	Since        string `json:"since"`  // 时长（1h）或 RFC3339
+	Until        string `json:"until"`  // 筛选条件：只看此刻之前的记录
+	Cursor       string `json:"cursor"` // 分页游标（上一页最早一条的时间）；有值时收窄 until
 }
 
 // LogPage 是日志页一页结果。logs query 没有 offset 分页：

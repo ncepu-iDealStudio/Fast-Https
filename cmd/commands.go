@@ -4,6 +4,7 @@ package cmd
 import (
 	"errors"
 	"fast-https/cmd/internal/acmecmd"
+	"fast-https/cmd/internal/cachecmd"
 	"fast-https/cmd/internal/cli"
 	"fast-https/cmd/internal/configcmd"
 	"fast-https/cmd/internal/inspectcmd"
@@ -93,7 +94,7 @@ func commandList() []command {
 		},
 		{
 			name:        "operation",
-			description: cli.T("查询管理操作记录", "query management operations"),
+			description: cli.T("查询管理操作记录（含回滚、失败与重载）", "query management operations (including rollback, failures and reloads)"),
 			register:    inspectcmd.NewOperationCmd,
 		},
 		{
@@ -103,13 +104,18 @@ func commandList() []command {
 		},
 		{
 			name:        "config",
-			description: cli.T("查看解析后的运行时路径", "inspect resolved runtime paths"),
+			description: cli.T("查看路径、显示与校验配置，管理 tls/proxy、版本、差异、应用与回滚", "inspect paths, show and validate config, manage tls/proxy, versions, diffs, applies and rollbacks"),
 			register:    configcmd.NewConfigCmd,
 		},
 		{
 			name:        "site",
 			description: cli.T("管理 http.include 目录下的站点文件", "manage site files under http.include"),
 			register:    sitecmd.NewSiteCmd,
+		},
+		{
+			name:        "cache",
+			description: cli.T("管理主配置里的缓存区", "manage cache zones in the main config"),
+			register:    cachecmd.NewCacheCmd,
 		},
 	}
 }
@@ -372,7 +378,7 @@ func ReloadHandler() error {
 // 直接说到终端上——否则只有 daemon.log 里一行「reload kept previous config」，
 // 用户看到的是 reload 成功退出却什么都没变。
 func reload(configPath, pidPath string) error {
-	if err := validateConfig(configPath); err != nil {
+	if err := config.ValidateConfigFile(configPath); err != nil {
 		return fmt.Errorf("配置未通过校验，已保留运行中的配置：%w", err)
 	}
 
@@ -408,12 +414,6 @@ func reload(configPath, pidPath string) error {
 		logging.ConsoleLog.Fatal().Msgf("fast-https reload failed: %v", err)
 	}
 	return nil
-}
-
-// validateConfig 用主配置同一套 schema 校验一个配置文件及其 include，
-// 不监听端口、不写 pid，也不打印任何东西。
-func validateConfig(path string) error {
-	return config.ValidateConfigFile(path)
 }
 
 func statusHandler() error {
@@ -534,9 +534,3 @@ func RegisterHandlers() { servicecmd.RegisterHandlers() }
 
 // RegisterServices 注册所有自定义服务。
 func RegisterServices() { servicecmd.RegisterServices() }
-
-// StartRuntimeEndpoint 启动运行时查询端点。
-func StartRuntimeEndpoint() error { return servicecmd.StartRuntimeEndpoint() }
-
-// StopRuntimeEndpoint 关闭运行时查询端点。
-func StopRuntimeEndpoint() { servicecmd.StopRuntimeEndpoint() }

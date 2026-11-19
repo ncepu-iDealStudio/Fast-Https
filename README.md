@@ -4,7 +4,7 @@
 一份 JSON 描述监听端口与 location，覆盖常见的站点与反向代理场景。</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.7.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.7.1-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
@@ -122,7 +122,7 @@ HTTPS 是自动配置的：`listen` 里写上 `443 ssl h2` 就有 HTTPS，不用
 
 ```bash
 # 方式一：安装包
-# Windows 用 dist 里的 fast-https-<version>-windows-<arch>-setup.exe 安装；
+# Windows 用 dist 里的 fast-https-windows-<arch>-setup.exe 安装；
 # 其他平台到 https://gitee.com/ncepu-bj/fast-https/releases 下载压缩包，解压后进入目录
 ./fast-https start
 
@@ -137,14 +137,18 @@ go build -o fast-https . && ./fast-https start
   "log_root": "./logs",
   "security": {
     "host_check": "off",
-    "headers": { "nosniff": true, "hsts": "", "x_frame_options": "",
-                 "referrer_policy": "", "content_security_policy": "" }
+    "headers": { "nosniff": true, "hsts": "", "x_frame_options": "SAMEORIGIN",
+                 "referrer_policy": "strict-origin-when-cross-origin", "content_security_policy": "" }
   },
-  "waf": { "mode": "disabled" },
+  "waf": { "mode": "monitor" },
+  "proxy": {
+    "trusted_proxies": ["127.0.0.1/32", "::1/128"],
+    "forwarded_for": { "max_hops": 10 }
+  },
   "http": {
-    "include": ["./config/conf.d"],
+    "include": ["./conf.d"],
     "default_type": "application/octet-stream",
-    "servers_limit": { "max_header_size": 4096, "max_body_size": 524288, "limit": 0, "burst": 0 },
+    "servers_limit": { "max_header_size": 8192, "max_body_size": 8388608, "limit": 0, "burst": 0 },
     "blaklist": [],
     "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
   },
@@ -152,7 +156,15 @@ go build -o fast-https . && ./fast-https start
 }
 ```
 
-以上每一项都取内置默认值，写出来只是为了让人在文件里就能看到有哪些系统级开关；字段含义见 [docs/usage.md](docs/usage.md)。
+这份配置已经按常见部署预先打开了几项能力，不改也能直接跑：
+
+- 安全响应头：`nosniff`、`X-Frame-Options: SAMEORIGIN`、`Referrer-Policy: strict-origin-when-cross-origin`；
+  `hsts` 与 `content_security_policy` 留空——前者要等全站 HTTPS 稳定后再开，后者和具体站点强相关。
+- `waf.mode: monitor`：WAF 只记录不阻断；真正启用规则还需在站点的 location 里写 `appfirewall`（如 `["sql", "xss"]`）。
+- `proxy.trusted_proxies`：信任本机回环代理，前置 nginx / Caddy 时能拿到真实客户端 IP；`max_hops: 10` 防止伪造的超长链。
+- 请求头上限 8 KB、请求体上限 8 MB：覆盖带 Cookie 的页面和常见表单 / JSON 上传，不再需要先改配置。
+
+要收紧或换掉哪一项，直接改对应字段即可；字段含义与可选值见 [docs/usage.md](docs/usage.md)。
 
 随包的 `config/conf.d/default.json` 就是开箱即用的默认站点：80 提供 HTTP，`443 ssl h2` 提供 HTTPS + HTTP/2，两者都指向 `./httpdoc/root`。443 的证书不用预置，首次 `start` 会用本地 CA 生成 `config/cert/localhost.pem` 与 `localhost-key.pem`；非 root 运行时把 `listen` 改成 `8080` 之类的高位端口。
 
@@ -165,7 +177,10 @@ go build -o fast-https . && ./fast-https start
   "ssl_certificate": "./config/cert/localhost.pem",
   "ssl_certificate_key": "./config/cert/localhost-key.pem",
   "location": [
-    { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ]
+    { "url": "/", "type": "local", "root": "./httpdoc/root",
+      "index": ["index.html", "index.htm"],
+      "zip": ["br", "gzip"], "zip_min_length": 1024,
+      "zip_skip_types": ["image/*", "video/*", "audio/*", "font/woff2", "application/zip", "application/gzip"] } ]
 }
 ```
 

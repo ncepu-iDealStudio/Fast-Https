@@ -5,6 +5,7 @@ import { ShieldCheck } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useCertsStore } from '../../stores/certs';
 import FhButton from '../../components/ui/FhButton.vue';
+import PageTitle from '../../components/common/PageTitle.vue';
 import TrustDialog from '../../components/common/TrustDialog.vue';
 import CertCheckDialog from '../../components/common/CertCheckDialog.vue';
 import CertTable from './components/CertTable.vue';
@@ -28,12 +29,15 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="main__body">
-    <div class="toolbar">
+  <PageTitle :title="t('nav.certs')">
+    <span class="page-title__actions">
       <FhButton @click="trustOpen = true">
         <ShieldCheck :size="14" /><span>{{ t('certs.trust') }}</span>
       </FhButton>
-    </div>
+    </span>
+  </PageTitle>
+
+  <div class="main__body">
     <p v-if="certs.error" class="notice notice--err">{{ certs.error }}</p>
     <div v-if="certs.loading && !certs.items.length" class="notice">{{ t('certs.loading') }}</div>
 

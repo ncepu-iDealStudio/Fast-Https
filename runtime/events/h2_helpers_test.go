@@ -1,11 +1,17 @@
 package events
 
 import (
+	"errors"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"fast-https/config"
 	"fast-https/core"
+	"fast-https/runtime/filters"
 	"fast-https/runtime/request"
 	"fast-https/runtime/response"
 )
@@ -54,7 +60,9 @@ func TestFillRequestMapsFields(t *testing.T) {
 	r.Header.Set("Accept", "text/html")
 
 	req := request.RequestInit(true)
-	fillRequest(req, r)
+	if got := fillRequest(req, r); got != 0 {
+		t.Fatalf("fillRequest() = %d, want 0", got)
+	}
 
 	if req.Method != "POST" || req.Protocol != "HTTP/2" {
 		t.Fatalf("method/protocol = %s/%s", req.Method, req.Protocol)
@@ -79,9 +87,84 @@ func TestFillRequestMapsFields(t *testing.T) {
 	// 无 body 的请求不得误读
 	r2, _ := http.NewRequest("GET", "https://example.com/", nil)
 	req2 := request.RequestInit(true)
-	fillRequest(req2, r2)
+	if got := fillRequest(req2, r2); got != 0 {
+		t.Fatalf("fillRequest() = %d, want 0", got)
+	}
 	if req2.Body.Len() != 0 {
 		t.Fatalf("body should stay empty, got %q", req2.Body.String())
+	}
+}
+
+// readH2Body：正常读完、累计超限、单次读超时三种情况。
+func TestReadH2Body(t *testing.T) {
+	got, err := readH2Body(strings.NewReader("hello"), 0, time.Second)
+	if err != nil || string(got) != "hello" {
+		t.Fatalf("body = %q err = %v", got, err)
+	}
+
+	if _, err := readH2Body(strings.NewReader("0123456789"), 4, time.Second); !errors.Is(err, errH2BodyTooLarge) {
+		t.Fatalf("err = %v, want errH2BodyTooLarge", err)
+	}
+
+	pr, pw := io.Pipe()
+	defer pw.Close()
+	defer pr.Close()
+	start := time.Now()
+	if _, err := readH2Body(pr, 0, 50*time.Millisecond); !errors.Is(err, errH2BodyTimeout) {
+		t.Fatalf("err = %v, want errH2BodyTimeout", err)
+	}
+	if elapsed := time.Since(start); elapsed < 30*time.Millisecond || elapsed > 2*time.Second {
+		t.Fatalf("elapsed = %v, want about 50ms", elapsed)
+	}
+}
+
+// h2 的头部超限：应用层按同一份 max_header_size 回 431，不依赖协议栈版本。
+func TestH2HeaderTooLargeReturns431(t *testing.T) {
+	withLimit(t, func(c *config.Fast_Https) { c.Limit.MaxHeaderSize = 1024 })
+
+	r := httptest.NewRequest("GET", "https://example.com/", nil)
+	r.Header.Set("X-Big", strings.Repeat("a", 2000))
+	rw := newFakeRW()
+	(&h2Handler{fif: filters.NewFilter()}).ServeHTTP(rw, r)
+
+	if rw.status != http.StatusRequestHeaderFieldsTooLarge {
+		t.Fatalf("status = %d, want 431", rw.status)
+	}
+}
+
+// h2 的未知期望：直接 417，且不读正文（协议栈因此也不会自动回 100）。
+func TestH2UnknownExpectationReturns417(t *testing.T) {
+	r := httptest.NewRequest("POST", "https://example.com/", strings.NewReader("x"))
+	r.Header.Set("Expect", "something-else")
+	rw := newFakeRW()
+	(&h2Handler{fif: filters.NewFilter()}).ServeHTTP(rw, r)
+
+	if rw.status != http.StatusExpectationFailed {
+		t.Fatalf("status = %d, want 417", rw.status)
+	}
+}
+
+// h2 的正文限额：声明长度超限直接 413；没有 Content-Length 的流式正文
+// 由 fillRequest 里的 LimitReader 在读到上限后拒绝。
+func TestH2BodyTooLargeReturns413(t *testing.T) {
+	withLimit(t, func(c *config.Fast_Https) { c.Limit.MaxBodySize = 4 })
+
+	cases := map[string]*http.Request{
+		"声明长度": httptest.NewRequest("POST", "https://example.com/", strings.NewReader("0123456789")),
+		"未知长度": func() *http.Request {
+			r := httptest.NewRequest("POST", "https://example.com/", strings.NewReader("0123456789"))
+			r.ContentLength = -1
+			return r
+		}(),
+	}
+	for name, r := range cases {
+		t.Run(name, func(t *testing.T) {
+			rw := newFakeRW()
+			(&h2Handler{fif: filters.NewFilter()}).ServeHTTP(rw, r)
+			if rw.status != http.StatusRequestEntityTooLarge {
+				t.Fatalf("status = %d, want 413", rw.status)
+			}
+		})
 	}
 }
 

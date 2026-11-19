@@ -1445,18 +1445,23 @@ func TestPromptInjectionLogIsData(t *testing.T) {
 	}
 }
 
-func TestMissingLogUnavailable(t *testing.T) {
+// 应用还没启动、日志文件不存在时按空结果处理；建出空文件后同样为空。
+func TestMissingLogIsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	cfg := writeLogConfig(t, dir)
 
 	out, _, code := runCLI(t, "logs", "access", "--config", cfg, "--json")
-	if code != 9 {
+	if code != 0 {
 		t.Fatalf("文件不存在 exit = %d\n%s", code, out)
 	}
 	doc := decodeOneDocument(t, out)
-	errObj, _ := doc["error"].(map[string]any)
-	if errObj["code"] != "LOG_SOURCE_UNAVAILABLE" {
-		t.Fatalf("error = %v", doc["error"])
+	if ok, _ := doc["ok"].(bool); !ok {
+		t.Fatalf("文件不存在应返回成功封套：%v", doc)
+	}
+	data, _ := doc["data"].(map[string]any)
+	records, _ := data["records"].([]any)
+	if len(records) != 0 {
+		t.Fatalf("文件不存在应返回空列表：%v", records)
 	}
 
 	if err := os.WriteFile(filepath.Join(dir, logging.AccessLogName), nil, 0o644); err != nil {
@@ -1467,8 +1472,8 @@ func TestMissingLogUnavailable(t *testing.T) {
 		t.Fatalf("空文件 exit = %d\n%s", code, out)
 	}
 	doc = decodeOneDocument(t, out)
-	data, _ := doc["data"].(map[string]any)
-	records, _ := data["records"].([]any)
+	data, _ = doc["data"].(map[string]any)
+	records, _ = data["records"].([]any)
 	if len(records) != 0 {
 		t.Fatalf("空文件应返回空列表：%v", records)
 	}
@@ -1547,6 +1552,36 @@ func TestLogsQueryRequiresKind(t *testing.T) {
 	}
 }
 
+// 统一拒绝日志可按 reject_reason 过滤（R-10），输出保留 rule 与 remote_ip。
+func TestLogsQueryFiltersByRejectReason(t *testing.T) {
+	_, cfg := writeLogsFixture(t, logging.SafeLogName,
+		`{"time":"2026-11-08T00:00:00.000Z","level":"warn","kind":"safe","message":"request rejected","reject_reason":"path_traversal","rule":"static_root","remote_ip":"1.2.3.4"}`+"\n"+
+			`{"time":"2026-11-08T00:00:01.000Z","level":"warn","kind":"safe","message":"request rejected","reject_reason":"body_too_large","rule":"max_body_size","remote_ip":"1.2.3.4"}`+"\n")
+
+	out, _, code := runCLI(t, "logs", "query", "--config", cfg, "--kind", "safe", "--reject-reason", "path_traversal", "--json")
+	if code != 0 {
+		t.Fatalf("exit = %d\n%s", code, out)
+	}
+	if !strings.Contains(out, `"reject_reason":"path_traversal"`) || !strings.Contains(out, `"rule":"static_root"`) || !strings.Contains(out, `"remote_ip":"1.2.3.4"`) {
+		t.Fatalf("stdout = %s", out)
+	}
+	if strings.Contains(out, "body_too_large") {
+		t.Fatalf("不应命中其他拒绝原因：%s", out)
+	}
+
+	// 文本模式也要能看出拒绝原因与命中规则。
+	text, _, code := runCLI(t, "logs", "query", "--config", cfg, "--kind", "safe", "--reject-reason", "path_traversal")
+	if code != 0 {
+		t.Fatalf("text exit = %d\n%s", code, text)
+	}
+	if !strings.Contains(text, "path_traversal · static_root") {
+		t.Fatalf("text 模式缺少拒绝原因/规则：%s", text)
+	}
+	if !strings.Contains(text, "1.2.3.4") {
+		t.Fatalf("text 模式缺少 remote_ip：%s", text)
+	}
+}
+
 func TestNoFileFlag(t *testing.T) {
 	root := RootCmdForLang(LangZH)
 	var walk func(*cobra.Command)
@@ -1602,13 +1637,13 @@ var (
 )
 
 func TestValidateConfigAcceptsValidConfig(t *testing.T) {
-	if err := validateConfig(writeTestConfig(t, mustTestdata("config-valid.json"))); err != nil {
+	if err := config.ValidateConfigFile(writeTestConfig(t, mustTestdata("config-valid.json"))); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestValidateConfigRejectsInvalidConfig(t *testing.T) {
-	err := validateConfig(writeTestConfig(t, mustTestdata("config-invalid-listen.json")))
+	err := config.ValidateConfigFile(writeTestConfig(t, mustTestdata("config-invalid-listen.json")))
 	if err == nil || !strings.Contains(err.Error(), "listen") {
 		t.Fatalf("err = %v", err)
 	}

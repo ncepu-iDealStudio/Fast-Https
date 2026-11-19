@@ -48,14 +48,12 @@ func writeDiskEntry(t *testing.T, dir, key string, expire int, legacy bool) {
 	}
 }
 
-// withCacheDir 把 config.Current().Servers 指到 dir，返回恢复函数。
+// withCacheDir 把 config.Current().Cache 指向 dir，返回恢复函数。
 func withCacheDir(t *testing.T, dir string) {
 	t.Helper()
-	snap := config.Current().Servers
-	config.Current().Servers = []config.Server{{
-		Path: []config.Path{{ProxyCache: config.Cache{Path: dir}}},
-	}}
-	t.Cleanup(func() { config.Current().Servers = snap })
+	snap := config.Current().Cache
+	config.Current().Cache = []config.CacheZone{{Name: "test", Path: dir, Valid: []string{"10s"}}}
+	t.Cleanup(func() { config.Current().Cache = snap })
 }
 
 // 磁盘恢复矩阵：可恢复条目重建索引并可回放；损坏 gob / 旧格式 /
@@ -128,5 +126,19 @@ func TestLoadCacheEmptyAndMissingDir(t *testing.T) {
 		if cc.Index.Len() != 0 {
 			t.Fatalf("index = %d entries, want 0", cc.Index.Len())
 		}
+	}
+}
+
+// EnsureDirs 让配置里每个缓存区目录在磁盘上存在（含多级路径）。
+// 缓存条目是懒写入的，目录本身属于缓存区定义，不应等首条响应被缓存后才出现。
+func TestEnsureDirsCreatesZonePaths(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), ".cache", "edge")
+	withCacheDir(t, dir)
+
+	NewCacheContainer().EnsureDirs()
+
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("缓存区目录未创建: %v", err)
 	}
 }

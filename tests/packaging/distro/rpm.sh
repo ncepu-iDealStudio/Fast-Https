@@ -5,7 +5,7 @@ set -u
 . /scripts/common.sh
 
 ARCH=${ARCH:-amd64}
-PKG=$(ls /dist/fast-https_*_linux_${ARCH}.rpm 2>/dev/null | head -1)
+PKG=$(ls /dist/fast-https_linux_${ARCH}.rpm 2>/dev/null | head -1)
 if [ -z "$PKG" ]; then bad "dist 下没有 linux/${ARCH} 的 rpm"; report; fi
 
 echo "=== 系统 ==="

@@ -8,7 +8,10 @@
       "url": "/",
       "type": "local",
       "root": "./httpdoc/root",
-      "index": ["index.html", "index.htm"]
+      "index": ["index.html", "index.htm"],
+      "zip": ["br", "gzip"],
+      "zip_min_length": 1024,
+      "zip_skip_types": ["image/*", "video/*", "audio/*", "font/woff2", "application/zip", "application/gzip"]
     }
   ]
 }

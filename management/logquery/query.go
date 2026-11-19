@@ -76,7 +76,9 @@ type Query struct {
 	Method     string
 	PathPrefix string
 	Reason     string
-	Now        time.Time
+	// RejectReason 过滤统一拒绝日志的 reject_reason 枚举字段（R-10）。
+	RejectReason string
+	Now          time.Time
 
 	maxScan   int64
 	maxOutput int
@@ -85,18 +87,21 @@ type Query struct {
 
 // Record 只含白名单字段。没有原始行，也没有 user_agent。
 type Record struct {
-	Time       string `json:"time,omitempty"`
-	Kind       string `json:"kind,omitempty"`
-	Level      string `json:"level,omitempty"`
-	Message    string `json:"message,omitempty"`
-	Method     string `json:"method,omitempty"`
-	Path       string `json:"path,omitempty"`
-	Status     *int   `json:"status,omitempty"`
-	Size       *int   `json:"size,omitempty"`
-	Host       string `json:"host,omitempty"`
-	RemoteAddr string `json:"remote_addr,omitempty"`
-	Reason     string `json:"reason,omitempty"`
-	Truncated  bool   `json:"truncated,omitempty"`
+	Time         string `json:"time,omitempty"`
+	Kind         string `json:"kind,omitempty"`
+	Level        string `json:"level,omitempty"`
+	Message      string `json:"message,omitempty"`
+	Method       string `json:"method,omitempty"`
+	Path         string `json:"path,omitempty"`
+	Status       *int   `json:"status,omitempty"`
+	Size         *int   `json:"size,omitempty"`
+	Host         string `json:"host,omitempty"`
+	RemoteAddr   string `json:"remote_addr,omitempty"`
+	Reason       string `json:"reason,omitempty"`
+	RejectReason string `json:"reject_reason,omitempty"`
+	Rule         string `json:"rule,omitempty"`
+	RemoteIP     string `json:"remote_ip,omitempty"`
+	Truncated    bool   `json:"truncated,omitempty"`
 }
 
 // Result 是一次查询的数据和它的覆盖范围。
@@ -184,6 +189,17 @@ func Run(q Query) (Result, []string, error) {
 	path := filepath.Join(q.Dir, fileName)
 	f, size, err := openLog(path, fileName)
 	if err != nil {
+		var src *SourceError
+		// 应用还没启动、日志文件尚未产生：这是正常状态，返回空结果而不是
+		// LOG_SOURCE_UNAVAILABLE。符号链接等真正不能读的源仍然报错。
+		if errors.As(err, &src) && src.Kind == "missing" {
+			return Result{
+				Records:   []Record{},
+				Source:    Source{File: fileName},
+				TimeRange: Range{Since: since},
+				Limit:     limit,
+			}, warnings, nil
+		}
 		return Result{}, nil, err
 	}
 	defer f.Close()
@@ -237,9 +253,12 @@ func Run(q Query) (Result, []string, error) {
 		}
 		// 过滤用原文。写出前再脱敏并截断，避免把口令截成半截后才遮蔽。
 		var cut bool
-		rec.Path = clip(redactText(rec.Path), maxField, &cut)
-		rec.Message = clip(redactText(rec.Message), maxField, &cut)
-		rec.Reason = redactText(rec.Reason)
+		rec.Path = clip(Redact(rec.Path), maxField, &cut)
+		rec.Message = clip(Redact(rec.Message), maxField, &cut)
+		rec.Reason = Redact(rec.Reason)
+		rec.RejectReason = Redact(rec.RejectReason)
+		rec.Rule = clip(Redact(rec.Rule), maxField, &cut)
+		rec.RemoteIP = Redact(rec.RemoteIP)
 		rec.Truncated = cut
 		if cut {
 			fieldCut = true
@@ -327,6 +346,9 @@ func accept(q Query, status statusFilter, since, until string, obj map[string]an
 	if !matchExact(q.Level, rec.Level) || !matchExact(q.Method, rec.Method) || !matchExact(q.Reason, rawString(obj, logging.FieldReason)) {
 		return false
 	}
+	if !matchExact(q.RejectReason, rawString(obj, logging.FieldRejectReason)) {
+		return false
+	}
 	if !matchPrefix(q.PathPrefix, rawString(obj, logging.FieldPath)) {
 		return false
 	}
@@ -342,6 +364,9 @@ func project(obj map[string]any) (Record, bool, bool) {
 	rec.Host = rawString(obj, logging.FieldHost)
 	rec.RemoteAddr = rawString(obj, logging.FieldRemoteAddr)
 	rec.Reason = rawString(obj, logging.FieldReason)
+	rec.RejectReason = rawString(obj, logging.FieldRejectReason)
+	rec.Rule = rawString(obj, logging.FieldRule)
+	rec.RemoteIP = rawString(obj, logging.FieldRemoteIP)
 	rec.Message = rawString(obj, "message")
 	rec.Path = rawString(obj, logging.FieldPath)
 	if n, ok := asInt(obj[logging.FieldStatus]); ok {

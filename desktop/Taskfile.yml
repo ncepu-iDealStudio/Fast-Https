@@ -38,6 +38,9 @@ tasks:
     summary: 构建主程序 CLI
     dir: ..
     cmds:
+      # Windows 上正在运行的 exe 无法覆盖；dev 重启时先停掉旧服务。
+      - cmd: taskkill /IM fast-https.exe /F
+        ignore_error: true
       # 输出到 desktop/bin，和桌面端 exe 放在一起（桌面端就是从同目录调用它）
       - go build -o desktop/{{.BIN_DIR}}/fast-https.exe .
 

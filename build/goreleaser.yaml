@@ -203,6 +203,8 @@ nfpms:
       - linux-pkg
       - monitor-linux-pkg
     package_name: fast-https
+    # 产物名不带版本号：dist 里的包名保持稳定，版本由包元数据与 checksums 体现。
+    file_name_template: "{{ .PackageName }}_{{ .Os }}_{{ .Arch }}"
     vendor: NCEPU-BJ
     homepage: https://gitee.com/ncepu-bj/fast-https
     maintainer: JFeng2048 <JFeng2048@outlook.com>
@@ -312,7 +314,7 @@ checksum:
   name_template: checksums.txt
 
 snapshot:
-  version_template: "1.7.0"
+  version_template: "1.7.1"
 
 changelog:
   sort: asc

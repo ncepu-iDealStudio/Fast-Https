@@ -1,0 +1,84 @@
+package paths
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+// 拆掉安装根下的 config 层之后，旧版 存量配置里的 "./config/xxx" 与
+// "config/xxx" 都要回退到新布局；新写法一次命中，不触发回退。
+func TestAbsPathInTrimsLegacyConfigPrefix(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(base, "cert", "acme"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	want := filepath.Join(base, "cert", "acme")
+	for _, legacy := range []string{"./config/cert/acme", "config/cert/acme"} {
+		if got := PathIn(base, legacy); got != want {
+			t.Fatalf("PathIn(%q) = %q, want %q", legacy, got, want)
+		}
+	}
+	if got := PathIn(base, "./cert/acme"); got != want {
+		t.Fatalf("PathIn new layout = %q, want %q", got, want)
+	}
+}
+
+// 主路径存在时必须直接用主路径，不能被回退规则改写；两者都不存在时返回
+// 主路径，让调用方的报错信息指向新布局。
+func TestAbsPathInPrefersPrimaryPath(t *testing.T) {
+	base := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(base, "config", "cert"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(base, "cert"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, want := PathIn(base, "config/cert"), filepath.Join(base, "config", "cert"); got != want {
+		t.Fatalf("PathIn existing primary = %q, want %q", got, want)
+	}
+	if got, want := PathIn(base, "./missing/x"), filepath.Join(base, "missing", "x"); got != want {
+		t.Fatalf("PathIn missing = %q, want %q", got, want)
+	}
+}
+
+// 不传 fallbacks 时不得用 "." 兜底：候选树缺文件不能读到工作目录里的同名文件。
+func TestAbsPathInStrictSkipsDotFallback(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	trap := t.TempDir()
+	if err := os.Chdir(trap); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+
+	if err := os.WriteFile(filepath.Join(trap, "live.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	base := t.TempDir()
+	got := PathIn(base, "live.json")
+	want := filepath.Join(base, "live.json")
+	if got != want {
+		t.Fatalf("strict PathIn = %q, want %q", got, want)
+	}
+	withDot := PathIn(base, "live.json", ".")
+	if withDot != filepath.Join(trap, "live.json") {
+		t.Fatalf("dot fallback = %q, want cwd file", withDot)
+	}
+}
+
+// 绝对路径与空串原样返回，不参与基址拼接。
+func TestAbsPathInPassThrough(t *testing.T) {
+	base := t.TempDir()
+	abs := filepath.Join(base, "x.pem")
+	if got := PathIn(base, abs); got != abs {
+		t.Fatalf("PathIn(abs) = %q, want %q", got, abs)
+	}
+	if got := PathIn(base, "   "); got != "" {
+		t.Fatalf("PathIn(blank) = %q, want empty", got)
+	}
+}

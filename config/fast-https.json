@@ -1,23 +1,38 @@
 {
+  "log_root": "./logs",
+  "cache": [
+    {"name": "default_cache", "path": "./cache/default_cache", "valid": ["200:1h", "404:1m", "any:5m"], "max_size": 1073741824}
+  ],
   "security": {
     "host_check": "off",
     "headers": {
       "nosniff": true,
       "hsts": "",
-      "x_frame_options": "",
-      "referrer_policy": "",
+      "x_frame_options": "SAMEORIGIN",
+      "referrer_policy": "strict-origin-when-cross-origin",
       "content_security_policy": ""
     }
   },
   "waf": {
-    "mode": "disabled"
+    "mode": "monitor"
+  },
+  "proxy": {
+    "trusted_proxies": ["127.0.0.1/32", "::1/128"],
+    "forwarded_for": {
+      "max_hops": 10
+    },
+    "upstream_timeout": 20,
+    "tunnel_idle_timeout": 0
   },
   "http": {
     "include": ["./conf.d"],
     "default_type": "application/octet-stream",
     "servers_limit": {
-      "max_header_size": 4096,
-      "max_body_size": 524288,
+      "max_header_size": 8192,
+      "max_body_size": 8388608,
+      "read_timeout": 30,
+      "write_timeout": 30,
+      "body_timeout": 1,
       "limit": 0,
       "burst": 0
     },
@@ -26,6 +41,6 @@
   },
   "acme": {
     "enabled": false,
-    "email": "<EMAIL>"
+    "email": ""
   }
 }

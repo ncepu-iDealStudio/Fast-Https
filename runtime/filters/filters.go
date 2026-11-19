@@ -137,14 +137,24 @@ func HostCheckRejects(ev *core.Event) bool {
 		return false
 	}
 	if mode == config.HostCheckEnforce {
+		logHostCheckReject(ev, host)
 		return true
 	}
+	logHostCheckReject(ev, host)
+	return false
+}
+
+// logHostCheckReject 记录 Host 未命中任何 server_name。
+// warn 与 enforce 都要留下记录：前者只告警，后者会真正回 421。
+func logHostCheckReject(ev *core.Event, host string) {
 	logging.Safe().Warn().
-		Str("reason", "host_check").
+		Str(logging.FieldReason, "host_check").
+		Str(logging.FieldRejectReason, "host_check").
+		Str(logging.FieldRule, "security.host_check").
+		Str(logging.FieldRemoteIP, logging.RemoteIP(ev.Conn)).
 		Str("host", host).
 		Str("port", ev.LisInfo.Port).
 		Msg("host does not match any server_name")
-	return false
 }
 
 // MethodAllowed 报告该方法是否被该 location 接受。

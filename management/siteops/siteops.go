@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -29,6 +30,19 @@ var (
 	ErrUsage        = errors.New("invalid site input")
 )
 
+// 新建站点的压缩默认值：gzip 与 brotli 都开，1 KB 以下不压，
+// 图片/音视频/字体与已压缩包整类跳过。CLI 的 site add 参数默认值与此一致。
+var (
+	DefaultZip          = []string{"br", "gzip"}
+	DefaultZipSkipTypes = []string{
+		"image/*", "video/*", "audio/*",
+		"font/woff2", "application/zip", "application/gzip",
+	}
+)
+
+// DefaultZipMinLength 是新建站点的最小压缩阈值（字节）。
+const DefaultZipMinLength = 1024
+
 // AddInput 是 site add 的参数。
 type AddInput struct {
 	Domain    string
@@ -36,16 +50,25 @@ type AddInput struct {
 	Listens   []string
 	ProxyPass string
 	TLS       bool
-	Banned    []string
+	// SymlinkPolicy 只对 local 站点生效，取值见 config.SYMLINK_*；空表示默认。
+	SymlinkPolicy string
+	Banned        []string
 	// SSLCertificate / SSLCertificateKey 留空表示走默认约定（config/cert/<域名>.pem）；
 	// 显式给出时按给定路径写入，用于多站点共享同一张证书（如通配符证书）。
 	SSLCertificate    string
 	SSLCertificateKey string
+	// 压缩三项对 local 与 proxy 站点都生效：nil 表示写 DefaultZip* 默认值，
+	// 指针指向空列表表示显式关闭压缩。
+	Zip          *[]string
+	ZipMinLength *int
+	ZipSkipTypes *[]string
+	// CacheZone 是主配置 cache 段里的缓存区名；空串表示不启用缓存。
+	CacheZone string
 }
 
 // UpdateInput 是 site update 的白名单字段。未设置的指针表示不改。
 //
-// Zip / Limit / Auth / Cache 作用于站点的第一个 location（主 location）。
+// Zip / Limit / Auth / CacheZone 作用于站点的第一个 location（主 location）。
 // 它们用指针表达三态：nil 不改；指向零值表示清除该配置；指向有值则写入。
 type UpdateInput struct {
 	Name       string
@@ -55,10 +78,17 @@ type UpdateInput struct {
 	ProxyPass  *string
 	TLS        *bool
 	Zip        *[]string
-	Limit      *config.PathLimit
-	Auth       *config.PathAuth
-	Cache      *config.Cache
-	Banned     []string
+	// ZipMinLength 三态：nil 不改；指向 0 表示清除阈值（不限制）；正数写入。
+	ZipMinLength *int
+	// ZipSkipTypes 三态：nil 不改；指向空列表表示回落内置已压缩类型清单。
+	ZipSkipTypes *[]string
+	Limit        *config.PathLimit
+	Auth         *config.PathAuth
+	// CacheZone 三态：nil 不改；指向空串表示关闭缓存；否则写入缓存区名。
+	CacheZone *string
+	// SymlinkPolicy 三态：nil 不改；指向空串表示回到默认策略；否则写入取值。
+	SymlinkPolicy *string
+	Banned        []string
 	// 证书路径同样是三态：nil 不改；指向空串表示交回默认约定（首次 start 生成）。
 	SSLCertificate    *string
 	SSLCertificateKey *string
@@ -123,7 +153,6 @@ func replayIdempotent(eng *txn.Engine, in RunInput) (txn.Result, bool, error) {
 		Diff:        cfgdiff.Result{Identical: true},
 	}
 	if rec.Result != nil {
-		out.RestorePoint, _ = rec.Result["restore_point"].(string)
 		out.Version, _ = rec.Result["version"].(string)
 		out.RolledBack, _ = rec.Result["rolled_back"].(bool)
 		if s, ok := rec.Result["config_state"].(string); ok && s != "" {
@@ -258,8 +287,17 @@ func Add(dirs []string, in AddInput) (string, error) {
 		SSLCertificate:    strings.TrimSpace(in.SSLCertificate),
 		SSLCertificateKey: strings.TrimSpace(in.SSLCertificateKey),
 	}
+	policy, err := normalizeSymlinkPolicy(in.SymlinkPolicy)
+	if err != nil {
+		return "", err
+	}
+	loc := config.SiteLocation{URL: "/"}
 	if strings.TrimSpace(in.ProxyPass) != "" {
-		si.Locations = []config.SiteLocation{{URL: "/", Type: "proxy", ProxyPass: strings.TrimSpace(in.ProxyPass)}}
+		if policy != "" {
+			return "", fmt.Errorf("%w: --symlink-policy only applies to local locations", ErrUsage)
+		}
+		loc.Type = "proxy"
+		loc.ProxyPass = strings.TrimSpace(in.ProxyPass)
 	} else {
 		root := in.Root
 		if strings.TrimSpace(root) == "" {
@@ -269,11 +307,27 @@ func Add(dirs []string, in AddInput) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		si.Locations = []config.SiteLocation{{
-			URL: "/", Type: "local", Root: abs,
-			Index: []string{"index.html", "index.htm"},
-		}}
+		loc.Type = "local"
+		loc.Root = abs
+		loc.Index = []string{"index.html", "index.htm"}
+		loc.SymlinkPolicy = policy
 	}
+	loc.ProxyCache = strings.TrimSpace(in.CacheZone)
+	// 压缩同时作用于静态与代理响应，两种站点都写入默认值。
+	zip, minLen, skip, err := addCompression(in)
+	if err != nil {
+		return "", err
+	}
+	if len(zip) > 0 {
+		loc.Zip = &zip
+		if minLen > 0 {
+			loc.ZipMinLength = &minLen
+		}
+		if len(skip) > 0 {
+			loc.ZipSkipTypes = &skip
+		}
+	}
+	si.Locations = []config.SiteLocation{loc}
 	fillCerts(&si)
 	path, err := site.Create(dirs, name, si, false)
 	if err != nil {
@@ -363,26 +417,146 @@ func Update(dirs []string, liveMain string, in UpdateInput) (string, error) {
 	return path, nil
 }
 
-// applyAdvanced 把 --zip / --limit-* / --auth-* / --cache-* 落到主 location 上。
+// normalizeSymlinkPolicy 校验 --symlink-policy 取值；空串表示清除（回到默认）。
+func normalizeSymlinkPolicy(raw string) (string, error) {
+	switch v := strings.ToLower(strings.TrimSpace(raw)); v {
+	case "", config.SYMLINK_ALLOW, config.SYMLINK_REJECT, config.SYMLINK_CHECK_AT_LOAD:
+		return v, nil
+	default:
+		return "", fmt.Errorf("%w: --symlink-policy accepts allow, reject or check-at-load, got %q", ErrUsage, raw)
+	}
+}
+
+// addCompression 决定新建站点的压缩配置。
+// 未显式给出时用 DefaultZip*；指针指向空列表表示显式关闭。
+func addCompression(in AddInput) (zip []string, minLen int, skip []string, err error) {
+	zip = DefaultZip
+	if in.Zip != nil {
+		zip = *in.Zip
+	}
+	zip, err = normalizeZipList(zip)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	minLen = DefaultZipMinLength
+	if in.ZipMinLength != nil {
+		minLen = *in.ZipMinLength
+	}
+	if minLen < 0 {
+		return nil, 0, nil, fmt.Errorf("%w: --zip-min-length must be >= 0, got %d", ErrUsage, minLen)
+	}
+	skip = DefaultZipSkipTypes
+	if in.ZipSkipTypes != nil {
+		skip = *in.ZipSkipTypes
+	}
+	skip, err = normalizeZipSkipTypes(skip)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	return zip, minLen, skip, nil
+}
+
+// normalizeZipList 小写、去重并校验压缩编码。
+func normalizeZipList(raw []string) ([]string, error) {
+	out := make([]string, 0, len(raw))
+	seen := make(map[string]bool, len(raw))
+	for _, item := range raw {
+		v := strings.ToLower(strings.TrimSpace(item))
+		if v == "" || seen[v] {
+			continue
+		}
+		if v != "gzip" && v != "br" {
+			return nil, fmt.Errorf("%w: --zip accepts only gzip or br, got %q", ErrUsage, item)
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// normalizeZipSkipTypes 小写、去重并校验 MIME 规则，支持 image/*、image/p* 与 */*。
+func normalizeZipSkipTypes(raw []string) ([]string, error) {
+	out := make([]string, 0, len(raw))
+	seen := make(map[string]bool, len(raw))
+	for _, item := range raw {
+		v := strings.ToLower(strings.TrimSpace(item))
+		if v == "" || seen[v] {
+			continue
+		}
+		if !validMIMEPattern(v) {
+			return nil, fmt.Errorf("%w: --zip-skip-types wants MIME types like image/png or image/*, got %q", ErrUsage, item)
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// validMIMEPattern 与 config/internal/validate 的规则保持一致：
+// 精确类型、整类/部分通配与全局通配都接受，语法必须能被 path.Match 解析。
+func validMIMEPattern(v string) bool {
+	if v == "" || strings.ContainsAny(v, " \t") {
+		return false
+	}
+	if v == "*" {
+		return true
+	}
+	if !strings.Contains(v, "/") {
+		return false
+	}
+	major, sub, ok := strings.Cut(v, "/")
+	if !ok || major == "" || sub == "" {
+		return false
+	}
+	_, err := path.Match(v, "")
+	return err == nil
+}
+
+// applyAdvanced 把 --zip / --limit-* / --auth-* / --cache-* / --symlink-policy
+// 落到主 location 上。
 //
 // 密码特殊处理：GUI 读到的是脱敏值 "***"，用户没改密码时前端原样回传，
 // 这里遇到空串或 "***" 就保留文件里的原密码，避免把真实口令写成星号。
 func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
-	if in.Zip == nil && in.Limit == nil && in.Auth == nil && in.Cache == nil {
+	if in.Zip == nil && in.ZipMinLength == nil && in.ZipSkipTypes == nil &&
+		in.Limit == nil && in.Auth == nil && in.CacheZone == nil && in.SymlinkPolicy == nil {
 		return nil
 	}
 	loc := primaryLoc(cur)
 
+	if in.SymlinkPolicy != nil {
+		policy, err := normalizeSymlinkPolicy(*in.SymlinkPolicy)
+		if err != nil {
+			return err
+		}
+		if policy != "" && loc.Type != "" && loc.Type != "local" {
+			return fmt.Errorf("%w: --symlink-policy only applies to local locations", ErrUsage)
+		}
+		loc.SymlinkPolicy = policy
+	}
+
 	if in.Zip != nil {
-		zip := make([]string, 0, len(*in.Zip))
-		for _, raw := range *in.Zip {
-			v := strings.ToLower(strings.TrimSpace(raw))
-			if v != "gzip" && v != "br" {
-				return fmt.Errorf("%w: --zip accepts only gzip or br, got %q", ErrUsage, raw)
-			}
-			zip = append(zip, v)
+		zip, err := normalizeZipList(*in.Zip)
+		if err != nil {
+			return err
 		}
 		loc.Zip = &zip
+	}
+
+	if in.ZipMinLength != nil {
+		v := *in.ZipMinLength
+		if v < 0 {
+			return fmt.Errorf("%w: --zip-min-length must be >= 0, got %d", ErrUsage, v)
+		}
+		loc.ZipMinLength = &v
+	}
+
+	if in.ZipSkipTypes != nil {
+		types, err := normalizeZipSkipTypes(*in.ZipSkipTypes)
+		if err != nil {
+			return err
+		}
+		loc.ZipSkipTypes = &types
 	}
 
 	if in.Limit != nil {
@@ -421,17 +595,10 @@ func applyAdvanced(cur *config.SiteInput, in UpdateInput) error {
 		}
 	}
 
-	if in.Cache != nil {
-		v := *in.Cache
-		v.Path = strings.TrimSpace(v.Path)
-		if v.Path == "" && len(v.Valid) == 0 && v.MaxSize == 0 {
-			loc.Cache = &config.Cache{} // 全空 = 关闭缓存
-		} else {
-			if v.Path == "" {
-				return fmt.Errorf("%w: --cache-path is required when enabling proxy cache", ErrUsage)
-			}
-			loc.Cache = &v
-		}
+	if in.CacheZone != nil {
+		// 只写缓存区名；目录、容量与有效期都在主配置 cache 段里。
+		// 空串表示关闭缓存，补丁会删掉 proxy_cache 键。
+		loc.ProxyCache = strings.TrimSpace(*in.CacheZone)
 	}
 
 	return nil

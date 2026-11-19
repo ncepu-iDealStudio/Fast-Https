@@ -17,17 +17,23 @@ func addSiteWriteCommands(root *cobra.Command) {
 		Use:   "add",
 		Short: cli.T("受控新增站点（走配置事务）", "add a site through the config transaction"),
 		Long: cli.T(
-			"复制当前配置树到候选目录、写入站点文件，再走 config apply 同一套事务（校验、恢复点、reload、可回滚）。\n"+
+			"复制当前配置树到候选目录、写入站点文件，再走 config apply 同一套事务（校验、临时备份、reload、可回滚）。\n"+
 				"带 --domain 时全部字段来自 flag；不带 --domain 且标准输入是终端时进向导。\n"+
 				"站点名由域名规范化得到。同名站点，或同一监听端口上已存在的 server_name，都会以退出码 10 拒绝（同域名挂不同端口是合法的）。\n"+
 				"证书默认按域名命名（config/cert/<域名>.pem）：文件已存在就直接复用，不会覆盖；"+
 				"多个站点可以用 --ssl-certificate 指向同一张证书（如通配符证书）。"+
+				"新建站点默认开启 br+gzip 压缩（阈值 1 KB，自动跳过图片/音视频/字体/压缩包），"+
+				"可用 --zip、--zip-min-length、--zip-skip-types 覆盖，--zip= 关闭。"+
+				"要用代理缓存时传 --cache-zone 引用主配置里已定义的缓存区。"+
 				"纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
 			"Copy the live config tree, write the site file on the candidate, then apply it with the same transaction\n"+
 				"as config apply. With --domain everything comes from flags; without it, an interactive terminal enters the wizard.\n"+
 				"A duplicate name, or a server_name already served on the same listen port, exits with code 10 (the same domain on a different port is fine).\n"+
 				"Certificates are named after the domain (config/cert/<domain>.pem) and reused when the file already exists, never overwritten;\n"+
 				"several sites may point at one certificate via --ssl-certificate (e.g. a wildcard certificate).\n"+
+				"New sites get br+gzip compression by default (1 KB threshold, images/media/fonts/archives skipped);\n"+
+				"override with --zip, --zip-min-length, --zip-skip-types, or disable with --zip=.\n"+
+				"Pass --cache-zone to enable proxy caching with a zone defined in the main config.\n"+
 				"Flag mode requires --yes unless --dry-run; the wizard confirms at the end."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
@@ -44,22 +50,40 @@ func addSiteWriteCommands(root *cobra.Command) {
 	add.Flags().String("ssl-certificate-key", "", cli.T(
 		"私钥路径；留空用 config/cert/<域名>-key.pem",
 		"private key path; defaults to config/cert/<domain>-key.pem"))
+	add.Flags().String("symlink-policy", "", cli.T(
+		"静态根符号链接策略：check-at-load（默认）/ reject / allow；仅 local 生效",
+		"static root symlink policy: check-at-load (default) / reject / allow; local only"))
+	add.Flags().StringSlice("zip", siteops.DefaultZip, cli.T(
+		"响应压缩编码，可重复：gzip / br；默认 br,gzip；传空表示不压缩",
+		"response compression: gzip / br, repeatable; defaults to br,gzip; empty disables"))
+	add.Flags().Int("zip-min-length", siteops.DefaultZipMinLength, cli.T(
+		"最小压缩阈值（字节），0 表示不限制；默认 1024",
+		"minimum size to compress in bytes; 0 disables the threshold; default 1024"))
+	add.Flags().StringSlice("zip-skip-types", siteops.DefaultZipSkipTypes, cli.T(
+		"跳过压缩的 MIME 类型，支持 image/*；默认跳过图片/音视频/字体/压缩包",
+		"MIME types to skip, image/* wildcards supported; defaults skip images, media, fonts and archives"))
+	add.Flags().String("cache-zone", "", cli.T(
+		"启用代理缓存并指定主配置 cache 段里的缓存区名；留空表示不缓存",
+		"enable proxy caching with a cache zone name from the main config cache section; empty disables"))
 
 	upd := &cobra.Command{
 		Use:   "update <name>",
 		Short: cli.T("受控更新站点的白名单字段", "update allow-listed fields of a site through the config transaction"),
 		Long: cli.T(
 			"只改 flag 点名的字段：--listen、--server-name、--root、--proxy-pass、--tls、--ssl-certificate*，"+
-				"以及主 location 上的高级配置 --zip、--limit-*、--auth-*、--cache-*。"+
+				"以及主 location 上的高级配置 --zip、--zip-min-length、--zip-skip-types、--limit-*、--auth-*、--cache-zone、--symlink-policy。"+
 				"没写的字段（含未知键与注释）原样保留，不接受任意 JSON 合并。"+
 				"改 --server-name 时，按域名自动命名的证书路径会跟着改名；自定义证书路径不动。"+
-				"关闭某项：--zip= 清空压缩，--auth-type= 关闭认证，--cache-path= 关闭缓存。"+
+				"关闭某项：--zip= 清空压缩，--zip-min-length=0 取消阈值，--zip-skip-types= 回落内置清单，"+
+				"--auth-type= 关闭认证，--cache-zone= 关闭缓存，--symlink-policy= 回到默认策略。"+
+				"--cache-zone 必须是主配置 cache 段里已定义的缓存区名，拼错会在执行前拒绝。"+
 				"--auth-pass 留空或传 *** 表示沿用原口令。内联在主配置 http.server[] 里的站点返回 NOT_SUPPORTED。",
 			"Only the named flags change: --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate*,\n"+
-				"plus main-location advanced options --zip, --limit-*, --auth-*, --cache-*.\n"+
+				"plus main-location advanced options --zip, --zip-min-length, --zip-skip-types, --limit-*, --auth-*, --cache-zone, --symlink-policy.\n"+
 				"Everything else, including unknown keys and comments, is preserved; arbitrary JSON merge is rejected.\n"+
 				"Renaming --server-name makes the auto-named certificate path follow; custom certificate paths are left alone.\n"+
-				"Disable with --zip=, --auth-type= or --cache-path=. An empty or *** --auth-pass keeps the current password.\n"+
+				"Disable with --zip=, --zip-min-length=0, --zip-skip-types=, --auth-type=, --cache-zone= or --symlink-policy=. An empty or *** --auth-pass keeps the current password.\n"+
+				"--cache-zone must name a zone defined in the main config cache section; a typo is rejected before the transaction starts.\n"+
 				"Sites inline in the main config http.server[] return NOT_SUPPORTED."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
@@ -77,6 +101,8 @@ func addSiteWriteCommands(root *cobra.Command) {
 		"私钥路径；留空表示交回默认约定",
 		"private key path; empty falls back to the default convention"))
 	upd.Flags().StringSlice("zip", nil, cli.T("响应压缩编码，可重复：gzip / br；传空表示关闭", "response compression: gzip / br, repeatable; empty disables"))
+	upd.Flags().Int("zip-min-length", -1, cli.T("最小压缩阈值（字节），0 表示不限制；不传表示不改", "minimum size to compress in bytes; 0 disables the threshold; omit to keep"))
+	upd.Flags().StringSlice("zip-skip-types", nil, cli.T("跳过压缩的 MIME 类型，如 image/png；传空表示回落内置清单", "MIME types to skip, e.g. image/png; empty restores the built-in list"))
 	upd.Flags().Int("limit-rate", -1, cli.T("限流 rate（每秒请求数），0 表示不限", "rate limit (requests per second); 0 disables"))
 	upd.Flags().Int("limit-burst", -1, cli.T("限流 burst（突发桶大小）", "rate limit burst bucket size"))
 	upd.Flags().Int("limit-mem", -1, cli.T("限流 mem（连接缓冲大小）", "rate limit connection buffer size"))
@@ -85,9 +111,12 @@ func addSiteWriteCommands(root *cobra.Command) {
 	upd.Flags().String("auth-user", "", cli.T("Basic 认证用户名", "basic auth user name"))
 	upd.Flags().String("auth-pass", "", cli.T("Basic 认证口令；留空或 *** 表示沿用原口令", "basic auth password; empty or *** keeps the current one"))
 	upd.Flags().String("auth-realm", "", cli.T("Basic 认证 realm，留空用站点名", "basic auth realm; defaults to the site name"))
-	upd.Flags().String("cache-path", "", cli.T("代理缓存目录；留空表示关闭缓存", "proxy cache directory; empty disables caching"))
-	upd.Flags().StringSlice("cache-valid", nil, cli.T("代理缓存有效期，可重复，如 10s / 1m", "proxy cache TTL values, repeatable, e.g. 10s / 1m"))
-	upd.Flags().Int("cache-max-size", -1, cli.T("代理缓存最大字节数", "proxy cache maximum size in bytes"))
+	upd.Flags().String("cache-zone", "", cli.T(
+		"启用代理缓存并指定缓存区名；留空表示关闭缓存",
+		"enable proxy caching with a cache zone name; empty disables caching"))
+	upd.Flags().String("symlink-policy", "", cli.T(
+		"静态根符号链接策略：check-at-load / reject / allow；传空表示回到默认",
+		"static root symlink policy: check-at-load / reject / allow; empty restores the default"))
 
 	del := &cobra.Command{
 		Use:          "delete <name>",
@@ -139,7 +168,7 @@ func RunAdd(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 	}
-	in, err := collectAddInput(cmd, cli.BannedRoots(live))
+	in, err := collectAddInput(cmd, live, cli.BannedRoots(live))
 	if err != nil {
 		return err
 	}
@@ -152,7 +181,7 @@ func RunAdd(cmd *cobra.Command, _ []string) error {
 // collectAddInput 采集新增站点需要的字段：带 --domain 走 flag（非交互，
 // 供脚本与 agent 调用）；不带 --domain 且能交互时进向导，把向导结果压成
 // 同一个 AddInput，两条路径最终都落到 siteops.Add 的配置事务上。
-func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, error) {
+func collectAddInput(cmd *cobra.Command, live string, banned []string) (siteops.AddInput, error) {
 	domain, _ := cmd.Flags().GetString("domain")
 	root, _ := cmd.Flags().GetString("root")
 	proxy, _ := cmd.Flags().GetString("proxy-pass")
@@ -160,13 +189,18 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 	tls, _ := cmd.Flags().GetBool("tls")
 	cert, _ := cmd.Flags().GetString("ssl-certificate")
 	certKey, _ := cmd.Flags().GetString("ssl-certificate-key")
+	policy, _ := cmd.Flags().GetString("symlink-policy")
+	cacheZone, _ := cmd.Flags().GetString("cache-zone")
+	if err := ensureCacheZone(live, cacheZone); err != nil {
+		return siteops.AddInput{}, err
+	}
 
 	if strings.TrimSpace(domain) != "" {
 		if strings.TrimSpace(proxy) == "" && strings.TrimSpace(root) == "" {
 			return siteops.AddInput{}, cli.UsageError(fmt.Errorf("--root or --proxy-pass is required"))
 		}
 		// root 的边界在事务外先校验：路径越界属于使用错误，没必要先建
-		// 恢复点再回滚，否则失败会留下 uncertain 状态，后续命令被
+		// 临时备份再回滚，否则失败会留下 uncertain 状态，后续命令被
 		// RECOVERY_REQUIRED 拦住。
 		if strings.TrimSpace(proxy) == "" {
 			abs, err := pathguard.CheckRoot(root, banned)
@@ -175,10 +209,32 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 			}
 			root = abs
 		}
-		return siteops.AddInput{
+		in := siteops.AddInput{
 			Domain: domain, Root: root, Listens: listens, ProxyPass: proxy, TLS: tls, Banned: banned,
-			SSLCertificate: cert, SSLCertificateKey: certKey,
-		}, nil
+			SSLCertificate: cert, SSLCertificateKey: certKey, SymlinkPolicy: policy,
+			CacheZone: strings.TrimSpace(cacheZone),
+		}
+		// 压缩默认值由 siteops 补齐；只有显式改过的 flag 才覆盖，
+		// 这样 --zip= 能关闭压缩，而没写 flag 时仍拿到默认值。
+		if cmd.Flags().Changed("zip") {
+			v, _ := cmd.Flags().GetStringSlice("zip")
+			if len(v) == 1 && strings.TrimSpace(v[0]) == "" {
+				v = nil
+			}
+			in.Zip = &v
+		}
+		if cmd.Flags().Changed("zip-min-length") {
+			v, _ := cmd.Flags().GetInt("zip-min-length")
+			in.ZipMinLength = &v
+		}
+		if cmd.Flags().Changed("zip-skip-types") {
+			v, _ := cmd.Flags().GetStringSlice("zip-skip-types")
+			if len(v) == 1 && strings.TrimSpace(v[0]) == "" {
+				v = nil
+			}
+			in.ZipSkipTypes = &v
+		}
+		return in, nil
 	}
 
 	// 没给 --domain：能交互就进向导（原 site init 的能力）。
@@ -211,6 +267,8 @@ func collectAddInput(cmd *cobra.Command, banned []string) (siteops.AddInput, err
 		// 向导里填过的证书路径照样带过去，不能因为换条路径就丢掉用户输入。
 		SSLCertificate:    si.SSLCertificate,
 		SSLCertificateKey: si.SSLCertificateKey,
+		SymlinkPolicy:     loc.SymlinkPolicy,
+		CacheZone:         loc.ProxyCache,
 	}, nil
 }
 
@@ -264,6 +322,22 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 		in.Zip = &v
 		changed = true
 	}
+	if cmd.Flags().Changed("zip-min-length") {
+		v, _ := cmd.Flags().GetInt("zip-min-length")
+		if v < 0 {
+			return cli.UsageError(fmt.Errorf("--zip-min-length must be >= 0"))
+		}
+		in.ZipMinLength = &v
+		changed = true
+	}
+	if cmd.Flags().Changed("zip-skip-types") {
+		v, _ := cmd.Flags().GetStringSlice("zip-skip-types")
+		if len(v) == 1 && strings.TrimSpace(v[0]) == "" {
+			v = nil // --zip-skip-types "" 表示回落内置清单
+		}
+		in.ZipSkipTypes = &v
+		changed = true
+	}
 	if limit, ok := readLimitFlags(cmd); ok {
 		in.Limit = limit
 		changed = true
@@ -272,12 +346,20 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 		in.Auth = auth
 		changed = true
 	}
-	if cache, ok := readCacheFlags(cmd); ok {
-		in.Cache = cache
+	if cacheZone, ok := readCacheZoneFlag(cmd); ok {
+		if err := ensureCacheZone(live, *cacheZone); err != nil {
+			return err
+		}
+		in.CacheZone = cacheZone
+		changed = true
+	}
+	if cmd.Flags().Changed("symlink-policy") {
+		v, _ := cmd.Flags().GetString("symlink-policy")
+		in.SymlinkPolicy = &v
 		changed = true
 	}
 	if !changed {
-		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate, --ssl-certificate-key, --zip, --limit-*, --auth-*, --cache-*"))
+		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate, --ssl-certificate-key, --zip, --zip-min-length, --zip-skip-types, --limit-*, --auth-*, --cache-zone, --symlink-policy"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	return cli.RunTxn(cmd, "site.update", "site update "+in.Name, map[string]string{"name": in.Name}, dry, func(_ string, dirs []string) error {
@@ -354,19 +436,35 @@ func readAuthFlags(cmd *cobra.Command) (*config.PathAuth, bool) {
 	return auth, true
 }
 
-// readCacheFlags 组装 --cache-*。path 为空等于关闭缓存。
-func readCacheFlags(cmd *cobra.Command) (*config.Cache, bool) {
-	f := cmd.Flags()
-	if !f.Changed("cache-path") && !f.Changed("cache-valid") && !f.Changed("cache-max-size") {
+// readCacheZoneFlag 读取 --cache-zone。空串表示关闭缓存。
+func readCacheZoneFlag(cmd *cobra.Command) (*string, bool) {
+	if !cmd.Flags().Changed("cache-zone") {
 		return nil, false
 	}
-	cache := &config.Cache{}
-	cache.Path, _ = f.GetString("cache-path")
-	cache.Valid, _ = f.GetStringSlice("cache-valid")
-	if f.Changed("cache-max-size") {
-		cache.MaxSize, _ = f.GetInt("cache-max-size")
+	v, _ := cmd.Flags().GetString("cache-zone")
+	v = strings.TrimSpace(v)
+	return &v, true
+}
+
+// ensureCacheZone 在写站点前确认缓存区已定义：站点只存区名，
+// 拼错要在命令执行前拦下，而不是留到事务校验。
+func ensureCacheZone(live, zone string) error {
+	zone = strings.TrimSpace(zone)
+	if zone == "" {
+		return nil
 	}
-	return cache, true
+	zones, err := config.ReadCacheZones(live)
+	if err != nil {
+		return err
+	}
+	for _, z := range zones {
+		if z.Name == zone {
+			return nil
+		}
+	}
+	return cli.UsageError(fmt.Errorf(
+		"cache zone %q is not defined in %s; run `fast-https cache list` to see available zones",
+		zone, live))
 }
 
 func RunEnable(cmd *cobra.Command, args []string) error {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -64,16 +63,14 @@ func BannedRoots(liveMain string) []string {
 	}
 }
 
-// Abs 把路径固定到当前工作目录，失败时原样返回。
-func Abs(path string) string { return abs(path) }
-
 // NewTxnEngine 构造配置事务引擎：状态目录来自 --state-dir，
 // reload 与健康检查都按 pid 文件判断服务是否在跑。
 func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 	pidPath := config.PID_FILE
 	var before *rtclient.Snapshot
 	return &txn.Engine{
-		State: StateDir(),
+		State:   StateDir(),
+		CertDir: resolveCertDir(liveMain),
 		Reloader: txn.FuncReloader(func(ctx context.Context) error {
 			st, pid, err := procctl.InspectProcess(pidPath)
 			if err != nil {
@@ -141,46 +138,24 @@ func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 	}
 }
 
-// restartService 停止并重新启动服务进程，让新配置生效（Windows 专用路径）。
-//
-// 用于替代热重载：Windows 无法定向投递 reload 信号，重启是唯一可靠的
-// 应用方式。通过子进程调用自身的 stop / start 子命令实现——不直接调
-// 父包的 Handler（会循环依赖），也复用了已有的停止/启动语义。
-func restartService(pidPath string) error {
-	self, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("取程序路径失败：%w", err)
+// resolveCertDir 让证书目录跟随实际使用的配置文件：
+// 默认配置下就是编译期的 config/cert；用 --config 指向别处时，
+// 优先用配置文件旁边的 cert/，避免把别的安装目录证书写进当前状态。
+func resolveCertDir(liveMain string) string {
+	if liveMain == "" {
+		return config.CERT_DIR
 	}
-	dir := filepath.Dir(pidPath)
-
-	// 1. stop：等它真正退出，避免端口占用导致新进程起不来
-	stopCmd := exec.Command(self, "stop")
-	stopCmd.Dir = dir
-	_ = stopCmd.Run() // stop 在服务未运行时返回非零，这里不视为失败
-	for i := 0; i < 30; i++ {
-		if st, _, err := procctl.InspectProcess(pidPath); err != nil || st != procctl.ProcessRunning {
-			break
-		}
-		time.Sleep(150 * time.Millisecond)
+	dir := filepath.Join(filepath.Dir(liveMain), "cert")
+	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		return dir
 	}
-
-	// 2. start：派生后台进程，不等待它退出
-	startCmd := exec.Command(self, "start")
-	startCmd.Dir = dir
-	if err := startCmd.Start(); err != nil {
-		return fmt.Errorf("启动服务失败：%w", err)
-	}
-	go func() { _ = startCmd.Wait() }()
-
-	// 3. 确认新进程在跑（最多等 6 秒）
-	for i := 0; i < 20; i++ {
-		time.Sleep(300 * time.Millisecond)
-		if st, _, err := procctl.InspectProcess(pidPath); err == nil && st == procctl.ProcessRunning {
-			return nil
-		}
-	}
-	return fmt.Errorf("服务启动超时")
+	return config.CERT_DIR
 }
+
+// restartService 定义在平台文件里：Windows 用子进程调用自身 stop/start
+// 让新配置生效（无法定向投递 reload 信号）；其余平台不会被调用。
+// 这样 os/exec 只出现在明确标注为「重执行自身」的文件里，
+// 不会混进通用的 CLI 工具代码（arch 守卫会检查）。
 
 // RunTxn 是站点写命令的公共入口：读 --config、按 --timeout 建上下文、
 // 跑事务并输出结果。
@@ -227,14 +202,13 @@ func FromSiteopsError(id string, err error) *CLIError {
 // EmitTxnResult 按 --json 与是否 dry-run 输出事务结果。
 func EmitTxnResult(cmd *cobra.Command, id string, res txn.Result) error {
 	data := map[string]any{
-		"dry_run":       res.DryRun,
-		"idempotent":    res.Idempotent,
-		"identical":     res.Diff.Identical,
-		"changes":       res.Diff.Changes,
-		"restore_point": res.RestorePoint,
-		"version":       res.Version,
-		"rolled_back":   res.RolledBack,
-		"config_state":  res.ConfigState,
+		"dry_run":      res.DryRun,
+		"idempotent":   res.Idempotent,
+		"identical":    res.Diff.Identical,
+		"changes":      res.Diff.Changes,
+		"version":      res.Version,
+		"rolled_back":  res.RolledBack,
+		"config_state": res.ConfigState,
 	}
 	if res.Operation.ID != "" {
 		data["operation_id"] = res.Operation.ID
@@ -252,8 +226,8 @@ func EmitTxnResult(cmd *cobra.Command, id string, res txn.Result) error {
 		}
 		return PrintIndentedJSON(cmd.OutOrStdout(), res.Diff)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s %s restore=%s version=%s\n",
-		res.Operation.ID, res.Operation.Status, res.RestorePoint, res.Version)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s %s version=%s\n",
+		res.Operation.ID, res.Operation.Status, res.Version)
 	return nil
 }
 

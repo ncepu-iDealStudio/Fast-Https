@@ -799,7 +799,9 @@ function Initialize-WelcomeScreen {
     })
     $btnRun.Add_Click({
         $exe = Join-Path $txtPath.Text.Trim() 'fast-https-desktop.exe'
-        if (Test-Path $exe) { Start-Process $exe }
+        # 必须指定工作目录：向导通常由下载目录/dist 里的 setup.exe 启动，
+        # 子进程会继承该目录并一直锁住它（下次打包 goreleaser 清理 dist 会失败）。
+        if (Test-Path $exe) { Start-Process $exe -WorkingDirectory $txtPath.Text.Trim() }
         else { Start-Process $txtPath.Text.Trim() }
         $window.Close()
     })

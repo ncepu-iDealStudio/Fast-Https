@@ -26,10 +26,20 @@ go vet ./...                  # 静态检查
 | 变量 | 测试 | 说明 |
 | --- | --- | --- |
 | `FASTHTTPS_E2E_RELOAD=1` | TestReloadPortSwitchE2E | 真实进程切端口热重载 |
+| `FASTHTTPS_E2E_REJECT_LOG=1` | TestRejectLogE2E | 真实进程触发路径穿越 / header 超限 / body 超限 / 压缩跳过 / 未知 SNI，再用 `logs query --reject-reason` 查回 |
 | `FASTHTTPS_E2E_RUNTIME=1` | TestRuntimeProcessRestartE2E | 两个短生命周期进程：新 PID / `started_at`，`requests.total` 从 0 开始；`stop` 后 `/runtime` 不可达且 pid 文件被清理 |
 | （内部 helper 变量） | TestProxyHTTPIntegration / TestH2Integration | 默认随 `go test` 运行 |
 
 涉及 reload 或防火墙的改动必须跑对应 E2E；它们使用子进程 + 临时运行目录，不改仓库内 `config/fast-https.json`（铁律）。
+
+## CI
+
+Gitee Go 流水线 [.workflow/go-test.yml](../../.workflow/go-test.yml)（push / PR 到 `main`、`master`）的 `go test` 步骤依次执行：
+
+1. `go test ./...`
+2. `FASTHTTPS_E2E_RELOAD=1 go test ./tests/client_test -run TestReloadPortSwitchE2E -v -count=1`
+
+reload E2E 依赖向子进程定向投递 SIGINT，Windows 本机无法执行（`reload` 命令会明确拒绝），因此固定放在 Linux 流水线里。本地改过 reload 后仍建议在 Linux/CI 上跑同一命令，Windows 只能跑包级 `-race` 用例。
 
 ## 基准
 
@@ -54,7 +64,7 @@ sh tests/packaging/distro/run.sh all      # deb → upgrade → rpm → apk
 
 四个场景分别在 `ubuntu:24.04`、`almalinux:9`、`alpine:3.21` 里装包、启动、轮转、卸载，逐项打印 `PASS` / `FAIL`，退出码即结果。
 
-**跑之前先看 [test/3-distro-verification.md](../test/3-distro-verification.md)**：那里有上一次实测的产物校验和、镜像摘要、逐项结论，以及"看着像缺陷其实是镜像策略"的四条环境差异（man `path-exclude`、`curl-minimal` 冲突、容器内 `start` 不 daemonize、rpm `.rpmsave`）。同一份产物不重复跑。
+**跑之前先看 [test/verification/distro-packages.md](../test/verification/distro-packages.md)**：那里有上一次实测的产物校验和、镜像摘要、逐项结论，以及"看着像缺陷其实是镜像策略"的四条环境差异（man `path-exclude`、`curl-minimal` 冲突、容器内 `start` 不 daemonize、rpm `.rpmsave`）。同一份产物不重复跑。
 
 ## 新功能测试清单
 

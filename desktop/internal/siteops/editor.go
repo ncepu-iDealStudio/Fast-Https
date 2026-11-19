@@ -1,6 +1,6 @@
 package siteops
 
-// 站点写操作全部转交主程序 site 命令的配置事务（校验、恢复点、reload、
+// 站点写操作全部转交主程序 site 命令的配置事务（校验、临时备份、reload、
 // 可回滚），桌面端不自己改站点文件；读取走 site show。这里只做三件纯 UI
 // 的事：表单校验（快速反馈，权威校验仍在 CLI）、弹窗字段与命令 flag 的
 // 翻译、结果文案。
@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fast-https-desktop/internal/cli"
 	"fast-https-desktop/internal/model"
+	"fast-https-desktop/internal/pathutil"
 	"fast-https-desktop/internal/view"
 	"fmt"
 	"net/url"
@@ -114,6 +115,18 @@ func txnMessage(data any, verb, name string) string {
 	return msg + view.WriteNote()
 }
 
+// 新建站点的压缩默认值，与 management/siteops.DefaultZip* 保持一致。
+// 前端新增模式也会预填同一组值；这里兜底直接调用或旧前端的场景。
+var (
+	defaultZip          = []string{"br", "gzip"}
+	defaultZipSkipTypes = []string{
+		"image/*", "video/*", "audio/*",
+		"font/woff2", "application/zip", "application/gzip",
+	}
+)
+
+const defaultZipMinLength = 1024
+
 // planAdd 把弹窗输入翻译成 CLI 参数：site add 建站（域名即文件名），
 // 多域名时再用 site update --server-name 补全 server_name。
 func planAdd(in SiteInput) ([][]string, error) {
@@ -130,6 +143,21 @@ func planAdd(in SiteInput) ([][]string, error) {
 	} else {
 		add = append(add, "--root", p.root)
 	}
+	// 压缩默认值随建站一起写入，避免建好后再补一条 update。
+	// 静态与代理响应都支持压缩，两种站点都带这组参数。
+	// 前端新增模式会显式提交默认值；Zip 为 nil 时（旧前端或直接调用）
+	// 这里也补同一组默认值，与 CLI 的 site add 保持一致。
+	zip, minLen, skip := in.Zip, in.ZipMinLength, in.ZipSkipTypes
+	if zip == nil {
+		zip, minLen, skip = defaultZip, defaultZipMinLength, defaultZipSkipTypes
+	}
+	add = append(add, zipArgs(zip)...)
+	add = append(add, "--zip-min-length", strconv.Itoa(minLen))
+	add = append(add, zipSkipTypesArgs(skip)...)
+	if zone := strings.TrimSpace(in.CacheZone); zone != "" {
+		// 缓存区随 site add 一起写入：区名写错时建站直接失败，不会留下半个站点。
+		add = append(add, "--cache-zone", zone)
+	}
 	if p.tls {
 		add = append(add, "--tls")
 	}
@@ -141,15 +169,14 @@ func planAdd(in SiteInput) ([][]string, error) {
 	add = append(add, "--yes")
 	plan := [][]string{add}
 
-	// site add 不接受 zip / limit / auth / cache，所以建好之后补一条
-	// site update 把它们写进去。与上面多域名补全是同一套路：先创建，
-	// 再用受控更新补齐；中途失败会明确告诉用户站点已建成。
+	// 压缩已随 site add 写入；其余高级字段（限流/认证/缓存/符号链接）
+	// 仍需建好后补一条 site update，与多域名补 server_name 同一套路。
 	var extra []string
 	if len(p.names) > 1 {
 		extra = append(extra, "--server-name", strings.Join(p.names, " "))
 	}
-	if hasAdvanced(in) {
-		extra = append(extra, advancedArgs(in)...)
+	if hasNonZipAdvanced(in) {
+		extra = append(extra, nonZipAdvancedArgs(in)...)
 	}
 	if len(extra) > 0 {
 		plan = append(plan, append([]string{"site", "update", p.names[0]}, append(extra, "--yes")...))
@@ -211,7 +238,7 @@ func DeleteSite(dir, id string) (string, error) {
 }
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
-// 桌面端不改文件名：事务会处理校验、恢复点与 reload，和命令行语义一致。
+// 桌面端不改文件名：事务会处理校验、临时备份与 reload，和命令行语义一致。
 //
 // Windows 特殊处理：事务的 reload 阶段用 GenerateConsoleCtrlEvent 给服务
 // 进程发信号，而该 API 只能发给整个控制台进程组——服务会被打断（表现为
@@ -271,7 +298,8 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 	if locs := cli.AsSlice(srv["location"]); len(locs) > 0 {
 		if loc, ok := locs[0].(map[string]any); ok {
 			d.Type = cli.Str(loc, "type")
-			d.Root = cli.Str(loc, "root")
+			// 站点根统一用绝对路径展示：默认配置里的 ./httpdoc/root 看不出基准。
+			d.Root = pathutil.Resolve(dir, cli.Str(loc, "root"))
 			d.ProxyPass = cli.Str(loc, "proxy_pass")
 			d.Index = strings.Join(cli.Strs(loc, "index"), " ")
 			fillAdvanced(&d, loc)
@@ -291,6 +319,9 @@ func ReadSiteDetail(dir, id string) (SiteDetail, error) {
 // auth.pswd 已被 site show 脱敏成 ***，原样保留：前端留空即不改密码。
 func fillAdvanced(d *SiteDetail, loc map[string]any) {
 	d.Zip = cli.Strs(loc, "zip")
+	d.ZipMinLength = cli.Int(loc, "zip_min_length")
+	d.ZipSkipTypes = cli.Strs(loc, "zip_skip_types")
+	d.SymlinkPolicy = cli.Str(loc, "symlink_policy")
 
 	if limit := cli.AsMap(loc["limit"]); limit != nil {
 		d.LimitRate = cli.Int(limit, "rate")
@@ -306,10 +337,8 @@ func fillAdvanced(d *SiteDetail, loc map[string]any) {
 		d.AuthRealm = cli.Str(auth, "realm")
 	}
 
-	if cache := cli.AsMap(loc["proxy_cache"]); cache != nil {
-		d.CachePath = cli.Str(cache, "path")
-		d.CacheValid = cli.Strs(cache, "valid")
-		d.CacheMaxSize = cli.Int(cache, "max_size")
+	if zone, ok := loc["proxy_cache"].(string); ok {
+		d.CacheZone = strings.TrimSpace(zone)
 	}
 }
 
@@ -384,6 +413,21 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 		changed = true
 	}
 
+	if cur.ZipMinLength != in.ZipMinLength {
+		args = append(args, "--zip-min-length", strconv.Itoa(in.ZipMinLength))
+		changed = true
+	}
+
+	if !sameStringSet(cur.ZipSkipTypes, in.ZipSkipTypes) {
+		args = append(args, zipSkipTypesArgs(in.ZipSkipTypes)...)
+		changed = true
+	}
+
+	if strings.TrimSpace(cur.SymlinkPolicy) != strings.TrimSpace(in.SymlinkPolicy) {
+		args = append(args, "--symlink-policy="+strings.TrimSpace(in.SymlinkPolicy))
+		changed = true
+	}
+
 	if cur.LimitRate != in.LimitRate || cur.LimitBurst != in.LimitBurst ||
 		cur.LimitMem != in.LimitMem || cur.LimitNodelay != in.LimitNodelay {
 		args = append(args, limitArgs(in)...)
@@ -395,9 +439,8 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 		changed = true
 	}
 
-	if cur.CachePath != in.CachePath || !sameStringSet(cur.CacheValid, in.CacheValid) ||
-		cur.CacheMaxSize != in.CacheMaxSize {
-		args = append(args, cacheArgs(in)...)
+	if strings.TrimSpace(cur.CacheZone) != strings.TrimSpace(in.CacheZone) {
+		args = append(args, cacheZoneArgs(in)...)
 		changed = true
 	}
 
@@ -406,22 +449,52 @@ func planAdvanced(cur SiteDetail, in SiteInput) ([]string, bool) {
 
 // advancedArgs 把高级配置**全部**翻成参数，不做「和当前值比」的过滤。
 //
-// 新建站点要用它：site add 不接受这四个字段，只能在建好之后补一条
-// site update；那时没有「当前详情」可比，传什么就该写什么。
+// 编辑站点用它：没有「当前详情」可比时，传什么就该写什么。
+// 新建站点不走这里——压缩已随 site add 写入，其余字段由 nonZipAdvancedArgs 补齐。
 func advancedArgs(in SiteInput) []string {
 	var args []string
 	args = append(args, zipArgs(in.Zip)...)
+	if in.ZipMinLength > 0 {
+		args = append(args, "--zip-min-length", strconv.Itoa(in.ZipMinLength))
+	}
+	if len(in.ZipSkipTypes) > 0 {
+		args = append(args, zipSkipTypesArgs(in.ZipSkipTypes)...)
+	}
+	if p := strings.TrimSpace(in.SymlinkPolicy); p != "" {
+		args = append(args, "--symlink-policy="+p)
+	}
 	args = append(args, limitArgs(in)...)
 	args = append(args, authArgs(in)...)
-	args = append(args, cacheArgs(in)...)
+	args = append(args, cacheZoneArgs(in)...)
 	return args
 }
 
+// nonZipAdvancedArgs 是 advancedArgs 里除压缩与缓存区以外的部分。
+// 新建站点时压缩与缓存区直接随 site add 写入，剩下的字段才需要补 site update。
+func nonZipAdvancedArgs(in SiteInput) []string {
+	var args []string
+	if p := strings.TrimSpace(in.SymlinkPolicy); p != "" {
+		args = append(args, "--symlink-policy="+p)
+	}
+	args = append(args, limitArgs(in)...)
+	args = append(args, authArgs(in)...)
+	return args
+}
+
+// hasNonZipAdvanced 报告除压缩与缓存区外是否还填了高级配置。
+func hasNonZipAdvanced(in SiteInput) bool {
+	return strings.TrimSpace(in.SymlinkPolicy) != "" ||
+		in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
+		in.LimitNodelay || in.AuthOn
+}
+
 // hasAdvanced 报告用户是否在弹窗里填过任何高级配置。
-// 新建站点据此决定要不要追加那条 site update。
+// 编辑站点据此决定要不要跑 site update。
 func hasAdvanced(in SiteInput) bool {
-	return len(in.Zip) > 0 || in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
-		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CachePath) != ""
+	return len(in.Zip) > 0 || in.ZipMinLength > 0 || len(in.ZipSkipTypes) > 0 ||
+		strings.TrimSpace(in.SymlinkPolicy) != "" ||
+		in.LimitRate > 0 || in.LimitBurst > 0 || in.LimitMem > 0 ||
+		in.LimitNodelay || in.AuthOn || strings.TrimSpace(in.CacheZone) != ""
 }
 
 // zipArgs 生成响应压缩参数。空列表用 --zip= 表示清除，
@@ -442,6 +515,21 @@ func zipArgs(zip []string) []string {
 	return args
 }
 
+// zipSkipTypesArgs 生成跳过压缩的 MIME 类型参数。空列表用 --zip-skip-types=
+// 表示回落内置清单（CLI 侧把单个空值当成删除）。
+func zipSkipTypesArgs(types []string) []string {
+	var args []string
+	for _, t := range types {
+		if s := strings.TrimSpace(t); s != "" {
+			args = append(args, "--zip-skip-types", s)
+		}
+	}
+	if len(args) == 0 {
+		return []string{"--zip-skip-types="}
+	}
+	return args
+}
+
 // limitArgs 生成限流参数。三个数字全为 0 且没开 nodelay 时，
 // 仍显式写 0，让 CLI 删掉整个 limit 键而不是留一个全零对象。
 func limitArgs(in SiteInput) []string {
@@ -456,22 +544,13 @@ func limitArgs(in SiteInput) []string {
 	return args
 }
 
-// cacheArgs 生成反向代理缓存参数。目录留空表示清除整块 proxy_cache。
-func cacheArgs(in SiteInput) []string {
-	path := strings.TrimSpace(in.CachePath)
-	if path == "" {
-		return []string{"--cache-path="}
+// cacheZoneArgs 生成反向代理缓存参数。区名留空表示清除 proxy_cache。
+func cacheZoneArgs(in SiteInput) []string {
+	zone := strings.TrimSpace(in.CacheZone)
+	if zone == "" {
+		return []string{"--cache-zone="}
 	}
-	args := []string{"--cache-path", path}
-	for _, v := range in.CacheValid {
-		if s := strings.TrimSpace(v); s != "" {
-			args = append(args, "--cache-valid", s)
-		}
-	}
-	if in.CacheMaxSize > 0 {
-		args = append(args, "--cache-max-size", strconv.Itoa(in.CacheMaxSize))
-	}
-	return args
+	return []string{"--cache-zone", zone}
 }
 
 // planAuth 处理 Basic 认证：关掉时清空四个值，开着时只在密码真的变了才传

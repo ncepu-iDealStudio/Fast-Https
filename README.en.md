@@ -4,7 +4,7 @@
 One JSON file describes listen ports and locations, covering common site and reverse-proxy scenarios.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.7.0-0E7490?style=flat-square" alt="version" />
+  <img src="https://img.shields.io/badge/version-1.7.1-0E7490?style=flat-square" alt="version" />
   <img src="https://img.shields.io/badge/Go-1.27-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go" />
   <img src="https://img.shields.io/badge/HTTP%2F2-x%2Fnet%2Fhttp2-0E7490?style=flat-square" alt="HTTP/2" />
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-334155?style=flat-square" alt="platform" />
@@ -120,7 +120,7 @@ The two are aimed at different jobs: a general-purpose web server covers more pr
 
 ```bash
 # Option 1: release package
-# Windows: run fast-https-<version>-windows-<arch>-setup.exe.
+# Windows: run fast-https-windows-<arch>-setup.exe.
 # Linux / macOS: download the archive from https://gitee.com/ncepu-bj/fast-https/releases and unpack it.
 ./fast-https start
 
@@ -135,14 +135,18 @@ The shipped config has two layers: `config/fast-https.json` keeps system-level s
   "log_root": "./logs",
   "security": {
     "host_check": "off",
-    "headers": { "nosniff": true, "hsts": "", "x_frame_options": "",
-                 "referrer_policy": "", "content_security_policy": "" }
+    "headers": { "nosniff": true, "hsts": "", "x_frame_options": "SAMEORIGIN",
+                 "referrer_policy": "strict-origin-when-cross-origin", "content_security_policy": "" }
   },
-  "waf": { "mode": "disabled" },
+  "waf": { "mode": "monitor" },
+  "proxy": {
+    "trusted_proxies": ["127.0.0.1/32", "::1/128"],
+    "forwarded_for": { "max_hops": 10 }
+  },
   "http": {
-    "include": ["./config/conf.d"],
+    "include": ["./conf.d"],
     "default_type": "application/octet-stream",
-    "servers_limit": { "max_header_size": 4096, "max_body_size": 524288, "limit": 0, "burst": 0 },
+    "servers_limit": { "max_header_size": 8192, "max_body_size": 8388608, "limit": 0, "burst": 0 },
     "blaklist": [],
     "log_format": ["ip_port", "time", "type", "method", "path", "host", "status", "size", "user_agent"]
   },
@@ -150,7 +154,15 @@ The shipped config has two layers: `config/fast-https.json` keeps system-level s
 }
 ```
 
-Every value above equals its built-in default; they are spelled out so the file itself shows which system-wide switches exist. Field reference: [docs/usage.md](docs/usage.md).
+This config already enables a few capabilities that suit most deployments, so it runs as shipped:
+
+- Security headers: `nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`.
+  `hsts` and `content_security_policy` stay empty: enable HSTS once the whole site is HTTPS-only, and write a CSP that fits the site.
+- `waf.mode: monitor`: the WAF logs detections without blocking. Rules still need `appfirewall` on a location (e.g. `["sql", "xss"]`).
+- `proxy.trusted_proxies`: trusts a local reverse proxy on loopback so real client IPs survive; `max_hops: 10` caps forged chains.
+- 8 KB headers and 8 MB bodies: enough for cookie-heavy pages and common form / JSON uploads without editing config first.
+
+Change any field directly to tighten or swap it; see [docs/usage.md](docs/usage.md) for the field reference.
 
 The shipped `config/conf.d/default.json` is the ready-to-run default site: `./httpdoc/root` on port 80 and on `443 ssl h2`. The 443 certificate is generated on first start by the local CA into `config/cert/localhost.pem` and `localhost-key.pem`; change `listen` to `8080` or another high port when running as a non-root user.
 
@@ -161,7 +173,10 @@ The shipped `config/conf.d/default.json` is the ready-to-run default site: `./ht
   "ssl_certificate": "./config/cert/localhost.pem",
   "ssl_certificate_key": "./config/cert/localhost-key.pem",
   "location": [
-    { "url": "/", "type": "local", "root": "./httpdoc/root", "index": ["index.html", "index.htm"] } ]
+    { "url": "/", "type": "local", "root": "./httpdoc/root",
+      "index": ["index.html", "index.htm"],
+      "zip": ["br", "gzip"], "zip_min_length": 1024,
+      "zip_skip_types": ["image/*", "video/*", "audio/*", "font/woff2", "application/zip", "application/gzip"] } ]
 }
 ```
 

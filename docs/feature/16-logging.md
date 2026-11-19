@@ -21,11 +21,12 @@
 - **文件写入**：`syncWriter` 互斥串行化（多连接协程写同一文件不交错），`io.MultiWriter` 同时回显 stdout。
 - **访问日志**（dynlog）：按 `log_format` 配置的字段函数表（atomic 整体替换，reload 安全）直接往 zerolog 事件上追加字段，零中间结构；`DynLogger` 由处理过程暂存 status/size。
 - **安全日志**：限流/黑名单/WAF 类拒绝统一带 `reason` 字段。
+- **拒绝日志（R-10）**：所有拒绝统一带 `reject_reason`（枚举）、`rule`（命中的配置项/规则名）、`remote_ip`（客户端 IP，不含端口）。安全类保留既有 `reason` 字段：`blacklist`、`rate_limit`、`location_limit`、`waf`、`host_check`（warn 与 enforce 都记）；数据面拒绝：路径穿越（`path_traversal` / `static_root`；Windows 保留设备名与尾点/尾空格规范化拒绝用 `invalid_path` / `windows_reserved_name`、`windows_path_normalization`）、隐藏路径（`hidden_path` / `hidden_path_segment`）、符号链接策略（`symlink_rejected` / `symlink_policy`）、超限（`header_too_large` / `max_header_size`、`body_too_large` / `max_body_size`，h1 与 h2 共用）、未知 SNI（`unknown_sni` / `tls.sni`，同时写安全日志与控制台/`error.log`）。压缩跳过用 debug：`compression_skipped`，rule 为 `zip_min_length`、`zip_skip_types` 或 `accept_encoding`（客户端没要），静态文件与代理响应共用同一口径。日志不记录原始请求路径；`logs query --reject-reason` 可按枚举过滤。
 - **reload**：先开新文件再关旧文件，新目录打不开时旧文件继续可写。
 
 ## 测试
 
-`tests/unit_test/infra/logging`（五路格式、目录切换、失败保持旧文件、控制台 Warn/Error 镜像到 error.log）。
+`tests/unit_test/infra/logging`（五路格式、目录切换、失败保持旧文件、控制台 Warn/Error 镜像到 error.log）。拒绝日志字段与查询的用例分布在 `modules/{static,proxy,safe,appfirewall}`、`runtime/{events,filters}`、`management/logquery` 与 `cmd`；真实进程见 `tests/client_test/reject_log_e2e_test.go`。
 
 ## 已知限制
 

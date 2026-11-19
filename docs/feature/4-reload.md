@@ -25,6 +25,28 @@ fast-https reload        # 或向进程发 SIGINT
 
 在途请求与 reload 协程之间没有无同步的共享可变状态；读取端要么看到完整旧状态、要么完整新状态。
 
+### 并发 reload 串行化
+
+`server.Reload` 与 `config.LoadFile`/`ReloadFile` 各自持有一把互斥锁。并发
+`SIGINT` 或 `reload` 命令后到的调用等待前一次完成，配置快照与监听器表的发布
+顺序与调用开始顺序一致——否则先开始但后完成的一次会用旧文件内容覆盖新内容。
+后到的一次不会被丢弃，仍会完整执行一遍。
+
+### 在途请求语义
+
+按端口变化分两种：
+
+| 场景 | 在途请求 | 日志 |
+| --- | --- | --- |
+| common 端口热更新（类型与 TLS 通告位不变） | 已进入处理的请求继续用旧快照跑完，新请求读到新配置 | `in_flight_requests`（debug） |
+| 端口被移除 / 监听类型变化 / TLS 重建 | 请求被终止：h1 取消 ctx 直接断连，h2 走 `Shutdown` 最多等 5s | `port` + `in_flight_requests`（info，`in-flight requests are terminated`） |
+
+请求在进入路由时从监听器快照取到 `*ListenCfg`；reload 只整体替换快照，
+不修改旧切片，所以「处理完再切换」这条路径不会读到半新半旧的字段。
+在途计数由 `Listener.BeginRequest`/`EndRequest` 维护，只统计 HTTP 请求
+（h1 每个请求、h2 每个流），websocket/tcp 隧道不计入。同一计数也出现在
+`/runtime` 快照的 `listeners[].in_flight_requests`。
+
 ### 监听器增删改（listener/reload.go）
 
 - **新增端口**：新建 `*Listener`（新 Lfd/Ctx）→ 发布快照 → `RunAdded` 启动 serveListener。
@@ -80,7 +102,7 @@ flowchart LR
 
 ## 测试
 
-`config/reload_window_test.go`（-race 并发读 + 50 次 reload 零撕裂）、`tests/unit_test/runtime/listener/reload_common_test.go`、`runtime/listener/hot_update_race_test.go`、`runtime/server/reload_cert_test.go`、`runtime/server/reload_order_test.go`（钩子先于监听器重载）、`modules/certmanager/manager_reconcile_test.go`（差异判定与停旧起新）、E2E：`FASTHTTPS_E2E_RELOAD=1`。
+`config/config_test.go`（校验失败保留旧快照）、`tests/unit_test/runtime/listener/reload_common_test.go`、`runtime/listener/hot_update_race_test.go`（快照无撕裂 + 在途请求按旧配置处理完）、`runtime/events/request_metrics_test.go`（`TestInFlightRequestsTrackedDuringHandler`：在途计数）、`config/internal/loader/loader_test.go`（`TestConcurrentReloadSerialized`）、`runtime/server/reload_state_test.go`（`TestConcurrentReloadsAreSerialized`：-race 下 10 次并发 reload；`TestReloadLogsInFlightRequestsOnRemovedPort`：移除端口日志带在途数）、`runtime/server/reload_cert_test.go`、`runtime/server/reload_order_test.go`（钩子先于监听器重载）、`modules/certmanager/manager_reconcile_test.go`（差异判定与停旧起新）、E2E：`FASTHTTPS_E2E_RELOAD=1`。
 
 ## 已知限制
 

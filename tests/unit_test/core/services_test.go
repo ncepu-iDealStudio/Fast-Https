@@ -116,13 +116,16 @@ func TestDefaultParseCommandHandler(t *testing.T) {
 		t.Fatalf("xff = %q remote = %q", m["proxy_add_x_forwarded_for"], m["remote_addr"])
 	}
 
-	// 已有 XFF：追加而非覆盖
+	// 已有 XFF 但直连对端不可信：整条丢弃，只写真实来源（R-05）
 	ev2 := core.NewEvent(&listener.Listener{}, server)
 	ev2.RR.Req = request.RequestInit(false)
 	ev2.RR.Req.Headers["X-Forwarded-For"] = "9.9.9.9"
 	core.DefaultParseCommandHandler(&listener.ListenCfg{}, ev2)
 	m2 := ev2.RR.CircleCommandVal.Map
-	if !strings.HasPrefix(m2["proxy_add_x_forwarded_for"], "9.9.9.9, ") {
-		t.Fatalf("existing XFF must be appended: %q", m2["proxy_add_x_forwarded_for"])
+	if m2["proxy_add_x_forwarded_for"] != m2["remote_addr"] {
+		t.Fatalf("untrusted peer must drop inbound XFF: %q", m2["proxy_add_x_forwarded_for"])
+	}
+	if strings.HasPrefix(m2["proxy_add_x_forwarded_for"], "9.9.9.9") {
+		t.Fatalf("spoofed XFF leaked: %q", m2["proxy_add_x_forwarded_for"])
 	}
 }

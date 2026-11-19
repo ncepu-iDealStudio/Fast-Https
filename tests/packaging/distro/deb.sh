@@ -6,7 +6,7 @@ set -u
 export DEBIAN_FRONTEND=noninteractive
 
 ARCH=${ARCH:-amd64}
-PKG=$(ls /dist/fast-https_*_linux_${ARCH}.deb 2>/dev/null | head -1)
+PKG=$(ls /dist/fast-https_linux_${ARCH}.deb 2>/dev/null | head -1)
 if [ -z "$PKG" ]; then bad "dist 下没有 linux/${ARCH} 的 deb"; report; fi
 
 apt-get update -qq

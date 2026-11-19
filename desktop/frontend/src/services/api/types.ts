@@ -12,10 +12,16 @@ export interface SiteInput {
   type: string;
   root: string;
   proxyPass: string;
+  /** 静态根符号链接策略：'' 默认 / check-at-load / reject / allow；只对 local 生效。 */
+  symlinkPolicy: string;
   /** 证书 / 私钥路径；留空表示走默认约定（./cert/<域名>.pem，首次启动生成）。 */
   cert: string;
   certKey: string;
   zip: string[];
+  /** 最小压缩阈值（字节）；0 表示不限制。 */
+  zipMinLength: number;
+  /** 跳过压缩的 MIME 类型；空数组表示用内置已压缩类型清单。 */
+  zipSkipTypes: string[];
   limitRate: number;
   limitBurst: number;
   limitMem: number;
@@ -24,9 +30,16 @@ export interface SiteInput {
   authUser: string;
   authPass: string;
   authRealm: string;
-  cachePath: string;
-  cacheValid: string[];
-  cacheMaxSize: number;
+  /** 主配置 cache 段里的缓存区名；空串表示不启用缓存。 */
+  cacheZone: string;
+}
+
+/** 主配置 cache 段里的一个缓存区。 */
+export interface CacheZone {
+  name: string;
+  path: string;
+  valid: string[];
+  max_size: number;
 }
 
 export interface SiteDetail extends SiteInput {
@@ -50,6 +63,7 @@ export interface LogQuery {
   method: string;
   pathPrefix: string;
   reason: string;
+  rejectReason: string;
   since: string;
   until: string;
   cursor: string;
@@ -71,7 +85,9 @@ export interface DesktopServiceContract {
   ToggleMaximiseWindow(): Promise<void>;
   HideWindow(): Promise<void>;
   QuitApp(): Promise<void>;
+  SetLanguage(lang: string): Promise<void>;
   OpenHelp(): Promise<string>;
+  OpenRepo(): Promise<void>;
   ReadConfigForm(): Promise<ConfigForm>;
   SaveConfigForm(values: Record<string, string>): Promise<string>;
   ReadSiteDetail(id: string): Promise<SiteDetail>;
@@ -79,6 +95,10 @@ export interface DesktopServiceContract {
   SaveSiteDetail(input: SiteInput): Promise<string>;
   DeleteSite(id: string): Promise<string>;
   SetSiteEnabled(id: string, enabled: boolean): Promise<string>;
+  ListCacheZones(): Promise<CacheZone[]>;
+  AddCacheZone(zone: CacheZone): Promise<string>;
+  SaveCacheZone(name: string, zone: CacheZone): Promise<string>;
+  DeleteCacheZone(name: string, purge: boolean): Promise<string>;
   GetOverview(): Promise<Overview>;
   ListSites(): Promise<Site[]>;
   ListCerts(): Promise<Cert[]>;
@@ -95,6 +115,8 @@ export interface DesktopServiceContract {
   ImportLocalCA(): Promise<string>;
   QueryLogs(query: LogQuery): Promise<LogPage>;
   CertTrustGuide(): Promise<CertTrustGuide>;
-  PickPath(kind: string): Promise<string>;
+  PickPath(kind: string, initial: string): Promise<string>;
+  /** 程序数据目录的绝对路径，用于把配置里的相对目录拼成可读路径。 */
+  DataDir(): Promise<string>;
   RunCommand(args: string[]): Promise<unknown>;
 }

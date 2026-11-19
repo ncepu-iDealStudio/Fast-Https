@@ -109,7 +109,7 @@
 | Go CI | `.workflow/go-test.yml` 使用 Go 1.27.1，执行 `go test ./...` |
 | Windows 本地测试 | 直接 `go test -p 1 ./...`（并行测试 exe 在 Windows 上会偶发 `Access is denied`） |
 
-运行配置和默认资源仍按安装包布局提供；配置路径由工作目录和 `config` 常量共同决定。架构迁移不能只移动 Go package，还必须同步检查 Docker、GoReleaser、RPM 和工作目录相关契约。`httpdoc/`、`config/*.json`、`config/cert/` 是随包发布的运行资源（FHS 计划见 [fhs-layout-plan.md](develop/plans/fhs-layout-plan.md)），不放进 `build/`；`build/` 只放构建脚本、打包配方与 Dockerfile。
+运行配置和默认资源仍按安装包布局提供；配置路径由工作目录和 `config` 常量共同决定。架构迁移不能只移动 Go package，还必须同步检查 Docker、GoReleaser、RPM 和工作目录相关契约。`httpdoc/`、`config/*.json`、`config/cert/` 是随包发布的运行资源（FHS 计划见 [fhs-layout-plan.md](develop/archive/fhs-layout-plan.md)），不放进 `build/`；`build/` 只放构建脚本、打包配方与 Dockerfile。
 
 ## 7. 测试组织
 

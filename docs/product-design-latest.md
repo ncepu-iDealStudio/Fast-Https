@@ -101,7 +101,9 @@ location 的 `type`：
 | `rewrite` | 固定 301，`Location` 来自配置里的 `rewrite` |
 | `devmod` | 开发用的 location 处理 |
 
-`zip` 只作用于静态响应：按 `Accept-Encoding` 协商 gzip 或 brotli，压缩后再写 `Content-Length` 和 `Vary`。Range 请求优先于压缩。代理响应不在本进程里压缩。
+`zip` 同时作用于静态响应与代理响应：按 `Accept-Encoding` 协商 gzip 或 brotli，
+q 值取高者，压缩后再写 `Content-Length` 和 `Vary`。Range 请求优先于压缩；
+代理侧跳过升级连接、HEAD、上游已带 `Content-Encoding` 与 204/206/304。
 
 `error_page.not_found` 和 `error_page.proxy` 可选。文件可读时分别替换静态 404 和上游拨号失败的正文。路由没匹配到 location 时的 404 仍是默认正文。
 

@@ -43,6 +43,8 @@
 .table__row:hover { background: var(--surface); }
 .table__ops { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
 .table__empty { padding: 24px 16px; text-align: center; font-size: 12px; color: var(--faint); }
+/* 空状态下的每日一句：不抢正文，只留一点呼吸。 */
+.table__quip { display: block; margin-top: 6px; font-size: 11.5px; font-style: italic; opacity: .8; }
 
 .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .muted { color: var(--muted); }
@@ -211,13 +213,15 @@
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-bottom: 10px;
 }
-.filter-bar input {
+.filter-bar input, .filter-bar select {
   height: 32px; padding: 0 10px; width: 170px;
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--text); font-size: 12px;
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
-.filter-bar input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+.filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
+/* 重置与查询是一组：都作用于筛选条件，放在筛选行末尾 */
+.filter-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
 .filter-toggle {
   display: inline-flex; align-items: center; gap: 4px;
   margin-bottom: 10px; padding: 0;
@@ -261,30 +265,6 @@
 }
 .matrix-grid .kv-row { grid-template-columns: 130px minmax(0, 1fr); }
 .card__v.small { font-size: 13px; font-weight: 500; }
-
-/* ---------------------------------------------------------------- 配置版本行
-   三列：版本号 / 说明 / 操作按钮。之前复用 2 列的 .kv-row，第三个子元素被挤到
-   下一行第 1 列，按钮竖排堆在版本号下方。 */
-.ver-row {
-  display: grid;
-  grid-template-columns: 120px minmax(0, 1fr) auto;
-  gap: 16px;
-  align-items: center;
-  min-height: 44px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 12px;
-}
-.ver-row:last-child { border-bottom: 0; }
-.ver-row .k {
-  display: flex; align-items: center; gap: 6px;
-  color: var(--muted);
-}
-.ver-row .v { overflow-wrap: anywhere; }
-.ver-row .n {
-  display: flex; align-items: center; gap: 6px;
-  justify-content: flex-end; white-space: nowrap;
-}
 
 
 

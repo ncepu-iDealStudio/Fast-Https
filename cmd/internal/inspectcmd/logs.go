@@ -92,6 +92,7 @@ func newLogsQueryCmd() *cobra.Command {
 	c.Flags().String("method", "", cli.T("按 method 字段过滤", "filter on the method field"))
 	c.Flags().String("path-prefix", "", cli.T("按 path 前缀过滤", "filter on a path prefix"))
 	c.Flags().String("reason", "", cli.T("按 reason 字段过滤", "filter on the reason field"))
+	c.Flags().String("reject-reason", "", cli.T("按 reject_reason 字段过滤", "filter on the reject_reason field"))
 	return c
 }
 
@@ -127,6 +128,9 @@ func runLogs(cmd *cobra.Command, id, kind string) error {
 	}
 	if cmd.Flags().Lookup("reason") != nil {
 		q.Reason, _ = cmd.Flags().GetString("reason")
+	}
+	if cmd.Flags().Lookup("reject-reason") != nil {
+		q.RejectReason, _ = cmd.Flags().GetString("reject-reason")
 	}
 
 	configPath, _ := cmd.Flags().GetString("config")
@@ -172,7 +176,24 @@ func writeLogsText(w io.Writer, res logquery.Result) {
 		if rec.Status != nil {
 			status = fmt.Sprintf("%d", *rec.Status)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", rec.Time, rec.Level, status, rec.Host, rec.Message)
+		// 拒绝原因优先用 R-10 的统一字段；没有时回落到安全日志的 reason。
+		reason := rec.RejectReason
+		if reason == "" {
+			reason = rec.Reason
+		}
+		if rec.Rule != "" {
+			reason += " · " + rec.Rule
+		}
+		// host 列顺带展示拒绝日志的客户端 IP；access 日志没有 remote_ip 时保持原样。
+		hostPeer := rec.Host
+		if rec.RemoteIP != "" {
+			if hostPeer == "" {
+				hostPeer = rec.RemoteIP
+			} else {
+				hostPeer += " · " + rec.RemoteIP
+			}
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", rec.Time, rec.Level, status, reason, hostPeer, rec.Message)
 	}
 	_ = tw.Flush()
 }

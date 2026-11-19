@@ -20,9 +20,12 @@ Invoke-RestMethod http://127.0.0.1:9088/runtime | ConvertTo-Json -Depth 5
 
 `request_duration` 始终出现，桶计数和 `count` 为 0 表示还没有请求。`upstream` 由组合根挂入；未装配代理时该对象省略，装配后即使没有代理流量也输出 0（真实的零）。
 
+`listeners[]` 每项含 `port`、`ssl`、`h2` 与 `in_flight_requests`（该端口正在处理的 HTTP 请求数）。前三个字段来自 reload 时整体替换的端口表副本，`in_flight_requests` 在快照时经注册的实时来源读取，见下。
+
 ## 实现方案
 
-- 计数与状态在 `runtime/metrics`：生命周期、连接、请求、状态码、耗时直方图、reload 生成号、监听端口原子副本。快照只做原子 `Load`，不持 `Server.mu`，不读无锁的 `Server.Listens`。
+- 计数与状态在 `runtime/metrics`：生命周期、连接、请求、状态码、耗时直方图、reload 生成号、监听端口原子副本。快照不持 `Server.mu`，也不读无锁的 `Server.Listens`。
+- `listeners[].in_flight_requests` 由组合根注册的实时来源填充（`metrics.SetListenerInFlightSource`）：来源读取监听器快照与每个端口的原子计数，`metrics` 不反向 import `runtime/listener`。
 - HTTP 出口在组合根 `cmd/runtime_endpoint.go`。`StartHandler` 在写 PID 之后、`InitSystem` 之前启动监听；`RegisterServices` 把关闭挂到 `core.Services.AfterStop`，并把 `modules/proxy` 的上游计数挂为 `upstream` 分段。
 - 分段注册：`metrics.RegisterSection` 供组合根挂入功能包数据，`runtime` 不 import `modules`。
 - `request_duration` 口径是进入 `EventHandler` 到返回，不含读请求头；HTTP/2 在 `EventHandler` 返回后才写响应的那部分不在内。桶为累积 `le`（1/5/10/25/50/100/250/500/1000/5000 ms 与 `+Inf`）。

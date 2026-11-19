@@ -43,7 +43,7 @@ curl -v http://127.0.0.1:<port>/not-exist  # 404 → error_page
 
 ## NSIS（Windows 安装包）
 
-只有生成 `dist\fast-https-<version>-windows-<arch>-setup.exe` 这一步需要 NSIS；GoReleaser 的 zip/tar.gz 与 Linux 的 deb/rpm/apk 都不依赖它。
+只有生成 `dist\fast-https-windows-<arch>-setup.exe` 这一步需要 NSIS；GoReleaser 的 zip/tar.gz 与 Linux 的 deb/rpm/apk 都不依赖它。
 
 **必须 3.x**：`build/installer/windows/fast-https.nsi` 用了 `Unicode true` 和 `MUI2.nsh`，NSIS 2 直接编译失败。
 

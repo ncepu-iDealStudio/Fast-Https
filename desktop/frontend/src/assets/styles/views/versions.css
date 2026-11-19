@@ -1,3 +1,0 @@
-/* 配置版本页壳（views/versions/index.vue）：页面级布局。
-   列表见 versions-list.css，diff 表见 versions-diff.css。 */
-.versions-page { display: flex; flex-direction: column; min-height: 0; }

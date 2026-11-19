@@ -67,3 +67,41 @@ func TestHotUpdateSnapshotIsRaceFree(t *testing.T) {
 		t.Errorf("final cfg = %q, want new config", lis.Cfgs()[0].ServerName)
 	}
 }
+
+// 在途请求在 reload 之前已经拿到 location 配置指针，reload 只发布新快照、
+// 不改旧切片：这条请求按旧配置处理完，不会看到半新半旧的字段。
+func TestInFlightRequestKeepsCapturedCfgAcrossReload(t *testing.T) {
+	lis := &Listener{
+		Port: "19998",
+		Cfg:  []ListenCfg{{ID: 0, ServerName: "old.local:19998", StaticRoot: "/old"}},
+		HostMap: map[string][]ListenCfg{
+			"old.local:19998": {{ID: 0, ServerName: "old.local:19998", StaticRoot: "/old"}},
+		},
+	}
+	lis.publish()
+
+	// 模拟请求路由：从当前快照取出 server 块与命中的 location 配置。
+	hosts := lis.Hosts()
+	cfgs := hosts["old.local:19998"]
+	captured := &cfgs[0]
+
+	lis.updateCfg(
+		[]ListenCfg{{ID: 1, ServerName: "new.local:19998", StaticRoot: "/new"}},
+		map[string][]ListenCfg{
+			"new.local:19998": {{ID: 1, ServerName: "new.local:19998", StaticRoot: "/new"}},
+		},
+	)
+
+	if captured.ID != 0 || captured.StaticRoot != "/old" {
+		t.Fatalf("in-flight cfg changed under reload: %+v", *captured)
+	}
+	if got := hosts["old.local:19998"]; len(got) != 1 || got[0].StaticRoot != "/old" {
+		t.Fatalf("in-flight host map changed under reload: %+v", got)
+	}
+	if got := lis.Cfgs()[0].StaticRoot; got != "/new" {
+		t.Fatalf("new request should see /new, got %q", got)
+	}
+	if got := lis.Hosts()["new.local:19998"]; len(got) != 1 || got[0].StaticRoot != "/new" {
+		t.Fatalf("new host map = %+v", got)
+	}
+}

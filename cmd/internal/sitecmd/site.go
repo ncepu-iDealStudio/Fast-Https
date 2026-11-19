@@ -51,7 +51,7 @@ func NewSiteCmd() *cobra.Command {
 		Use:   "site",
 		Short: cli.T("管理 http.include 目录下的站点文件", "manage site files under http.include"),
 		Long: cli.T(
-			"新增、更新、删除、启用、停用用 site add/update/delete/enable/disable，它们走配置事务（校验、恢复点、reload、可回滚）。site add 不带 --domain 且标准输入是终端时进向导。",
+			"新增、更新、删除、启用、停用用 site add/update/delete/enable/disable，它们走配置事务（校验、临时备份、reload、可回滚）。site add 不带 --domain 且标准输入是终端时进向导。",
 			"Use site add/update/delete/enable/disable for adding, updating, deleting, enabling and disabling; they go through the config transaction (validation, restore point, reload, rollback). site add enters a wizard when --domain is omitted on a terminal."),
 		SilenceUsage: true,
 		RunE:         func(cmd *cobra.Command, args []string) error { return cmd.Help() },

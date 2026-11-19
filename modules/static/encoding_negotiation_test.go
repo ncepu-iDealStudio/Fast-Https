@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"fast-https/config"
+	"fast-https/modules/compress"
 	"fast-https/runtime/listener"
 )
 
@@ -81,7 +82,7 @@ func TestEncodingWantedVectors(t *testing.T) {
 			name = c.Zip + "/<empty>"
 		}
 		t.Run(strings.NewReplacer("/", "_", ";", "_", "=", "_", ",", "_", " ", "").Replace(name), func(t *testing.T) {
-			got := encodingWanted(zipOf(t, c.Zip), c.Accept)
+			got := compress.Wanted(zipOf(t, c.Zip), c.Accept)
 			if got != c.Want {
 				t.Fatalf("%s：zip=%s accept=%q → %q，期望 %q",
 					c.Note, c.Zip, c.Accept, got, c.Want)

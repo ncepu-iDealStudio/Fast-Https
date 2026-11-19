@@ -39,4 +39,4 @@ sh tests/packaging/distro/run.sh rpm arm64
 
 `tests/packaging/distro_test.go` 守上面第一条与镜像/脚本映射，改脚本结构时它会先失败。
 
-**跑之前先看 [docs/test/3-distro-verification.md](../../../docs/test/3-distro-verification.md)**：那里记录了上次实测的产物校验和、镜像摘要、逐项结论与已知环境差异。同一份产物不必重复跑，只在改了打包清单、维护脚本或运行期路径后才需要重跑。
+**跑之前先看 [docs/test/verification/distro-packages.md](../../../docs/test/verification/distro-packages.md)**：那里记录了上次实测的产物校验和、镜像摘要、逐项结论与已知环境差异。同一份产物不必重复跑，只在改了打包清单、维护脚本或运行期路径后才需要重跑。

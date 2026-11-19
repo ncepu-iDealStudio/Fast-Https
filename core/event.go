@@ -2,6 +2,7 @@
 package core
 
 import (
+	"fast-https/config"
 	"fast-https/infra/logging"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/request"
@@ -129,7 +130,7 @@ func PutReadBuf(b []byte) { readBufPool.Put(b) }
 // only for HTTP/1.1
 func (ev *Event) ReadRequestInto(buf []byte) []byte {
 	now := time.Now()
-	ev.Conn.SetReadDeadline(now.Add(time.Second * 30))
+	ev.Conn.SetReadDeadline(now.Add(config.Current().Limit.ReadTimeoutDuration()))
 	n, err := ev.Conn.Read(buf)
 	if err != nil {
 		if err == io.EOF { // read None, remoteAddr is closed
@@ -153,6 +154,12 @@ func (ev *Event) ReadRequestInto(buf []byte) []byte {
 
 func (ev *Event) WriteResponse(data []byte) error {
 	return ev.EventWrite(ev, data)
+}
+
+// SetWriteTimeout 刷新写超时。模块绕过 EventWrite 直接写连接时（静态文件）
+// 必须在写之前调用，否则 write_timeout 不会生效。
+func (ev *Event) SetWriteTimeout() {
+	ev.Conn.SetWriteDeadline(time.Now().Add(config.Current().Limit.WriteTimeoutDuration()))
 }
 
 // ResponseBytes is the bytes written for this response.

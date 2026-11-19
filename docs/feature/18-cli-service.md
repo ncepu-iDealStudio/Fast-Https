@@ -4,7 +4,7 @@
 
 ## 功能
 
-`start`（后台服务）、`stop`、`reload`、`status`、`version`，以及 `acme`（交互式配置 ACME 自动签发）、`site`（管理 conf.d 下的站点文件）。`start` 与 `reload` 都先校验配置，失败即停并说明原因。`service reload`、`config apply`、`config rollback`、`site add/update/delete/enable/disable` 走管理核心的受控事务（恢复点、operation、幂等、失败补偿）。
+`start`（后台服务）、`stop`、`reload`、`status`、`version`，以及 `acme`（交互式配置 ACME 自动签发）、`site`（管理 conf.d 下的站点文件）。`start` 与 `reload` 都先校验配置，失败即停并说明原因。`service reload`、`config apply`、`config rollback`、`site add/update/delete/enable/disable` 走管理核心的受控事务（临时备份、operation、幂等、失败补偿）。
 
 帮助文本有中英两版：默认中文，`--lang en` 或 `FAST_HTTPS_LANG=en` 切英文。
 

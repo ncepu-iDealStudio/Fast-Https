@@ -1,0 +1,25 @@
+# zip 段到压缩编码位图的映射。
+- name: empty
+  zip: []
+  want: ZIP_NONE
+- name: br
+  zip: [br]
+  want: ZIP_BR
+- name: gzip
+  zip: [gzip]
+  want: ZIP_GZIP
+- name: gzip then br
+  zip: [gzip, br]
+  want: ZIP_GZIP_BR
+- name: br then gzip
+  zip: [br, gzip]
+  want: ZIP_GZIP_BR
+- name: unknown single
+  zip: [zstd]
+  want: ZIP_NONE
+- name: mismatched pair
+  zip: [gzip, zstd]
+  want: ZIP_NONE
+- name: too many
+  zip: [gzip, br, zstd]
+  want: ZIP_NONE

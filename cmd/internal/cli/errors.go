@@ -123,8 +123,8 @@ func FromTxnError(id string, err error) *CLIError {
 		if te.Operation != nil {
 			ce.Details = append(ce.Details, ErrorDetail{Path: "operation_id", Message: te.Operation.ID})
 			if te.Operation.Result != nil {
-				if p, ok := te.Operation.Result["restore_point"].(string); ok && p != "" {
-					ce.Details = append(ce.Details, ErrorDetail{Path: "restore_point", Message: p})
+				if v, ok := te.Operation.Result["version"].(string); ok && v != "" {
+					ce.Details = append(ce.Details, ErrorDetail{Path: "version", Message: v})
 				}
 				if s, ok := te.Operation.Result["config_state"].(string); ok && s != "" {
 					ce.Details = append(ce.Details, ErrorDetail{Path: "config_state", Message: s})

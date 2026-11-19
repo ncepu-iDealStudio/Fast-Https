@@ -144,7 +144,7 @@ func (cl *CountLimit) sweepExpired(now int) {
 func CountHandler(rr core.RRcircle) {
 	log := dynlog.DynLogger{}
 	dynlog.Log(&log, rr.Ev)
-	logReject(rr.Ev, ReasonLocationLimit)
+	logReject(rr.Ev, ReasonLocationLimit, "location.limit")
 	rr.Ev.RR.Res = response.DefaultTooMany()
 	rr.Ev.WriteResponseClose(nil)
 }

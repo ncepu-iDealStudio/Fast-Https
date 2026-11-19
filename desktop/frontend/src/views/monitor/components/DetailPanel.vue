@@ -28,9 +28,20 @@ type TabKey = (typeof TABS)[number]['key'];
 
 const active = ref<TabKey>('conns');
 
+// 每组字段在字典里的前缀；接口字段名本身仍保留在 title 里，便于对文档。
+const GROUP_KEY: Record<TabKey, string> = {
+  conns: 'conn', reqs: 'req', resp: 'resp', upstream: 'upstream',
+};
+
+function statLabel(key: string): string {
+  const dictKey = `runtime.stat.${GROUP_KEY[active.value]}.${key}`;
+  const text = t(dictKey);
+  return text === dictKey ? key : text;
+}
+
 const rows = computed(() => {
   const g = props[active.value] ?? {};
-  return Object.entries(g).map(([k, v]) => ({ k, v: Number(v) }));
+  return Object.entries(g).map(([k, v]) => ({ k, label: statLabel(k), v: Number(v) }));
 });
 </script>
 
@@ -49,7 +60,7 @@ const rows = computed(() => {
     </div>
     <div class="kv2">
       <div v-for="r in rows" :key="r.k" class="kv2__row">
-        <span class="kv2__k">{{ r.k }}</span>
+        <span class="kv2__k" :title="r.k">{{ r.label }}</span>
         <b class="kv2__v" :class="{ 'is-zero': r.v === 0 }">{{ r.v }}</b>
       </div>
       <div v-if="!rows.length" class="kv2__empty">{{ t('monitor.noData') }}</div>

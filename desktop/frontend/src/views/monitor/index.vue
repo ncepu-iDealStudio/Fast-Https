@@ -5,7 +5,7 @@
  * 页面内不重复大标题——标题由顶栏与侧栏承担。
  */
 import { computed, onMounted, ref } from 'vue';
-import { Activity, Globe, ShieldCheck, ScrollText, Zap, AlertCircle, ArrowLeftRight, Check } from '@lucide/vue';
+import { Activity, Globe, Database, ShieldCheck, ScrollText, Zap, AlertCircle, ArrowLeftRight, Check } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore, type PaneKey } from '../../stores/app';
 import { startServer, stopServer, reloadServer } from '../../services/api/app';
@@ -102,6 +102,12 @@ const health = computed<HealthCard[]>(() => {
       desc: t('monitor.sitesManaged', { n: ov.data?.siteCount ?? 0 }),
       meta: '',
       action: t('monitor.manageSites'), pane: 'sites',
+    },
+    {
+      title: t('nav.cache'), ico: Database, ok: true, status: t('settings.current'),
+      desc: t('monitor.cacheZones', { n: ov.data?.cacheZoneCount ?? 0 }),
+      meta: '',
+      action: t('monitor.manageCache'), pane: 'cache',
     },
     {
       title: t('nav.certs'), ico: ShieldCheck, ok: true, status: t('settings.current'),

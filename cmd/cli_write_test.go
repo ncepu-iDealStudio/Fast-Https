@@ -5,6 +5,7 @@ import (
 	"fast-https/management/cfgver"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -239,10 +240,17 @@ func TestSiteAddDuplicateCLI(t *testing.T) {
 	t.Setenv("FASTHTTPS_STATE_DIR", t.TempDir())
 	f := writeFixture(t, defaultAcmeJSON)
 	root := t.TempDir()
+	// 冲突按「域名 + 端口」判：必须复用夹具站点已占用的端口才算重复。
 	_, _, code := runCLI(t, "site", "add", "--config", f.main, "--domain", "demo.example",
-		"--root", root, "--yes", "--json")
+		"--root", root, "--listen", strconv.Itoa(f.port), "--yes", "--json")
 	if code != 10 {
-		t.Fatalf("同 server_name exit = %d, want 10", code)
+		t.Fatalf("同 server_name 同端口 exit = %d, want 10", code)
+	}
+	// 同一域名换端口是合法配置，不应被误拦。
+	_, _, code = runCLI(t, "site", "add", "--config", f.main, "--domain", "demo.example",
+		"--root", root, "--listen", strconv.Itoa(f.port+1), "--yes", "--json")
+	if code != 0 {
+		t.Fatalf("同域名不同端口 exit = %d, want 0", code)
 	}
 }
 

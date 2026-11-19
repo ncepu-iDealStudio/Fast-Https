@@ -22,6 +22,7 @@ function confirm(): void { emit('confirm'); }
 
 <template>
   <FhDialog :open="open" :title="title" :description="message" @update:open="(v: boolean) => emit('update:open', v)">
+    <slot />
     <template #footer>
       <FhButton @click="close">{{ t('common.cancel') }}</FhButton>
       <FhButton variant="primary" :loading="loading" @click="confirm">{{ t('common.ok') }}</FhButton>

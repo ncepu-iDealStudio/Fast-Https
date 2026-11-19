@@ -4,8 +4,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"net"
 	"slices"
 	"sync"
+
+	"fast-https/config"
+	"fast-https/infra/logging"
 )
 
 // certSet is the certificate list served by an already-open TLS listener.
@@ -13,6 +17,8 @@ import (
 type certSet struct {
 	mu    sync.RWMutex
 	certs []tls.Certificate
+	// defaultCert 是 tls.default_certificate 指定的兜底证书，未配置为 nil。
+	defaultCert *tls.Certificate
 }
 
 func newCertSet() *certSet {
@@ -39,14 +45,65 @@ func (c *certSet) get(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	if hello != nil {
 		name = hello.ServerName
 	}
-	for i := range c.certs {
-		if name != "" && certMatches(c.certs[i], name) {
-			chosen := c.certs[i]
+	if name != "" {
+		// 同一域名可能部署多张证书（典型是 RSA + ECDSA）。全部收集后按
+		// 客户端能力挑一张，而不是永远用列表里第一张。
+		var matches []*tls.Certificate
+		for i := range c.certs {
+			if certMatches(c.certs[i], name) {
+				matches = append(matches, &c.certs[i])
+			}
+		}
+		if len(matches) > 0 {
+			chosen := *chooseCert(hello, matches)
 			return &chosen, nil
 		}
 	}
+	// 未知 SNI（含空 SNI）优先用显式兜底证书，保持握手指向运维指定的证书。
+	if c.defaultCert != nil {
+		chosen := *c.defaultCert
+		return &chosen, nil
+	}
+	logUnknownSNI(name, hello)
 	chosen := c.certs[0]
 	return &chosen, nil
+}
+
+// logUnknownSNI 记录一次未知 SNI 回落。控制台保留原有告警（镜像到
+// error.log），同时写安全日志，让 --kind safe 也能按 reject_reason 查到。
+func logUnknownSNI(sni string, hello *tls.ClientHelloInfo) {
+	var conn net.Conn
+	if hello != nil {
+		conn = hello.Conn
+	}
+	remoteIP := logging.RemoteIP(conn)
+	logging.ConsoleLog.Warn().
+		Str(logging.FieldRejectReason, "unknown_sni").
+		Str(logging.FieldRule, "tls.sni").
+		Str(logging.FieldRemoteIP, remoteIP).
+		Str("sni", sni).
+		Msg("unknown TLS SNI: falling back to the first certificate " +
+			"(set tls.default_certificate to choose an explicit fallback)")
+	logging.RejectWarn("unknown_sni", "tls.sni", remoteIP).
+		Str("sni", sni).
+		Msg("unknown TLS SNI, falling back to the first certificate")
+}
+
+// chooseCert 在同一域名命中的多张证书里按客户端能力挑一张。
+//
+// 典型场景是同一域名同时部署 RSA 与 ECDSA 两张证书文件：客户端只支持
+// 其中一种签名算法时返回兼容的那张。没有 ClientHello 或客户端没带
+// signature_algorithms 扩展时退回第一张，保持旧行为；全部不兼容时同样
+// 退回第一张，让标准库按它自己的错误结束握手，而不是静默换一张。
+func chooseCert(hello *tls.ClientHelloInfo, matches []*tls.Certificate) *tls.Certificate {
+	if hello != nil && len(hello.SignatureSchemes) > 0 {
+		for _, cert := range matches {
+			if hello.SupportsCertificate(cert) == nil {
+				return cert
+			}
+		}
+	}
+	return matches[0]
 }
 
 func (c *certSet) replace(cfgs []ListenCfg) error {
@@ -54,10 +111,30 @@ func (c *certSet) replace(cfgs []ListenCfg) error {
 	if err != nil {
 		return err
 	}
+	def := loadDefaultCertificate()
 	c.mu.Lock()
 	c.certs = loaded
+	c.defaultCert = def
 	c.mu.Unlock()
 	return nil
+}
+
+// loadDefaultCertificate 读取 tls.default_certificate。未配置返回 nil；
+// 读取失败只告警——握手仍要能回落到第一张证书，不能因为兜底证书坏了
+// 就让所有 TLS 端口起不来。配置校验阶段已经检查过文件存在。
+func loadDefaultCertificate() *tls.Certificate {
+	cfg := config.Current().TLS
+	if !cfg.HasDefaultCertificate() {
+		return nil
+	}
+	cert, err := tls.LoadX509KeyPair(cfg.DefaultCertificate.Certificate, cfg.DefaultCertificate.Key)
+	if err != nil {
+		logging.ConsoleLog.Warn().Err(err).
+			Str("certificate", cfg.DefaultCertificate.Certificate).
+			Msg("load tls.default_certificate failed, falling back to the first certificate")
+		return nil
+	}
+	return &cert
 }
 
 func loadCerts(cfgs []ListenCfg) ([]tls.Certificate, error) {

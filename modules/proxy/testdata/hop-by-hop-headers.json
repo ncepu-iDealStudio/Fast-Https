@@ -1,0 +1,110 @@
+[
+  {
+    "name": "strip_all_hop_by_hop",
+    "headers": {
+      "Host": "upstream.example",
+      "Connection": "keep-alive, X-Hop",
+      "Keep-Alive": "timeout=5",
+      "Proxy-Authenticate": "Basic realm=\"proxy\"",
+      "Proxy-Authorization": "Basic Zm9vOmJhcg==",
+      "Proxy-Connection": "keep-alive",
+      "TE": "trailers",
+      "Trailer": "X-Checksum",
+      "Transfer-Encoding": "chunked",
+      "Upgrade": "h2c",
+      "X-Hop": "should-be-dropped",
+      "X-Normal": "keep-me"
+    },
+    "absent": [
+      "Connection",
+      "Keep-Alive",
+      "Proxy-Authenticate",
+      "Proxy-Authorization",
+      "Proxy-Connection",
+      "TE",
+      "Trailer",
+      "Transfer-Encoding",
+      "Upgrade",
+      "X-Hop"
+    ],
+    "present": {
+      "Host": "upstream.example",
+      "X-Normal": "keep-me"
+    }
+  },
+  {
+    "name": "downstream_close_regenerated",
+    "headers": {
+      "Host": "upstream.example",
+      "Connection": "close",
+      "Keep-Alive": "timeout=5"
+    },
+    "absent": ["Keep-Alive"],
+    "present": {
+      "Connection": "close"
+    }
+  },
+  {
+    "name": "http10_without_connection_closes",
+    "protocol": "HTTP/1.0",
+    "headers": {
+      "Host": "upstream.example"
+    },
+    "present": {
+      "Connection": "close"
+    }
+  },
+  {
+    "name": "http10_keepalive_regenerated",
+    "protocol": "HTTP/1.0",
+    "headers": {
+      "Host": "upstream.example",
+      "Connection": "keep-alive"
+    },
+    "present": {
+      "Connection": "keep-alive"
+    }
+  },
+  {
+    "name": "http11_keepalive_no_connection_header",
+    "headers": {
+      "Host": "upstream.example"
+    },
+    "absent": ["Connection"]
+  },
+  {
+    "name": "websocket_keeps_upgrade_pair",
+    "upgrade": "websocket",
+    "headers": {
+      "Host": "upstream.example",
+      "Connection": "keep-alive, Upgrade",
+      "Upgrade": "websocket",
+      "Keep-Alive": "timeout=5",
+      "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+      "Sec-WebSocket-Version": "13"
+    },
+    "absent": ["Keep-Alive"],
+    "present": {
+      "Connection": "Upgrade",
+      "Upgrade": "websocket",
+      "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+      "Sec-WebSocket-Version": "13"
+    }
+  },
+  {
+    "name": "end_to_end_headers_kept",
+    "headers": {
+      "Host": "upstream.example",
+      "Authorization": "Bearer token",
+      "Content-Type": "application/json",
+      "Cookie": "sid=abc",
+      "Accept-Encoding": "gzip"
+    },
+    "present": {
+      "Authorization": "Bearer token",
+      "Content-Type": "application/json",
+      "Cookie": "sid=abc",
+      "Accept-Encoding": "gzip"
+    }
+  }
+]

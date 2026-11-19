@@ -33,6 +33,9 @@ type Proxy struct {
 	reused bool
 	// closed 在 Close 后置位，防止已关闭连接被归还进池
 	closed bool
+	// respEmptyBody 标记刚读完的响应在协议上必然没有 body（HEAD / 204 / 304）。
+	// 只有这类响应可以在没读到连接关闭时就把连接归还进池。
+	respEmptyBody bool
 }
 
 // Register installs the reverse-proxy handlers for HTTP and HTTPS upstreams.
@@ -53,6 +56,9 @@ var (
 	ProxyErrorDialUpstream            = &ProxyError{msg: "proxy dial upstream server"}
 	ProxyErrorSendToUpstreamTimeout   = &ProxyError{msg: "proxy send to upstream server time out"}
 	ProxyErrorReadFromUpstreamTimeout = &ProxyError{msg: "proxy read from upstream server time out"}
+	// ProxyErrorUpstreamBodyTooLarge 表示上游既没给 Content-Length 也没给
+	// chunked，读到 EOF 时超过 max_body_size。按 502 回给客户端。
+	ProxyErrorUpstreamBodyTooLarge = &ProxyError{msg: "proxy upstream response body too large"}
 )
 
 type ProxyError struct {
@@ -90,7 +96,7 @@ func dialUpstream(addr string, proxyType int) (*Proxy, error) {
 		p.Close = p.closeSSL
 	}
 
-	p.ProxyConn.SetDeadline(time.Now().Add(time.Second * 20)) // proxy server time out
+	p.ProxyConn.SetDeadline(time.Now().Add(config.Current().Proxy.UpstreamTimeoutDuration())) // proxy server time out
 	return p, nil
 }
 
@@ -142,7 +148,7 @@ func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Prox
 			return proxy, nil
 		}
 
-		proxy := Newproxy(cfg.ProxyAddr, int(cfg.Type), cfg.ProxyCache.Key != "")
+		proxy := Newproxy(cfg.ProxyAddr, int(cfg.Type), cfg.ProxyCache != "")
 		if err := proxy.ProxyInit(ev); err != nil { // only one type error: `ProxyErrorDialUpstream`
 			return nil, err
 		}
@@ -158,16 +164,17 @@ func getProxy(ev *core.Event, rr *core.RRcircle, cfg *listener.ListenCfg) (*Prox
 			return nil, derr
 		}
 		fresh.ev = ev
-		fresh.ProxyNeedCache = cfg.ProxyCache.Key != ""
+		fresh.ProxyNeedCache = cfg.ProxyCache != ""
 		return fresh, nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	if p.reused {
-		// 新的请求周期，刷新整体 20s 截止时间
-		p.ProxyConn.SetDeadline(time.Now().Add(time.Second * 20))
+		// 新的请求周期，刷新上游整体截止时间
+		p.ProxyConn.SetDeadline(time.Now().Add(config.Current().Proxy.UpstreamTimeoutDuration()))
 		p.ev = ev
+		p.respEmptyBody = false
 	}
 	return p, nil
 }
@@ -212,6 +219,12 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 	if temp_res.Headers["Connection"] == "close" {
 		p.ProxyNeedClose = true
 	}
+	// 空 body 响应（HEAD / 204 / 304）的响应边界已经到齐，没有未读 body
+	// 需要等上游关闭。HTTP/1.1 上游未显式 close 时按持久连接复用；
+	// HTTP/1.0 则要求显式 keep-alive。
+	if p.respEmptyBody && !upstreamCloseRequested(firstLineDec, temp_res.GetHeader("Connection")) {
+		p.ProxyNeedClose = false
+	}
 
 	temp_res.DelHeader("Server")
 	temp_res.SetHeader("Server", "Fast-Https")
@@ -226,7 +239,20 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 	return head_code
 }
 
+// upstreamCloseRequested 报告上游是否会在本次响应后关闭连接。
+// HTTP/1.0 默认不持久，只有显式 keep-alive 才认为可复用。
+func upstreamCloseRequested(firstLine []string, connection string) bool {
+	if strings.EqualFold(connection, "close") {
+		return true
+	}
+	if len(firstLine) > 0 && firstLine[0] == "HTTP/1.0" && !strings.EqualFold(connection, "keep-alive") {
+		return true
+	}
+	return false
+}
+
 func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err error) {
+	p.respEmptyBody = false
 	if !ev.RR.Req.IsKeepalive() {
 		if ev.Upgrade == "websocket" {
 			logging.ConsoleLog.Debug().Msg("-----This is Read websocket")
@@ -274,6 +300,13 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 		// }
 
 		ev.RR.Res.Body = rka.body
+		// 空 body 响应后还有多余字节：上游违约（例如 204 带了正文）。
+		// 响应本身可以交付，但这条连接不能再复用，否则残留字节会污染
+		// 下一条借到它的请求。
+		if rka.trailingBytes {
+			p.ProxyNeedClose = true
+		}
+		p.respEmptyBody = rka.emptyBody && !rka.trailingBytes
 		err = nil
 	}
 	return
@@ -343,16 +376,15 @@ func (p *Proxy) getDataFromServer(ev *core.Event, req_data []byte) (int, error) 
 
 	headCode := p.ChangeHeader(ev.RR.Req.IsKeepalive(), resData, &ev.RR)
 	status, _ := strconv.Atoi(headCode)
-	logProxyAccess(ev, status, len(ev.RR.Res.Body))
-
 	return status, nil
 }
 
 /*  ====  这两个函数可以用 event ===== */
-func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) {
+func (p *Proxy) proxyNeedCache(cfg *listener.ListenCfg, pc *ProxyCache, req_data []byte, ev *core.Event) {
 	if status, ok := pc.Serve(ev); ok {
 		// 命中缓存：借来的上游连接没被使用，直接归还
 		releaseProxy(p)
+		compressResponse(cfg, ev)
 		logProxyAccess(ev, status, len(ev.RR.Res.Body))
 		writeProxyResponse(ev)
 		return
@@ -362,12 +394,15 @@ func (p *Proxy) proxyNeedCache(pc *ProxyCache, req_data []byte, ev *core.Event) 
 	if err != nil {
 		// 上游连接状态未知，一律关闭不回收
 		p.Close()
-		ev.RR.Res = response.DefaultServerError()
+		ev.RR.Res = proxyErrorResponse(err)
 		ev.WriteResponseClose(nil)
 		return
 	}
 	releaseProxy(p)
+	// 缓存先存未压缩正文：后续命中要按各自请求的 Accept-Encoding 重新协商。
 	pc.Store(ev, status)
+	compressResponse(cfg, ev)
+	logProxyAccess(ev, status, len(ev.RR.Res.Body))
 	writeProxyResponse(ev)
 }
 
@@ -389,9 +424,18 @@ func writeProxyResponse(ev *core.Event) {
 	ev.WriteResponseClose(nil)
 }
 
-func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
+// proxyErrorResponse 把上游读取错误映射成对客户端的响应。
+// 上游响应超出限额属于网关侧问题，用 502；其余沿用 500。
+func proxyErrorResponse(err error) *response.Response {
+	if err == ProxyErrorUpstreamBodyTooLarge {
+		return response.DefaultBadGateway()
+	}
+	return response.DefaultServerError()
+}
 
-	_, err := p.getDataFromServer(ev, req_data)
+func (p *Proxy) proxyNoCache(cfg *listener.ListenCfg, req_data []byte, ev *core.Event) {
+
+	status, err := p.getDataFromServer(ev, req_data)
 
 	if err != nil {
 		// 上游连接状态未知，一律关闭不回收
@@ -400,11 +444,13 @@ func (p *Proxy) proxyNoCache(req_data []byte, ev *core.Event) {
 			ev.Close()
 			ev.Reuse = false
 		} else {
-			ev.RR.Res = response.DefaultServerError()
+			ev.RR.Res = proxyErrorResponse(err)
 			ev.WriteResponseClose(nil)
 		}
 		return
 	}
+	compressResponse(cfg, ev)
+	logProxyAccess(ev, status, len(ev.RR.Res.Body))
 	// proxy server return valid data
 	if ev.RR.Req.IsKeepalive() && !p.ProxyNeedClose {
 		ev.WriteResponse(nil)
@@ -455,11 +501,13 @@ func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	}
 
 	if proxy.ProxyNeedCache {
-		proxyCache := NewProxyCache(cfg.ProxyCache.Key, cfg.ProxyCache.Valid,
-			cfg.ProxyCache.Path, cfg.ProxyCache.Methods, cfg.ProxyCache.MaxSize)
-		proxy.proxyNeedCache(proxyCache, req_data, ev)
+		// 站点只存缓存区名，目录与有效期来自主配置；配置校验保证名字存在，
+		// 这里取不到时用零值区，CacheKey 返回空串即退化为不缓存。
+		zone, _ := config.Current().CacheZoneByName(cfg.ProxyCache)
+		proxyCache := NewProxyCache(zone)
+		proxy.proxyNeedCache(cfg, proxyCache, req_data, ev)
 	} else {
-		proxy.proxyNoCache(req_data, ev)
+		proxy.proxyNoCache(cfg, req_data, ev)
 	}
 }
 
@@ -478,6 +526,34 @@ func ProxyFilterHandler(cfg *listener.ListenCfg, ev *core.Event) bool {
 }
 
 func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
+	// 先按全局 proxy 策略写入 X-Forwarded-For；下面 proxy_set_header 里的
+	// 显式配置仍然可以覆盖它（与 nginx 的「后写生效」一致）。
+	if ev != nil && ev.RR.Req != nil {
+		// 先记下客户端连接是否复用：hop-by-hop 头剥掉后就读不到 Connection 了。
+		keepalive := ev.RR.Req.IsKeepalive()
+		if xff := core.ForwardedForChain(cfg, ev); xff != "" {
+			ev.RR.Req.SetHeader("X-Forwarded-For", xff, cfg)
+		}
+		// preserve_host 默认 true 原样透传；显式关闭时用上游地址，
+		// 让按 Host 分虚拟主机的上游也能命中正确站点。
+		if cfg != nil && !cfg.PreserveHost && strings.TrimSpace(cfg.ProxyAddr) != "" {
+			ev.RR.Req.SetHeader("Host", upstreamHost(cfg.ProxyAddr), cfg)
+		}
+		stripHopByHop(ev.RR.Req, ev.Upgrade, cfg)
+		// 剥掉 Connection 后要按客户端语义重建上游这一跳的连接头：
+		// 客户端要求关闭时不补会让上游保持 keep-alive，代理按「读到连接
+		// 结束」读取响应会等到超时；HTTP/1.0 的 keep-alive 则相反，默认
+		// 是短连接，必须显式补回。websocket 已由 stripHopByHop 处理。
+		if ev.Upgrade != "websocket" {
+			switch {
+			case !keepalive:
+				ev.RR.Req.SetHeader("Connection", "close", cfg)
+			case ev.RR.Req.Protocol == "HTTP/1.0":
+				// HTTP/1.0 默认短连接，剥离后必须把 keep-alive 显式补回去。
+				ev.RR.Req.SetHeader("Connection", "keep-alive", cfg)
+			}
+		}
+	}
 	for _, item := range cfg.ProxySetHeader {
 		ev.RR.Req.SetHeader(item.HeaderKey,
 			ev.GetCommandParsedStr(item.HeaderValue), cfg)
@@ -485,4 +561,20 @@ func ChangeHead(cfg *listener.ListenCfg, ev *core.Event) {
 	// ev.RR.Req_.SetHeader("Host", cfg.Proxy_addr, cfg)
 	// ev.RR.Req_.SetHeader("Connection", "close", cfg)
 	// ev.RR.Req.SetHeader("Accept-Encoding", "", cfg)
+}
+
+// upstreamHost 从 proxy_pass 地址取 host:port，用于 preserve_host=false。
+// 接受带不带 scheme、带路径或 userinfo 的写法。
+func upstreamHost(addr string) string {
+	addr = strings.TrimSpace(addr)
+	if i := strings.Index(addr, "://"); i >= 0 {
+		addr = addr[i+3:]
+	}
+	if i := strings.IndexAny(addr, "/?#"); i >= 0 {
+		addr = addr[:i]
+	}
+	if i := strings.LastIndex(addr, "@"); i >= 0 {
+		addr = addr[i+1:]
+	}
+	return addr
 }

@@ -8,13 +8,14 @@ import (
 	"fast-https/modules/compress"
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/listener"
-	"fast-https/runtime/request"
 	"fast-https/runtime/response"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -54,6 +55,16 @@ func writeHeader(rr *core.RRcircle, firstLineCode int, reason string) {
 	rr.Res.SetHeader("Date", response.CachedDate())
 }
 
+// logReject 写一条统一字段的拒绝日志（R-10）。只记客户端 IP 与规则名，
+// 不记原始请求路径，避免把可能含敏感参数的编码带进日志。
+func logReject(ev *core.Event, reason, rule string) {
+	var conn net.Conn
+	if ev != nil {
+		conn = ev.Conn
+	}
+	logging.RejectWarn(reason, rule, logging.RemoteIP(conn)).Msg("request rejected")
+}
+
 // fileReadWrite 把文件流式写给客户端。
 // io.Copy 经 net.TCPConn.ReadFrom 自动走 sendfile 零拷贝（Linux），
 // Windows 上回退普通拷贝。
@@ -66,7 +77,14 @@ func fileReadWrite(file *os.File, ev *core.Event) int {
 	return 0
 }
 
-func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool, file *os.File, file_size int64, modtime time.Time) {
+// dofind 在 path 上查找可直接返回的文件：路径本身、索引数组、try.Next。
+// 每个真正要打开的候选都过一遍 symlink_policy：索引文件和 try.Next 是
+// 请求路径的延伸，只在入口检查 realPath 会漏掉它们的符号链接。
+// symlinkHit 表示本次查找有候选被 reject 策略拦下，调用方据此记拒绝日志。
+func dofind(path string, try *listener.Try, staticRoot, policy string) (found bool, file *os.File, file_size int64, modtime time.Time, symlinkHit bool) {
+	if symlinkBlocked(policy, staticRoot, path) {
+		return false, nil, -1, time.Time{}, true
+	}
 	file, file_size, modtime = fileFdSize(path)
 
 	if file == nil { // Not Found
@@ -75,6 +93,10 @@ func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool
 			// 结尾的 "/"，靠请求路径的结尾斜杠拼索引文件会拼出
 			// "rootindex.html" 这样的路径
 			p := filepath.Join(path, item)
+			if symlinkBlocked(policy, staticRoot, p) {
+				symlinkHit = true
+				continue
+			}
 			file, file_size, modtime = fileFdSize(p)
 			if file != nil {
 				found = true
@@ -86,13 +108,18 @@ func dofind(path string, try *listener.Try, cfg *listener.ListenCfg) (found bool
 	}
 
 	if !found && try.Next != "" {
-		file, file_size, modtime = fileFdSize(cfg.StaticRoot + "/" + try.Next)
-		if file != nil {
-			found = true
+		next := staticRoot + "/" + try.Next
+		if symlinkBlocked(policy, staticRoot, next) {
+			symlinkHit = true
+		} else {
+			file, file_size, modtime = fileFdSize(next)
+			if file != nil {
+				found = true
+			}
 		}
 	}
 
-	return found, file, file_size, modtime
+	return found, file, file_size, modtime, symlinkHit
 }
 
 func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
@@ -108,17 +135,26 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	// 判定用请求路径而不是拼好的文件路径：站点根本身可能落在 .local 这类
 	// 带点目录下，拿文件路径判会把整个站点误杀。
 	if hiddenPathSegment(rr.Req.Path) {
+		logReject(ev, "hidden_path", "hidden_path_segment")
 		log.Status(404)
 		log.Size(50)
 		return -1
 	}
 	// /../ 之类的逃逸路径按未找到处理，不读任何文件
-	realPath, inRoot := staticPathInRoot(lisdata.StaticRoot, realPath)
+	cleanPath, inRoot := staticPathInRoot(lisdata.StaticRoot, realPath)
 	if !inRoot {
+		reason, rule := "path_traversal", "static_root"
+		// Windows 上保留设备名、尾点/尾空格规范化后的空段不是“逃逸”，
+		// 用更准确的枚举，避免把 /CON 误报成路径穿越。
+		if r := windowsPathRejectRule(filepath.Clean(realPath)); r != "" {
+			reason, rule = "invalid_path", r
+		}
+		logReject(ev, reason, rule)
 		log.Status(404)
 		log.Size(50)
 		return -1
 	}
+	realPath = cleanPath
 	// var file_data = cache.Get_data_from_cache(realPath)
 	// var file_data = []byte("cache.Get_data_from_cache(realPath)")
 
@@ -126,22 +162,31 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	var file_size int64 // file size
 	var modtime time.Time
 	var found bool
+	symlinkHit := false
 
 	for _, try := range lisdata.Trys {
 		if mathed := try.UriRe.Match([]byte(rr.Req.Path)); !mathed && try.Next == "" {
 			continue
 		}
-		found, file, file_size, modtime = dofind(realPath, &try, lisdata)
+		var blocked bool
+		found, file, file_size, modtime, blocked = dofind(realPath, &try, lisdata.StaticRoot, lisdata.SymlinkPolicy)
+		symlinkHit = symlinkHit || blocked
 		if found || try.Next != "" {
 			break
 		}
 	}
 
 	if lisdata.Trys == nil {
-		found, file, file_size, modtime = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex}, nil)
+		var blocked bool
+		found, file, file_size, modtime, blocked = dofind(realPath, &listener.Try{Files: lisdata.StaticIndex},
+			lisdata.StaticRoot, lisdata.SymlinkPolicy)
+		symlinkHit = symlinkHit || blocked
 	}
 
 	if !found {
+		if symlinkHit {
+			logReject(ev, "symlink_rejected", "symlink_policy")
+		}
 		log.Status(404)
 		log.Size(50)
 		return -1
@@ -158,6 +203,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 			return 1
 		}
 		response.ApplySecurityHeaders(ev.RR.Res)
+		ev.SetWriteTimeout()
 		if _, err := ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes()); err != nil {
 			return -10
 		}
@@ -197,29 +243,50 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 		}
 	}
 
+	contentType := getContentType(name)
+
 	var payload []byte
 	encoding := ""
 	stream := true
+	// 压缩条件：无 Range（压缩后 Range 语义失效）、文件达到 min_length
+	// 阈值、Content-Type 不在已压缩类型清单里。三条任一不满足就流式
+	// 原样返回，避免为几字节的响应付出压缩成本或把已压缩内容再压一遍。
+	// 跳过原因写 debug 级拒绝日志：不改响应，但在排障时能定位是哪条配置。
 	if rngStart == -1 {
-		encoding = encodingWanted(lisdata.Zip, acceptEncoding(ev))
-		if encoding != "" {
-			raw, err := io.ReadAll(file)
-			file.Close()
-			file = nil
-			if err != nil {
-				return -10
+		if rule := compressibleReason(lisdata, contentType, file_size); rule != "" {
+			if lisdata.Zip != config.ZIP_NONE {
+				logger := logging.RejectDebug("compression_skipped", rule, logging.RemoteIP(ev.Conn))
+				logger.Msg("static response compression skipped by config")
 			}
-			compressed, err := compress.CompressBytes(raw, encoding)
-			if err != nil {
-				return -10
+		} else {
+			encoding = compress.Wanted(lisdata.Zip, acceptEncoding(ev))
+			if encoding != "" {
+				// 按块从文件流式压缩，避免把原文整体读进内存；输出缓冲
+				// 是为了先拿到压缩体长度写 Content-Length。
+				compressed, err := compress.CompressReader(file, encoding)
+				file.Close()
+				file = nil
+				if err != nil {
+					return -10
+				}
+				payload = compressed
+				stream = false
+			} else {
+				// 配置允许压缩、文件也满足条件，只剩客户端没要（或只要了
+				// 未启用的编码）。与配置跳过区分开，便于排查“为什么没压缩”。
+				logging.RejectDebug("compression_skipped", "accept_encoding", logging.RemoteIP(ev.Conn)).
+					Msg("static response compression skipped: client accepts no configured encoding")
 			}
-			payload = compressed
-			stream = false
 		}
 	}
 	payloadLen := file_size
 	if rngStart >= 0 {
 		payloadLen = rngEnd - rngStart + 1
+	}
+	if !stream {
+		// 压缩后正文长度变了，Content-Length 必须改用压缩体长度，
+		// 否则客户端会按原文件大小读取，把后续响应或连接关闭当正文。
+		payloadLen = int64(len(payload))
 	}
 
 	if rngStart >= 0 {
@@ -230,7 +297,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	} else {
 		writeHeader(&rr, 200, "OK")
 	}
-	rr.Res.SetHeader("Content-Type", getContentType(name))
+	rr.Res.SetHeader("Content-Type", contentType)
 	rr.Res.SetHeader("Content-Length", strconv.Itoa(int(payloadLen)))
 	rr.Res.SetHeader("Last-Modified", lastModified)
 	if !stream {
@@ -277,6 +344,7 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 
 	// 静态文件直接写连接，绕过了 core.WriteResponse，这里补一次安全响应头。
 	response.ApplySecurityHeaders(ev.RR.Res)
+	ev.SetWriteTimeout()
 	if _, err := ev.Conn.Write(ev.RR.Res.GenerateHeaderBytes()); err != nil {
 		if file != nil {
 			file.Close()
@@ -418,17 +486,90 @@ func hiddenPathSegment(target string) bool {
 	return false
 }
 
+// windowsPathRejectRule 返回 Windows 路径被拒绝时命中的规则；不需要
+// 特殊处理时返回空串。只影响日志的 rule 字段，不改变拒绝行为。
+func windowsPathRejectRule(full string) string {
+	if runtime.GOOS != "windows" {
+		return ""
+	}
+	for _, part := range strings.Split(full, string(filepath.Separator)) {
+		if part == "" || part == "." || part == ".." {
+			continue
+		}
+		trimmed := strings.TrimRight(part, ". ")
+		if trimmed == "" {
+			return "windows_path_normalization"
+		}
+		if reservedDeviceName(trimmed) {
+			return "windows_reserved_name"
+		}
+	}
+	return ""
+}
+
 // staticPathInRoot 清洗拼接后的文件路径并校验没有逃出站点根目录。
 // StaticRoot 在配置加载时已解析为绝对路径；rooted 是 StaticRoot 与
 // URL 路径直接拼接的结果。本服务不做 URL 解码，%2e%2e 不会被还原
 // 成 ..。返回清洗后的路径；ok=false 表示逃逸，调用方按 404 处理。
+//
+// Windows 上额外处理文件系统语义：尾点/尾空格按实际打开时的行为裁剪，
+// 保留设备名（CON、NUL、COM1…）直接拒绝——它们会把请求重定向到设备，
+// 与站点目录无关。
 func staticPathInRoot(root, rooted string) (string, bool) {
 	rootAbs := filepath.Clean(root)
 	full := filepath.Clean(rooted)
+	if runtime.GOOS == "windows" {
+		normalized, ok := normalizeWindowsPath(full)
+		if !ok {
+			return "", false
+		}
+		// 裁剪尾点后可能出现新的 ..（如 ".. "），必须再 Clean 一次
+		// 才能做前缀校验。
+		full = filepath.Clean(normalized)
+	}
 	if full != rootAbs && !strings.HasPrefix(full, rootAbs+string(filepath.Separator)) {
 		return "", false
 	}
 	return full, true
+}
+
+// normalizeWindowsPath 按 Windows 打开文件时的语义逐段裁剪尾点与尾空格，
+// 并拒绝保留设备名。ok=false 表示该路径命中保留设备名或裁剪后为空。
+func normalizeWindowsPath(full string) (string, bool) {
+	parts := strings.Split(full, string(filepath.Separator))
+	for i, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			continue
+		}
+		trimmed := strings.TrimRight(part, ". ")
+		if trimmed == "" {
+			return "", false
+		}
+		if reservedDeviceName(trimmed) {
+			return "", false
+		}
+		parts[i] = trimmed
+	}
+	return strings.Join(parts, string(filepath.Separator)), true
+}
+
+// reservedDeviceName 报告该路径段是否命中 Windows 保留设备名。
+// Windows 只看第一个点之前的部分，因此 CON.txt 同样保留。
+func reservedDeviceName(segment string) bool {
+	name := segment
+	if i := strings.IndexByte(name, '.'); i >= 0 {
+		name = name[:i]
+	}
+	name = strings.ToUpper(name)
+	switch name {
+	case "CON", "PRN", "AUX", "NUL":
+		return true
+	}
+	if len(name) == 4 && name[3] >= '1' && name[3] <= '9' &&
+		(strings.HasPrefix(name, "COM") || strings.HasPrefix(name, "LPT")) {
+		return true
+	}
+	return false
 }
 
 // get this endpoint's content type
@@ -485,46 +626,6 @@ func defaultContentType() string {
  ****** Interfaces are as follows ****
  *************************************
  */
-
-// encodingWanted 按配置与客户端 Accept-Encoding 协商响应压缩编码。
-// ZIP_GZIP_BR 两种都配置时优先选压缩率更好的 br，客户端不认再回退
-// gzip；q 值只判断是否接受（q>0），不做加权择优。
-// 返回空串表示不压缩。
-func encodingWanted(zip uint16, accept string) string {
-	switch zip {
-	case config.ZIP_GZIP:
-		if acceptsEncoding(accept, "gzip") {
-			return "gzip"
-		}
-	case config.ZIP_BR:
-		if acceptsEncoding(accept, "br") {
-			return "br"
-		}
-	case config.ZIP_GZIP_BR:
-		if acceptsEncoding(accept, "br") {
-			return "br"
-		}
-		if acceptsEncoding(accept, "gzip") {
-			return "gzip"
-		}
-	}
-	return ""
-}
-
-// acceptsEncoding 判断客户端是否接受某个内容编码。
-//
-// 客户端显式列了这个编码，就按它的 q 值决定（q=0 为拒绝，此时不走通配符）；
-// 完全没提到它，才回落到 `*` 的 q 值。只看 q>0 而不做加权择优：这里的目标
-// 是「能压就压」，不是挑压缩率最优的那个。
-func acceptsEncoding(accept, token string) bool {
-	if q, mentioned := request.QValue(accept, token); mentioned {
-		return q > 0
-	}
-	if q, mentioned := request.QValue(accept, "*"); mentioned {
-		return q > 0
-	}
-	return false
-}
 
 func acceptEncoding(ev *core.Event) string {
 	if ev == nil || ev.RR.Req == nil {

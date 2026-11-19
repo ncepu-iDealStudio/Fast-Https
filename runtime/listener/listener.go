@@ -8,6 +8,7 @@ import (
 	"fast-https/config"
 	"fast-https/infra/logging"
 	"net"
+	"net/netip"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -48,21 +49,33 @@ type ListenCfg struct {
 	Type           uint16 // 0 1 2 3 4
 	ProxyAddr      string
 	ProxySetHeader []config.Header
-	ProxyCache     config.Cache
+	ProxyCache     string
 	AppFireWall    []string
 	ReWrite        string
 
 	Limit config.PathLimit
 	Auth  config.PathAuth
 
-	StaticRoot    string
+	StaticRoot string
+	// SymlinkPolicy 是站点根的符号链接策略，静态层只关心 reject。
+	SymlinkPolicy string
 	StaticIndex   []string
 	Zip           uint16
+	// ZipMinLength 是压缩阈值（字节），0 表示不限制。
+	ZipMinLength int
+	// ZipSkipTypes 是跳过压缩的 MIME 类型；空时用 static 包的内置清单。
+	ZipSkipTypes  []string
 	ErrorNotFound string
 	ErrorProxy    string
 
 	// AllowMethods 非空时限定该 location 允许的 HTTP 方法，越界返回 405。
 	AllowMethods []string
+
+	// 全局 proxy 段的构建期快照。请求路径直接读这些字段，
+	// reload 时随整个 Cfg 快照一起替换。
+	ForwardedForMaxHops int
+	TrustedProxies      []netip.Prefix
+	PreserveHost        bool
 }
 
 // listenerSnapshot 是请求路径读取的配置快照。
@@ -93,6 +106,9 @@ type Listener struct {
 
 	certs *certSet
 	cur   atomic.Pointer[listenerSnapshot]
+
+	// inflight 是该端口正在处理的请求数，供 reload 日志标注受影响范围。
+	inflight atomic.Int64
 }
 
 // publish 把构造好的 Cfg/HostMap 发布为请求路径可见的快照。
@@ -164,6 +180,18 @@ func (l *Listener) DefaultHosts() []ListenCfg {
 	return l.Hosts()[cfgs[0].ServerName]
 }
 
+// BeginRequest 标记该端口上一条请求开始处理。
+// reload 关闭或更新端口时读 InflightRequests，把受影响的请求数写进日志。
+func (l *Listener) BeginRequest() { l.inflight.Add(1) }
+
+// EndRequest 标记一条请求处理结束，与 BeginRequest 成对调用。
+func (l *Listener) EndRequest() { l.inflight.Add(-1) }
+
+// InflightRequests 返回该端口正在处理的请求数。
+// 只统计走 EventHandler 的 HTTP 请求（h1 每个请求、h2 每个流），
+// websocket/tcp 隧道属于长连接，不计入。
+func (l *Listener) InflightRequests() int64 { return l.inflight.Load() }
+
 // GLisinfos 是当前进程的监听器表。启动与 reload 写入，请求路径与
 // 证书热替换（控制面签发证书后）读取，所以读写都走 lisMu：
 // 读方拿一份快照，避免在 reload 替换切片时读到半截状态。
@@ -198,7 +226,9 @@ func FindPorts() []string {
 
 func FindOldPorts() []string {
 	var Ports []string
-	for _, item := range GLisinfos {
+	// 走快照而不是直接读 GLisinfos：reload 会替换监听器表，
+	// 这里与证书热替换等读取方并发，不能读半截切片。
+	for _, item := range SnapshotListeners() {
 		if !slices.Contains(Ports, item.Port) {
 			// always true
 			Ports = append(Ports, item.Port)
@@ -268,7 +298,11 @@ func SortBySpecificPorts(ports []string, lisInfos *[]*Listener) {
 // sort configure from "path"
 func processListenData(lisInfos *[]*Listener) {
 	Id := 0
-	for _, server := range config.Current().Servers {
+	// 一次取快照：Servers 与 Proxy 必须来自同一份配置，
+	// 否则 reload 恰好在此处换快照时会拼出「新路由 + 旧 XFF 策略」。
+	cur := config.Current()
+	proxy := cur.Proxy
+	for _, server := range cur.Servers {
 		listen := strings.Split(server.Listen, " ")[0]
 		for _, paths := range server.Path {
 
@@ -289,39 +323,45 @@ func processListenData(lisInfos *[]*Listener) {
 					data.Trys = append(data.Trys, try)
 				}
 				// 多域名支持：server_name 允许空格分隔多个域名（nginx 风格）。
-			// ServerName 保留第一个域名（主域名），其余域名进 Aliases，
-			// processEachPort 会把所有域名都注册到 HostMap。
-			names := server.ServerNames()
-			if len(names) == 0 {
-				names = []string{""}
-			}
-			data.ServerName = names[0] + ":" + eachlisten.Port
-			for _, alias := range names[1:] {
-				data.Aliases = append(data.Aliases, alias+":"+eachlisten.Port)
-			}
-			data.Type = paths.PathType
-			data.ProxyAddr = paths.ProxyData
-			data.ProxySetHeader = paths.ProxySetHeader
-			data.AppFireWall = paths.AppFireWall
-			data.Limit = paths.Limit
-			data.Auth = paths.Auth
-			data.StaticRoot = paths.Root
-			data.StaticIndex = paths.Index
-			data.ErrorNotFound = paths.ErrorNotFound
-			data.ErrorProxy = paths.ErrorProxy
-			data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
-			// 多域名：其余域名的证书按 config/cert/<domain>.pem 兜底路径加载，
-			// ACME 每个域名分别申请一张证书，certPaths 也按此路径落盘。
-			for _, alias := range names[1:] {
-				data.ExtraCerts = append(data.ExtraCerts, SSLkv{
-					SslKey:   filepath.Join(config.CERT_DIR, alias) + ".pem",
-					SslValue: filepath.Join(config.CERT_DIR, alias) + "-key.pem",
-				})
-			}
-			data.Zip = paths.Zip
+				// ServerName 保留第一个域名（主域名），其余域名进 Aliases，
+				// processEachPort 会把所有域名都注册到 HostMap。
+				names := server.ServerNames()
+				if len(names) == 0 {
+					names = []string{""}
+				}
+				data.ServerName = names[0] + ":" + eachlisten.Port
+				for _, alias := range names[1:] {
+					data.Aliases = append(data.Aliases, alias+":"+eachlisten.Port)
+				}
+				data.Type = paths.PathType
+				data.ProxyAddr = paths.ProxyData
+				data.ProxySetHeader = paths.ProxySetHeader
+				data.AppFireWall = paths.AppFireWall
+				data.Limit = paths.Limit
+				data.Auth = paths.Auth
+				data.StaticRoot = paths.Root
+				data.SymlinkPolicy = paths.SymlinkPolicy
+				data.StaticIndex = paths.Index
+				data.ErrorNotFound = paths.ErrorNotFound
+				data.ErrorProxy = paths.ErrorProxy
+				data.SSL = SSLkv{server.SSLCertificate, server.SSLCertificateKey}
+				// 多域名：其余域名的证书按 config/cert/<domain>.pem 兜底路径加载，
+				// ACME 每个域名分别申请一张证书，certPaths 也按此路径落盘。
+				for _, alias := range names[1:] {
+					data.ExtraCerts = append(data.ExtraCerts, SSLkv{
+						SslKey:   filepath.Join(config.CERT_DIR, alias) + ".pem",
+						SslValue: filepath.Join(config.CERT_DIR, alias) + "-key.pem",
+					})
+				}
+				data.Zip = paths.Zip
+				data.ZipMinLength = paths.ZipMinLength
+				data.ZipSkipTypes = paths.ZipSkipTypes
 				data.ReWrite = paths.Rewrite
 				data.ProxyCache = paths.ProxyCache
 				data.AllowMethods = paths.AllowMethods
+				data.ForwardedForMaxHops = proxy.ForwardedForMaxHops
+				data.TrustedProxies = proxy.TrustedPrefixes
+				data.PreserveHost = proxy.PreserveHost
 				eachlisten.Cfg = append(eachlisten.Cfg, data)
 				Id = Id + 1
 			}

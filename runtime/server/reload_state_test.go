@@ -1,18 +1,24 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net"
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"fast-https/config"
 	"fast-https/core"
+	"fast-https/infra/logging"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/metrics"
 )
@@ -255,6 +261,200 @@ func TestSigtermMarksStopping(t *testing.T) {
 	s.SigHandler(syscall.SIGTERM)
 	if got := metrics.State(); got != metrics.StateStopping {
 		t.Fatalf("state = %s, want stopping", got)
+	}
+}
+
+// 并发触发 10 次 reload：后到的等待前一次完成，监听器表与指标不应出现
+// 交错写入或半截状态。-race 下同时覆盖 GLisinfos / s.Listens 的读写。
+func TestConcurrentReloadsAreSerialized(t *testing.T) {
+	resetMetricsForTest(t)
+	metrics.RecordProcessStart()
+	metrics.MarkRunning()
+
+	// 配置里一个 server 都没有：ReloadListenCfg 只做移除，不触发真实绑定。
+	previous := *config.Current()
+	next := previous
+	next.Servers = nil
+	config.Store(&next, config.MIME())
+	t.Cleanup(func() { config.Store(&previous, config.MIME()) })
+
+	oldListener := &listener.Listener{Port: "18096", LisType: 0}
+	previousListeners := listener.GLisinfos
+	listener.GLisinfos = []*listener.Listener{oldListener}
+	t.Cleanup(func() { listener.GLisinfos = previousListeners })
+
+	core.SetServices(core.Services{})
+	t.Cleanup(func() { core.SetServices(core.Services{}) })
+
+	previousReload := reloadConfig
+	reloadConfig = func() error { return nil }
+	t.Cleanup(func() { reloadConfig = previousReload })
+
+	s := &Server{Listens: []*listener.Listener{oldListener}}
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			s.Reload()
+		}()
+	}
+	wg.Wait()
+
+	if got := metrics.Generation(); got != 10 {
+		t.Fatalf("generation = %d, want 10 (one per reload)", got)
+	}
+	if got := metrics.State(); got != metrics.StateRunning {
+		t.Fatalf("state = %s, want running after the last reload", got)
+	}
+	if got := len(listener.SnapshotListeners()); got != 0 {
+		t.Fatalf("listener table = %d entries, want 0", got)
+	}
+	if got := len(s.Listens); got != 0 {
+		t.Fatalf("s.Listens = %d entries, want 0", got)
+	}
+}
+
+// 移除端口时日志必须带上该端口的在途请求数：排障时才能判断这次
+// reload 打断了多少请求，而不是只有一句“端口被移除”。
+func TestReloadLogsInFlightRequestsOnRemovedPort(t *testing.T) {
+	var buf bytes.Buffer
+	previousLog := logging.ConsoleLog
+	logging.ConsoleLog = zerolog.New(&buf)
+	t.Cleanup(func() { logging.ConsoleLog = previousLog })
+
+	previous := *config.Current()
+	next := previous
+	next.Servers = nil
+	config.Store(&next, config.MIME())
+	t.Cleanup(func() { config.Store(&previous, config.MIME()) })
+
+	oldListener := &listener.Listener{Port: "18097", LisType: 0}
+	oldListener.BeginRequest()
+	oldListener.BeginRequest()
+	previousListeners := listener.GLisinfos
+	listener.GLisinfos = []*listener.Listener{oldListener}
+	t.Cleanup(func() { listener.GLisinfos = previousListeners })
+
+	core.SetServices(core.Services{})
+	t.Cleanup(func() { core.SetServices(core.Services{}) })
+
+	previousReload := reloadConfig
+	reloadConfig = func() error { return nil }
+	t.Cleanup(func() { reloadConfig = previousReload })
+
+	s := &Server{Listens: []*listener.Listener{oldListener}}
+	s.Reload()
+
+	out := buf.String()
+	if !strings.Contains(out, `"port":"18097"`) || !strings.Contains(out, `"in_flight_requests":2`) {
+		t.Fatalf("reload log missing port / in-flight count: %s", out)
+	}
+	if !strings.Contains(out, "in-flight requests are terminated") {
+		t.Fatalf("reload log does not mark interrupted requests: %s", out)
+	}
+}
+
+// /runtime 快照的 listeners[].in_flight_requests 反映实时值：端口表副本仍由
+// publishListeners 提供，在途数在 TakeSnapshot 时经注册的来源填充。
+func TestRuntimeSnapshotExposesListenerInFlight(t *testing.T) {
+	resetMetricsForTest(t)
+
+	lis := &listener.Listener{Port: "18099", LisType: 0}
+	previousListeners := listener.GLisinfos
+	listener.GLisinfos = []*listener.Listener{lis}
+	t.Cleanup(func() {
+		listener.GLisinfos = previousListeners
+		metrics.ResetForTest()
+	})
+
+	lis.BeginRequest()
+	publishListeners([]*listener.Listener{lis})
+
+	snap := metrics.TakeSnapshot()
+	if len(snap.Listeners) != 1 {
+		t.Fatalf("listeners = %+v", snap.Listeners)
+	}
+	if got := snap.Listeners[0].InFlightRequests; got != 1 {
+		t.Fatalf("in_flight_requests = %d, want 1", got)
+	}
+}
+
+// 停止开始后到达的 reload 直接跳过：不能在退出前把已 drain 的端口再拉起来。
+func TestReloadSkippedWhileStopping(t *testing.T) {
+	resetMetricsForTest(t)
+	metrics.MarkRunning()
+
+	s := &Server{}
+	s.mu.Lock()
+	s.stopping = true
+	s.mu.Unlock()
+
+	called := false
+	previousReload := reloadConfig
+	reloadConfig = func() error {
+		called = true
+		return nil
+	}
+	t.Cleanup(func() { reloadConfig = previousReload })
+
+	s.Reload()
+
+	if called {
+		t.Fatal("reload must not run once stopping has begun")
+	}
+	if got := metrics.State(); got != metrics.StateRunning {
+		t.Fatalf("state = %s, want running (skipped reload must not flap)", got)
+	}
+	if got := metrics.Generation(); got != 0 {
+		t.Fatalf("generation = %d, want 0", got)
+	}
+}
+
+// reload 与 graceful stop 并发：监听器表的读写同在 Server.mu 下，
+// -race 下不出现数据竞争，停止状态最终生效。
+func TestReloadAndGracefulStopDoNotRace(t *testing.T) {
+	resetMetricsForTest(t)
+	metrics.RecordProcessStart()
+	metrics.MarkRunning()
+
+	previous := *config.Current()
+	next := previous
+	next.Servers = nil
+	config.Store(&next, config.MIME())
+	t.Cleanup(func() { config.Store(&previous, config.MIME()) })
+
+	oldListener := &listener.Listener{Port: "18100", LisType: 0}
+	previousListeners := listener.GLisinfos
+	listener.GLisinfos = []*listener.Listener{oldListener}
+	t.Cleanup(func() { listener.GLisinfos = previousListeners })
+
+	core.SetServices(core.Services{})
+	t.Cleanup(func() { core.SetServices(core.Services{}) })
+
+	previousReload := reloadConfig
+	reloadConfig = func() error { return nil }
+	t.Cleanup(func() { reloadConfig = previousReload })
+
+	s := &Server{Listens: []*listener.Listener{oldListener}}
+	s.Wg.Add(1)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		s.Reload()
+	}()
+	go func() {
+		defer wg.Done()
+		s.gracefulStop()
+	}()
+	wg.Wait()
+
+	s.mu.Lock()
+	stopping := s.stopping
+	s.mu.Unlock()
+	if !stopping {
+		t.Fatal("graceful stop did not mark the server as stopping")
 	}
 }
 

@@ -88,20 +88,31 @@ logs/                       运行日志
     "headers": {
       "nosniff": true,
       "hsts": "",
-      "x_frame_options": "",
-      "referrer_policy": "",
+      "x_frame_options": "SAMEORIGIN",
+      "referrer_policy": "strict-origin-when-cross-origin",
       "content_security_policy": ""
     }
   },
   "waf": {
-    "mode": "disabled"
+    "mode": "monitor"
+  },
+  "proxy": {
+    "trusted_proxies": ["127.0.0.1/32", "::1/128"],
+    "forwarded_for": {
+      "max_hops": 10
+    },
+    "upstream_timeout": 20,
+    "tunnel_idle_timeout": 0
   },
   "http": {
-    "include": ["./config/conf.d"],
+    "include": ["./conf.d"],
     "default_type": "application/octet-stream",
     "servers_limit": {
-      "max_header_size": 4096,
-      "max_body_size": 524288,
+      "max_header_size": 8192,
+      "max_body_size": 8388608,
+      "read_timeout": 30,
+      "write_timeout": 30,
+      "body_timeout": 1,
       "limit": 0,
       "burst": 0
     },
@@ -115,7 +126,18 @@ logs/                       运行日志
 }
 ```
 
-上面每一项的取值都等于内置默认值，写全是为了在文件里直接看到有哪些系统级开关（`waf.mode: disabled` 等价于不启用，引擎不构建，零开销）。
+随包配置在安全默认值之上预先打开了几项常用能力，不改也能直接跑：
+
+- `x_frame_options` 与 `referrer_policy` 默认给出 `SAMEORIGIN` 和
+  `strict-origin-when-cross-origin`；`hsts` 与 `content_security_policy` 保持留空，
+  前者要等全站 HTTPS 稳定后再开，后者与具体站点强相关。
+- `waf.mode` 为 `monitor`：命中只记录、不阻断；规则本身仍由 location 的
+  `appfirewall` 选择（见 15 节）。
+- `proxy.trusted_proxies` 信任本机回环，前置 nginx / Caddy 时能还原真实客户端 IP；
+  `forwarded_for.max_hops` 限制为 10，避免接受无上限的伪造链。
+- 请求头上限 8 KB、请求体上限 8 MB，覆盖带 Cookie 的页面与常见表单 / JSON 上传。
+
+要收紧或换掉哪一项，直接改对应字段即可；每一项的取值含义见本章各节。
 
 随包的 `config/conf.d/default.json` 是开箱即用的默认站点，角色相当于 nginx 的默认站点：80 提供 HTTP，443 提供 HTTPS + HTTP/2，两个端口都指向 `./httpdoc/root`：
 
@@ -130,7 +152,10 @@ logs/                       运行日志
       "url": "/",
       "type": "local",
       "root": "./httpdoc/root",
-      "index": ["index.html", "index.htm"]
+      "index": ["index.html", "index.htm"],
+      "zip": ["br", "gzip"],
+      "zip_min_length": 1024,
+      "zip_skip_types": ["image/*", "video/*", "audio/*", "font/woff2", "application/zip", "application/gzip"]
     }
   ]
 }
@@ -191,12 +216,15 @@ fast-https site enable demo.example --yes
 fast-https site delete demo.example --yes   # 只删配置文件，不删内容目录与证书
 fast-https site list --json                 # 含 enabled、cert_status
 fast-https site add --domain blog.example --listen 80 --root ./httpdoc/root --yes
+fast-https site add --domain static.example --root ./httpdoc/root --symlink-policy reject --yes
+fast-https site update blog --symlink-policy= --yes   # 传空表示回到默认 check-at-load
 fast-https site show blog
 fast-https site delete blog --yes
 ```
 
-- **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。
-- **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
+- **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。新建站点默认开启 `br+gzip` 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。
+- **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`、`--ssl-certificate*`，以及主 location 上的高级配置 `--zip`、`--zip-min-length`、`--zip-skip-types`、`--limit-*`、`--auth-*`、`--cache-*`、`--symlink-policy`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
+- **符号链接策略**：`site add/update` 的 `--symlink-policy` 取 `check-at-load`（默认）、`reject`、`allow`，只对 `local` 站点生效；`site update --symlink-policy=` 传空串表示删掉该键、回到默认。代理站点带此参数返回退出码 2。
 - **site disable / enable**：把 `<name>.json` 改名为 `<name>.json.disabled` 或改回（`include` 只加载 `*.json`）。`site list --json` 里停用站点为 `enabled: false`。
 - **site delete**：必须 `--yes`。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 `config rollback` 找回。
 - **交互式**：`fast-https site add` 不带 `--domain` 且标准输入是终端时进向导，一题一屏依次问站点名（也是文件名）、监听端口、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。最后一屏确认即视为 `--yes`。标准输入不是终端时不会挂起，会提示改用 `--domain` 等参数。
@@ -237,6 +265,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `http` | HTTP 服务主体，见下 |
 | `acme` | ACME 自动签发与续期，见 7.1。缺省即关闭，行为与老版本一致 |
 | `security` | Host 校验与安全响应头，见 5.5。缺省只加 `X-Content-Type-Options: nosniff` |
+| `tls` | 全局 TLS 兜底：`default_certificate` 指定未知 SNI 使用的证书，见 7.2。缺省回落到该端口第一张证书 |
+| `proxy` | 代理转发策略：可信代理、`X-Forwarded-For` 链长与 Host 透传，见 5.6 |
 
 ### 5.2 `http` 段
 
@@ -245,9 +275,21 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `server` | 站点数组，每一项是一个虚拟主机 |
 | `include` | 额外加载的目录或 json 文件列表，默认 `config/conf.d` |
 | `default_type` | 未知扩展名的默认 Content-Type |
-| `servers_limit` | `max_body_size`、`max_header_size`、`limit`、`burst` |
+| `servers_limit` | `max_body_size`、`max_header_size`、`read_timeout`、`write_timeout`、`body_timeout`、`limit`、`burst` |
 | `blaklist` | IP 黑名单（键名是历史拼写，保持兼容） |
 | `log_format` | 访问日志字段顺序，见第 9 节 |
+
+`servers_limit` 的大小上限与超时：
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `max_header_size` | 4096 | 431 Request Header Fields Too Large，关闭连接；HTTP/1.1 与 HTTP/2 共用 |
+| `max_body_size` | 524288 | 413 Payload Too Large，关闭连接；声明长度与流式正文都检查 |
+| `read_timeout` | 30 | 读取请求头/首包的秒数，HTTP/2 的读头超时也用它 |
+| `write_timeout` | 30 | 写出响应的秒数 |
+| `body_timeout` | 1 | 读取 body 时单次读的秒数（不是整个上传的总时长） |
+
+超时写 `0` 表示使用默认值；负数会在加载/校验时直接报错。
 
 ### 5.3 `server` 段
 
@@ -266,6 +308,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `url` | 匹配规则，支持正则，例如 `/`、`/api/`、`\.php$` |
 | `type` | `local`（静态）、`proxy`（反向代理）、`rewrite`（重定向）、`devmod`（开发模式） |
 | `root` | `local` 的站点根目录 |
+| `symlink_policy` | `local` 站点根的符号链接策略，只对 `local` 生效。`check-at-load`（默认）：加载/重载配置时扫描 root，发现链接就拒绝加载；`reject`：加载放行，但请求路径下命中任何链接（符号链接或 Windows junction）都返回 404；`allow`：保持旧行为，链接照常解析 |
 | `index` | 默认索引文件名列表 |
 | `try` | `try_files` 语义：`[{"uri": "/", "file": ["index.html"], "next": "@backend"}]` |
 | `rewrite` | `type: rewrite` 时的目标地址 |
@@ -273,6 +316,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `proxy_set_header` | 请求头改写，格式 `[{"HeaderKey": "X-Real-IP", "HeaderValue": "$remote_addr"}]` |
 | `proxy_cache` | 代理缓存，见 6.5 |
 | `zip` | 响应压缩，取值 `gzip`、`br`，可同时配置 |
+| `zip_min_length` | 最小压缩阈值（字节），`0` 表示不限制 |
+| `zip_skip_types` | 跳过压缩的 MIME 类型列表，支持 `image/*`、`image/p*`、`*/*`；留空使用内置的已压缩类型清单 |
 | `limit` | `mem`、`rate`、`burst`、`nodelay` |
 | `auth` | `{"type": "basic", "user": "...", "pswd": "...", "realm": "..."}`。只支持 `basic`，写了 `type` 就必须同时写 `user` 与 `pswd`（缺任何一项校验就报错）；`realm` 可选，留空时用站点名 |
 | `appfirewall` | 应用防火墙开关，例如 `["xss", "sqli"]` |
@@ -288,7 +333,7 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `$host` | 请求的 Host |
 | `$proxy_host` | 上游地址 |
 | `$remote_addr` | 客户端 IP |
-| `$proxy_add_x_forwarded_for` | 追加当前客户端 IP 后的 `X-Forwarded-For` |
+| `$proxy_add_x_forwarded_for` | 按 5.6 的代理策略计算出的 `X-Forwarded-For`（不受信客户端自带的链会被丢弃） |
 
 ### 5.5 `security` 段
 
@@ -314,9 +359,69 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 | `headers.referrer_policy` | 空 | 写入 `Referrer-Policy` |
 | `headers.content_security_policy` | 空 | 写入 `Content-Security-Policy` |
 
+随包配置把 `x_frame_options` 设为 `SAMEORIGIN`、`referrer_policy` 设为
+`strict-origin-when-cross-origin`；不写 `security` 段时则只加 `nosniff`。
 安全头在响应写出的唯一出口统一补齐：模块自己设置过同名头时不覆盖，重复调用幂等。
 
 > 请求路径在解析阶段就完成规范化：解一层 `%xx`、合并连续的 `/`、拒绝二次编码（`%252f`）、反斜杠、控制字符与超过 8192 字节的目标，非法请求直接 400。location 匹配、静态文件解析与日志看到的都是规范化后的路径。
+
+### 5.6 `proxy` 段
+
+全局代理转发策略，对所有 `type: proxy` 的 location 生效：
+
+```json
+"proxy": {
+  "trusted_proxies": ["10.0.0.0/8", "192.168.1.10"],
+  "forwarded_for": { "max_hops": 10 },
+  "preserve_host": true,
+  "upstream_timeout": 20,
+  "tunnel_idle_timeout": 0
+}
+```
+
+| 键 | 默认 | 说明 |
+| --- | --- | --- |
+| `trusted_proxies` | 空 | 可信代理的 IP 或 CIDR 列表。只有直连对端命中这里的请求，才保留客户端自带的 `X-Forwarded-For` |
+| `forwarded_for.max_hops` | `0` | 转发链长度上限，`0` 表示不限制。链已达到上限时不再追加客户端地址，并写一条含 `hops` / `max_hops` 的 Warn 日志 |
+| `preserve_host` | `true` | `true` 原样透传客户端 `Host`；`false` 时改写为上游 `host:port` |
+| `upstream_timeout` | `20` | 代理到上游的整体超时（秒）；`0` 表示用默认值，负数为非法配置 |
+| `tunnel_idle_timeout` | `0` | websocket / tcp 隧道双向都无数据超过该秒数时断开；`0` 表示不断开 |
+
+`X-Forwarded-For` 的生成规则：
+
+| 直连对端 | 入站 `X-Forwarded-For` | 转发给上游的值 |
+| --- | --- | --- |
+| 不在 `trusted_proxies` | 有（客户端伪造） | 丢弃整条，只写真实对端 IP |
+| 不在 `trusted_proxies` | 无 | 真实对端 IP |
+| 在 `trusted_proxies` | 有 | 入站链 + `, ` + 真实对端 IP |
+| 在 `trusted_proxies` | 无 | 真实对端 IP |
+
+达到 `forwarded_for.max_hops` 时保留入站链、不再追加。显式写了
+`proxy_set_header` 的 `X-Forwarded-For` 仍然覆盖自动值。
+
+转发前会剥掉只对单跳有意义的头：`Connection`、`Keep-Alive`、
+`Proxy-Authenticate`、`Proxy-Authorization`、`Proxy-Connection`、`TE`、
+`Trailer`、`Transfer-Encoding`、`Upgrade`，以及 `Connection` 里点名的
+扩展头（例如 `Connection: X-Hop` 会连带删掉 `X-Hop`）。两类例外：
+
+- 客户端要求关闭连接（HTTP/1.0 或 `Connection: close`）时，给上游补一条
+  `Connection: close`，让上游按关闭连接结束响应，代理不必等读超时；
+  HTTP/1.0 但显式带 `Connection: keep-alive` 的请求则补回 `keep-alive`。
+- websocket 升级（`Connection: Upgrade` + `Upgrade: websocket`）会重建这
+  两个头，否则 101 握手无法完成；`Connection` 里其余 token 仍然剥掉。
+
+`proxy_set_header` 在剥离之后应用，因此显式配置可以重新加回某个头。
+
+命令行：
+
+```bash
+fast-https config proxy show
+fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops 10 --preserve-host=false
+```
+
+`--trusted-proxies` 传空表示清空；三项都回到默认值时删除整个 `proxy` 段。
+写盘前会做完整校验，`--dry-run` 只打印结果。新配置在下次 reload 或启动时生效。
+桌面端在「设置」页的「代理」分组里有同样三项，清空后保存与 CLI 的落盘结果一致。
 
 ## 6. 典型配置
 
@@ -363,24 +468,57 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 ### 6.4 压缩
 
 ```json
-{ "url": "/", "type": "local", "root": "./httpdoc/root", "zip": ["gzip", "br"] }
-```
-
-按 `Accept-Encoding` 协商，客户端同时支持时优先给 brotli。
-
-### 6.5 代理缓存
-
-```json
-"proxy_cache": {
-  "path": "./cache",
-  "key": "$request_uri",
-  "valid": ["200:1h", "404:1m", "any:5m"],
-  "methods": ["GET", "HEAD"],
-  "max_size": 1073741824
+{
+  "url": "/", "type": "local", "root": "./httpdoc/root",
+  "zip": ["br", "gzip"],
+  "zip_min_length": 1024,
+  "zip_skip_types": ["image/*", "video/*", "audio/*", "font/woff2", "application/zip", "application/gzip"]
 }
 ```
 
-`valid` 的格式是 `状态码:时长`，`any` 匹配其余状态码；命中会顺延一个周期（读即续期）。`key` 支持变量插值。
+按 `Accept-Encoding` 协商：q 值不同时取高者，q 相同时优先给 brotli；`gzip;q=0` 表示
+明确拒绝，显式条目优先于 `*` 通配符。静态文件与反向代理响应都按这组配置压缩。
+响应统一带 `Vary: Accept-Encoding`，压缩后的 `Content-Length` 是压缩体长度，
+`HEAD` 与 GET 的长度一致。
+
+- `zip_min_length`：小于该字节数的响应不压缩，`0` 表示不限制。
+- `zip_skip_types`：跳过压缩的 MIME 类型，支持精确类型（`image/png`）、整类通配
+  （`image/*`）、部分通配（`image/p*`）与全局通配（`*/*`）。留空时使用内置的
+  已压缩类型清单（jpeg/png/gif/webp/avif、mp4/webm、mp3/ogg/aac、
+  zip/gzip/7z/rar/bz2、woff/woff2 等）；配置后整体替换内置清单。
+- 带 `Range` 的请求跳过压缩，压缩后 Range 语义不成立。
+- 代理响应额外跳过：升级连接（websocket）、`HEAD`、上游已带 `Content-Encoding`、
+  `204` / `206` / `304`、带 `Content-Range` 的响应。
+- `site add` 新建站点时默认写入上面这组值（local 与 proxy 都适用），可用 `--zip`、
+  `--zip-min-length`、`--zip-skip-types` 覆盖，`--zip=` 关闭压缩。
+
+### 6.5 代理缓存
+
+缓存区定义在主配置的 `cache` 段（可多个），目录、容量与有效期只写一次；
+
+```json
+// fast-https.json
+"cache": [
+  { "name": "edge", "path": "./cache/edge", "valid": ["200:1h", "404:1m", "any:5m"], "max_size": 1073741824 }
+]
+```
+
+站点 location 用 `proxy_cache` 引用区名：
+
+```json
+// conf.d/blog.json
+"location": [
+  { "url": "/", "type": "proxy", "proxy_pass": "http://127.0.0.1:8080", "proxy_cache": "edge" }
+]
+```
+
+`valid` 的格式是 `状态码:时长`，`any` 匹配其余状态码；命中会顺延一个周期（读即续期）。
+缓存键由程序生成（`$host$request_uri`，带区名前缀），方法固定 GET/HEAD。
+目录相对程序数据目录（Windows 归档为 exe 所在目录，Linux 包为 `/usr/share/fast-https`）。
+
+缓存区可用 `fast-https cache list / add / update / delete` 管理，或到桌面端
+「缓存区」页维护；站点弹窗里直接选择缓存区。删除仍被站点引用的缓存区会被拒绝。
+站点命令只接受已定义的区名：`site add|update --cache-zone edge`，写错会在执行前报错。
 
 ### 6.6 Basic 认证与限流
 
@@ -397,6 +535,8 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 ## 7. TLS 与证书
 
 - **SNI 多证书**：同一端口上的多个 `server_name` 各自持有证书，握手时按 SNI 选择，匹配不到用该端口的第一张。
+- **匹配规则**：按标准库 `VerifyHostname` 判定，大小写与结尾的 `.` 归一化；`*.example.com` 只匹配一层（`a.example.com`），不匹配 `a.b.example.com`。
+- **同名多证书**：同一域名命中多张证书时（例如同时部署 RSA 与 ECDSA 两张），按客户端 `signature_algorithms`、`supported_groups` 选兼容的那张；客户端没带这些扩展或都不兼容时用列表里的第一张。
 - **自动生成**：首次启动时，若 `config/cert/<server_name>.pem` 不存在，会用一个本地自签 CA 生成证书。CA 有效期 10 年，域名证书 2 年 3 个月。
 - **热替换**：执行 `reload` 后证书从磁盘重新加载，不需要重启进程；启用 ACME 后新证书签发成功也会就地热替换。
 - **ACME 自动签发与续期**：配置 `acme` 段后向 Let's Encrypt / ZeroSSL 申请受信任证书，到期前自动续期，见 7.1。
@@ -444,6 +584,34 @@ Linux / macOS 上 `stop` 发送 `SIGTERM`，服务会关闭监听并等在途请
 > 账户私钥、订单与证书缓存都在 `storage` 目录下，备份时与 `config/cert` 一起打包即可。`http-01` 需要外部能访问本进程的 80 端口（也可以是前置反代转发 `/.well-known/acme-challenge/`），`tls-alpn-01` 需要外部能直连 443。
 
 > 本地 CA 的证书 `root.crt` 放在 `httpdoc/root/`（首页可直接下载安装），私钥 `root.key` 放在 `config/cert/`，不在对外服务的站点根下。旧版本把两者都放在站点根，升级后首次启动会把私钥搬到 `config/cert/`。如果你自己改过站点根，确认新目录里不含私钥。
+
+### 7.2 未知 SNI 的兜底证书
+
+默认行为是回落到该端口证书列表的第一张，并在控制台与 `error.log` 里留下一条 `reject_reason=unknown_sni` 的告警（含 `sni` 字段），便于发现扫描器或域名配错。想指定一张专门的兜底证书（例如只覆盖主域名的正式证书）时：
+
+```json
+"tls": {
+  "default_certificate": {
+    "certificate": "config/cert/default.pem",
+    "key": "config/cert/default-key.pem"
+  }
+}
+```
+
+- 只有 SNI 未命中任何站点证书（含不带 SNI 的 IP 直连）时才使用它，命中的域名仍按原规则选证书。
+- `certificate` 与 `key` 必须成对出现，文件必须存在，否则 `check` / 启动校验直接报错。
+- 配置后未知 SNI 属于预期流量，不再输出 `unknown_sni` 告警。
+- 执行 `reload` 后重新加载，不需要重启进程。
+
+也可以用命令写入，不必手改文件（只重写 `tls` 段，注释与其它字段保留）：
+
+```bash
+fast-https config tls --cert config/cert/default.pem --key config/cert/default-key.pem
+fast-https config tls show        # 查看当前兜底证书
+fast-https config tls --cert= --key=   # 清除，回到默认回落行为
+```
+
+写入前会按主配置完整校验（成对、文件存在），`--dry-run` 只打印改写结果。新配置同样在下次 `reload` 或启动时生效。
 
 ## 8. HTTP/2
 
@@ -496,23 +664,26 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `service reload` | 受控 reload：校验、预检新增端口、发信号，再用 `/runtime` 做强验证（pid/`started_at` 不变且 `config_generation` 加一）；读不到快照时退回弱验证。不改配置文件。`--dry-run` 只校验与预检。服务没在跑退出码 4。记 operation，支持 `--request-id` 幂等 |
 | `runtime status` | 读取 `127.0.0.1:9088/runtime` 的瞬时连接与请求状态。连不上退出码 4；`schema_version` 不认识退出码 11。没有的字段（如 CPU、reading/writing/waiting）省略并在 `warnings` 说明 |
 | `runtime stats` | 进程启动以来的累计计数，响应里 `window` 为 `since_process_start`。`--since`、`--domain` 尚未支持，传入即退出码 11（`NOT_SUPPORTED`）。Monitor 只消费这份累计快照，不另算时间窗 |
-| `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`waf`、`sites` |
+| `config show` | 显示磁盘上的主配置与 `http.include` 站点，口令、令牌等敏感值一律脱敏；`--section` 可选 `http`、`acme`、`security`、`tls`、`proxy`、`waf`、`sites` |
+| `config tls` | 写入顶层 `tls.default_certificate`（`--cert` 与 `--key` 必须成对，文件必须存在）；只重写 `tls` 段、保留注释；两个参数传空清除；`--dry-run` 只打印；`config tls show` 查看 |
+| `config proxy` | 写入顶层 `proxy` 段（`--trusted-proxies`、`--max-hops`、`--preserve-host`）；只重写 `proxy` 段、保留注释；全部传默认值删除该段；`--dry-run` 只打印；`config proxy show` 查看 |
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
-| `config versions` | 列出状态目录里的配置版本快照。`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照不含证书与私钥 |
-| `config diff --candidate` | 比较当前配置与候选目录、文件或版本号。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
-| `config apply --candidate` | 将候选目录受控应用到线上（校验、差异、恢复点、切换、reload、强验证；读不到 `/runtime` 时退回弱验证；失败则还原）。必须 `--yes`。`--dry-run` 不写正式文件、不 reload |
-| `config rollback --version` | 回滚到历史版本，本身是新 operation；先校验目标版本（含证书仍存在），不删除历史版本。必须 `--yes` |
+| `config versions` | 列出状态目录里的配置快照。版本号是 `vYYYY.MM.DD.N`（如 `v2026.11.18.1`，同一天递增），`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照包含主配置、`conf.d` 与服务证书/私钥（不含 ACME 存储目录）；版本永久保留 |
+| `config versions delete <版本>` | 手动删除一个历史版本快照；当前 active 版本不能删，operation 记录保留。必须 `--yes` |
+| `config diff --candidate` | 比较当前配置与候选目录、文件、版本号或操作 ID（`--current` 也可写版本号/操作 ID，用于对比两个历史版本）。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
+| `config apply --candidate` | 将候选目录受控应用到线上（校验、差异、临时备份、切换、reload、强验证；读不到 `/runtime` 时退回弱验证；失败则还原）。成功后自动保存结果快照。必须 `--yes`。`--dry-run` 不写正式文件、不 reload、不建快照 |
+| `config rollback --version\|--operation` | 回滚到历史版本或某个操作的结果。回滚复用目标快照（含证书），追加一条 operation，但不会新建版本；已有版本不删除。必须 `--yes` |
 | `operation list` / `operation get` | 查询落盘的管理操作。`running` 且持有者进程已不在时对账为 `unknown` |
 | `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
 | `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
 | `logs error` | 只读 `error.log`。`--since`、`--limit`（默认 100，超过 1000 钳到 1000）、`--domain`。含 `PrintErr` 以及控制台 Warn/Error 的镜像（`source:"console"`，`kind:"error"`） |
 | `logs access` | 只读 `access.log`，过滤条件同上，另有 `--status`（`500`、`4xx` 或 `400-499`） |
-| `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
+| `logs query` | `--kind` 必填（`access`、`error`、`system`、`safe`），一次只查一个文件。另可按 `--level`、`--method`、`--path-prefix`、`--reason`、`--reject-reason`、`--until` 过滤。没有 `--file`，不读已轮转的文件，日志内容只作为数据返回 |
 | `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0 |
 | `monitor status` | 只读 Monitor 的 `status.json`。文件不存在时 `status` 为 `not_installed`（退出码 0）；采集时间早于 30 秒为 `stale`。不连接 Monitor 进程，也不负责启停 |
 | `monitor events` | 只读 `events.jsonl`。`--since`、`--limit`（默认 100，上限 1000）、`--severity`（`info`、`warning`、`error`、`critical`）。坏行跳过并计数，事件文本只作为数据返回 |
-| `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`）。走配置事务，非 dry-run 必须 `--yes`。同名或同 `server_name` 退出码 10 |
-| `site update <name>` | 受控更新白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`）。内联主配置站点退出码 11 |
+| `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`、`--symlink-policy`）。走配置事务，非 dry-run 必须 `--yes`。同名或同 `server_name` 退出码 10 |
+| `site update <name>` | 受控更新白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls` 与主 location 高级配置，含 `--symlink-policy`）。内联主配置站点退出码 11 |
 | `site delete <name>` | 受控删除站点配置（不删内容目录与证书）。必须 `--yes` |
 | `site enable <name>` / `site disable <name>` | 把 `<name>.json` 与 `<name>.json.disabled` 互改并 reload。必须 `--yes` |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套（含 `enabled`、`cert_status`） |
@@ -567,15 +738,15 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 | 6 | `OPERATION_FAILED`、`RECOVERY_REQUIRED` | 操作失败；恢复失败需人工处理 |
 | 7 | `OPERATION_UNKNOWN` | 状态未知，需查询 operation |
 | 8 | `TIMEOUT` | 超时 |
-| 9 | `NOT_FOUND`、`LOG_SOURCE_UNAVAILABLE` | 资源不存在；日志文件不存在或是符号链接 |
+| 9 | `NOT_FOUND`、`LOG_SOURCE_UNAVAILABLE` | 资源不存在；日志源不可读（如符号链接；文件不存在按空结果处理） |
 | 10 | `CONFLICT`、`REQUEST_ID_CONFLICT` | 冲突 / 幂等键冲突 |
 | 11 | `UNMET_DEPENDENCY`、`NOT_SUPPORTED` | 依赖或环境不满足 / 功能未实现 |
 
-管理类命令按这张表退出。例如配置校验失败是 5，站点或日志文件不存在是 9。旧的 `start` / `stop` / `reload` / `status` 仍用原来的文本和退出码。
+管理类命令按这张表退出。例如配置校验失败是 5，站点文件不存在是 9；日志文件不存在按空结果返回（退出 0）。旧的 `start` / `stop` / `reload` / `status` 仍用原来的文本和退出码。
 
 ### 10.3 `--request-id`、operation 与 SSH 断线
 
-`service reload`、`config apply`、`config rollback`、`site add`、`site update`、`site delete`、`site enable`、`site disable` 会在状态目录写下一条 operation。`--request-id` 由调用方提供：
+`service reload`、`config apply`、`config rollback`、`config proxy`、`config tls`、`acme setup`、`cache add`、`cache update`、`cache delete`、`site add`、`site update`、`site delete`、`site enable`、`site disable` 都会在状态目录写下一条 operation。`--request-id` 由调用方提供：
 
 - 相同的 `--request-id` 加上相同参数：返回已有 operation，不重复执行。
 - 相同的 `--request-id` 但参数不同：退出码 10，错误码 `REQUEST_ID_CONFLICT`。
@@ -587,7 +758,14 @@ Unix 上，事务执行期间忽略 `SIGHUP` 与 `SIGPIPE`，避免 SSH 断开�
 
 Windows 没有 `SIGHUP`。这条断线语义只在 Unix 上实现，Windows 上的断线行为未在本环境验证。
 
-状态目录默认是 `./state`（安装包布局是 `/var/lib/fast-https`）。可用 `FASTHTTPS_STATE_DIR` 指到别处。`operation list` 与 `operation get` 只读这个目录。
+状态目录默认是 `./state`（安装包布局是 `/var/lib/fast-https`），可用 `FASTHTTPS_STATE_DIR` 指到别处。目录里：
+
+- `operations/`：唯一的历史时间线，每条操作一个 JSON，`result.changes` 记录主配置与 `conf.d` 的增删改。
+- `snapshots/`：每次成功操作的结果快照（主配置、`conf.d`、`config/cert` 下的服务证书/私钥，不含 `cert/acme`）。版本号是 `vYYYY.MM.DD.N`，永久保留，不自动清理；可在 `config versions delete` 或桌面端手动删除。
+- `requests.json`：幂等索引，7 天 TTL。
+- `lock`：跨进程锁。
+
+旧版本的 `config-versions/` 会在启动时自动并入 `snapshots/`，`recycle/` 直接删除。`operation list` 与 `operation get` 只读这个目录。
 
 ## 11. 热重载与停机
 

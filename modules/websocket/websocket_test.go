@@ -1,6 +1,7 @@
 package websocket
 
 import (
+	"fast-https/config"
 	"fast-https/core"
 	"fast-https/modules/proxy"
 	"io"
@@ -77,7 +78,42 @@ func TestWebSocketHandlerEcho(t *testing.T) {
 	}
 }
 
-// CircleData 断言失败/上游连接缺失：必须安全关闭而不是空指针 panic
+// 配置 tunnel_idle_timeout 后，双向都没有数据必须关闭两侧连接并退出。
+func TestWebSocketHandlerIdleTimeout(t *testing.T) {
+	prev := config.Current()
+	t.Cleanup(func() { config.Store(prev, map[string]string{}) })
+	cfg := *prev
+	cfg.Proxy.TunnelIdleTimeout = 1
+	config.Store(&cfg, map[string]string{})
+
+	backendClient, backendServer := net.Pipe()
+	t.Cleanup(func() {
+		_ = backendClient.Close()
+		_ = backendServer.Close()
+	})
+	server, client := net.Pipe()
+	t.Cleanup(func() { _ = client.Close() })
+	ev := core.NewEvent(nil, server)
+	ev.RR.CircleData = &proxy.Proxy{ProxyConn: backendClient}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		WebSocketHandler(ev)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(4 * time.Second):
+		t.Fatal("idle websocket tunnel was not closed")
+	}
+	_ = client.SetWriteDeadline(time.Now().Add(time.Second))
+	if _, err := client.Write([]byte("x")); err == nil {
+		t.Fatal("client side should be closed after idle timeout")
+	}
+}
+
+
 func TestWebSocketHandlerBadCircleData(t *testing.T) {
 	for name, data := range map[string]interface{}{
 		"nil":      nil,

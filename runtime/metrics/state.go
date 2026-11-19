@@ -179,4 +179,5 @@ func ResetForTest() {
 	responsesUnknown.Store(0)
 	resetDuration()
 	resetSectionsForTest()
+	inFlightSource.Store(nil)
 }

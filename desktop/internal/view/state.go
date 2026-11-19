@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-const desktopVersion = "1.7.0"
+const desktopVersion = "1.7.1"
 
 // RuntimePaths 与 cmd/internal/configcmd/path.go 的 RuntimePaths 一致。
 type RuntimePaths = model.RuntimePaths
@@ -144,18 +144,12 @@ func resolvePaths(dir string) RuntimePaths {
 
 // ------------------------------------------------------------ 服务操作
 
-// RunServerCommand 把纯文本命令（status / version / start / stop / reload）
-// 交给主程序，桌面端不自己实现进程管理。
-func RunServerCommand(dir string, args ...string) (string, error) {
-	return cli.Run(dir, args...)
-}
-
 // EnsureServerRunning 复核服务状态，掉了就自动拉起，返回给用户看的补充说明。
 //
 // 用在配置事务之后：Windows 上事务的 reload 阶段用 GenerateConsoleCtrlEvent
 // 给服务进程发信号，而该 API 只能发给整个控制台进程组，服务会被打断
 // （用户看到的现象是「点禁用站点，服务停了」）。事务本身成功了（配置已写入、
-// 恢复点已建），但服务需要重新拉起才继续可用。
+// 临时备份已建），但服务需要重新拉起才继续可用。
 //
 // 服务本来就没运行、或拉起失败时都返回空串：不该把「本来就没开」说成故障。
 func EnsureServerRunning(dir string) string {
@@ -418,6 +412,15 @@ func runCertList(dir string) (any, error) {
 	})
 }
 
+// runCacheList 读主配置里的缓存区；数量用于监控中心的健康卡。
+func runCacheList(dir string) (any, error) {
+	paths := ResolvePaths(dir)
+	return cached("cache.list:"+paths.Config, 5*time.Second, func() (any, error) {
+		data, _, err := cli.RunJSON[any](dir, "cache", "list")
+		return data, err
+	})
+}
+
 // certRows 把 cert list 的证书条目映射成界面行。
 func certRows(data map[string]any) []Cert {
 	var out []Cert
@@ -519,6 +522,11 @@ func CollectOverview(dir string) Overview {
 		}
 	}
 
+	// cache list：主配置 cache 段里定义的缓存区数量。
+	if data, err := runCacheList(dir); err == nil {
+		ov.CacheZoneCount = len(cli.AsSlice(cli.AsMap(data)["zones"]))
+	}
+
 	// config show：config_dirty_hint（仅服务在跑时由主程序给出）。
 	if data, err := runConfigShow(dir); err == nil {
 		ov.ConfigDirty = cli.Bool(cli.AsMap(data), "config_dirty_hint")
@@ -575,6 +583,7 @@ func logsQueryArgs(q LogQuery) []string {
 	addFlag("--method", q.Method)
 	addFlag("--path-prefix", q.PathPrefix)
 	addFlag("--reason", q.Reason)
+	addFlag("--reject-reason", q.RejectReason)
 	addFlag("--since", normalizeBound(q.Since, false))
 	until := normalizeBound(q.Until, true)
 	if q.Cursor != "" {
@@ -611,14 +620,18 @@ func QueryLogs(dir string, q LogQuery) (LogPage, error) {
 // 仅作悬浮提示（CLI 不返回日志原始行）。
 func logEntry(rec map[string]any) LogEntry {
 	e := LogEntry{
-		Time:       cli.Str(rec, "time"),
-		Level:      cli.Str(rec, "level"),
-		Kind:       cli.Str(rec, "kind"),
-		Message:    cli.Str(rec, "message"),
-		Method:     cli.Str(rec, "method"),
-		Path:       cli.Str(rec, "path"),
-		Host:       cli.Str(rec, "host"),
-		RemoteAddr: cli.Str(rec, "remote_addr"),
+		Time:         cli.Str(rec, "time"),
+		Level:        cli.Str(rec, "level"),
+		Kind:         cli.Str(rec, "kind"),
+		Message:      cli.Str(rec, "message"),
+		Method:       cli.Str(rec, "method"),
+		Path:         cli.Str(rec, "path"),
+		Host:         cli.Str(rec, "host"),
+		RemoteAddr:   cli.Str(rec, "remote_addr"),
+		RejectReason: cli.Str(rec, "reject_reason"),
+		Rule:         cli.Str(rec, "rule"),
+		RemoteIP:     cli.Str(rec, "remote_ip"),
+		Reason:       cli.Str(rec, "reason"),
 	}
 	if v, ok := rec["status"]; ok && v != nil {
 		e.Status = fmt.Sprint(v)

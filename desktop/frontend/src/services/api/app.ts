@@ -21,8 +21,17 @@ export function openConfigDir(path: string): Promise<string> {
 export function openHelp(): Promise<string> {
   return service.OpenHelp();
 }
-export function pickPath(kind: string): Promise<string> {
-  return service.PickPath(kind);
+/** 用系统默认浏览器打开项目 GitHub 主页。 */
+export function openRepo(): Promise<void> {
+  return service.OpenRepo();
+}
+export function pickPath(kind: string, initial = ''): Promise<string> {
+  return service.PickPath(kind, initial);
+}
+
+/** 程序数据目录：缓存区、站点根一类的相对路径都以它为基准。 */
+export function getDataDir(): Promise<string> {
+  return service.DataDir();
 }
 
 /**
@@ -32,8 +41,8 @@ export function pickPath(kind: string): Promise<string> {
  * 搬迁才不会失效），站点根目录这类场景却必须用绝对路径，否则界面里会出现
  * "..\..\..\front\xxx" 这种看不出基准的字符串。这里用同一个基准还原成绝对路径。
  */
-export async function pickAbsPath(kind: string): Promise<string> {
-  const picked = await pickPath(kind);
+export async function pickAbsPath(kind: string, initial = ''): Promise<string> {
+  const picked = await pickPath(kind, initial);
   if (!picked || isAbsPath(picked)) return picked;
   const paths = await getRuntimePaths();
   return joinPath(dirOf(paths.config), picked);
@@ -52,7 +61,7 @@ function dirOf(file: string): string {
 }
 
 /** 以 base 目录为基准拼接相对路径，处理 . 与 ..（Windows 分隔符）。 */
-function joinPath(base: string, rel: string): string {
+export function joinPath(base: string, rel: string): string {
   const unc = base.startsWith('\\\\');
   const baseParts = base
     .replace(/\//g, '\\')

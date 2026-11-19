@@ -66,6 +66,112 @@ func TestLookupAndSetPath(t *testing.T) {
 	}
 }
 
+// TestConfigSpecsCoverTLSDefaults 桌面设置页必须暴露 tls.default_certificate，
+// 否则桌面端与 CLI（config tls / config show --section tls）能力不对等。
+func TestConfigSpecsCoverTLSDefaults(t *testing.T) {
+	want := map[string]string{
+		"tls.default_certificate.certificate": "file",
+		"tls.default_certificate.key":         "file",
+	}
+	got := map[string]string{}
+	for _, s := range configSpecs {
+		if strings.HasPrefix(s.path, "tls.") {
+			got[s.path] = s.browse
+		}
+	}
+	for path, browse := range want {
+		if got[path] != browse {
+			t.Fatalf("设置页缺少字段 %s（browse=%q），当前 tls 字段：%v", path, browse, got)
+		}
+	}
+	if !configTopLevel["tls"] {
+		t.Fatal("tls 必须由表单接管，否则会被当成原样保留的段")
+	}
+}
+
+// TestPruneEmptyTLS 两项都留空表示关闭兜底证书，应与 CLI 一样删掉该键。
+func TestPruneEmptyTLS(t *testing.T) {
+	both := func(cert, key string) map[string]any {
+		return map[string]any{"tls": map[string]any{
+			"default_certificate": map[string]any{"certificate": cert, "key": key},
+		}}
+	}
+
+	root := both("", "")
+	pruneEmptyTLS(root)
+	if _, ok := root["tls"]; ok {
+		t.Fatalf("两项都空时应删掉 tls 段：%v", root)
+	}
+
+	root = both("def.pem", "")
+	pruneEmptyTLS(root)
+	if _, ok := root["tls"].(map[string]any)["default_certificate"]; !ok {
+		t.Fatal("只清空一项时应保留，交给校验报错")
+	}
+
+	root = both("def.pem", "def.key")
+	pruneEmptyTLS(root)
+	if _, ok := root["tls"].(map[string]any)["default_certificate"]; !ok {
+		t.Fatal("有值时不应删除")
+	}
+}
+
+// TestConfigSpecsCoverProxy 桌面设置页必须暴露 R-05 的三个字段，
+// 否则桌面端与 CLI（config proxy）能力不对等。
+func TestConfigSpecsCoverProxy(t *testing.T) {
+	want := map[string]string{
+		"proxy.trusted_proxies":        "list",
+		"proxy.forwarded_for.max_hops": "number",
+		"proxy.preserve_host":          "bool",
+	}
+	got := map[string]string{}
+	for _, s := range configSpecs {
+		if strings.HasPrefix(s.path, "proxy.") {
+			got[s.path] = s.typ
+		}
+	}
+	for path, typ := range want {
+		if got[path] != typ {
+			t.Fatalf("设置页缺少字段 %s（typ=%q），当前 proxy 字段：%v", path, typ, got)
+		}
+	}
+	if !configTopLevel["proxy"] {
+		t.Fatal("proxy 必须由表单接管，否则会被当成原样保留的段")
+	}
+}
+
+// TestPruneEmptyProxy 三项都是默认值时删掉整段，否则保留。
+func TestPruneEmptyProxy(t *testing.T) {
+	section := func(trusted any, maxHops any, preserve bool) map[string]any {
+		ff := map[string]any{}
+		if maxHops != nil {
+			ff["max_hops"] = maxHops
+		}
+		return map[string]any{"proxy": map[string]any{
+			"trusted_proxies": trusted,
+			"forwarded_for":   ff,
+			"preserve_host":   preserve,
+		}}
+	}
+
+	root := section([]string{}, json.Number("0"), true)
+	pruneEmptyProxy(root)
+	if _, ok := root["proxy"]; ok {
+		t.Fatalf("全默认值时应删掉 proxy 段：%v", root)
+	}
+
+	for name, root := range map[string]map[string]any{
+		"有可信代理":    section([]string{"10.0.0.0/8"}, json.Number("0"), true),
+		"限制链长":     section([]string{}, json.Number("5"), true),
+		"不透传 Host": section([]any{}, nil, false),
+	} {
+		pruneEmptyProxy(root)
+		if _, ok := root["proxy"]; !ok {
+			t.Fatalf("%s 时不应删除 proxy 段", name)
+		}
+	}
+}
+
 // writeTreeWorkspace 建一棵最小的线上配置树：主配置 + conf.d 站点 + 停用文件。
 func writeTreeWorkspace(t *testing.T) (string, model.RuntimePaths) {
 	t.Helper()

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"fast-https/config"
 	"fast-https/core"
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/listener"
@@ -54,6 +55,32 @@ func startReader(t *testing.T, client net.Conn) func() string {
 			t.Fatal("response never arrived")
 			return ""
 		}
+	}
+}
+
+// 静态文件直接写连接，绕过 EventWrite，也必须受 write_timeout 约束：
+// 对端不读时 1 秒后写出失败，而不是永久阻塞。
+func TestStaticWriteTimeout(t *testing.T) {
+	prev := config.Current()
+	t.Cleanup(func() { config.Store(prev, map[string]string{}) })
+	cfg := *prev
+	cfg.Limit.WriteTimeout = 1
+	config.Store(&cfg, map[string]string{})
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ev, _ := newStaticEvent(t, "GET", "/a.txt")
+	start := time.Now()
+	StaticEvent(&listener.ListenCfg{
+		StaticRoot:  dir,
+		Path:        "/",
+		StaticIndex: []string{"index.html"},
+	}, ev)
+	if elapsed := time.Since(start); elapsed < 700*time.Millisecond || elapsed > 5*time.Second {
+		t.Fatalf("耗时 %v，期望约 1 秒（write_timeout 生效）", elapsed)
 	}
 }
 

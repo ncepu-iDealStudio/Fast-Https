@@ -1,0 +1,62 @@
+/* 版本差异弹窗（views/operations/components/DiffDialog.vue）。 */
+.diff-summary { margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+.diff-group + .diff-group { margin-top: 14px; }
+.diff-group__file { margin-bottom: 4px; font-size: 11px; color: var(--muted); }
+
+.difftable {
+  margin-top: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg);
+}
+.difftable__head,
+.diffrow {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 96px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: baseline;
+  padding: 9px 14px;
+}
+.difftable__head {
+  font-size: 10.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-strong);
+}
+.diffrow {
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid transparent;
+}
+.diffrow:last-child { border-bottom: 0; }
+.diffrow:nth-child(even) { background: rgba(16, 20, 28, .012); }
+.diffrow__path { overflow-wrap: anywhere; color: var(--text); }
+.diffrow__op {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 0 7px;
+  border-radius: var(--radius-sm);
+  border: 1px solid currentColor;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.diffrow__masked { margin-left: 6px; font-size: 11px; color: var(--muted); }
+.diffrow__val { overflow-wrap: anywhere; color: var(--muted); }
+
+/* 增 / 删 / 改：左侧色条 + 变更标签着色，值本身不染色以免长文本变花 */
+.diffrow--add { border-left-color: var(--ok); }
+.diffrow--add .diffrow__op { color: var(--ok); background: rgba(22, 121, 74, .06); }
+.diffrow--del { border-left-color: var(--danger); }
+.diffrow--del .diffrow__op { color: var(--danger); background: rgba(192, 57, 43, .06); }
+.diffrow--mod { border-left-color: var(--warn); }
+.diffrow--mod .diffrow__op { color: var(--warn); background: rgba(167, 91, 10, .07); }
+
+@media (max-width: 900px) {
+  .difftable__head, .diffrow { grid-template-columns: minmax(0, 1.4fr) 80px minmax(0, 1fr); }
+  .diffrow > span:last-child, .difftable__head > span:last-child { display: none; }
+}

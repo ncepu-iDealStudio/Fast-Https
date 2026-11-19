@@ -9,10 +9,9 @@
 @import './operations.css';
 @import './operations-table.css';
 @import './operations-detail.css';
-@import './versions.css';
-@import './versions-list.css';
-@import './versions-diff.css';
+@import './operations-diff.css';
 @import './sites.css';
 @import './sites-list.css';
 @import './sites-panel.css';
+@import './cache.css';
 @import './monitor.css';

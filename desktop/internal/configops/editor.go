@@ -5,7 +5,7 @@ package configops
 //
 // 读取转交 config show（敏感值由主程序脱敏，保存只回写被改动的字段，
 // 脱敏值不触碰就不会被写回）；保存搭建候选配置树后转交 config apply 的
-// 配置事务——校验、差异、恢复点、切换、reload、失败自动回滚，与命令行
+// 配置事务——校验、差异、临时备份、切换、reload、失败自动回滚，与命令行
 // 语义一致。桌面端只准备候选，不直接改线上配置文件。
 
 import (
@@ -46,7 +46,7 @@ type fieldSpec struct {
 //   - 只有真正自由文本（HSTS 策略、CSP、MIME 类型）才用输入框
 var configSpecs = []fieldSpec{
 	{"pid", "pid 文件路径", "基础", "text", "预留字段，通常留空", nil, "file"},
-	{"log_root", "日志根目录", "基础", "text", "预留字段，通常留空", nil, "dir"},
+	{"log_root", "日志根目录", "基础", "text", "相对路径按启动目录解析；留空用默认 ./logs", nil, "dir"},
 
 	{"security.host_check", "Host 校验", "安全", "select", "off 回落首个 server；warn 只记录；enforce 返回 421", []string{"off", "warn", "enforce"}, ""},
 	{"security.headers.nosniff", "X-Content-Type-Options", "安全", "bool", "写入 nosniff 响应头", nil, ""},
@@ -65,10 +65,22 @@ var configSpecs = []fieldSpec{
 	{"acme.fallback_self_signed", "证书失败回落自签", "ACME", "bool", "默认回落；显式 false 则不回落", nil, ""},
 	{"acme.storage", "ACME 缓存目录", "ACME", "text", "留空用默认路径", nil, "dir"},
 
+	{"tls.default_certificate.certificate", "默认证书", "TLS", "text", "未知 SNI 时使用；与私钥成对配置，留空则回落该端口第一张证书", nil, "file"},
+	{"tls.default_certificate.key", "默认证书私钥", "TLS", "text", "与默认证书成对出现", nil, "file"},
+
+	{"proxy.trusted_proxies", "可信代理", "代理", "list", "只有来自这些 IP/CIDR 的请求才保留入站 X-Forwarded-For；每行一个", nil, ""},
+	{"proxy.forwarded_for.max_hops", "X-Forwarded-For 链长上限", "代理", "number", "0 表示不限制；达到上限后不再追加并记一条告警日志", nil, ""},
+	{"proxy.preserve_host", "透传客户端 Host", "代理", "bool", "默认开启；关闭时转发给上游的 Host 改成上游地址", nil, ""},
+	{"proxy.upstream_timeout", "上游超时（秒）", "代理", "number", "0 表示默认 20 秒", nil, ""},
+	{"proxy.tunnel_idle_timeout", "隧道空闲断开（秒）", "代理", "number", "websocket / tcp 隧道无数据超过该时长即断开；0 表示不断开", nil, ""},
+
 	{"http.include", "include 目录 / 文件", "HTTP", "pathlist", "每行一个；站点文件通常放在 conf.d", nil, "dir"},
 	{"http.default_type", "默认 MIME 类型", "HTTP", "text", "", nil, ""},
 	{"http.servers_limit.max_header_size", "请求头上限（字节）", "HTTP", "number", "", nil, ""},
 	{"http.servers_limit.max_body_size", "请求体上限（字节）", "HTTP", "number", "", nil, ""},
+	{"http.servers_limit.read_timeout", "读请求超时（秒）", "HTTP", "number", "0 表示默认 30 秒", nil, ""},
+	{"http.servers_limit.write_timeout", "写响应超时（秒）", "HTTP", "number", "0 表示默认 30 秒", nil, ""},
+	{"http.servers_limit.body_timeout", "读 body 单次超时（秒）", "HTTP", "number", "0 表示默认 1 秒", nil, ""},
 	{"http.servers_limit.limit", "限流 rate", "HTTP", "number", "0 表示不限", nil, ""},
 	{"http.servers_limit.burst", "限流 burst", "HTTP", "number", "0 表示不限", nil, ""},
 	{"http.blaklist", "黑名单", "HTTP", "list", "历史键名 blaklist，每行一个", nil, ""},
@@ -80,7 +92,7 @@ var configSpecs = []fieldSpec{
 // 若配置里仍带 engine 段，会列入 ConfigForm.Preserved 并在保存时原样保留。
 var configTopLevel = map[string]bool{
 	"pid": true, "log_root": true,
-	"waf": true, "acme": true, "security": true, "http": true,
+	"waf": true, "acme": true, "security": true, "tls": true, "proxy": true, "http": true,
 }
 
 // ReadConfigForm 转交 config show 取表单字段值（敏感值已脱敏）；
@@ -124,7 +136,7 @@ func ReadConfigForm(dir string) (ConfigForm, error) {
 }
 
 // SaveConfigForm 只把「被改动的字段」写进候选配置树，再转交 config apply
-// 的配置事务。事务负责校验、恢复点、切换与 reload，失败自动回滚。
+// 的配置事务。事务负责校验、临时备份、切换与 reload，失败自动回滚。
 func SaveConfigForm(dir string, values map[string]string) (string, error) {
 	paths := view.ResolvePaths(dir)
 	raw, err := os.ReadFile(paths.Config)
@@ -138,6 +150,8 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 		return "", fmt.Errorf("主配置不是合法的 JSON 对象：%w", err)
 	}
 	changed := 0
+	tlsSubmitted := false
+	proxySubmitted := false
 	for _, s := range configSpecs {
 		text, ok := values[s.path]
 		if !ok {
@@ -149,9 +163,21 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 		}
 		setPath(root, s.path, v)
 		changed++
+		if strings.HasPrefix(s.path, "tls.default_certificate.") {
+			tlsSubmitted = true
+		}
+		if strings.HasPrefix(s.path, "proxy.") {
+			proxySubmitted = true
+		}
 	}
 	if changed == 0 {
 		return "", fmt.Errorf("没有需要保存的改动")
+	}
+	if tlsSubmitted {
+		pruneEmptyTLS(root)
+	}
+	if proxySubmitted {
+		pruneEmptyProxy(root)
 	}
 
 	cand, err := buildCandidate(paths, root)
@@ -171,15 +197,71 @@ func SaveConfigForm(dir string, values map[string]string) (string, error) {
 		extra = append(extra, "操作 "+id)
 	}
 	if v := cli.Str(m, "version"); v != "" {
-		extra = append(extra, "配置版本 "+v)
-	}
-	if r := cli.Str(m, "restore_point"); r != "" {
-		extra = append(extra, "恢复点 "+r)
+		extra = append(extra, "配置快照 "+v)
 	}
 	if len(extra) > 0 {
 		msg += "（" + strings.Join(extra, "，") + "）"
 	}
 	return msg + view.WriteNote(), nil
+}
+
+// pruneEmptyTLS 在两项都留空时删掉 tls.default_certificate（tls 段空了
+// 就整段删掉），与 `config tls --cert= --key=` 的落盘结果一致；只清空
+// 一项时保留原样，交给校验报「必须成对」。
+func pruneEmptyTLS(root map[string]any) {
+	tlsMap, ok := root["tls"].(map[string]any)
+	if !ok {
+		return
+	}
+	dc, ok := tlsMap["default_certificate"].(map[string]any)
+	if !ok {
+		return
+	}
+	if strings.TrimSpace(cli.Str(dc, "certificate")) != "" || strings.TrimSpace(cli.Str(dc, "key")) != "" {
+		return
+	}
+	delete(tlsMap, "default_certificate")
+	if len(tlsMap) == 0 {
+		delete(root, "tls")
+	}
+}
+
+// pruneEmptyProxy 在三项都是默认值时删掉整个 proxy 段，与
+// `config proxy set` 的落盘结果一致。只改其中一项时保留其余字段。
+func pruneEmptyProxy(root map[string]any) {
+	proxyMap, ok := root["proxy"].(map[string]any)
+	if !ok {
+		return
+	}
+	maxHops := 0
+	if ff, ok := proxyMap["forwarded_for"].(map[string]any); ok {
+		switch v := ff["max_hops"].(type) {
+		case json.Number:
+			if n, err := strconv.Atoi(v.String()); err == nil {
+				maxHops = n
+			}
+		case float64:
+			maxHops = int(v)
+		}
+	}
+	preserve := true
+	if v, ok := proxyMap["preserve_host"].(bool); ok {
+		preserve = v
+	}
+	if listLen(proxyMap["trusted_proxies"]) == 0 && maxHops == 0 && preserve {
+		delete(root, "proxy")
+	}
+}
+
+// listLen 统计列表元素个数；内存树里是 []string，JSON 往返后是 []any。
+func listLen(v any) int {
+	switch list := v.(type) {
+	case []string:
+		return len(list)
+	case []any:
+		return len(list)
+	}
+	return 0
 }
 
 // buildCandidate 复刻主程序 siteops.CloneLiveTree 搭一棵候选配置树：

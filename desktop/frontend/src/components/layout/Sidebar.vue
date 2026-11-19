@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** 左侧导航：可折叠为纯图标模式；底部账户区已移到底部横带，不在此处。 */
-import { Activity, Globe, ShieldCheck, ScrollText, History, GitBranch, ChevronsLeft, ChevronsRight } from '@lucide/vue';
+import { Activity, Globe, Database, ShieldCheck, ScrollText, History, ClipboardList, ChevronsLeft, ChevronsRight } from '@lucide/vue';
 import type { Component } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore, type PaneKey } from '../../stores/app';
@@ -12,10 +12,11 @@ interface NavItem { key: PaneKey; label: string; icon: Component }
 const items: NavItem[] = [
   { key: 'monitor', label: 'monitor.center', icon: Activity },
   { key: 'sites', label: 'nav.sites', icon: Globe },
+  { key: 'cache', label: 'nav.cache', icon: Database },
   { key: 'certs', label: 'nav.certs', icon: ShieldCheck },
   { key: 'logs', label: 'nav.logs', icon: ScrollText },
   { key: 'operations', label: 'nav.operations', icon: History },
-  { key: 'versions', label: 'settings.versionsTitle', icon: GitBranch },
+  { key: 'audit', label: 'nav.audit', icon: ClipboardList },
 ];
 </script>
 

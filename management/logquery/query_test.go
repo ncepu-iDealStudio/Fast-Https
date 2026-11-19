@@ -275,6 +275,23 @@ func TestOutputTruncation(t *testing.T) {
 	}
 }
 
+// 应用还没启动、日志文件不存在时返回空结果，而不是 LOG_SOURCE_UNAVAILABLE。
+func TestMissingLogIsEmptyResult(t *testing.T) {
+	res, warnings, err := Run(Query{Dir: t.TempDir(), Kind: "access", Limit: 10})
+	if err != nil {
+		t.Fatalf("缺失日志文件不应报错：%v", err)
+	}
+	if len(res.Records) != 0 {
+		t.Fatalf("records = %+v，应为空", res.Records)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v，应为空", warnings)
+	}
+	if res.Source.File != logging.AccessLogName {
+		t.Fatalf("source = %q，应为 %q", res.Source.File, logging.AccessLogName)
+	}
+}
+
 func TestRejectSymlink(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "real.log")
@@ -330,6 +347,38 @@ func TestQueryFieldsStayOnTheAllowList(t *testing.T) {
 	}
 	if strings.Contains(text, "user_agent") || strings.Contains(text, `"raw"`) {
 		t.Fatalf("不应返回原始行或 user_agent：%s", text)
+	}
+}
+
+// reject_reason 是统一拒绝日志的枚举字段，按它精确过滤（R-10）。
+func TestRejectReasonFilter(t *testing.T) {
+	dir := t.TempDir()
+	writeLog(t, dir, logging.SafeLogName,
+		line(map[string]any{
+			"time": "2026-11-08T00:00:01.000Z", "level": "warn", "kind": "safe",
+			"message": "request rejected", "reject_reason": "header_too_large",
+			"rule": "max_header_size", "remote_ip": "1.2.3.4",
+		})+"\n"+
+			line(map[string]any{
+				"time": "2026-11-08T00:00:02.000Z", "level": "warn", "kind": "safe",
+				"message": "request rejected", "reject_reason": "body_too_large",
+				"rule": "max_body_size", "remote_ip": "1.2.3.4",
+			})+"\n"+
+			line(map[string]any{
+				"time": "2026-11-08T00:00:03.000Z", "level": "warn", "kind": "safe",
+				"message": "connection rejected", "reason": "blacklist",
+			})+"\n")
+
+	res, _, err := Run(Query{Dir: dir, Kind: "safe", RejectReason: "header_too_large", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Records) != 1 {
+		t.Fatalf("records = %+v", res.Records)
+	}
+	rec := res.Records[0]
+	if rec.RejectReason != "header_too_large" || rec.Rule != "max_header_size" || rec.RemoteIP != "1.2.3.4" {
+		t.Fatalf("record = %+v", rec)
 	}
 }
 

@@ -46,7 +46,7 @@ func TestUpdateKeepsFieldsSiteDoesNotModel(t *testing.T) {
       "root": "/var/www/old",
       "index": ["index.html"],
       "auth": { "type": "basic", "user": "u", "pswd": "p", "realm": "a" },
-      "proxy_cache": { "path": "/tmp/cache", "valid": ["200 1m"] },
+      "proxy_cache": "edge",
       "appfirewall": ["xss"],
       "limit": { "mem": 1024, "rate": 10, "burst": 20, "nodelay": true },
       "allow_methods": ["GET", "POST"],

@@ -21,6 +21,7 @@ export interface Overview {
   ports: string[];
   siteCount: number;
   tlsCount: number;
+  cacheZoneCount: number;
   nearestCertDays: number;
   configDirty: boolean;
   paths: RuntimePaths;
@@ -68,4 +69,8 @@ export interface LogEntry {
   size: string;
   host: string;
   remoteAddr: string;
+  rejectReason: string;
+  rule: string;
+  remoteIp: string;
+  reason: string;
 }

@@ -9,7 +9,7 @@ export function tailLog(name: string, lines: number): Promise<LogEntry[]> {
 export function queryLogs(query: Partial<LogQuery>): Promise<LogPage> {
   const full: LogQuery = {
     kind: 'access', limit: 100, level: '', status: '', host: '', method: '',
-    pathPrefix: '', reason: '', since: '', until: '', cursor: '',
+    pathPrefix: '', reason: '', rejectReason: '', since: '', until: '', cursor: '',
     ...query,
   };
   return service.QueryLogs(full);

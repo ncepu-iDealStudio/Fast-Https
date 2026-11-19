@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** 操作详情：基础信息 kv + 结构化错误块 + result 键值行。 */
 import { useI18n } from '../../../composables/useI18n';
+import { commandLabel } from '../../../composables/commandLabel';
 
 interface OpErrorDetail { code?: string; message?: string }
 interface OpError { code?: string; message?: string; details?: OpErrorDetail[] }
@@ -10,7 +11,7 @@ interface Op {
   phase?: string; owner_pid?: number; result?: Record<string, unknown>;
   error?: OpError | null;
 }
-defineProps<{ op: Op }>();
+defineProps<{ op: Op; audit?: boolean }>();
 const { t } = useI18n();
 
 function fmtTime(s?: string): string { return (s ?? '—').replace('T', ' ').slice(0, 19); }
@@ -18,8 +19,16 @@ function resultRows(op: Op): { k: string; v: string }[] {
   const r = op.result;
   if (!r || typeof r !== 'object') return [];
   return Object.entries(r)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    // changes 由差异弹窗单独渲染；其余是内部事务字段，不再展示给用户。
+    .filter(([k, v]) => !['changes', 'restore_point', 'config_state', 'rolled_back', 'last_phase'].includes(k)
+      && v !== undefined && v !== null && v !== '')
     .map(([k, v]) => ({ k, v: typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : JSON.stringify(v) }));
+}
+function rowLabel(k: string): string {
+  if (k === 'version') return t('ops.resultVersion');
+  if (k === 'certs_restored') return t('ops.resultCerts');
+  if (k === 'cause') return t('ops.resultCause');
+  return k;
 }
 function statusLabel(s?: string): string {
   const map: Record<string, string> = {
@@ -33,13 +42,11 @@ function statusLabel(s?: string): string {
 <template>
   <div class="ops-detail">
     <div class="kv-table">
-      <div class="kv-row"><span class="k">operation_id</span><span class="v mono">{{ op.operation_id }}</span></div>
-      <div class="kv-row"><span class="k">command</span><span class="v mono">{{ op.command }}</span></div>
-      <div class="kv-row"><span class="k">{{ t('common.status') }}</span><span class="v">{{ statusLabel(op.status) }}</span></div>
+      <div v-if="audit" class="kv-row"><span class="k">{{ t('ops.detailOperation') }}</span><span class="v mono">{{ op.operation_id }}</span></div>
+      <div class="kv-row"><span class="k">{{ t('ops.detailCommand') }}</span><span class="v" :title="op.command">{{ commandLabel(op.command) }}</span></div>
+      <div v-if="audit" class="kv-row"><span class="k">{{ t('common.status') }}</span><span class="v">{{ statusLabel(op.status) }}</span></div>
       <div class="kv-row"><span class="k">{{ t('ops.detailStart') }}</span><span class="v mono">{{ fmtTime(op.started_at) }}</span></div>
       <div class="kv-row"><span class="k">{{ t('ops.detailFinish') }}</span><span class="v mono">{{ fmtTime(op.finished_at) }}</span></div>
-      <div v-if="op.phase" class="kv-row"><span class="k">phase</span><span class="v mono">{{ op.phase }}</span></div>
-      <div v-if="op.owner_pid" class="kv-row"><span class="k">pid</span><span class="v mono">{{ op.owner_pid }}</span></div>
     </div>
 
     <div v-if="op.error" class="ops-err">
@@ -54,7 +61,7 @@ function statusLabel(s?: string): string {
 
     <div v-if="resultRows(op).length" class="kv-table" style="margin-top: 8px">
       <div v-for="r in resultRows(op)" :key="r.k" class="kv-row">
-        <span class="k mono">{{ r.k }}</span><span class="v mono">{{ r.v }}</span>
+        <span class="k">{{ rowLabel(r.k) }}</span><span class="v mono">{{ r.v }}</span>
       </div>
     </div>
   </div>

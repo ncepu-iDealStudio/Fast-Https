@@ -1,0 +1,7 @@
+# location.allow_methods 的取值校验。
+- name: empty entry
+  methods: [" "]
+  want_error: allow_methods[0] is empty
+- name: two tokens
+  methods: ["GET POST"]
+  want_error: must be a single method

@@ -6,7 +6,6 @@ import (
 	"fast-https/infra/logging"
 	"io"
 	"net"
-	"time"
 )
 
 // This is a simple demo
@@ -20,15 +19,24 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 		return
 	}
 
+	// 双向共享同一份空闲状态：任意方向有数据都算活动。
+	idle := core.NewTunnelIdle()
+
 	go func() {
 		buffer := make([]byte, 1024)
 		for {
-			ev.Conn.SetDeadline(time.Now().Add(time.Second * 10))
+			ev.Conn.SetDeadline(idle.Deadline())
 			n, err := ev.Conn.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
 					break
 				} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+					if idle.Expired() {
+						logging.ConsoleLog.Debug().Msg("tcp_proxy: idle tunnel closed")
+						ev.Close()
+						conn2.Close()
+						return
+					}
 					continue
 				} else {
 					logging.PrintWarn("[1]tcp_proxy: Proxy read error ", err.Error())
@@ -36,6 +44,7 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 					return
 				}
 			}
+			idle.Touch()
 
 			_, err = conn2.Write(buffer[:n])
 			if err != nil {
@@ -54,12 +63,18 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 	buffer := make([]byte, 1024)
 	for {
 
-		conn2.SetDeadline(time.Now().Add(time.Second * 10))
+		conn2.SetDeadline(idle.Deadline())
 		n, err := conn2.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
 				break
 			} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+				if idle.Expired() {
+					logging.ConsoleLog.Debug().Msg("tcp_proxy: idle tunnel closed")
+					ev.Close()
+					conn2.Close()
+					return
+				}
 				continue
 			} else {
 				logging.PrintWarn("tcp_proxy: Proxy read error ", err.Error())
@@ -68,6 +83,7 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 			}
 
 		}
+		idle.Touch()
 
 		_, err = ev.Conn.Write(buffer[:n])
 		if err != nil {

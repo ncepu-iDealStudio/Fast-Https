@@ -89,6 +89,49 @@ func TestSiteInitTLSAllowsMissingCerts(t *testing.T) {
 	}
 }
 
+// site add 的 h2 由 listen 决定：只写 "ssl" 表示 TLS 但不开 h2，
+// 写 "ssl h2" 才开；--cache-zone 与监听一起落在同一个站点文件里。
+func TestSiteAddH2ToggleWithCacheZone(t *testing.T) {
+	mainPath, includeDir := newSiteEnv(t)
+	root := t.TempDir()
+
+	cases := []struct {
+		name   string
+		domain string
+		listen string
+		want   string
+		wantH2 bool
+	}{
+		{"tls without h2", "plain-tls.example", "18443 ssl", `"listen": "18443 ssl"`, false},
+		{"tls with h2", "h2.example", "18444 ssl h2", `"listen": "18444 ssl h2"`, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			out, err := runSiteSubcmd(t, mainPath, "add",
+				"--domain", c.domain, "--root", root,
+				"--listen", c.listen, "--cache-zone", "edge", "--yes")
+			if err != nil {
+				t.Fatalf("site add: %v\n%s", err, out)
+			}
+
+			raw, err := os.ReadFile(filepath.Join(includeDir, c.domain+".json"))
+			if err != nil {
+				t.Fatalf("read generated site: %v", err)
+			}
+			body := string(raw)
+			if !strings.Contains(body, c.want) {
+				t.Fatalf("listen = %s\n%s", c.want, body)
+			}
+			if got := strings.Contains(body, "h2"); got != c.wantH2 {
+				t.Fatalf("h2 present = %v, want %v\n%s", got, c.wantH2, body)
+			}
+			if !strings.Contains(body, `"proxy_cache": "edge"`) {
+				t.Fatalf("cache zone missing:\n%s", body)
+			}
+		})
+	}
+}
+
 func TestSiteInitProxyRequiresUpstream(t *testing.T) {
 	mainPath, _ := newSiteEnv(t)
 	opts := Options{
@@ -161,6 +204,8 @@ func TestResolveListens(t *testing.T) {
 		{"tls upgrades the only custom port", true, []string{"8443"}, []string{"8443 ssl h2"}},
 		{"tls leaves plain 80 and upgrades the rest", true, []string{"80", "8443"}, []string{"80", "8443 ssl h2"}},
 		{"tls keeps explicit ssl listen", true, []string{"18443 ssl h2"}, []string{"18443 ssl h2"}},
+		{"tls keeps explicit ssl without h2", true, []string{"18443 ssl"}, []string{"18443 ssl"}},
+		{"tls leaves plain 80 and explicit ssl without h2", true, []string{"80", "18443 ssl"}, []string{"80", "18443 ssl"}},
 		{"non tls keeps ssl listen as authored", false, []string{"8443 ssl h2"}, []string{"8443 ssl h2"}},
 		{"multiple listens kept in order", false, []string{"80", "8080"}, []string{"80", "8080"}},
 		{"blank entries dropped", false, []string{"80", "  "}, []string{"80"}},
@@ -356,4 +401,33 @@ func createSiteForTest(t *testing.T, opts Options) error {
 	}
 	_, err = site.Create(dirs, name, in, opts.Force)
 	return err
+}
+
+// 站点只存缓存区名：已定义的区放行，空串表示关闭缓存。
+func TestEnsureCacheZone(t *testing.T) {
+	mainPath, _ := newSiteEnv(t)
+	if err := ensureCacheZone(mainPath, "edge"); err != nil {
+		t.Fatalf("已定义的区被拒绝：%v", err)
+	}
+	if err := ensureCacheZone(mainPath, ""); err != nil {
+		t.Fatalf("空区名应表示关闭缓存：%v", err)
+	}
+}
+
+// 拼错的缓存区名必须在事务之前拦下，而不是留到配置校验。
+func TestUpdateRejectsUnknownCacheZone(t *testing.T) {
+	mainPath, includeDir := newSiteEnv(t)
+	site := `{"listen": 80, "server_name": "blog.example",
+  "location": [{"url": "/", "type": "local", "root": "."}]}`
+	if err := os.WriteFile(filepath.Join(includeDir, "blog.json"), []byte(site), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := runSiteSubcmd(t, mainPath, "update", "blog", "--cache-zone", "nope", "--yes")
+	if err == nil {
+		t.Fatal("未知缓存区应报错")
+	}
+	if !strings.Contains(err.Error(), `cache zone "nope" is not defined`) {
+		t.Fatalf("err = %v", err)
+	}
 }

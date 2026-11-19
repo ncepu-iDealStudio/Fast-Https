@@ -23,48 +23,47 @@ const brotliLevel = 4
 
 // CompressBytes 按内容编码压缩数据，encoding 取 "gzip" 或 "br"。
 func CompressBytes(data []byte, encoding string) ([]byte, error) {
+	return CompressReader(bytes.NewReader(data), encoding)
+}
+
+// CompressReader 从 r 流式读入并压缩，返回压缩后的完整字节。
+// 输入按块读取，不会把原文整体读进内存；输出仍缓冲，调用方需要用它
+// 写 Content-Length。大文件因此只多一份压缩体的内存。
+func CompressReader(r io.Reader, encoding string) ([]byte, error) {
+	var b bytes.Buffer
 	switch encoding {
 	case "br":
-		return CompressBytesBrotli(data)
+		w := brotli.NewWriterLevel(&b, brotliLevel)
+		if _, err := io.Copy(w, r); err != nil {
+			_ = w.Close()
+			return nil, err
+		}
+		if err := w.Close(); err != nil {
+			return nil, err
+		}
 	case "gzip":
-		return CompressBytesGzip(data)
+		gz := gzipWriterPool.Get().(*gzip.Writer)
+		defer gzipWriterPool.Put(gz)
+		gz.Reset(&b)
+		if _, err := io.Copy(gz, r); err != nil {
+			_ = gz.Close()
+			return nil, err
+		}
+		if err := gz.Close(); err != nil {
+			return nil, err
+		}
 	default:
 		return nil, fmt.Errorf("unsupported content encoding %q", encoding)
 	}
+	return b.Bytes(), nil
 }
 
 // CompressBytesGzip 从池里取 writer 压缩数据。
 func CompressBytesGzip(data []byte) ([]byte, error) {
-	var b bytes.Buffer
-	gz := gzipWriterPool.Get().(*gzip.Writer)
-	defer gzipWriterPool.Put(gz)
-	gz.Reset(&b)
-
-	if _, err := gz.Write(data); err != nil {
-		return nil, err
-	}
-	if err := gz.Close(); err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
+	return CompressReader(bytes.NewReader(data), "gzip")
 }
 
 // CompressBytesBrotli 用 brotli 压缩数据，对应 Content-Encoding: br。
 func CompressBytesBrotli(data []byte) ([]byte, error) {
-	var b bytes.Buffer
-	w := brotli.NewWriterLevel(&b, brotliLevel)
-
-	_, err := w.Write(data)
-	if err != nil {
-		return nil, err
-	}
-
-	err = w.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	return b.Bytes(), nil
+	return CompressReader(bytes.NewReader(data), "br")
 }
-

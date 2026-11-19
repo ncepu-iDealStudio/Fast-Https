@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fast-https-desktop/internal/cacheops"
 	"fast-https-desktop/internal/configops"
 	"fast-https-desktop/internal/model"
 	"fast-https-desktop/internal/siteops"
@@ -35,6 +36,12 @@ func NewDesktopService() *DesktopService {
 	return &DesktopService{baseDir: view.ExeDir()}
 }
 
+// SetLanguage 让 CLI 错误翻译跟随界面语言（zh-CN / en-US），
+// 避免桌面端错误提示中英混排。
+func (s *DesktopService) SetLanguage(lang string) {
+	cli.SetLanguage(lang)
+}
+
 // ------------------------------------------------------------ 自绘标题栏窗口按钮
 // frameless 窗口没有系统标题栏按钮，全部转交 Wails 的窗口 API。
 
@@ -65,13 +72,26 @@ func (s *DesktopService) QuitApp() {
 	appQuitting.Store(true)
 	// 先停服务再退出：桌面端拉起服务后，关掉窗口不应该把端口一直占着。
 	// 服务若不是本端启动（例如用 CLI 起的），stop 找不到 pid，属于空操作。
-	_, _ = view.RunServerCommand(s.baseDir, "stop")
+	_, _ = cli.Run(s.baseDir, "stop")
 	if appRef != nil {
 		appRef.Quit()
 	}
 }
 
 // ------------------------------------------------------------ 账户菜单：帮助文档
+
+// RepoURL 是项目开源地址。地址写在 Go 侧而不是让前端传参：
+// bindings 对页面开放，开放任意 URL 等于给前端一个打开任意链接的口子。
+const RepoURL = "https://github.com/ncepu-iDealStudio/Fast-Https"
+
+// OpenRepo 用系统默认浏览器打开项目主页。
+// 重定向交给系统浏览器，桌面端不在 WebView 内嵌网页。
+func (s *DesktopService) OpenRepo() error {
+	if appRef == nil {
+		return fmt.Errorf("应用尚未就绪")
+	}
+	return appRef.Browser.OpenURL(RepoURL)
+}
 
 // OpenHelp 打开随发行包一起分发的中文使用文档。
 // 安装布局下 docs/ 与 exe 同级；开发时 exe 在 desktop/bin/，回退到仓库根。
@@ -135,7 +155,7 @@ func (s *DesktopService) DeleteSite(id string) (string, error) {
 }
 
 // SetSiteEnabled 转交 site enable/disable 的配置事务。
-// 桌面端不改文件名：事务会处理校验、恢复点与 reload，和命令行语义一致。
+// 桌面端不改文件名：事务会处理校验、临时备份与 reload，和命令行语义一致。
 // 成功后立刻让站点列表缓存失效，保证紧接着的刷新拿到的是新状态。
 func (s *DesktopService) SetSiteEnabled(id string, enabled bool) (string, error) {
 	msg, err := siteops.SetSiteEnabled(s.baseDir, id, enabled)
@@ -143,6 +163,31 @@ func (s *DesktopService) SetSiteEnabled(id string, enabled bool) (string, error)
 		s.invalidateAfterSiteWrite()
 	}
 	return msg, err
+}
+
+// ------------------------------------------------------------ 缓存区页
+
+// ListCacheZones 列出主配置里的缓存区，站点弹窗的下拉框也用它。
+func (s *DesktopService) ListCacheZones() ([]model.CacheZone, error) {
+	return cacheops.List(s.baseDir)
+}
+
+func (s *DesktopService) AddCacheZone(zone model.CacheZone) (string, error) {
+	return cacheops.Add(s.baseDir, zone)
+}
+
+func (s *DesktopService) SaveCacheZone(name string, zone model.CacheZone) (string, error) {
+	return cacheops.Save(s.baseDir, name, zone)
+}
+
+func (s *DesktopService) DeleteCacheZone(name string, purge bool) (string, error) {
+	return cacheops.Delete(s.baseDir, name, purge)
+}
+
+// DataDir 返回程序数据目录（归档布局下就是 exe 所在目录）。
+// 界面用它把 ./cache/<名称> 这类配置写法拼成可读的绝对路径。
+func (s *DesktopService) DataDir() string {
+	return s.baseDir
 }
 
 // ------------------------------------------------------------ 本机状态与操作
@@ -244,7 +289,7 @@ func (s *DesktopService) restartForReload() (string, error) {
 }
 
 func (s *DesktopService) ServerStatus() (string, error) {
-	return view.RunServerCommand(s.baseDir, "status")
+	return cli.Run(s.baseDir, "status")
 }
 
 func (s *DesktopService) OpenPath(path string) (string, error) {
@@ -267,20 +312,33 @@ func (s *DesktopService) CertTrustGuide() (model.CertTrustGuide, error) {
 
 // PickPath 调系统原生选择框，返回相对 config 目录的路径。
 // kind 为 "dir" 时选目录，否则选文件；用户取消返回空串。
+// initial 是打开时定位到的目录：优先用它，取不到再退回 config 目录。
 //
 // 相对写法是给配置字段用的（整目录搬迁不失效）。需要绝对路径的地方
 // （站点根目录）由前端 pickAbsPath 用同一个基准还原，别在这里改语义。
-func (s *DesktopService) PickPath(kind string) (string, error) {
+func (s *DesktopService) PickPath(kind, initial string) (string, error) {
 	if appRef == nil {
 		return "", fmt.Errorf("应用尚未就绪")
 	}
 	etcDir := filepath.Dir(view.ResolvePaths(s.baseDir).Config)
-	d := appRef.Dialog.OpenFile().SetDirectory(etcDir)
+	start := etcDir
+	if p := strings.TrimSpace(initial); p != "" {
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(s.baseDir, p)
+		}
+		if info, err := os.Stat(p); err == nil && info.IsDir() {
+			start = p
+		} else if info, err := os.Stat(filepath.Dir(p)); err == nil && info.IsDir() {
+			// 选文件时 initial 可能是文件名，退到它所在的目录。
+			start = filepath.Dir(p)
+		}
+	}
+	d := appRef.Dialog.OpenFile().SetDirectory(start)
 	if mainWindow != nil {
 		d.AttachToWindow(mainWindow)
 	}
 	if kind == "dir" {
-		d.SetTitle("选择站点根目录").CanChooseDirectories(true).CanChooseFiles(false)
+		d.SetTitle("选择目录").CanChooseDirectories(true).CanChooseFiles(false)
 	} else {
 		d.SetTitle("选择证书文件").CanChooseDirectories(false).CanChooseFiles(true).
 			AddFilter("PEM 证书", "*.pem;*.crt;*.cer").

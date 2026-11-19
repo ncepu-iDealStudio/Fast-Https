@@ -20,8 +20,12 @@
   box-shadow: 0 1px 2px rgba(16, 20, 28, .06);
 }
 
-/* 实时开关：复用全局 .icon-btn 的尺寸，这里只补「运行中」的状态色 */
-.icon-btn.live-btn--on { color: var(--ok); border-color: var(--ok); }
-
 .logs-count { font-size: 11px; color: var(--faint); margin-left: auto; }
+
+/* 时间范围用原生日期选择器：起止两个框之间只留一个箭头，起止含义靠 title 提示。 */
+.date-sep { color: var(--faint); font-size: 11px; }
+.filter-bar input[type="datetime-local"] {
+  width: 186px;
+  font-variant-numeric: tabular-nums;
+}
 

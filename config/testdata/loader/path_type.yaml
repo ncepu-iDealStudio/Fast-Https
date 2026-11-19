@@ -1,0 +1,33 @@
+# location.type / proxy_pass 到运行期 PathType 的映射。
+- name: local
+  type: local
+  proxy_pass: ""
+  want: LOCAL
+- name: rewrite
+  type: rewrite
+  proxy_pass: ""
+  want: REWRITE
+- name: devmod
+  type: devmod
+  proxy_pass: ""
+  want: DEVMOD
+- name: proxy http
+  type: proxy
+  proxy_pass: http://127.0.0.1:9000
+  want: PROXY_HTTP
+- name: proxy https
+  type: proxy
+  proxy_pass: https://127.0.0.1:9443
+  want: PROXY_HTTPS
+- name: proxy no scheme falls back to local
+  type: proxy
+  proxy_pass: 127.0.0.1:9000
+  want: LOCAL
+- name: proxy unknown scheme falls back
+  type: proxy
+  proxy_pass: ftp://x
+  want: LOCAL
+- name: unknown type
+  type: magic
+  proxy_pass: ""
+  want: LOCAL

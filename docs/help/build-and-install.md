@@ -44,17 +44,17 @@ goreleaser release -f build/goreleaser.yaml --snapshot --clean
 ```text
 fast-https_{Windows_x86_64,Windows_arm64}.zip
 fast-https_{Linux,Darwin}_{x86_64,arm64}.tar.gz
-fast-https_<version>_linux_{amd64,arm64}.{deb,rpm,apk}
-fast-https-<version>-windows-<arch>-setup.exe
+fast-https_linux_{amd64,arm64}.{deb,rpm,apk}
+fast-https-windows-<arch>-setup.exe
 checksums.txt
 ```
 
 ## 安装 Linux 包
 
 ```bash
-sudo apt install ./fast-https_1.5.0-next_linux_amd64.deb   # Debian / Ubuntu
-sudo dnf install ./fast-https-1.5.0-next-1.x86_64.rpm      # RHEL / openEuler
-sudo apk add --allow-untrusted fast-https_1.5.0-next_linux_amd64.apk
+sudo apt install ./fast-https_linux_amd64.deb            # Debian / Ubuntu
+sudo dnf install ./fast-https_linux_amd64.rpm            # RHEL / openEuler
+sudo apk add --allow-untrusted fast-https_linux_amd64.apk # Alpine
 ```
 
 装完文件落在哪，见 [package-layout.md](package-layout.md)。
@@ -192,4 +192,4 @@ sh tests/packaging/distro/run.sh all      # deb → upgrade → rpm → apk
 
 脚本依赖容器内的 `fast-https start` 自己转后台（容器里 `runInForeground()` 为真，`start` 不 daemonize），退出时统一 `stop`，否则后台进程会一直占着 80/443。
 
-上次实测的产物校验和、镜像摘要、逐项结论与环境差异记在 [../test/3-distro-verification.md](../test/3-distro-verification.md)——同一份产物不用重复跑；缺陷背景见 [dev-issues.md](dev-issues.md) 的 002。
+上次实测的产物校验和、镜像摘要、逐项结论与环境差异记在 [../test/verification/distro-packages.md](../test/verification/distro-packages.md)——同一份产物不用重复跑；缺陷背景见 [dev-issues.md](dev-issues.md) 的 002。

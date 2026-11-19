@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"fast-https/config"
 	"fast-https/core"
 	"fast-https/modules/cache"
 	"fast-https/runtime/listener"
@@ -43,9 +44,9 @@ func untrack(key string) {
 
 // Serve：命中缓存时按条目回放；方法、no-cache 指令、未配置键都判未命中
 func TestProxyCacheServe(t *testing.T) {
-	pc := NewProxyCache("$request_uri", []string{"any:60"}, t.TempDir(), nil, 0)
+	pc := NewProxyCache(config.CacheZone{Name: "z", Path: t.TempDir(), Valid: []string{"any:60"}})
 
-	key := cache.GetMd5("/cached-page")
+	key := pc.CacheKey(newCacheEvent("GET", ""))
 	cache.GCacheContainer.WriteCache(key, 60, 0, t.TempDir(), cache.CacheEntry{
 		FirstLine: "HTTP/1.1 200 OK",
 		Status:    200,
@@ -85,7 +86,7 @@ func TestProxyCacheServe(t *testing.T) {
 	})
 
 	t.Run("missing key config never serves", func(t *testing.T) {
-		empty := NewProxyCache("", nil, "", nil, 0)
+		empty := NewProxyCache(config.CacheZone{})
 		if _, ok := empty.Serve(newCacheEvent("GET", "")); ok {
 			t.Fatal("unconfigured key must miss")
 		}
@@ -95,15 +96,15 @@ func TestProxyCacheServe(t *testing.T) {
 // Store：方法过滤、状态码时长、逐跳/逐用户头剔除
 func TestProxyCacheStore(t *testing.T) {
 	dir := t.TempDir()
-	pc := NewProxyCache("$request_uri", []string{"200:30s", "any:5s"}, dir, []string{"GET"}, 0)
+	pc := NewProxyCache(config.CacheZone{Name: "z", Path: dir, Valid: []string{"200:30s", "any:5s"}})
 
 	t.Run("expire zero for unlisted status skips store", func(t *testing.T) {
-		noRules := NewProxyCache("$request_uri", nil, dir, nil, 0)
+		noRules := NewProxyCache(config.CacheZone{Name: "z", Path: dir})
 		ev := newCacheEvent("GET", "")
 		ev.RR.Res = response.ResponseInit()
 		ev.RR.Res.Body = []byte("x")
 		noRules.Store(ev, 200)
-		if _, ok := cache.GCacheContainer.Index.Touch(cache.GetMd5("/cached-page")); ok {
+		if _, ok := cache.GCacheContainer.Index.Touch(noRules.CacheKey(ev)); ok {
 			t.Fatal("no valid rules must not cache")
 		}
 	})
@@ -113,7 +114,7 @@ func TestProxyCacheStore(t *testing.T) {
 		ev.RR.Res = response.ResponseInit()
 		ev.RR.Res.Body = []byte("never-cached")
 		pc.Store(ev, 200)
-		if _, ok := cache.GCacheContainer.Index.Touch(cache.GetMd5("/cached-page")); ok {
+		if _, ok := cache.GCacheContainer.Index.Touch(pc.CacheKey(ev)); ok {
 			t.Fatal("POST must not be stored")
 		}
 	})
@@ -128,7 +129,7 @@ func TestProxyCacheStore(t *testing.T) {
 		ev.RR.Res.Body = []byte("stored-body")
 		pc.Store(ev, 200)
 
-		key := cache.GetMd5("/cached-page")
+		key := pc.CacheKey(ev)
 		waitCached(t, key)
 		t.Cleanup(func() { untrack(key) })
 

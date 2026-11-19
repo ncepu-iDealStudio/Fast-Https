@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"fast-https/config"
 )
@@ -66,6 +67,9 @@ func fileChangePath(rel, jsonPath string) string {
 	return rel + ":" + jsonPath
 }
 
+// listJSON 只收集事务真正管理的配置文件：根目录的 fast-https.json 与
+// conf.d 下的站点文件。mime.json、monitor.json 等运行期附属文件既不在
+// 候选树里、也不在版本快照里，不能因为缺席就被当成「删除」。
 func listJSON(root string) (map[string]string, error) {
 	out := map[string]string{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -82,11 +86,20 @@ func listJSON(root string) (map[string]string, error) {
 		if err != nil {
 			return err
 		}
-		out[filepath.ToSlash(rel)] = path
+		rel = filepath.ToSlash(rel)
+		if !isManagedConfigPath(rel) {
+			return nil
+		}
+		out[rel] = path
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
+}
+
+// isManagedConfigPath 判断相对路径是否属于配置事务管理的范围。
+func isManagedConfigPath(rel string) bool {
+	return rel == "fast-https.json" || strings.HasPrefix(rel, "conf.d/")
 }

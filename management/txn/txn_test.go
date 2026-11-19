@@ -2,6 +2,7 @@ package txn
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -85,12 +86,17 @@ func setupApply(t *testing.T) (liveMain, cand string, eng *Engine, reload *count
 	writeTree(t, liveDir, "live.example", "")
 	writeTree(t, candDir, "cand.example", "")
 	t.Chdir(liveDir)
+	certDir := filepath.Join(work, "cert")
+	if err := os.MkdirAll(certDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	reload = &countReload{}
 	health = &countHealth{}
 	eng = &Engine{
 		State:    state.Dir{Root: filepath.Join(work, "state"), Alive: func(int, string) bool { return true }},
 		Reloader: reload,
 		Health:   health,
+		CertDir:  certDir,
 		Probe:    func(int) bool { return true },
 		Bind:     func(int) error { return nil },
 	}
@@ -124,8 +130,12 @@ func TestApplySuccess(t *testing.T) {
 	if res.Operation.Status != operation.StatusSucceeded {
 		t.Fatalf("status = %s", res.Operation.Status)
 	}
-	if res.RestorePoint == "" || res.Version == "" {
-		t.Fatalf("restore=%s version=%s", res.RestorePoint, res.Version)
+	if res.Version == "" {
+		t.Fatal("version should not be empty")
+	}
+	// 首次操作会补一个基线版本，本次结果是第二个版本。
+	if n := mustCountVersions(t, eng, live); n != 2 {
+		t.Fatalf("snapshots = %d, want 2", n)
 	}
 	list, err := cfgver.List(eng.State, live)
 	if err != nil {
@@ -146,8 +156,46 @@ func TestApplySuccess(t *testing.T) {
 	if !strings.Contains(fileOf(t, filepath.Join(filepath.Dir(live), "conf.d", "site.json")), "cand.example") {
 		t.Fatal("线上站点应等于候选")
 	}
-	if _, err := os.Stat(filepath.Join(eng.State.VersionsDir(), res.RestorePoint)); err != nil {
-		t.Fatal("恢复点应存在")
+	if _, err := os.Stat(filepath.Join(eng.State.SnapshotsDir(), res.Version)); err != nil {
+		t.Fatal("结果快照应存在")
+	}
+	stored, err := operation.Store{Dir: eng.State}.Get(res.Operation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(stored.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"conf.d/site.json:server_name"`) {
+		t.Fatalf("operation 记录应包含 conf.d 差异：%s", raw)
+	}
+}
+
+func TestApplyRecordsFileAddRemove(t *testing.T) {
+	live, cand, eng, _, _ := setupApply(t)
+	if err := os.Remove(filepath.Join(cand, "conf.d", "site.json")); err != nil {
+		t.Fatal(err)
+	}
+	extra := `{"listen":[18081],"server_name":"extra.example","location":[{"url":"/","type":"local","root":"."}]}`
+	if err := os.WriteFile(filepath.Join(cand, "conf.d", "extra.json"), []byte(extra), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res := applyOK(t, eng, live, cand, "files")
+	stored, err := operation.Store{Dir: eng.State}.Get(res.Operation.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(stored.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, `"path":"conf.d/site.json"`) || !strings.Contains(text, `"op":"removed"`) {
+		t.Fatalf("应记录 conf.d 文件删除：%s", text)
+	}
+	if !strings.Contains(text, `"path":"conf.d/extra.json"`) || !strings.Contains(text, `"op":"added"`) {
+		t.Fatalf("应记录 conf.d 文件新增：%s", text)
 	}
 }
 
@@ -214,8 +262,14 @@ func TestApplyReloadFailsRollsBack(t *testing.T) {
 	if te.Operation.Status != operation.StatusFailed || te.Operation.Result["rolled_back"] != true {
 		t.Fatalf("op = %+v", te.Operation)
 	}
+	if te.Operation.Result["config_state"] != StateMatchesPrevious {
+		t.Fatalf("config_state = %v", te.Operation.Result["config_state"])
+	}
 	if fileOf(t, filepath.Join(filepath.Dir(live), "conf.d", "site.json")) != before {
 		t.Fatal("线上应还原")
+	}
+	if n := mustCountVersions(t, eng, live); n != 1 {
+		t.Fatalf("失败补偿只应留下基线快照，得到 %d", n)
 	}
 	if reload.n != 2 {
 		t.Fatalf("补偿应再 reload，n=%d", reload.n)
@@ -234,11 +288,17 @@ func TestApplyHealthFailsRollsBack(t *testing.T) {
 	if te.Operation.Result["rolled_back"] != true {
 		t.Fatalf("op = %+v", te.Operation)
 	}
+	if te.Operation.Result["config_state"] != StateMatchesPrevious {
+		t.Fatalf("config_state = %v", te.Operation.Result["config_state"])
+	}
 	if fileOf(t, filepath.Join(filepath.Dir(live), "conf.d", "site.json")) != before {
 		t.Fatal("线上应还原")
 	}
 	if reload.n != 2 || health.n != 2 {
 		t.Fatalf("reload=%d health=%d", reload.n, health.n)
+	}
+	if n := mustCountVersions(t, eng, live); n != 1 {
+		t.Fatalf("失败补偿只应留下基线快照，得到 %d", n)
 	}
 }
 
@@ -254,13 +314,16 @@ func TestApplyRollbackFailsRecoveryRequired(t *testing.T) {
 	if te.Operation.Status != operation.StatusRecoveryRequired {
 		t.Fatalf("status = %s", te.Operation.Status)
 	}
-	if te.Operation.Result["restore_point"] == nil || te.Operation.Result["restore_point"] == "" {
-		t.Fatal("应写出恢复点路径")
+	if te.Operation.Result["config_state"] != StateUncertain {
+		t.Fatalf("config_state = %v", te.Operation.Result["config_state"])
+	}
+	if _, ok := te.Operation.Result["restore_point"]; ok {
+		t.Fatal("不应再写 restore_point")
 	}
 }
 
 func TestApplyCrashBetweenPhases(t *testing.T) {
-	phases := []string{PhaseValidated, PhaseRestorePointSaved, PhaseFilesSwitched, PhaseReloaded, PhaseVerified}
+	phases := []string{PhaseValidated, PhaseBackedUp, PhaseFilesSwitched, PhaseReloaded, PhaseVerified}
 	for _, ph := range phases {
 		t.Run(ph, func(t *testing.T) {
 			live, cand, eng, _, _ := setupApply(t)
@@ -389,12 +452,19 @@ func TestApplyDoesNotTouchCertsOrDocroot(t *testing.T) {
 
 func TestRollbackToVersion(t *testing.T) {
 	live, cand, eng, _, _ := setupApply(t)
-	first := applyOK(t, eng, live, cand, "a1")
-	n := mustCountVersions(t, eng, live)
-	v1 := filepath.Join(eng.State.VersionsDir(), first.RestorePoint)
+	applyOK(t, eng, live, cand, "a1")
+	list, err := cfgver.List(eng.State, live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list.Versions) != 2 {
+		t.Fatalf("versions = %+v", list.Versions)
+	}
+	baseline := list.Versions[1].Version
+	n := len(list.Versions)
 	res, err := eng.Apply(context.Background(), Input{
-		Candidate: v1, LiveMain: live, RequestID: "rb1",
-		Command: "config.rollback", Summary: "rollback",
+		Candidate: cfgver.VersionDir(eng.State, baseline), LiveMain: live, RequestID: "rb1",
+		Command: "config.rollback", Summary: "rollback", RestoreCerts: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -402,12 +472,141 @@ func TestRollbackToVersion(t *testing.T) {
 	if res.Operation.Command != "config.rollback" {
 		t.Fatalf("command = %s", res.Operation.Command)
 	}
-	if mustCountVersions(t, eng, live) < n {
-		t.Fatal("历史版本数不应减少")
+	if res.Version != baseline {
+		t.Fatalf("rollback version = %s, want %s", res.Version, baseline)
+	}
+	if got := mustCountVersions(t, eng, live); got != n {
+		t.Fatalf("回滚不应新增版本：%d -> %d", n, got)
 	}
 	if !strings.Contains(fileOf(t, filepath.Join(filepath.Dir(live), "conf.d", "site.json")), "live.example") {
-		t.Fatal("回滚后应等于恢复点内容")
+		t.Fatal("回滚后应等于基线内容")
 	}
+}
+
+func TestRollbackReusesExistingVersion(t *testing.T) {
+	live, cand, eng, _, _ := setupApply(t)
+	applyOK(t, eng, live, cand, "a1")
+	list, err := cfgver.List(eng.State, live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline := list.Versions[1].Version
+	writeTree(t, cand, "third.example", "")
+	b := applyOK(t, eng, live, cand, "a2")
+	candVer := b.Version
+	n := mustCountVersions(t, eng, live)
+	if n != 3 {
+		t.Fatalf("snapshots = %d, want 3", n)
+	}
+
+	res, err := eng.Apply(context.Background(), Input{
+		Candidate: cfgver.VersionDir(eng.State, baseline), LiveMain: live,
+		RequestID: "rb1", Command: "config.rollback", RestoreCerts: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Version != baseline {
+		t.Fatalf("rollback version = %s, want %s", res.Version, baseline)
+	}
+	if got := mustCountVersions(t, eng, live); got != n {
+		t.Fatalf("回滚基线不应新增版本：%d -> %d", n, got)
+	}
+	if !strings.Contains(fileOf(t, filepath.Join(filepath.Dir(live), "conf.d", "site.json")), "live.example") {
+		t.Fatal("应回到基线内容")
+	}
+
+	res, err = eng.Apply(context.Background(), Input{
+		Candidate: cfgver.VersionDir(eng.State, candVer), LiveMain: live,
+		RequestID: "rb2", Command: "config.rollback", RestoreCerts: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Version != candVer {
+		t.Fatalf("second rollback version = %s, want %s", res.Version, candVer)
+	}
+	if got := mustCountVersions(t, eng, live); got != n {
+		t.Fatalf("回滚结果版本不应新增版本：%d -> %d", n, got)
+	}
+	if !strings.Contains(fileOf(t, filepath.Join(filepath.Dir(live), "conf.d", "site.json")), "third.example") {
+		t.Fatal("应回到结果版本内容")
+	}
+	list, err = cfgver.List(eng.State, live)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var active string
+	for _, v := range list.Versions {
+		if v.Active {
+			active = v.Version
+		}
+	}
+	if active != candVer {
+		t.Fatalf("active = %s, want %s", active, candVer)
+	}
+}
+
+func TestRollbackRestoresCerts(t *testing.T) {
+	live, cand, eng, _, _ := setupApply(t)
+	cert := filepath.Join(eng.CertDir, "example.pem")
+	key := filepath.Join(eng.CertDir, "example-key.pem")
+	writeFile(t, cert, "CERT-A")
+	writeFile(t, key, "KEY-A")
+	site := func(name string) string {
+		return `{
+  "listen": ["18443 ssl"],
+  "server_name": "` + name + `",
+  "ssl_certificate": ` + jsonQuote(cert) + `,
+  "ssl_certificate_key": ` + jsonQuote(key) + `,
+  "location": [{"url": "/", "type": "local", "root": "."}]
+}`
+	}
+	writeFile(t, filepath.Join(filepath.Dir(live), "conf.d", "site.json"), site("live.example"))
+	writeFile(t, filepath.Join(cand, "conf.d", "site.json"), site("cand.example"))
+	a := applyOK(t, eng, live, cand, "a1") // 基线(A)，结果(A)
+	writeFile(t, cert, "CERT-B")
+	writeFile(t, key, "KEY-B")
+	writeFile(t, filepath.Join(cand, "conf.d", "site.json"), site("third.example"))
+	applyOK(t, eng, live, cand, "a2") // 结果(B)
+	res, err := eng.Apply(context.Background(), Input{
+		Candidate: cfgver.VersionDir(eng.State, a.Version), LiveMain: live,
+		RequestID: "rb-cert", Command: "config.rollback", RestoreCerts: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fileOf(t, cert); got != "CERT-A" {
+		t.Fatalf("cert = %q, want CERT-A", got)
+	}
+	if got := fileOf(t, key); got != "KEY-A" {
+		t.Fatalf("key = %q, want KEY-A", got)
+	}
+	if res.Version != a.Version {
+		t.Fatalf("version = %s, want %s", res.Version, a.Version)
+	}
+	restored, _ := res.Operation.Result["certs_restored"].([]string)
+	if len(restored) != 2 {
+		t.Fatalf("certs_restored = %v", res.Operation.Result["certs_restored"])
+	}
+}
+
+func writeFile(t *testing.T, path, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func jsonQuote(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 func TestRollbackMissingCert(t *testing.T) {

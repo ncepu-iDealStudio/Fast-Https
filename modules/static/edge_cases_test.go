@@ -23,6 +23,8 @@ type traversalVector struct {
 	Path string `json:"path"`
 	Want string `json:"want"`
 	Note string `json:"note"`
+	// OS 非空时只在对应平台上断言；保留设备名等语义仅 Windows 成立。
+	OS string `json:"os,omitempty"`
 }
 
 // loadTraversalVectors 读用例表。用 jsonl 而不是 Go 里的切片：
@@ -65,6 +67,9 @@ func TestStaticPathTraversalVectors(t *testing.T) {
 	root := t.TempDir()
 	for _, v := range loadTraversalVectors(t) {
 		t.Run(strings.NewReplacer("/", "_", "\\", "_", "%", "pct", " ", "sp").Replace(v.Path), func(t *testing.T) {
+			if v.OS != "" && v.OS != runtime.GOOS {
+				t.Skipf("仅在 %s 上断言", v.OS)
+			}
 			// 复现调用方的拼接方式：静态根 + 请求路径
 			got, ok := staticPathInRoot(root, root+v.Path)
 
@@ -91,6 +96,48 @@ func TestStaticPathTraversalVectors(t *testing.T) {
 	}
 }
 
+// TestWindowsPathSemantics 精确断言 Windows 文件系统语义的处理结果：
+// 尾点/尾空格按打开文件时的行为裁剪，保留设备名一律拒绝。
+func TestWindowsPathSemantics(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("仅 Windows 有尾点/尾空格与保留设备名语义")
+	}
+	root := t.TempDir()
+
+	cases := []struct {
+		name string
+		path string
+		want string // 为空表示应被拒绝
+	}{
+		{name: "尾部点被裁剪", path: "/file.", want: "/file"},
+		{name: "尾部空格被裁剪", path: "/file ", want: "/file"},
+		{name: "目录段尾点被裁剪", path: "/dir./a.txt", want: "/dir/a.txt"},
+		{name: "普通文件名保留", path: "/app.min.js", want: "/app.min.js"},
+		{name: "保留名 CON", path: "/CON"},
+		{name: "保留名 con.txt", path: "/con.txt"},
+		{name: "保留名带尾点", path: "/CON."},
+		{name: "保留名在子目录", path: "/sub/COM9.log"},
+		{name: "尾点裁剪后形成 ..", path: "/.. "},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := staticPathInRoot(root, root+c.path)
+			if c.want == "" {
+				if ok {
+					t.Fatalf("%s 应被拒绝，得到 %q", c.path, got)
+				}
+				return
+			}
+			if !ok {
+				t.Fatalf("%s 不应被拒绝", c.path)
+			}
+			if want := filepath.Clean(root + c.want); got != want {
+				t.Fatalf("got %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 // TestStaticSymlinkEscape 覆盖「root 内放一个指向外部的符号链接」。
 //
 // staticPathInRoot 只看 Clean 后的字符串前缀，不 EvalSymlinks，所以这类
@@ -98,10 +145,6 @@ func TestStaticPathTraversalVectors(t *testing.T) {
 // （配置者自己放进来的链接），但需要明确行为：读得到还是读不到必须稳定，
 // 不能随平台变化。
 func TestStaticSymlinkEscape(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows 上创建符号链接需要开发者模式或管理员权限")
-	}
-
 	outside := t.TempDir()
 	secret := filepath.Join(outside, "secret.txt")
 	if err := os.WriteFile(secret, []byte("top-secret"), 0o600); err != nil {
