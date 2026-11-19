@@ -29,7 +29,8 @@ func InitSystem() {
 	}
 	logging.ConsoleLog.Info().Msg("certification initialization finished")
 
-	// load cache from desk
+	// load cache from desk：先补齐缓存区目录，扫描时才不会因为目录不存在而告警
+	cache.GCacheContainer.EnsureDirs()
 	cache.GCacheContainer.LoadCache()
 	logging.ConsoleLog.Info().Msg("cache loadcache load disk cache finished")
 	CacheManagerInit()

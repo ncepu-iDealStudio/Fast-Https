@@ -128,3 +128,17 @@ func TestLoadCacheEmptyAndMissingDir(t *testing.T) {
 		}
 	}
 }
+
+// EnsureDirs 让配置里每个缓存区目录在磁盘上存在（含多级路径）。
+// 缓存条目是懒写入的，目录本身属于缓存区定义，不应等首条响应被缓存后才出现。
+func TestEnsureDirsCreatesZonePaths(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), ".cache", "edge")
+	withCacheDir(t, dir)
+
+	NewCacheContainer().EnsureDirs()
+
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		t.Fatalf("缓存区目录未创建: %v", err)
+	}
+}

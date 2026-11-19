@@ -237,7 +237,8 @@ function buildPayload(): SiteInput {
     authUser: form.authOn ? form.authUser : '',
     authPass: form.authOn ? form.authPass : '',
     authRealm: form.authOn ? form.authRealm : '',
-    cacheZone: form.cacheZone,
+    // 缓存只服务于反向代理响应；静态站点写进去也不会生效，保存时清掉。
+    cacheZone: form.type === 'proxy' ? form.cacheZone : '',
   };
 }
 
@@ -529,7 +530,7 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
           <small class="field-note">{{ t('dialog.site.authHint') }}</small>
         </div>
 
-        <div class="adv__block">
+        <div v-if="form.type === 'proxy'" class="adv__block">
           <div class="adv__title">{{ t('dialog.site.cache') }}</div>
           <label class="stack-field">
             <span>{{ t('dialog.site.cacheZone') }}</span>

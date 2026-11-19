@@ -180,6 +180,20 @@ func readEntryHead(realPath string) (CacheHead, string, int, error) {
 	return head.Head, head.FirstLine, head.Size, nil
 }
 
+// EnsureDirs 确保配置里每个缓存区目录已经在磁盘上存在。
+// 缓存条目本身是懒写入的，但目录属于缓存区定义的一部分：配置生效后就该能在
+// 磁盘上看到，而不是等第一条响应被缓存后才出现。创建失败只告警，不阻断加载。
+func (CC *CacheContainer) EnsureDirs() {
+	for _, zone := range config.Current().Cache {
+		if zone.Path == "" {
+			continue
+		}
+		if err := os.MkdirAll(zone.Path, 0o755); err != nil {
+			logging.PrintWarn("proxy cache create directory failed: ", err)
+		}
+	}
+}
+
 // LoadCache 在启动时扫描主配置里的缓存区目录，重建内存索引。
 func (CC *CacheContainer) LoadCache() {
 	now := int(time.Now().Unix())
