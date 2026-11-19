@@ -122,6 +122,25 @@ func TestSetupUsesCustomWizard(t *testing.T) {
 	}
 }
 
+// TestWizardProtectsInstallParentDir 锁住安装目录的两个保护：
+// 浏览选择时补 Fast-Https 子目录（避免把文件直接铺进 D:\SOFT，卸载再清空父目录）；
+// 目标目录非空且不像本产品时弹确认框，说明会覆盖文件、卸载会整目录删除。
+func TestWizardProtectsInstallParentDir(t *testing.T) {
+	wizard := readPkgFile(t, "build/installer/windows/wizard.ps1")
+	for _, want := range []string{
+		"Join-ProductSubdir",
+		"$txtPath.Text = Join-ProductSubdir $dlg.SelectedPath",
+		"Test-ForeignDir",
+		"if (Test-ForeignDir $dest)",
+		"[System.Windows.Forms.MessageBox]::Show",
+		"notEmpty",
+	} {
+		if !strings.Contains(wizard, want) {
+			t.Errorf("wizard.ps1 缺少安装目录保护：%s", want)
+		}
+	}
+}
+
 // TestWindowsWizardBranding 锁住安装向导的品牌定制：
 // 两个 Windows 安装器都挂同一套品牌位图（侧边图 + 页眉图，由应用图标用
 // gen-wizard-bitmaps.ps1 生成）；桌面端向导保留产品化文案（欢迎 / 完成 /

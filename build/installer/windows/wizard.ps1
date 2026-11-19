@@ -43,6 +43,9 @@ $T = if ($zh) {
         install = '安装'
         installTo = '安装到'
         browse = '浏览'
+        pickDir = '选择安装位置：会在所选目录下创建 Fast-Https 子目录'
+        notEmptyTitle = '安装目录不是空的'
+        notEmpty = "安装目录不是空的：`n{0}`n`n继续安装会覆盖同名文件；卸载时这个目录会被整体删除。确定继续吗？"
         agree = '安装即同意'
         terms = '用户协议'
         and = '和'
@@ -84,6 +87,9 @@ $T = if ($zh) {
         install = 'Install'
         installTo = 'Install to'
         browse = 'Browse'
+        pickDir = 'Choose a location; a Fast-Https subfolder will be created inside it'
+        notEmptyTitle = 'Install folder is not empty'
+        notEmpty = "The install folder is not empty:`n{0}`n`nInstalling will overwrite files with the same name, and uninstalling removes this folder entirely. Continue?"
         agree = 'By installing you agree to the'
         terms = 'Terms'
         and = 'and'
@@ -697,6 +703,35 @@ function Set-CenterToCurrentMonitor {
     } catch { }
 }
 
+# ---- 安装目录处理 ----------------------------------------------------------
+# 浏览选择的是「装到哪里」，统一落在产品子目录里：直接装进所选目录时，
+# 卸载的 RMDir /r $INSTDIR 会把该目录整个删掉（实测 D:\SOFT 被清空）。
+function Join-ProductSubdir([string]$path) {
+    $p = $path.Trim()
+    if (-not $p) { return '' }
+    $p = $p.TrimEnd('\')
+    # 盘根（D:\）保留分隔符，Join-Path 才能得到 D:\Fast-Https 而不是 D:Fast-Https
+    if ($p -match '^[A-Za-z]:$') { $p = $p + '\' }
+    if ((Split-Path -Leaf $p) -ieq $Title) { return $p.TrimEnd('\') }
+    return (Join-Path $p $Title)
+}
+
+# Test-DirNotEmpty：目录存在且有内容（含隐藏项）返回 $true；路径是文件也按非空处理。
+function Test-DirNotEmpty([string]$path) {
+    if (-not (Test-Path -LiteralPath $path)) { return $false }
+    if (Test-Path -LiteralPath $path -PathType Leaf) { return $true }
+    return @(Get-ChildItem -LiteralPath $path -Force -ErrorAction SilentlyContinue).Count -gt 0
+}
+
+# Test-ForeignDir：非空且不像本产品目录时才需要提醒。带 fast-https 可执行文件的
+# 旧安装按升级处理，不再每次覆盖升级都弹警告。
+function Test-ForeignDir([string]$path) {
+    if (-not (Test-DirNotEmpty $path)) { return $false }
+    if (Test-Path -LiteralPath (Join-Path $path 'fast-https.exe')) { return $false }
+    if (Test-Path -LiteralPath (Join-Path $path 'fast-https-desktop.exe')) { return $false }
+    return $true
+}
+
 # Initialize-UninstallScreen 卸载确认屏的文案与事件绑定。
 function Initialize-UninstallScreen {
     $txtTitle.Text = $T.unTitle
@@ -773,12 +808,24 @@ function Initialize-WelcomeScreen {
     $btnStar.Add_Click({ Open-Link 'https://gitee.com/ncepu-bj/fast-https' })
     $btnBrowse.Add_Click({
         $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
-        if ($dlg.ShowDialog() -eq 'OK') { $txtPath.Text = $dlg.SelectedPath }
+        $dlg.Description = $T.pickDir
+        if ($dlg.ShowDialog() -eq 'OK') {
+            # 补上产品子目录，避免把文件直接铺进 D:\SOFT，卸载时又把 D:\SOFT 清空。
+            $txtPath.Text = Join-ProductSubdir $dlg.SelectedPath
+        }
     })
 
     $btnPrimary.Add_Click({
         $dest = $txtPath.Text.Trim()
         if (-not $dest) { return }
+        # 目录不是空的：明确告知会覆盖同名文件、卸载会整目录删除，由用户确认。
+        if (Test-ForeignDir $dest) {
+            $ans = [System.Windows.Forms.MessageBox]::Show(
+                ($T.notEmpty -f $dest), $T.notEmptyTitle,
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Warning)
+            if ($ans -ne [System.Windows.Forms.MessageBoxResult]::Yes) { return }
+        }
         $txtPhase.Text = $T.phase1
         $txtPct.Text = '0%'
         Show-Screen $screenWorking

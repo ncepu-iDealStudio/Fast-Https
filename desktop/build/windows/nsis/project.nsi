@@ -30,6 +30,8 @@ VIAddVersionKey "ProductName"     "${INFO_PRODUCTNAME}"
 ManifestDPIAware true
 
 !include "MUI.nsh"
+!include "LogicLib.nsh"
+!include "FileFunc.nsh"
 !define MUI_ICON "..\icon.ico"
 !define MUI_UNICON "..\icon.ico"
 !define MUI_FINISHPAGE_NOAUTOCLOSE
@@ -46,6 +48,8 @@ ManifestDPIAware true
 !define MUI_UNCONFIRMPAGE_TEXT_LOCATION "$(UNINST_CONFIRM_BODY)"
 
 !insertmacro MUI_PAGE_WELCOME
+; 目录页离开时补产品子目录并检查是否为空目录（见 VerifyInstallDir）
+!define MUI_PAGE_CUSTOMFUNCTION_LEAVE VerifyInstallDir
 !insertmacro MUI_PAGE_DIRECTORY
 ; 快捷方式与开始菜单由用户勾选，不强制创建
 !insertmacro MUI_PAGE_COMPONENTS
@@ -70,6 +74,8 @@ LangString MUI_TEXT_FINISH_RUN ${LANG_SIMPCHINESE} "运行 Fast-Https Desktop(&R
 LangString MUI_TEXT_FINISH_RUN ${LANG_ENGLISH} "Run Fast-Https Desktop(&R)"
 LangString MUI_TEXT_ABORTWARNING ${LANG_SIMPCHINESE} "安装尚未完成，确定要退出吗？"
 LangString MUI_TEXT_ABORTWARNING ${LANG_ENGLISH} "Setup is incomplete. Quit anyway?"
+LangString INSTALL_DIR_NOT_EMPTY ${LANG_SIMPCHINESE} "安装目录不是空的：$\r$\n$INSTDIR$\r$\n$\r$\n继续安装会覆盖同名文件；卸载时这个目录会被整体删除。确定继续吗？"
+LangString INSTALL_DIR_NOT_EMPTY ${LANG_ENGLISH} "The install folder is not empty:$\r$\n$INSTDIR$\r$\n$\r$\nInstalling will overwrite files with the same name, and uninstalling removes this folder entirely. Continue?"
 LangString UNINST_CONFIRM_TOP ${LANG_SIMPCHINESE} "完全卸载 Fast-Https Desktop"
 LangString UNINST_CONFIRM_TOP ${LANG_ENGLISH} "Completely uninstall Fast-Https Desktop"
 LangString UNINST_CONFIRM_BODY ${LANG_SIMPCHINESE} "卸载会删除程序、配置、站点、证书、日志、状态与缓存，不留残留。$\r$\n$\r$\n如果只是想关掉窗口，请改用「隐藏到后台托盘」，不必卸载。"
@@ -83,6 +89,21 @@ OutFile "..\..\..\bin\${INFO_PROJECTNAME}-${ARCH}-installer.exe"
     InstallDir "$PROGRAMFILES64\${INFO_COMPANYNAME}\${INFO_PRODUCTNAME}"
 !endif
 ShowInstDetails show
+
+; VerifyInstallDir：目录页离开时统一处理安装位置。
+; 用户浏览选到父目录（如 D:\SOFT）时补上产品子目录，避免文件直接铺进父目录、
+; 卸载时又把这个父目录整体删掉；目标目录非空且不像本产品旧安装时请求确认。
+Function VerifyInstallDir
+    ${GetFileName} "$INSTDIR" $R0
+    ${If} $R0 != "${INFO_PRODUCTNAME}"
+        StrCpy $INSTDIR "$INSTDIR\${INFO_PRODUCTNAME}"
+    ${EndIf}
+    ${If} ${FileExists} "$INSTDIR\*.*"
+    ${AndIfNot} ${FileExists} "$INSTDIR\${PRODUCT_EXECUTABLE}"
+        MessageBox MB_YESNO|MB_ICONEXCLAMATION "$(INSTALL_DIR_NOT_EMPTY)" IDYES +2
+        Abort
+    ${EndIf}
+FunctionEnd
 
 Function .onInit
    !insertmacro wails.checkArchitecture
