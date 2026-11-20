@@ -21,6 +21,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| [security-and-bugfix-plan.md](plans/security-and-bugfix-plan.md) | 全量安全漏洞与程序缺陷修复计划：涵盖请求走私、缓存投毒、H2/WebSocket/TCP 代理缺陷、多域名证书加载、限流/WAF 隔离、事务锁与桌面端安全等 30 项问题及分阶段修复方案 |
 | [performance-slimming-plan.md](plans/performance-slimming-plan.md) | 精简与性能优化计划（精简部分已落地，性能与稳定性分期未完成） |
 | [upstream-failover-plan.md](plans/upstream-failover-plan.md) | 代理上游故障转移：多地址、健康检查、负载均衡（R8，未排期） |
 | [config-autoreload-plan.md](plans/config-autoreload-plan.md) | 配置文件自动重载：watch + 防抖 + 复用 reload 链路（R7，暂缓） |
