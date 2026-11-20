@@ -93,11 +93,15 @@ func dofind(path string, try *listener.Try, staticRoot, policy string) (found bo
 			// 结尾的 "/"，靠请求路径的结尾斜杠拼索引文件会拼出
 			// "rootindex.html" 这样的路径
 			p := filepath.Join(path, item)
-			if symlinkBlocked(policy, staticRoot, p) {
+			cleanP, inRoot := staticPathInRoot(staticRoot, p)
+			if !inRoot {
+				continue
+			}
+			if symlinkBlocked(policy, staticRoot, cleanP) {
 				symlinkHit = true
 				continue
 			}
-			file, file_size, modtime = fileFdSize(p)
+			file, file_size, modtime = fileFdSize(cleanP)
 			if file != nil {
 				found = true
 				break
@@ -109,12 +113,14 @@ func dofind(path string, try *listener.Try, staticRoot, policy string) (found bo
 
 	if !found && try.Next != "" {
 		next := staticRoot + "/" + try.Next
-		if symlinkBlocked(policy, staticRoot, next) {
-			symlinkHit = true
-		} else {
-			file, file_size, modtime = fileFdSize(next)
-			if file != nil {
-				found = true
+		if cleanNext, inRoot := staticPathInRoot(staticRoot, next); inRoot {
+			if symlinkBlocked(policy, staticRoot, cleanNext) {
+				symlinkHit = true
+			} else {
+				file, file_size, modtime = fileFdSize(cleanNext)
+				if file != nil {
+					found = true
+				}
 			}
 		}
 	}
@@ -337,7 +343,11 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 			}
 		}
 		rr.Res.Body = body
-		log.Status(200)
+		if rngStart >= 0 {
+			log.Status(206)
+		} else {
+			log.Status(200)
+		}
 		log.Size(len(body))
 		return 1
 	}
@@ -378,7 +388,11 @@ func getResBytes(log *dynlog.DynLogger, lisdata *listener.ListenCfg,
 	}
 
 	// log
-	log.Status(200)
+	if rngStart >= 0 {
+		log.Status(206)
+	} else {
+		log.Status(200)
+	}
 	log.Size(int(payloadLen))
 
 	return 1 // find source
@@ -643,9 +657,17 @@ func NotFoundResponse(cfg *listener.ListenCfg) *response.Response {
 }
 
 func HandelSlash(cfg *listener.ListenCfg, ev *core.Event) bool {
-	if ev.RR.OriginPath == "" && cfg.Path != "/" {
-		event301(ev, ev.RR.Req.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]+"/")
-		return false
+	originPath, query, hasQuery := strings.Cut(ev.RR.OriginPath, "?")
+	if originPath == "" && cfg.Path != "/" && len(ev.RR.PathLocation) >= 2 {
+		matched := ev.RR.Req.Path[ev.RR.PathLocation[0]:ev.RR.PathLocation[1]]
+		if !strings.HasSuffix(matched, "/") {
+			target := matched + "/"
+			if hasQuery && query != "" {
+				target += "?" + query
+			}
+			event301(ev, target)
+			return false
+		}
 	}
 	// 应用防火墙检查已收敛到 events.EventHandler 统一执行
 	return true
@@ -658,6 +680,9 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	rr := ev.RR
 	path := rr.OriginPath
 	if cfg.Path != "/" {
+		if path != "" && !strings.HasPrefix(path, "/") && !strings.HasPrefix(path, "?") {
+			path = "/" + path
+		}
 		path = cfg.StaticRoot + path
 	} else {
 		path = cfg.StaticRoot + rr.Req.Path
@@ -679,7 +704,14 @@ func StaticEvent(cfg *listener.ListenCfg, ev *core.Event) {
 			ev.RR.Res = NotFoundResponse(cfg)
 			_ = ev.WriteResponse(nil)
 		}
-		ev.Reuse = true
+		if res == -10 {
+			ev.Reuse = false
+			if !rr.Req.H2 {
+				ev.Close()
+			}
+		} else {
+			ev.Reuse = true
+		}
 	} else {
 		res := getResBytes(&log, cfg, path, rr.Req.GetConnection(), ev)
 		if res == -1 {

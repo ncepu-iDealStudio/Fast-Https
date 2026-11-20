@@ -2,6 +2,7 @@ package core
 
 import (
 	"fast-https/runtime/listener"
+	"sort"
 	"strings"
 )
 
@@ -23,9 +24,25 @@ func DefaultParseCommandHandler(cfg *listener.ListenCfg, ev *Event) {
 }
 
 func (ev *Event) GetCommandParsedStr(inputString string) string {
-	out := inputString
-	for key, value := range ev.RR.CircleCommandVal.Map {
-		out = strings.Replace(out, "$"+key, value, -1) // 只替换第一次出现的关键词
+	if !strings.Contains(inputString, "$") || len(ev.RR.CircleCommandVal.Map) == 0 {
+		return inputString
 	}
-	return out
+	// 按变量名长度降序构造 Replacer：单遍扫描输入串，已替换出的变量值
+	// （如 $request_uri 或 $host 中夹带的 "$proxy_host"）不会被二次展开，
+	// 且结果完全确定，不受 map 随机遍历顺序影响。
+	keys := make([]string, 0, len(ev.RR.CircleCommandVal.Map))
+	for k := range ev.RR.CircleCommandVal.Map {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j])
+		}
+		return keys[i] < keys[j]
+	})
+	oldnew := make([]string, 0, len(keys)*2)
+	for _, k := range keys {
+		oldnew = append(oldnew, "$"+k, ev.RR.CircleCommandVal.Map[k])
+	}
+	return strings.NewReplacer(oldnew...).Replace(inputString)
 }

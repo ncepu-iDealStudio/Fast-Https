@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"errors"
 	"fast-https/config"
 	"fast-https/infra/logging"
 	"fast-https/runtime/request"
@@ -18,7 +19,9 @@ const (
 	CHUNCKED_BODY_SIZE  = 8192
 	// interimResponse 表示读到 1xx 中间响应（100 Continue / 103 Early Hints 等），
 	// 调用方应丢弃这段并继续读最终响应。101 是协议升级，不按中间响应处理。
-	interimResponse = -5
+	interimResponse      = -5
+	upstreamBodyTooLarge = -6
+	upstreamBadFraming   = -7
 )
 
 type ReadKeepAlive struct {
@@ -65,8 +68,15 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 
 	// 1xx（101 升级除外）是中间响应：没有 body，后面还会跟最终响应。
 	// 必须先于 HEAD 判断，否则会被当成最终响应结束读取并丢掉真正的响应。
-	if code := responseStatusCode(res); code >= 100 && code < 200 && code != 101 {
+	code := responseStatusCode(res)
+	if code >= 100 && code < 200 && code != 101 {
 		return interimResponse
+	}
+	// 101 Switching Protocols（如 WebSocket 升级）：握手响应头在 \r\n\r\n 处即完整，
+	// 后续字节属于升级后的隧道帧，不能进 readUntilEOF 等待上游关闭连接。
+	if code == 101 || rka.isUpgradeRequest() {
+		rka.body = tmpData[i+4:]
+		return 0
 	}
 
 	// HEAD 的响应永远没有 body，即使头里带 Content-Length（那是 GET 的长度）。
@@ -87,14 +97,26 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 		return 0
 	}
 
-	var contentLength int
-	if res.GetHeader("Content-Length") != "" {
-		// fmt.Println(res.GetHeader("Content-Length"))
-		contentLength, _ = strconv.Atoi(res.GetHeader("Content-Length"))
-		NeedRead := contentLength - (tmpLen - i - 4)
+	if clStr := res.GetHeader("Content-Length"); clStr != "" {
+		contentLength, err := strconv.Atoi(strings.TrimSpace(clStr))
+		if err != nil || contentLength < 0 {
+			return upstreamBadFraming
+		}
+		if limit := maxChunkedBody(); limit > 0 && contentLength > limit {
+			return upstreamBodyTooLarge
+		}
+		alreadyRead := tmpLen - i - 4
+		NeedRead := contentLength - alreadyRead
+		if NeedRead <= 0 {
+			rka.body = tmpData[i+4 : i+4+contentLength]
+			if NeedRead < 0 {
+				rka.trailingBytes = true
+			}
+			return 0
+		}
 		rka.body = tmpData[i+4:]
 		return NeedRead
-	} else if res.GetHeader("Transfer-Encoding") == "chunked" {
+	} else if request.HasTransferEncodingToken(res.GetHeader("Transfer-Encoding"), "chunked") {
 		rka.body = tmpData[i+4:]
 		return -3
 	} else {
@@ -103,6 +125,10 @@ func (rka *ReadKeepAlive) tryToParse(tmpData []byte) int {
 		rka.body = tmpData[i+4:]
 		return -4
 	}
+}
+
+func (rka *ReadKeepAlive) isUpgradeRequest() bool {
+	return rka.p != nil && rka.p.ev != nil && rka.p.ev.Upgrade == "websocket"
 }
 
 // isHeadRequest 报告当前请求是否为 HEAD。rka.p / ev / Req 在单测里可能缺失。
@@ -176,6 +202,9 @@ func (rka *ReadKeepAlive) parseChunked() error {
 		return buf[:n], nil
 	}, maxChunkedBody())
 	if err != nil {
+		if errors.Is(err, request.ErrBodyTooLarge) {
+			return ProxyErrorUpstreamBodyTooLarge
+		}
 		return err
 	}
 	rka.res.DelHeader("Transfer-Encoding")
@@ -261,8 +290,15 @@ func (rka *ReadKeepAlive) proxyKeepAlive() error {
 			rka.res = nil
 			rka.emptyBody = false
 			continue
+		case size == upstreamBodyTooLarge:
+			return ProxyErrorUpstreamBodyTooLarge
+		case size == upstreamBadFraming:
+			return errors.New("proxy: invalid upstream Content-Length")
 		}
 		// -1 / -2：头还没读完整，继续读。
+		if limit := maxChunkedBody(); limit > 0 && len(rka.finalStr) > limit {
+			return ProxyErrorUpstreamBodyTooLarge
+		}
 		lenOnce, err := rka.Read(tmpByte)
 		if err != nil {
 			neterr, ok := err.(net.Error)
@@ -290,11 +326,18 @@ type ReadConnectionClose struct {
 }
 
 func (rcc *ReadConnectionClose) proxyReadAll() ([]byte, error) {
-
+	limit := maxChunkedBody()
 	var resData []byte
 	tmpByte := make([]byte, 1024)
 	for {
 		len_once, err := rcc.p.Read(tmpByte)
+		if len_once > 0 {
+			resData = append(resData, tmpByte[:len_once]...)
+			if limit > 0 && len(resData) > limit+READ_BYTES_LEN*2 {
+				rcc.p.Close()
+				return nil, ProxyErrorUpstreamBodyTooLarge
+			}
+		}
 		if err != nil {
 			if err == io.EOF { // read all
 				break
@@ -303,7 +346,6 @@ func (rcc *ReadConnectionClose) proxyReadAll() ([]byte, error) {
 				return nil, err // can't read
 			}
 		}
-		resData = append(resData, tmpByte[:len_once]...)
 	}
 
 	return resData, nil

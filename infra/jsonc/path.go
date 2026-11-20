@@ -125,7 +125,7 @@ func applyEdit(raw []byte, e Edit) ([]byte, error) {
 				continue
 			}
 			if e.Value == nil {
-				return deleteMember(raw, masked, m), nil
+				return deleteMember(raw, masked, obj, m), nil
 			}
 			return replaceSpan(raw, Span{m.ValueStart, m.ValueEnd}, e.Value), nil
 		}
@@ -210,11 +210,15 @@ func deleteElem(raw, masked []byte, arr Array, idx int) []byte {
 }
 
 // deleteMember 删掉一个成员，连同它一侧的逗号，保证剩下的仍是合法 JSONC。
-func deleteMember(raw, masked []byte, m Member) []byte {
+func deleteMember(raw, masked []byte, obj Object, m Member) []byte {
+	start := m.KeyStart
+	if containsNewline(masked, obj.Open, m.KeyStart) {
+		start = lineStart(masked, m.KeyStart)
+	}
 	// 后面还有成员：吃掉自己的逗号，前一个成员的逗号留着。
-	// 起删点回到行首，免得在原位留下一行空白。
+	// 多行对象时起删点回到行首，免得在原位留下一行空白；单行内联对象不能回退到行首。
 	if p := skipSpace(masked, m.ValueEnd); p < len(masked) && masked[p] == ',' {
-		return cut(raw, lineStart(masked, m.KeyStart), p+1)
+		return cut(raw, start, p+1)
 	}
 	// 自己是最后一个：连同前面那个逗号一起删，否则会剩下悬空的逗号。
 	p := m.KeyStart - 1
@@ -224,7 +228,7 @@ func deleteMember(raw, masked []byte, m Member) []byte {
 	if p >= 0 && masked[p] == ',' {
 		return cut(raw, p, m.ValueEnd)
 	}
-	return cut(raw, lineStart(masked, m.KeyStart), m.ValueEnd)
+	return cut(raw, start, m.ValueEnd)
 }
 
 // cut 删掉 [from, to) 这一段。

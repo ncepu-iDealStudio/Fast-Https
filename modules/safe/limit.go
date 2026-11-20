@@ -4,6 +4,7 @@ import (
 	"fast-https/config"
 	"fast-https/core"
 	"fast-https/runtime/dynlog"
+	"fast-https/runtime/request"
 	"fast-https/runtime/response"
 	"sync"
 	"time"
@@ -31,27 +32,29 @@ type ipLimiter struct {
 	lastSeen time.Time
 }
 
-var g_ips *ipLimiters
+var g_ips = &ipLimiters{
+	limiters: make(map[string]*ipLimiter),
+	rate:     rate.Inf,
+}
 
 func limitInit() {
-	il := &ipLimiters{
-		limiters: make(map[string]*ipLimiter),
-		rate:     everyFromRate(config.Current().Limit.Rate),
-		burst:    config.Current().Limit.Burst,
-	}
-	il.resetBucketsLocked()
-	g_ips = il
+	cfg := config.Current().Limit
+	g_ips.mu.Lock()
+	g_ips.rate = everyFromRate(cfg.Rate)
+	g_ips.burst = cfg.Burst
+	g_ips.resetBucketsLocked()
+	g_ips.mu.Unlock()
 	// 控制面运行时调整过的参数以 overlay 形式存活，不被 reload 冲掉
 	applyRateOverlay()
 }
 
-// everyFromRate 把"每秒 rate 个请求"换算成 rate.Every 的间隔。
+// everyFromRate 把"每秒 rate 个请求"换算成 rate.Limit。
 // rate<=0 时返回 Inf（不限流），与旧实现的行为一致。
 func everyFromRate(rps int) rate.Limit {
 	if rps <= 0 {
 		return rate.Inf
 	}
-	return rate.Every(time.Duration(1000/rps) * time.Millisecond)
+	return rate.Limit(rps)
 }
 
 // setRate 运行时调整限流参数并清空既有桶（新请求按新参数建桶）。
@@ -73,11 +76,11 @@ func (il *ipLimiters) resetBucketsLocked() {
 func (il *ipLimiters) state() RateLimitState {
 	il.mu.Lock()
 	defer il.mu.Unlock()
-	rate := 0
-	if il.rate > 0 {
-		rate = int(il.rate)
+	r := 0
+	if il.rate > 0 && il.rate != rate.Inf {
+		r = int(il.rate)
 	}
-	return RateLimitState{Rate: rate, Burst: il.burst, Buckets: len(il.limiters)}
+	return RateLimitState{Rate: r, Burst: il.burst, Buckets: len(il.limiters)}
 }
 
 // RateLimitState 是全局 per-IP 限流的状态采样。
@@ -121,16 +124,15 @@ func Bucket(ev *core.Event) bool {
 	}
 	stats.rateLimitRejected.Add(1)
 
+	if ev.RR.Req == nil {
+		ev.RR.Req = request.RequestInit(false)
+	}
+
 	// write <403> and close
 	logReject(ev, ReasonRateLimit, "servers_limit.limit")
 	log := dynlog.DynLogger{}
 	dynlog.Log(&log, ev)
 
-	// HTTP/2 下底层连接由协议栈持有，直接 Read 会吞掉帧数据。
-	if ev.RR.Req == nil || !ev.RR.Req.H2 {
-		buffer := make([]byte, 1024)
-		ev.Conn.Read(buffer)
-	}
 	ev.RR.Res = response.DefaultTooMany()
 	ev.WriteResponseClose(nil)
 	return false

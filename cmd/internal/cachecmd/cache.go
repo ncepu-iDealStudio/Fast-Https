@@ -301,8 +301,9 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// purgeDir 删除缓存区对应的磁盘目录。--purge 是显式选择，但目录为数据根或盘符根时
-// 仍然拒绝：那等于把别的数据一起清掉。失败只告警，配置已经删掉了，不回滚。
+// purgeDir 删除缓存区对应的磁盘目录。--purge 是显式选择，但目录为数据根、盘符根、
+// 或覆盖/落入配置/证书/状态/日志目录时仍然拒绝：那等于把别的数据一起清掉。
+// 失败只告警，配置已经删掉了，不回滚。
 func purgeDir(cmd *cobra.Command, raw string) {
 	dir := strings.TrimSpace(raw)
 	if dir == "" {
@@ -310,7 +311,7 @@ func purgeDir(cmd *cobra.Command, raw string) {
 	}
 	dir = config.DataPath(dir)
 	cleaned := filepath.Clean(dir)
-	if cleaned == "." || cleaned == string(filepath.Separator) || filepath.Dir(cleaned) == cleaned {
+	if isSuspiciousPurgeDir(cleaned) {
 		fmt.Fprintf(cmd.ErrOrStderr(),
 			cli.T("warning: 拒绝删除可疑的缓存目录 %s\n", "warning: refusing to purge suspicious cache directory %s\n"), cleaned)
 		return
@@ -323,6 +324,65 @@ func purgeDir(cmd *cobra.Command, raw string) {
 	if !cli.JSONMode(cmd) {
 		fmt.Fprintf(cmd.OutOrStdout(), cli.T("已删除缓存目录 %s\n", "cache directory removed: %s\n"), cleaned)
 	}
+}
+
+func isSuspiciousPurgeDir(cleaned string) bool {
+	if cleaned == "." || cleaned == string(filepath.Separator) || filepath.Dir(cleaned) == cleaned {
+		return true
+	}
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return true
+	}
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		abs = real
+	}
+	if filepath.Dir(abs) == abs {
+		return true
+	}
+	// 不允许删除 DataDir 本身或其任何父目录
+	if dataDir := config.DataPath("."); dataDir != "" {
+		if dAbs, err := filepath.Abs(dataDir); err == nil {
+			if real, err := filepath.EvalSymlinks(dAbs); err == nil {
+				dAbs = real
+			}
+			if sameOrAncestorDir(abs, dAbs) {
+				return true
+			}
+		}
+	}
+	// 不允许删除配置、证书、状态、日志目录（无论其父目录还是子目录）
+	protected := []string{
+		config.FAST_HTTPS_ETC_DIR,
+		config.CERT_DIR,
+		cli.ResolveStateDir(),
+		config.DEFAULT_LOG_ROOT,
+	}
+	for _, p := range protected {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		pAbs, err := filepath.Abs(p)
+		if err != nil {
+			continue
+		}
+		if real, err := filepath.EvalSymlinks(pAbs); err == nil {
+			pAbs = real
+		}
+		if sameOrAncestorDir(abs, pAbs) || sameOrAncestorDir(pAbs, abs) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameOrAncestorDir(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(rel)
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, "../"))
 }
 
 // cacheWriteYes 与 site 写命令一致：dry-run 不需要确认；非 dry-run 时

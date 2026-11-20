@@ -4,6 +4,7 @@ package devmod
 import (
 	"fast-https/config"
 	"fast-https/core"
+	"fast-https/runtime/dynlog"
 	"fast-https/runtime/listener"
 )
 
@@ -16,6 +17,10 @@ func rewriteInfo(ev *core.Event, path string) {
 	ev.RR.Res.SetFirstLine(200, "OK")
 	ev.RR.Res.SetHeader("Connection", "close")
 	ev.RR.Res.Body = []byte("this is dev mod")
+	log := dynlog.DynLogger{}
+	log.Status(200)
+	log.Size(len(ev.RR.Res.Body))
+	dynlog.Log(&log, ev)
 	ev.WriteResponseClose(nil)
 }
 

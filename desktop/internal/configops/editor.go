@@ -252,9 +252,28 @@ func pruneEmptyProxy(root map[string]any) {
 	if v, ok := proxyMap["preserve_host"].(bool); ok {
 		preserve = v
 	}
-	if listLen(proxyMap["trusted_proxies"]) == 0 && maxHops == 0 && preserve {
+	upstreamTimeout := jsonInt(proxyMap["upstream_timeout"])
+	tunnelIdleTimeout := jsonInt(proxyMap["tunnel_idle_timeout"])
+	if listLen(proxyMap["trusted_proxies"]) == 0 && maxHops == 0 && preserve &&
+		upstreamTimeout == 0 && tunnelIdleTimeout == 0 {
 		delete(root, "proxy")
 	}
+}
+
+func jsonInt(v any) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int64:
+		return int(n)
+	case float64:
+		return int(n)
+	case json.Number:
+		if i, err := strconv.Atoi(n.String()); err == nil {
+			return i
+		}
+	}
+	return 0
 }
 
 // listLen 统计列表元素个数；内存树里是 []string，JSON 往返后是 []any。

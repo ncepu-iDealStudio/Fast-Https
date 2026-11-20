@@ -32,8 +32,12 @@ type CountLimit struct {
 }
 
 func countsInit() {
+	lisInfos := listener.SnapshotListeners()
+	if len(lisInfos) == 0 {
+		lisInfos = listener.GLisinfos
+	}
 	size := 0
-	for _, item := range listener.GLisinfos {
+	for _, item := range lisInfos {
 		for _, path := range item.Cfg {
 			if path.ID >= size {
 				size = path.ID + 1
@@ -41,10 +45,14 @@ func countsInit() {
 		}
 	}
 	next := make([]*CountLimit, size)
-	for _, item := range listener.GLisinfos {
+	for _, item := range lisInfos {
 		for _, path := range item.Cfg {
 			if path.ID >= 0 {
-				next[path.ID] = NewCountLimit(0, path.Limit.Rate, path.Limit.Size*1024*1024/16)
+				limitSize := path.Limit.Size * 1024 * 1024 / 16
+				if path.Limit.Rate > 0 && limitSize <= 0 {
+					limitSize = 1024 * 1024 / 16
+				}
+				next[path.ID] = NewCountLimit(0, path.Limit.Rate, limitSize)
 			}
 		}
 	}
@@ -102,6 +110,9 @@ func NewCountLimit(num int, rate int, size int) *CountLimit {
 }
 
 func (cl *CountLimit) Insert(ipstr string) bool {
+	if cl.rate <= 0 {
+		return true
+	}
 	cl.mu.Lock()
 	defer cl.mu.Unlock()
 
@@ -142,6 +153,7 @@ func (cl *CountLimit) sweepExpired(now int) {
 }
 
 func CountHandler(rr core.RRcircle) {
+	stats.locationRejected.Add(1)
 	log := dynlog.DynLogger{}
 	dynlog.Log(&log, rr.Ev)
 	logReject(rr.Ev, ReasonLocationLimit, "location.limit")

@@ -133,19 +133,33 @@ func (CC *CacheContainer) WriteToDisk() {
 }
 
 // writeEntryToDisk 把一条缓存写进 entry.Head.Path 目录。
+// 先写唯一临时文件再原子 Rename，防止原地 O_TRUNC 与并发冷读 ReadCache 产生半截 gob 竞态。
 func writeEntryToDisk(entry CacheEntry) error {
 	savePath := entry.Head.Path
 	if err := os.MkdirAll(savePath, 0o755); err != nil {
 		return err
 	}
 	realPath := filepath.Join(savePath, entry.Head.Md5)
-	// O_TRUNC 必须带上：覆盖成更短的内容时，否则旧尾部会留在文件里。
-	file, err := os.OpenFile(realPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o666)
+	tmpFile, err := os.CreateTemp(savePath, entry.Head.Md5+".*.tmp")
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	return gob.NewEncoder(file).Encode(entry)
+	tmpPath := tmpFile.Name()
+	encErr := gob.NewEncoder(tmpFile).Encode(entry)
+	closeErr := tmpFile.Close()
+	if encErr != nil {
+		_ = os.Remove(tmpPath)
+		return encErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(tmpPath)
+		return closeErr
+	}
+	if err := os.Rename(tmpPath, realPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 // readEntry 从磁盘读取一条完整缓存。
@@ -242,7 +256,8 @@ func (CC *CacheContainer) WriteCache(key string, expire, maxSize int, path strin
 		return
 	}
 
-	if !CC.admit(key, len(entry.Data), maxSize) {
+	admitted, prevSize, hadPrev := CC.admitWithPrev(key, len(entry.Data), maxSize)
+	if !admitted {
 		return
 	}
 
@@ -260,8 +275,8 @@ func (CC *CacheContainer) WriteCache(key string, expire, maxSize int, path strin
 	select {
 	case CacheChan <- entry:
 	default:
-		// 队列满时回滚容量记账；索引本来还没建立，无需回滚。
-		CC.release(key)
+		// 队列满时回滚容量记账：若此前已有旧条目在索引中，恢复其旧大小而非整键删除。
+		CC.rollbackAdmit(key, prevSize, hadPrev)
 		logging.PrintWarn("proxy cache queue full, dropped entry ", key)
 	}
 }
@@ -381,21 +396,40 @@ func (CC *CacheContainer) hotRemove(key string) {
 
 // admit 做容量记账，返回是否允许写入。
 func (CC *CacheContainer) admit(key string, size, maxSize int) bool {
+	ok, _, _ := CC.admitWithPrev(key, size, maxSize)
+	return ok
+}
+
+func (CC *CacheContainer) admitWithPrev(key string, size, maxSize int) (bool, int, bool) {
 	CC.mu.Lock()
 	defer CC.mu.Unlock()
 
-	previous := CC.sizes[key]
+	previous, hadPrev := CC.sizes[key]
 	if maxSize > 0 && CC.totalSize-previous+size > maxSize {
 		if !CC.warned {
 			CC.warned = true
 			logging.PrintWarn("proxy cache reached max_size, new entries are not cached until space is reclaimed")
 		}
-		return false
+		return false, 0, false
 	}
 	CC.warned = false
 	CC.sizes[key] = size
 	CC.totalSize += size - previous
-	return true
+	return true, previous, hadPrev
+}
+
+func (CC *CacheContainer) rollbackAdmit(key string, prevSize int, hadPrev bool) {
+	CC.mu.Lock()
+	defer CC.mu.Unlock()
+	if cur, ok := CC.sizes[key]; ok {
+		CC.totalSize -= cur
+		if hadPrev {
+			CC.sizes[key] = prevSize
+			CC.totalSize += prevSize
+		} else {
+			delete(CC.sizes, key)
+		}
+	}
 }
 
 // release 归还某个键占用的容量。
@@ -415,7 +449,7 @@ func GetDirFiles(path string) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !info.IsDir() && filepath.Ext(filePath) != ".tmp" {
 			names = append(names, filePath)
 		}
 		return nil

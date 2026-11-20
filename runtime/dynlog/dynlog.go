@@ -85,6 +85,10 @@ func Log(l *DynLogger, ev *core.Event) {
 }
 
 func fieldRemoteAddr(e *zerolog.Event, _ *DynLogger, ev *core.Event) {
+	if ev == nil || ev.Conn == nil || ev.Conn.RemoteAddr() == nil {
+		e.Str(logging.FieldRemoteAddr, "")
+		return
+	}
 	e.Str(logging.FieldRemoteAddr, ev.Conn.RemoteAddr().String())
 }
 
@@ -93,18 +97,34 @@ func fieldTime(_ *zerolog.Event, _ *DynLogger, _ *core.Event) {
 }
 
 func fieldType(e *zerolog.Event, _ *DynLogger, ev *core.Event) {
+	if ev == nil {
+		e.Str(logging.FieldType, "")
+		return
+	}
 	e.Str(logging.FieldType, pathTypeName(ev.Type))
 }
 
 func fieldMethod(e *zerolog.Event, _ *DynLogger, ev *core.Event) {
+	if ev == nil || ev.RR.Req == nil {
+		e.Str(logging.FieldMethod, "")
+		return
+	}
 	e.Str(logging.FieldMethod, ev.RR.Req.Method)
 }
 
 func fieldPath(e *zerolog.Event, _ *DynLogger, ev *core.Event) {
+	if ev == nil || ev.RR.Req == nil {
+		e.Str(logging.FieldPath, "")
+		return
+	}
 	e.Str(logging.FieldPath, ev.RR.Req.Path)
 }
 
 func fieldHost(e *zerolog.Event, _ *DynLogger, ev *core.Event) {
+	if ev == nil || ev.RR.Req == nil {
+		e.Str(logging.FieldHost, "")
+		return
+	}
 	e.Str(logging.FieldHost, ev.RR.Req.GetHost())
 }
 
@@ -117,6 +137,10 @@ func fieldSize(e *zerolog.Event, l *DynLogger, _ *core.Event) {
 }
 
 func fieldUserAgent(e *zerolog.Event, _ *DynLogger, ev *core.Event) {
+	if ev == nil || ev.RR.Req == nil {
+		e.Str(logging.FieldUserAgent, "")
+		return
+	}
 	e.Str(logging.FieldUserAgent, ev.RR.Req.Headers["User-Agent"])
 }
 

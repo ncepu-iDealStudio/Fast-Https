@@ -215,7 +215,8 @@ func AddSite(dir string, in SiteInput) (string, error) {
 		data, err := runSite(dir, args...)
 		if err != nil {
 			if len(msgs) > 0 {
-				return "", fmt.Errorf("站点已创建但补充多域名失败：%w", err)
+				_, _ = runSite(dir, "site", "delete", primary, "--yes")
+				return "", fmt.Errorf("补充站点配置失败（已回滚新建站点）：%w", err)
 			}
 			return "", err
 		}
@@ -224,11 +225,13 @@ func AddSite(dir string, in SiteInput) (string, error) {
 	if len(in.Locations) > 0 {
 		args, err := locationSetArgs(primary, in.Locations)
 		if err != nil {
+			_, _ = runSite(dir, "site", "delete", primary, "--yes")
 			return "", err
 		}
 		data, err := runSite(dir, args...)
 		if err != nil {
-			return "", fmt.Errorf("站点已创建但路径代理保存失败：%w", err)
+			_, _ = runSite(dir, "site", "delete", primary, "--yes")
+			return "", fmt.Errorf("路径代理保存失败（已回滚新建站点）：%w", err)
 		}
 		msgs = append(msgs, txnMessage(data, "创建", primary))
 	}

@@ -121,14 +121,31 @@ func (l *Listener) publish() {
 // openListener 建立该端口的 socket。ssl 端口同时记录建 tls.Config 时的
 // ALPN 通告位，reload 据此判断是否需要重建（NextProtos 建好后改不了）。
 func (l *Listener) openListener() {
+	if err := l.tryOpenListener(); err != nil {
+		logging.ConsoleLog.Fatal().Msgf("Error listen: %v", err)
+	}
+}
+
+// tryOpenListener 尝试建立该端口的 socket，失败时返回 error 而不退出进程，
+// 供 reload 热更新路径保持旧监听器不断服。
+func (l *Listener) tryOpenListener() error {
 	if l.LisType == 1 || l.LisType == 10 {
 		l.certs = newCertSet()
 		l.alpnACMESnapshot = TLSALPNEnabled()
-		l.Lfd = listenSsl("0.0.0.0:"+l.Port, l.certs, l.Cfg, l.LisType == 10, true)
-		return
+		lfd, err := tryListenSsl("0.0.0.0:"+l.Port, l.certs, l.Cfg, l.LisType == 10, true)
+		if err != nil {
+			return err
+		}
+		l.Lfd = lfd
+		return nil
 	}
 	l.alpnACMESnapshot = false
-	l.Lfd = listenTcp("0.0.0.0:"+l.Port, true)
+	lfd, err := tryListenTcp("0.0.0.0:"+l.Port, true)
+	if err != nil {
+		return err
+	}
+	l.Lfd = lfd
+	return nil
 }
 
 // needsRebuild 报告该端口是否必须换一个监听器，而不是只热更新配置。
@@ -351,9 +368,13 @@ func processListenData(lisInfos *[]*Listener) {
 				// 多域名：其余域名的证书按 config/cert/<domain>.pem 兜底路径加载，
 				// ACME 每个域名分别申请一张证书，certPaths 也按此路径落盘。
 				for _, alias := range names[1:] {
+					normAlias := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(alias), "."))
+					if normAlias == "" {
+						continue
+					}
 					data.ExtraCerts = append(data.ExtraCerts, SSLkv{
-						SslKey:   filepath.Join(config.CERT_DIR, alias) + ".pem",
-						SslValue: filepath.Join(config.CERT_DIR, alias) + "-key.pem",
+						SslKey:   filepath.Join(config.CERT_DIR, normAlias) + ".pem",
+						SslValue: filepath.Join(config.CERT_DIR, normAlias) + "-key.pem",
 					})
 				}
 				data.Zip = paths.Zip
@@ -395,8 +416,8 @@ func processEachPort(lisPort *Listener) {
 		lisPort.HostMap[name] = tempListenCfgArray
 		// 多域名：把该 server 块的所有别名也注册到 HostMap，
 		// 指向同一组 locations，hostCfgs 查询时无需感知别名。
-		if len(tempListenCfgArray) > 0 {
-			for _, alias := range tempListenCfgArray[0].Aliases {
+		for _, cfgItem := range tempListenCfgArray {
+			for _, alias := range cfgItem.Aliases {
 				lisPort.HostMap[alias] = tempListenCfgArray
 			}
 		}
@@ -491,24 +512,23 @@ func comparePorts(curr_ports, new_ports []string) (added, removed, common []stri
 
 // tcp listen
 func listenTcp(laddr string, reuse bool) net.Listener {
+	listener, err := tryListenTcp(laddr, reuse)
+	if err != nil {
+		logging.ConsoleLog.Fatal().Msgf("Error listen: %v", err)
+	}
+	return listener
+}
+
+func tryListenTcp(laddr string, reuse bool) (net.Listener, error) {
 	logging.PrintInfo("Listen ", laddr)
 
 	if reuse {
 		cfg := net.ListenConfig{
 			Control: ReuseCallBack,
 		}
-		listener, err := cfg.Listen(context.Background(), "tcp", laddr)
-		if err != nil {
-			logging.ConsoleLog.Fatal().Msgf("Error listen: %v", err)
-		}
-		return listener
-	} else {
-		listener, err := net.Listen("tcp", laddr)
-		if err != nil {
-			logging.ConsoleLog.Fatal().Msgf("Error listen: %v", err)
-		}
-		return listener
+		return cfg.Listen(context.Background(), "tcp", laddr)
 	}
+	return net.Listen("tcp", laddr)
 }
 
 // ssl listen
@@ -516,6 +536,14 @@ func listenTcp(laddr string, reuse bool) net.Listener {
 // h2 为真时才会在 ALPN 中通告 "h2"：不含 h2 的 ssl 端口必须保持纯 HTTP/1.1，
 // 否则客户端可能协商到 h2，却被 HTTP/1.1 解析器处理。
 func listenSsl(laddr string, certs *certSet, lisdata []ListenCfg, h2 bool, reuse bool) net.Listener {
+	listener, err := tryListenSsl(laddr, certs, lisdata, h2, reuse)
+	if err != nil {
+		logging.ConsoleLog.Fatal().Msgf("Error listen: %v", err)
+	}
+	return listener
+}
+
+func tryListenSsl(laddr string, certs *certSet, lisdata []ListenCfg, h2 bool, reuse bool) (net.Listener, error) {
 	if certs == nil {
 		certs = newCertSet()
 	}
@@ -539,10 +567,13 @@ func listenSsl(laddr string, certs *certSet, lisdata []ListenCfg, h2 bool, reuse
 		tlsConfig.NextProtos = append(tlsConfig.NextProtos, ACMEALPNProto)
 	}
 
-	tcpListener := listenTcp(laddr, reuse)
+	tcpListener, err := tryListenTcp(laddr, reuse)
+	if err != nil {
+		return nil, err
+	}
 
 	// 在TCP监听器上叠加TLS
 	listener := tls.NewListener(tcpListener, tlsConfig)
 
-	return listener
+	return listener, nil
 }

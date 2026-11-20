@@ -27,7 +27,24 @@ func NormalizePath(target string) (string, bool) {
 	if i := strings.IndexByte(target, '?'); i >= 0 {
 		path, query = target[:i], target[i:]
 	}
+	for i := 0; i < len(query); i++ {
+		if query[i] < 0x20 || query[i] == 0x7f {
+			return "", false
+		}
+	}
 	if !strings.HasPrefix(path, "/") {
+		if path == "*" && query == "" {
+			return target, true
+		}
+		decoded, ok := decodePercentOnce(path)
+		if !ok || hasPercentEscape(decoded) || strings.ContainsRune(decoded, '\\') {
+			return "", false
+		}
+		for i := 0; i < len(decoded); i++ {
+			if decoded[i] < 0x20 || decoded[i] == 0x7f {
+				return "", false
+			}
+		}
 		return target, true
 	}
 
@@ -52,7 +69,52 @@ func NormalizePath(target string) (string, bool) {
 	if merged == "" {
 		merged = "/"
 	}
+	merged = collapseDotSegments(merged)
 	return merged + query, true
+}
+
+// collapseDotSegments 折叠路径内部的 "." 与 "segment/.."，防止 "/public/../admin"
+// 在路由阶段命中 /public 绕过 /admin 的鉴权与方法限制；越出根 "/" 的前导 ".."
+// 原样保留在最前面，交由静态层 staticPathInRoot 拒绝并记录 path_traversal 审计日志。
+func collapseDotSegments(path string) string {
+	if !strings.Contains(path, "/.") {
+		return path
+	}
+	trailingSlash := len(path) > 1 && strings.HasSuffix(path, "/")
+	parts := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	var leadingUp []string
+	var stack []string
+	for idx, seg := range parts {
+		isLast := idx == len(parts)-1
+		switch seg {
+		case "":
+			continue
+		case ".":
+			if isLast {
+				trailingSlash = true
+			}
+		case "..":
+			if isLast {
+				trailingSlash = true
+			}
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			} else {
+				leadingUp = append(leadingUp, "..")
+			}
+		default:
+			stack = append(stack, seg)
+		}
+	}
+	all := append(leadingUp, stack...)
+	if len(all) == 0 {
+		return "/"
+	}
+	out := "/" + strings.Join(all, "/")
+	if trailingSlash && len(stack) > 0 {
+		out += "/"
+	}
+	return out
 }
 
 // decodePercentOnce 解码一层百分号转义。非法转义（% 后面不是两位十六进制）

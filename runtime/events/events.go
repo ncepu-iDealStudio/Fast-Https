@@ -254,7 +254,7 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		logging.ConsoleLog.Debug().Msgf("%s", color.Red(err.Error()))
 	}
 
-	if request.HasToken(rr.Req.HeaderFold("Transfer-Encoding"), "chunked") {
+	if request.HasTransferEncodingToken(rr.Req.HeaderFold("Transfer-Encoding"), "chunked") {
 		body, err := request.ReadChunked(rr.Req.Body.Bytes(), func() ([]byte, error) {
 			ev.Conn.SetReadDeadline(time.Now().Add(config.Current().Limit.BodyTimeoutDuration()))
 			n, err := ev.Conn.Read(rr.ReqBuf)
@@ -279,6 +279,20 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 		// 以及 TE+裸 body 被严格上游判为 400。
 		rr.Req.FixRequestFraming()
 		return 1
+	}
+
+	// 非 chunked 分支：移除任何残留的 Transfer-Encoding（如 identity 或未知值），
+	// 防止与 Content-Length 一同转发给上游造成 TE.CL 歧义。
+	if rr.Req.HeaderFold("Transfer-Encoding") != "" {
+		rr.Req.DelHeader("Transfer-Encoding")
+	}
+	// 无 Content-Length 的 GET/HEAD/OPTIONS/TRACE 请求不应携带请求体，
+	// 丢弃同一 TCP 包中紧随 "\r\n\r\n" 的多读字节，防止被 ByteRow 拼接转发成走私请求。
+	if rr.Req.GetContentLength() == "" && !strings.Contains(strings.ToLower(rr.Req.GetContentType()), "multipart/form-data") {
+		switch rr.Req.Method {
+		case "GET", "HEAD", "OPTIONS", "TRACE":
+			rr.Req.Body.Reset()
+		}
 	}
 
 	// 请求体可能随首个数据包完整到达（ParseBody 一次就读完了），此时下面的
@@ -315,6 +329,9 @@ func parseRequest(ev *core.Event, fif *filters.Filter) int {
 			}
 		}
 	}
+	if rr.Req.Body.Len() > 0 {
+		rr.Req.FixRequestFraming()
+	}
 
 	return 1
 }
@@ -335,6 +352,9 @@ func maxHeaderSize() int {
 
 // headerLen 返回头部段长度（含终止空行）；头还没读完时返回已读字节数。
 func headerLen(b []byte) int {
+	for bytes.HasPrefix(b, []byte("\r\n")) {
+		b = b[2:]
+	}
 	if i := bytes.Index(b, []byte("\r\n\r\n")); i >= 0 {
 		return i + 4
 	}

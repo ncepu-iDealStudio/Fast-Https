@@ -50,6 +50,11 @@ var (
 //  2. 把请求转交给既有的 core.Event / filters / 模块管线。
 func H2HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 	connEv := core.NewEvent(l, conn)
+	connEv.RR.Req = request.RequestInit(true)
+	connEv.RR.Res = response.ResponseInit()
+	// HTTP/2 连接级钩子在 TLS/ALPN 帧循环之前运行，拒绝时只关连接、不写 H1 文本响应；
+	// 装配非空 EventWrite 防止黑名单/限流钩子调用 WriteResponseClose 时空指针 panic。
+	connEv.EventWrite = func(ev *core.Event, _ []byte) error { return nil }
 	h := &h2Handler{
 		lis:  l,
 		conn: conn,
@@ -57,7 +62,7 @@ func H2HandleEvent(l *listener.Listener, conn net.Conn, ctx context.Context) {
 	}
 	if !h.fif.Fif.ConnFilter(connEv) {
 		metrics.NoteRejected()
-		_ = conn.Close()
+		connEv.Close()
 		return
 	}
 
@@ -216,9 +221,17 @@ func fillRequest(req *request.Request, r *http.Request) int {
 	req.Headers["Host"] = r.Host
 
 	for k, vs := range r.Header {
-		if len(vs) > 0 {
-			req.Headers[k] = vs[0]
+		if len(vs) == 0 {
+			continue
 		}
+		if strings.EqualFold(k, "Host") && req.Headers["Host"] != "" {
+			continue
+		}
+		if strings.EqualFold(k, "Cookie") {
+			req.Headers["Cookie"] = strings.Join(vs, "; ")
+			continue
+		}
+		req.Headers[k] = strings.Join(vs, ", ")
 	}
 	for k, vs := range r.URL.Query() {
 		if len(vs) > 0 {
@@ -226,8 +239,15 @@ func fillRequest(req *request.Request, r *http.Request) int {
 		}
 	}
 
-	if r.Body == nil {
+	if r.Body == nil || r.Body == http.NoBody {
 		return 0
+	}
+	if r.ContentLength == 0 && len(r.TransferEncoding) == 0 {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
+			_ = r.Body.Close()
+			return 0
+		}
 	}
 	limit := maxBodySize()
 	body, err := readH2Body(r.Body, limit, config.Current().Limit.BodyTimeoutDuration())
@@ -249,22 +269,31 @@ func fillRequest(req *request.Request, r *http.Request) int {
 //
 // x/net/http2 的请求体没有可设置的读 deadline，这里用单独协程读、主协程
 // 计时的方式实现：任意一次读超过 timeout 就返回 errH2BodyTimeout；调用方
-// 关闭 body 后读取协程会因读错误退出，不会泄漏。
+// 关闭 body 后读取协程会因读错误或 done 关闭退出，不会泄漏。
 func readH2Body(r io.Reader, limit int, timeout time.Duration) ([]byte, error) {
 	type chunk struct {
 		data []byte
 		err  error
 	}
 	ch := make(chan chunk, 2)
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
 		buf := make([]byte, 32*1024)
 		for {
 			n, err := r.Read(buf)
 			if n > 0 {
-				ch <- chunk{data: append([]byte(nil), buf[:n]...)}
+				select {
+				case ch <- chunk{data: append([]byte(nil), buf[:n]...)}:
+				case <-done:
+					return
+				}
 			}
 			if err != nil {
-				ch <- chunk{err: err}
+				select {
+				case ch <- chunk{err: err}:
+				case <-done:
+				}
 				return
 			}
 		}
@@ -325,6 +354,12 @@ func (s *h2ResponseWriter) write(ev *core.Event) error {
 		}
 		// HEAD 保留模块给出的 Content-Length；其余交给标准库按实际写出的字节数计算。
 		if strings.EqualFold(k, "Content-Length") && s.req.Method != http.MethodHead {
+			continue
+		}
+		if strings.EqualFold(k, "Set-Cookie") && len(res.SetCookies) > 1 {
+			for _, cookie := range res.SetCookies {
+				s.w.Header().Add("Set-Cookie", cookie)
+			}
 			continue
 		}
 		s.w.Header().Set(k, v)

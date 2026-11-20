@@ -87,19 +87,27 @@ func LocalCATrustGuide(dir string) (CertTrustGuide, error) {
 // Linux 走 pkexec；失败时把系统输出带回去，让弹窗提示改用手动命令。
 func ImportLocalCA(dir string) (string, error) {
 	p := localCAPath(dir)
-	if _, err := os.Stat(p); err != nil {
+	fi, err := os.Lstat(p)
+	if err != nil {
 		return "", fmt.Errorf("找不到本地根 CA 证书 %s：请先启动一次服务让它生成", p)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 || !fi.Mode().IsRegular() {
+		return "", fmt.Errorf("拒绝导入非普通文件的根 CA 证书路径 %s", p)
+	}
+	if strings.ContainsAny(p, "\"\r\n\x00") {
+		return "", fmt.Errorf("证书路径包含非法字符：%s", p)
 	}
 
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		// Start-Process -Verb RunAs 触发 UAC；路径里的单引号按 PowerShell 规则翻倍。
+		// Start-Process -Verb RunAs 触发 UAC；路径外层包双引号以支持带空格的安装目录，
+		// 内部单引号按 PowerShell 规则翻倍。
 		psQuote := strings.ReplaceAll(p, "'", "''")
-		ps := fmt.Sprintf(`Start-Process -FilePath certutil -ArgumentList '-addstore','-f','ROOT','%s' -Verb RunAs -Wait`, psQuote)
+		ps := fmt.Sprintf(`Start-Process -FilePath certutil -ArgumentList '-addstore','-f','ROOT','"%s"' -Verb RunAs -Wait`, psQuote)
 		cmd = exec.Command("powershell", "-NoProfile", "-Command", ps)
 	case "linux":
-		script := fmt.Sprintf(`cp %s /usr/local/share/ca-certificates/fast-https-local-ca.crt && update-ca-certificates`, shellQuote(p))
+		script := fmt.Sprintf(`cp --no-dereference %s /usr/local/share/ca-certificates/fast-https-local-ca.crt && update-ca-certificates`, shellQuote(p))
 		cmd = exec.Command("pkexec", "sh", "-c", script)
 	default:
 		return "", fmt.Errorf("当前平台不支持自动导入，请复制弹窗里的命令手动执行")

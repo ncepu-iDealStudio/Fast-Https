@@ -153,7 +153,11 @@ func fillSiteCerts(in *config.SiteInput) {
 	if !listensHaveSSL(in.Listens) {
 		return
 	}
-	name := strings.TrimSpace(in.ServerName)
+	fields := strings.Fields(in.ServerName)
+	if len(fields) == 0 {
+		return
+	}
+	name := fields[0]
 	if in.SSLCertificate == "" {
 		in.SSLCertificate = filepath.Join(config.CERT_DIR, name+".pem")
 	}
@@ -300,11 +304,15 @@ func buildSiteInput(opts Options, in config.SiteInput) (config.SiteInput, error)
 	}
 
 	if tls {
+		primary := in.ServerName
+		if fields := strings.Fields(in.ServerName); len(fields) > 0 {
+			primary = fields[0]
+		}
 		if in.SSLCertificate == "" {
-			in.SSLCertificate = filepath.Join(config.CERT_DIR, in.ServerName+".pem")
+			in.SSLCertificate = filepath.Join(config.CERT_DIR, primary+".pem")
 		}
 		if in.SSLCertificateKey == "" {
-			in.SSLCertificateKey = filepath.Join(config.CERT_DIR, in.ServerName+"-key.pem")
+			in.SSLCertificateKey = filepath.Join(config.CERT_DIR, primary+"-key.pem")
 		}
 	}
 

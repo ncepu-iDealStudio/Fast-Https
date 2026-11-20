@@ -117,3 +117,15 @@ func TestWriteLeavesNoPartialJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestGetRejectsPathTraversalID(t *testing.T) {
+	s := Store{Dir: state.Dir{Root: t.TempDir(), Alive: alive}}
+	if _, err := s.Begin(BeginInput{Command: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"../requests", "..\\requests", "op_1/../../etc", ".hidden"} {
+		if _, err := s.Get(bad); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("Get(%q) err = %v, want ErrNotFound", bad, err)
+		}
+	}
+}

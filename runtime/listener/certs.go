@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
+	"os"
 	"slices"
 	"sync"
 
@@ -141,21 +142,34 @@ func loadCerts(cfgs []ListenCfg) ([]tls.Certificate, error) {
 	var loaded []tls.Certificate
 	seen := map[string]struct{}{}
 	for _, item := range cfgs {
-		if _, ok := seen[item.ServerName]; ok {
-			continue
+		pairKey := item.SSL.SslKey + "\x00" + item.SSL.SslValue
+		if item.SSL.SslKey == "" && item.SSL.SslValue == "" {
+			pairKey = item.ServerName
 		}
-		seen[item.ServerName] = struct{}{}
-		crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
-		if err != nil {
-			return nil, err
-		}
-		loaded = append(loaded, crt)
-		// 多域名：加载其余域名的证书，SNI 按域名匹配。
-		for _, extra := range item.ExtraCerts {
-			ecrt, err := tls.LoadX509KeyPair(extra.SslKey, extra.SslValue)
+		if _, ok := seen[pairKey]; !ok {
+			seen[pairKey] = struct{}{}
+			crt, err := tls.LoadX509KeyPair(item.SSL.SslKey, item.SSL.SslValue)
 			if err != nil {
 				return nil, err
 			}
+			loaded = append(loaded, crt)
+		}
+		// 多域名：加载其余域名的独立证书（如 ACME 按域名分别签发的证书），SNI 按域名匹配。
+		// 若别名独立证书文件尚不存在（如首次启动由 CertInit 生成了覆盖所有域名的单张主域名 SAN 证书，
+		// 或用户配置了多域名/通配符证书），跳过缺失文件而不报错，避免把已加载的主证书一并丢弃。
+		for _, extra := range item.ExtraCerts {
+			extraKey := extra.SslKey + "\x00" + extra.SslValue
+			if _, ok := seen[extraKey]; ok {
+				continue
+			}
+			ecrt, err := tls.LoadX509KeyPair(extra.SslKey, extra.SslValue)
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				return nil, err
+			}
+			seen[extraKey] = struct{}{}
 			loaded = append(loaded, ecrt)
 		}
 	}

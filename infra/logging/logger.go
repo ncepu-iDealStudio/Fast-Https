@@ -202,7 +202,7 @@ func openLogSet(path string) ([]*os.File, *syncWriter, error) {
 	names := [...]string{SystemLogName, AccessLogName, ErrorLogName, SafeLogName}
 	opened := make([]*os.File, 0, len(names))
 	for _, name := range names {
-		file, err := os.OpenFile(filepath.Join(dir, name), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o666)
+		file, err := os.OpenFile(filepath.Join(dir, name), os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
 		if err != nil {
 			for _, f := range opened {
 				_ = f.Close()

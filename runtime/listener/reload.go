@@ -12,18 +12,23 @@ func getReloadAddedListeninfo(ports []string, currli *[]*Listener) []*Listener {
 	processListenData(&CurrLisinfosAdded)
 	processHostMap(&CurrLisinfosAdded)
 
+	var opened []*Listener
 	for _, each := range CurrLisinfosAdded {
-		each.openListener()
+		if err := each.tryOpenListener(); err != nil {
+			logging.ConsoleLog.Error().Msgf("reload failed to listen on added port %s: %v", each.Port, err)
+			continue
+		}
 		// added 端口需要新的 Ctx/Cancel
 		ctx, cancel := context.WithCancel(context.Background())
 		each.Ctx = ctx
 		each.Cancel = cancel
 		each.publish()
 		logging.ConsoleLog.Debug().Msgf("server current listen info added: %s", each.Port)
+		opened = append(opened, each)
 	}
 
-	*currli = append(*currli, CurrLisinfosAdded...)
-	return CurrLisinfosAdded
+	*currli = append(*currli, opened...)
+	return opened
 }
 
 // updateCommonToNewLinster 处理新旧配置都存在的端口。
@@ -73,7 +78,15 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 			case old.LisType != each.LisType:
 				logging.ConsoleLog.Debug().Msgf("port %s listen type changed", each.Port)
 				old.Lfd.Close()
-				each.openListener()
+				if err := each.tryOpenListener(); err != nil {
+					logging.ConsoleLog.Error().Msgf("reload failed to reopen port %s: %v", each.Port, err)
+					if reopenErr := old.tryOpenListener(); reopenErr == nil {
+						old.replaceCtx()
+						CurrLisinfoCommon[index] = old
+						typeChanged = append(typeChanged, old)
+					}
+					break
+				}
 				each.replaceCtx()
 				typeChanged = append(typeChanged, each)
 			default:
@@ -83,7 +96,15 @@ func updateCommonToNewLinster(common_ports []string, newLis *[]*Listener) (typeC
 				// 的 ReuseCallBack 里设置，其余平台同时绑同一端口会失败。
 				logging.ConsoleLog.Info().Msgf("port %s rebuilds TLS config: acme-tls/1 advertisement changed", each.Port)
 				old.Lfd.Close()
-				each.openListener()
+				if err := each.tryOpenListener(); err != nil {
+					logging.ConsoleLog.Error().Msgf("reload failed to rebuild TLS listener on port %s: %v", each.Port, err)
+					if reopenErr := old.tryOpenListener(); reopenErr == nil {
+						old.replaceCtx()
+						CurrLisinfoCommon[index] = old
+						typeChanged = append(typeChanged, old)
+					}
+					break
+				}
 				each.replaceCtx()
 				typeChanged = append(typeChanged, each)
 			}

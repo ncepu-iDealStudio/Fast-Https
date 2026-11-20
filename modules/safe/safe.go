@@ -65,13 +65,16 @@ func Init() {
 	blacklistInit()
 }
 
-// RemoteIP 去掉端口，只保留客户端 IP。
+// RemoteIP 去掉端口，只保留客户端 IP（兼容 IPv6 "[::1]:8080"）。
 func RemoteIP(ev *core.Event) string {
-	addr := ev.Conn.RemoteAddr().String()
-	if i := strings.LastIndex(addr, ":"); i != -1 {
-		return addr[:i]
+	if ev == nil || ev.Conn == nil || ev.Conn.RemoteAddr() == nil {
+		return ""
 	}
-	return addr
+	addr := ev.Conn.RemoteAddr().String()
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	return strings.Trim(addr, "[]")
 }
 
 // logReject 向安全日志写一条拒绝事件，字段与访问日志、统一拒绝日志

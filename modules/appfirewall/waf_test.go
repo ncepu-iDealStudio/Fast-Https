@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"fast-https/config"
+	"fast-https/runtime/listener"
 )
 
 func cfgWith(rules []string, waf *config.WAFConfig) *config.Fast_Https {
@@ -112,4 +113,21 @@ func TestWAFBuildRace(t *testing.T) {
 	}()
 	wg.Wait()
 	defer ShutdownWAF()
+}
+
+func TestWAFPerLocationRuleIsolation(t *testing.T) {
+	if err := BuildWAF(cfgWith([]string{"sql"}, nil)); err != nil {
+		t.Fatal(err)
+	}
+	defer ShutdownWAF()
+
+	noWafLoc := &listener.ListenCfg{Path: "/public"}
+	if !Allowed(noWafLoc, testEvent("POST", "/public", "user=admin&pswd=' OR '1'='1")) {
+		t.Error("location without appfirewall must not be blocked by sibling location's rules")
+	}
+
+	sqlLoc := &listener.ListenCfg{Path: "/login", AppFireWall: []string{"sql"}}
+	if Allowed(sqlLoc, testEvent("POST", "/login", "user=admin&pswd=' OR '1'='1")) {
+		t.Error("location with sql rule must block sqli")
+	}
 }

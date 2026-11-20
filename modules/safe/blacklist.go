@@ -109,7 +109,9 @@ var g_list Blacklist
 // blacklistInit 以配置为底、叠加控制面 overlay 重建黑名单。
 // reload 会调用：控制面的运行时变更以 overlay 形式存活，不被冲掉。
 func blacklistInit() {
-	g_list = *NewBlacklist()
+	g_list.mu.Lock()
+	g_list.entries = nil
+	g_list.mu.Unlock()
 	for _, value := range config.Current().BlackList {
 		if err := g_list.Add(BlacklistSourceConfig, value); err != nil {
 			logging.ConsoleLog.Warn().Msgf("blacklist: skip invalid config entry %q: %s", value, err.Error())
@@ -121,11 +123,7 @@ func blacklistInit() {
 // IsInBlacklist 连接级黑名单检查（cmd 的 RejectConn 钩子调用）。
 // 命中时写 403 拒绝响应与安全日志，返回 true。
 func IsInBlacklist(ev *core.Event) bool {
-	// IPv6 地址形如 "[::1]:8080"，必须用 SplitHostPort 取主机部分
-	host, _, err := net.SplitHostPort(ev.Conn.RemoteAddr().String())
-	if err != nil {
-		host = ev.Conn.RemoteAddr().String()
-	}
+	host := RemoteIP(ev)
 	if !g_list.Contains(host) {
 		return false
 	}
@@ -133,8 +131,6 @@ func IsInBlacklist(ev *core.Event) bool {
 
 	ev.RR.Res = response.ResponseInit()
 	ev.RR.Req = request.RequestInit(false)
-	drain := make([]byte, 2048)
-	_, _ = ev.Conn.Read(drain)
 	ev.RR.Res = response.DefaultBlackBan()
 	log := dynlog.DynLogger{}
 	dynlog.Log(&log, ev)

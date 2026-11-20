@@ -34,6 +34,11 @@ func TestNormalizePath(t *testing.T) {
 
 		{name: "asterisk form", target: "*", want: "*", ok: true},
 		{name: "absolute form", target: "http://a/b", want: "http://a/b", ok: true},
+		{name: "collapse internal dotdot", target: "/public/../admin/panel", want: "/admin/panel", ok: true},
+		{name: "collapse single dot", target: "/a/./b/.", want: "/a/b/", ok: true},
+		{name: "preserve leading dotdot for static reject log", target: "/../etc/passwd", want: "/../etc/passwd", ok: true},
+		{name: "query control char rejected", target: "/a?x=1\x0d\x0aInjected: 1", ok: false},
+		{name: "absolute form backslash rejected", target: `http://a/b\c`, ok: false},
 	}
 
 	for _, tc := range cases {
@@ -66,5 +71,33 @@ func TestParseHeaderRejectsBadPath(t *testing.T) {
 	err := req.ParseHeader([]byte("GET /a%252fb HTTP/1.1\r\nHost: example.com\r\n\r\n"))
 	if err != PathInvalid {
 		t.Fatalf("err = %v, want PathInvalid", err)
+	}
+}
+
+func TestParseHeaderFragmentedAndConflictingContentLength(t *testing.T) {
+	// TCP 分片恰好停在 "Content-Length: " 时必须返回 RequestNeedReadMore 而非 400
+	req := RequestInit(false)
+	err := req.ParseHeader([]byte("POST /upload HTTP/1.1\r\nHost: example.com\r\nContent-Length: "))
+	if err != RequestNeedReadMore {
+		t.Fatalf("fragmented Content-Length err = %v, want RequestNeedReadMore", err)
+	}
+
+	// 冲突的双 Content-Length 必须直接拒绝
+	req2 := RequestInit(false)
+	err2 := req2.ParseHeader([]byte("POST /upload HTTP/1.1\r\nHost: example.com\r\nContent-Length: 5\r\nContent-Length: 10\r\n\r\n"))
+	if err2 != InvalidHeaders {
+		t.Fatalf("conflicting Content-Length err = %v, want InvalidHeaders", err2)
+	}
+}
+
+func TestChunkedTokenAndTrailers(t *testing.T) {
+	if !HasTransferEncodingToken("chunked;q=0", "chunked") {
+		t.Fatal("chunked;q=0 must still be recognized as chunked Transfer-Encoding")
+	}
+	body, err := ReadChunked([]byte("5\r\nhello\r\n0\r\nX-Checksum: abc\r\n\r\n"), func() ([]byte, error) {
+		return nil, nil
+	}, 1024)
+	if err != nil || string(body) != "hello" {
+		t.Fatalf("chunked with trailer: body=%q err=%v", string(body), err)
 	}
 }

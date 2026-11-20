@@ -38,6 +38,7 @@ type Server struct {
 	mu       sync.Mutex
 	stopping bool
 	stopOnce sync.Once
+	sigStop  func()
 
 	// reloadMu 串行化整条 reload 流水线（配置加载 → 钩子对齐 → 监听器
 	// 增删改 → 指标发布）。并发信号或命令后到的等待前一次完成，避免两次
@@ -67,12 +68,21 @@ func initModules() {
 func ServerInit() *Server {
 	s := Server{}
 	metrics.RecordProcessStart()
-	sigchnl := make(chan os.Signal, 1)
-	signal.Notify(sigchnl)
+	sigchnl := make(chan os.Signal, 4)
+	sigDone := make(chan struct{})
+	signal.Notify(sigchnl, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGINT)
+	s.sigStop = func() {
+		signal.Stop(sigchnl)
+		close(sigDone)
+	}
 	go func(s *Server) {
 		for {
-			sig_num := <-sigchnl
-			s.SigHandler(sig_num)
+			select {
+			case sig_num := <-sigchnl:
+				s.SigHandler(sig_num)
+			case <-sigDone:
+				return
+			}
 		}
 	}(&s)
 	//  to do : ScanPorts
@@ -148,6 +158,9 @@ func (s *Server) SigHandler(sig os.Signal) {
 // 避免 drain 拿旧表、reload 换新表交错。
 func (s *Server) gracefulStop() {
 	s.stopOnce.Do(func() {
+		if s.sigStop != nil {
+			s.sigStop()
+		}
 		s.reloadMu.Lock()
 		defer s.reloadMu.Unlock()
 

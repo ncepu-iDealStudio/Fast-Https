@@ -63,8 +63,11 @@ func SiteList(mainPath string) (SiteListData, []string, error) {
 		if row.Locations == nil {
 			row.Locations = []string{}
 		}
-		if st := certByDomain[strings.ToLower(e.ServerName)]; st != "" {
-			row.CertStatus = st
+		for _, domain := range strings.Fields(strings.ToLower(e.ServerName)) {
+			if st := certByDomain[domain]; st != "" {
+				row.CertStatus = st
+				break
+			}
 		}
 		data.Sites = append(data.Sites, row)
 	}

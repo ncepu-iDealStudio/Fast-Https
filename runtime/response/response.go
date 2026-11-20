@@ -38,9 +38,10 @@ func (e *ResponError) Error() string {
 // every event will return a Response object
 // except tcp proxy
 type Response struct {
-	FirstLine string
-	Headers   map[string]string
-	Body      []byte
+	FirstLine  string
+	Headers    map[string]string
+	SetCookies []string
+	Body       []byte
 }
 
 func ResponseInit() *Response {
@@ -55,6 +56,9 @@ func (r *Response) SetFirstLine(statusCode int, statusText string) {
 
 func (r *Response) SetHeader(key, value string) {
 	r.Headers[key] = value
+	if strings.EqualFold(key, "Set-Cookie") {
+		r.SetCookies = []string{value}
+	}
 }
 
 func (r *Response) SetBody(body []byte) {
@@ -71,6 +75,15 @@ func (r *Response) generateHeaders(dst []byte) []byte {
 	dst = append(dst, r.FirstLine...)
 	dst = append(dst, HTTP_SPLIT...)
 	for _, key := range sortedHeaderKeys(r.Headers) {
+		if strings.EqualFold(key, "Set-Cookie") && len(r.SetCookies) > 1 {
+			for _, cookie := range r.SetCookies {
+				dst = append(dst, key...)
+				dst = append(dst, ": "...)
+				dst = append(dst, cookie...)
+				dst = append(dst, HTTP_SPLIT...)
+			}
+			continue
+		}
 		dst = append(dst, key...)
 		dst = append(dst, ": "...)
 		dst = append(dst, r.Headers[key]...)
@@ -99,7 +112,12 @@ func (r *Response) HttpResParse(request string) error {
 	if request == "" {
 		return None
 	}
-	requestLine := strings.Split(request, "\r\n")
+	headSection := request
+	bodySplit := strings.Index(request, "\r\n\r\n")
+	if bodySplit != -1 {
+		headSection = request[:bodySplit]
+	}
+	requestLine := strings.Split(headSection, "\r\n")
 	first := requestLine[0]
 	// 上游用裸 LF 分行时整个"首行"里就带着 \n：若放行会在序列化时
 	// 原样写给客户端（响应拆分），直接拒绝。
@@ -116,6 +134,7 @@ func (r *Response) HttpResParse(request string) error {
 		reason = strings.Join(parts[2:], " ")
 	}
 	r.FirstLine = parts[0] + " " + parts[1] + " " + reason
+	r.SetCookies = nil
 
 	for _, line := range requestLine[1:] {
 		if line == "" {
@@ -138,9 +157,12 @@ func (r *Response) HttpResParse(request string) error {
 		key := textproto.CanonicalMIMEHeaderKey(kv[0])
 		value := strings.TrimSpace(kv[1])
 		r.Headers[key] = value
+		if key == "Set-Cookie" {
+			r.SetCookies = append(r.SetCookies, value)
+		}
 	}
-	if i := strings.Index(request, "\r\n\r\n"); i != -1 {
-		r.Body = []byte(request[i+4:])
+	if bodySplit != -1 {
+		r.Body = []byte(request[bodySplit+4:])
 	}
 	return ResponseOk // valid
 }
@@ -152,6 +174,9 @@ func (r *Response) GetHeader(key string) string {
 
 func (r *Response) DelHeader(key string) {
 	delete(r.Headers, key)
+	if strings.EqualFold(key, "Set-Cookie") {
+		r.SetCookies = nil
+	}
 }
 
 func sortedHeaderKeys(headers map[string]string) []string {

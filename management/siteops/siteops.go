@@ -951,7 +951,11 @@ func fillCerts(in *config.SiteInput) {
 	if !hasSSL(in.Listens) {
 		return
 	}
-	name := strings.TrimSpace(in.ServerName)
+	fields := strings.Fields(in.ServerName)
+	if len(fields) == 0 {
+		return
+	}
+	name := fields[0]
 	cert := filepath.Join(config.CERT_DIR, name+".pem")
 	// 首次 start 之前本地 CA 还没签发这张证书，此时留空：CertInit 会按
 	// 站点自动生成。写死一个不存在的路径会被 config apply 级别的校验

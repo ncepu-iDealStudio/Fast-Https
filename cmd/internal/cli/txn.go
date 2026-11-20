@@ -97,9 +97,7 @@ func NewTxnEngine(liveMain string, timeout time.Duration) *txn.Engine {
 					fmt.Fprintln(os.Stderr,
 						"提示：Windows 上无法热重载，正在重启服务以应用新配置")
 					if restartErr := restartService(pidPath); restartErr != nil {
-						fmt.Fprintf(os.Stderr,
-							"提示：服务重启失败（%v），配置已写入，下次启动生效\n", restartErr)
-						return nil
+						return fmt.Errorf("windows restart failed: %w", restartErr)
 					}
 					// 重启后 pid 必然变化，健康检查不能再按「热重载」比对
 					// pid/started_at——那会误判成 recovery_required 并回滚。

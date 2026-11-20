@@ -12,7 +12,9 @@ import (
 	"fast-https/infra/logging"
 	"fast-https/runtime/dynlog"
 	"fast-https/runtime/listener"
+	"fast-https/runtime/request"
 	"fast-https/runtime/response"
+	"io"
 	"net"
 	"strings"
 )
@@ -88,7 +90,14 @@ func dialUpstream(addr string, proxyType int) (*Proxy, error) {
 	p.ProxyConn = conn
 
 	if p.ProxyType == config.PROXY_HTTPS {
-		tlsConn := tls.Client(conn, &tls.Config{InsecureSkipVerify: true})
+		sniHost, _, splitErr := net.SplitHostPort(p.ProxyAddr)
+		if splitErr != nil {
+			sniHost = p.ProxyAddr
+		}
+		tlsConn := tls.Client(conn, &tls.Config{
+			ServerName:         sniHost,
+			InsecureSkipVerify: true,
+		})
 		p.ProxyTlsConn = tlsConn
 
 		p.Read = p.readSSL
@@ -234,6 +243,14 @@ func (p *Proxy) ChangeHeader(isKeepalive bool, tmpByte []byte, rr *core.RRcircle
 
 	if isKeepalive {
 		rr.Res.Body = temp_body
+	} else if request.HasTransferEncodingToken(rr.Res.GetHeader("Transfer-Encoding"), "chunked") {
+		if decoded, err := request.ReadChunked(rr.Res.Body, func() ([]byte, error) {
+			return nil, io.EOF
+		}, maxChunkedBody()); err == nil {
+			rr.Res.Body = decoded
+			rr.Res.DelHeader("Transfer-Encoding")
+			rr.Res.SetHeader("Content-Length", strconv.Itoa(len(decoded)))
+		}
 	}
 
 	return head_code
@@ -313,26 +330,29 @@ func (p *Proxy) readFromUpstreamServer(ev *core.Event) (resData []byte, err erro
 }
 
 func (p *Proxy) sendToUpstreamServer(req_data []byte) error {
-	// ev.DEBUG_BUFFER = append(ev.DEBUG_BUFFER, req_data...)
-	n, err := p.Write(req_data)
-	if err != nil {
-		neterr, ok := err.(net.Error)
-		if ok && neterr.Timeout() {
-			logging.ConsoleLog.Debug().Msg("send to upstream server time out")
-			err = ProxyErrorSendToUpstreamTimeout
-			noteSendTimeout()
-		} else {
-			// 非 net.Error 的写错误（io.ErrClosedPipe、TLS 包装错误等）
-			// 也必须按普通错误处理：此前这里走 Fatal（os.Exit），一条
-			// 上游连接的异常写就能打死整个进程。
-			logging.ConsoleLog.Debug().Msgf("send to upstream server error: %s", err.Error())
-		}
+	for len(req_data) > 0 {
+		n, err := p.Write(req_data)
+		if err != nil {
+			neterr, ok := err.(net.Error)
+			if ok && neterr.Timeout() {
+				logging.ConsoleLog.Debug().Msg("send to upstream server time out")
+				err = ProxyErrorSendToUpstreamTimeout
+				noteSendTimeout()
+			} else {
+				// 非 net.Error 的写错误（io.ErrClosedPipe、TLS 包装错误等）
+				// 也必须按普通错误处理：此前这里走 Fatal（os.Exit），一条
+				// 上游连接的异常写就能打死整个进程。
+				logging.ConsoleLog.Debug().Msgf("send to upstream server error: %s", err.Error())
+			}
 
-		p.Close()  // close proxy connection
-		return err // can't write
-	}
-	if len(req_data) != n {
-		logging.ConsoleLog.Debug().Msg("send to upstream server part")
+			p.Close()  // close proxy connection
+			return err // can't write
+		}
+		if n <= 0 {
+			p.Close()
+			return io.ErrShortWrite
+		}
+		req_data = req_data[n:]
 	}
 
 	return nil

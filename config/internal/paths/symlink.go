@@ -18,14 +18,22 @@ func FirstSymlinkUnder(root string) (string, error) {
 	var found string
 	err = filepath.WalkDir(start, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			if path == start {
+				return err
+			}
+			// 子目录无权限读取时不跳过整棵树的其余兄弟目录，先尝试 Lstat 判断自身是否链接
+			if fi, lerr := os.Lstat(path); lerr == nil && isLink(path, fi) {
+				found = path
+				return filepath.SkipAll
+			}
+			return nil
 		}
 		if path == start {
 			return nil
 		}
 		info, err := d.Info()
 		if err != nil {
-			return err
+			return nil
 		}
 		if isLink(path, info) {
 			found = path

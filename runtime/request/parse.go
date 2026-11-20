@@ -116,17 +116,27 @@ func (r *Request) parseQueryParams() {
 
 // parse Host
 func (r *Request) ParseHost(lis_info *listener.Listener) {
-	if r.Headers["Host"] == "" {
+	r.parseQueryParams()
+	host := r.Headers["Host"]
+	if host == "" || lis_info == nil {
 		return
 	}
-	switch lis_info.Port {
-	case "80":
-		r.Headers["Host"] = r.Headers["Host"] + ":80"
-	case "443":
-		r.Headers["Host"] = r.Headers["Host"] + ":443"
+	if !hostHasPort(host) {
+		switch lis_info.Port {
+		case "80":
+			r.Headers["Host"] = host + ":80"
+		case "443":
+			r.Headers["Host"] = host + ":443"
+		}
 	}
+}
 
-	r.parseQueryParams() // temp put here
+func hostHasPort(host string) bool {
+	if strings.HasPrefix(host, "[") {
+		closeIdx := strings.IndexByte(host, ']')
+		return closeIdx >= 0 && closeIdx+1 < len(host) && host[closeIdx+1] == ':'
+	}
+	return strings.IndexByte(host, ':') >= 0
 }
 
 // reset request's header
@@ -267,9 +277,13 @@ func (r *Request) ByteRow() []byte { return r.byteRow(r.Path) }
 func (r *Request) ByteRowTo(target string) []byte { return r.byteRow(target) }
 
 func (r *Request) byteRow(target string) []byte {
+	proto := r.Protocol
+	if proto == "HTTP/2" || proto == "HTTP/3" {
+		proto = "HTTP/1.1"
+	}
 	rowStr := r.Method + " " +
 		target + " " +
-		r.Protocol + "\r\n"
+		proto + "\r\n"
 	for k, v := range r.Headers {
 		rowStr = rowStr + k + ": " + v + "\r\n"
 	}
@@ -358,8 +372,31 @@ func (r *Request) parseHeaderLine(line []byte) error {
 		if n, err := strconv.Atoi(string(value)); err != nil || n < 0 {
 			return InvalidHeaders
 		}
+		if prev, exists := r.Headers["Content-Length"]; exists && prev != string(value) {
+			return InvalidHeaders
+		}
 	}
 	r.Headers[ks] = string(value)
+	return nil
+}
+
+// validatePartialHeaderLine 校验尚未到达 CRLF 的末尾半截头行：
+// 不允许出现裸 CR/LF 或冒号前空白，但也不提前对未读完的 Content-Length 值做 Atoi，
+// 避免 TCP 分片恰好断在 "Content-Length: " 后时被误判为 400。
+func validatePartialHeaderLine(frag []byte) error {
+	buf := frag
+	if len(buf) > 0 && buf[len(buf)-1] == '\r' {
+		buf = buf[:len(buf)-1]
+	}
+	if bytes.ContainsAny(buf, "\r\n") {
+		return InvalidHeaders
+	}
+	if colon := bytes.IndexByte(buf, ':'); colon >= 0 {
+		key := buf[:colon]
+		if k := bytes.TrimSpace(key); len(k) != len(key) || len(k) == 0 {
+			return InvalidHeaders
+		}
+	}
 	return nil
 }
 
@@ -445,6 +482,10 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 		return ProtocolInvalid // invalid protocol
 	}
 
+	for k := range r.Headers {
+		delete(r.Headers, k)
+	}
+
 	if len(rest) == 0 {
 		// 整个缓冲只有请求行（带或不带结尾 CRLF）
 		return RequestNeedReadMore
@@ -456,10 +497,7 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 		nl := bytes.Index(rest[pos:], crlf)
 		if nl < 0 {
 			// 最后一段（无 CRLF 结尾）：可能是被截断的半个头
-			if err := r.parseHeaderLine(rest[pos:]); err != nil {
-				if err == errNoColon {
-					return RequestNeedReadMore
-				}
+			if err := validatePartialHeaderLine(rest[pos:]); err != nil {
 				return err
 			}
 			return RequestNeedReadMore
@@ -481,6 +519,9 @@ func (r *Request) ParseHeader(request_byte []byte) error {
 
 // get request's body
 func (r *Request) ParseBody(tmpByte []byte) error {
+	for bytes.HasPrefix(tmpByte, crlf) {
+		tmpByte = tmpByte[2:]
+	}
 	i := bytes.Index(tmpByte, []byte("\r\n\r\n"))
 	if i == -1 {
 		return errors.New("parse body error")
@@ -490,10 +531,28 @@ func (r *Request) ParseBody(tmpByte []byte) error {
 }
 
 func (r *Request) RequestBodyValid() bool {
+	contentLength := r.GetContentLength()
+	if contentLength != "" {
+		n, err := strconv.Atoi(contentLength)
+		if err != nil || n < 0 {
+			// ParseHeader 已拒绝非法 Content-Length，这里兜底不 panic
+			return false
+		}
+		if r.Body.Len() < n {
+			return false
+		}
+		if r.Body.Len() > n {
+			r.Body.Truncate(n)
+		}
+		return true
+	}
+
 	contentType := r.GetContentType()
-	if strings.Contains(contentType, "multipart/form-data") {
-		po := strings.Index(contentType, "boundary=")
-		boundaryStr := contentType[po+len("boundary="):]
+	if strings.Contains(strings.ToLower(contentType), "multipart/form-data") {
+		boundaryStr := extractMultipartBoundary(contentType)
+		if boundaryStr == "" {
+			return true
+		}
 		// 从上次扫到的位置继续找终止边界：分块到达的大 body
 		// 不能每轮都全量重扫。保留 needle 长度的重叠区，
 		// 防止边界跨读块被截断
@@ -512,19 +571,21 @@ func (r *Request) RequestBodyValid() bool {
 		return false
 	}
 
-	contentLength := r.GetContentLength()
-	if contentLength != "" {
-		n, err := strconv.Atoi(contentLength)
-		if err != nil {
-			// ParseHeader 已拒绝非法 Content-Length，这里兜底不 panic
-			return false
-		}
-		if r.Body.Len() != n { // content length not equal to body length
-			return false
+	return true
+}
+
+// extractMultipartBoundary 从 Content-Type 中提取 boundary 参数值，
+// 兼容无 boundary=、带双引号的 boundary="..." 以及后续带 "; charset=..." 的写法。
+func extractMultipartBoundary(contentType string) string {
+	for _, part := range strings.Split(contentType, ";") {
+		part = strings.TrimSpace(part)
+		if len(part) >= len("boundary=") && strings.EqualFold(part[:len("boundary=")], "boundary=") {
+			val := strings.TrimSpace(part[len("boundary="):])
+			val = strings.Trim(val, `"`)
+			return val
 		}
 	}
-
-	return true
+	return ""
 }
 
 func (r *Request) TryFixBody(other []byte) {

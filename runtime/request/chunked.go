@@ -62,6 +62,31 @@ func HasToken(header, token string) bool {
 	return ok && q > 0
 }
 
+// HasTransferEncodingToken 报告 Transfer-Encoding 等非权重列表头是否包含指定 token。
+// 与 HasToken 不同，Transfer-Encoding 的分号参数是 transfer-parameter 而非 q 权重，
+// "Transfer-Encoding: chunked;q=0" 在上游仍按 chunked 解析，不能因 q=0 跳过分块解码。
+func HasTransferEncodingToken(header, token string) bool {
+	for _, part := range strings.Split(header, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		name := part
+		if i := strings.IndexByte(part, ';'); i >= 0 {
+			name = strings.TrimSpace(part[:i])
+		}
+		if strings.EqualFold(name, token) {
+			return true
+		}
+	}
+	return false
+}
+
+const (
+	maxChunkHeaderLine  = 4096
+	maxChunkTrailerSize = 8192
+)
+
 // ReadChunked decodes a chunked body.
 // initial is the bytes already received after the header block.
 // readMore returns the next socket read. max is the decoded-body limit.
@@ -70,6 +95,9 @@ func ReadChunked(initial []byte, readMore func() ([]byte, error), max int) ([]by
 	var out bytes.Buffer
 	for {
 		for !bytes.Contains(buf, []byte("\r\n")) {
+			if len(buf) > maxChunkHeaderLine {
+				return nil, ErrChunkedBody
+			}
 			more, err := readMore()
 			if err != nil || len(more) == 0 {
 				return nil, ErrChunkedBody
@@ -77,6 +105,9 @@ func ReadChunked(initial []byte, readMore func() ([]byte, error), max int) ([]by
 			buf = append(buf, more...)
 		}
 		line, rest, _ := bytes.Cut(buf, []byte("\r\n"))
+		if len(line) > maxChunkHeaderLine || bytes.ContainsAny(line, "\r\n") {
+			return nil, ErrChunkedBody
+		}
 		buf = rest
 		sizeToken := line
 		if i := bytes.IndexByte(line, ';'); i >= 0 {
@@ -87,20 +118,16 @@ func ReadChunked(initial []byte, readMore func() ([]byte, error), max int) ([]by
 			return nil, ErrChunkedBody
 		}
 		if n == 0 {
-			for len(buf) < 2 {
-				more, err := readMore()
-				if err != nil || len(more) == 0 {
-					return nil, ErrChunkedBody
-				}
-				buf = append(buf, more...)
-			}
-			if !bytes.HasPrefix(buf, []byte("\r\n")) {
-				return nil, ErrChunkedBody
+			if err := consumeChunkTrailers(buf, readMore); err != nil {
+				return nil, err
 			}
 			return out.Bytes(), nil
 		}
 		if max > 0 && (n > uint64(max) || out.Len()+int(n) > max) {
 			return nil, ErrBodyTooLarge
+		}
+		if n > uint64(^uint(0)>>1)-2 {
+			return nil, ErrChunkedBody
 		}
 		need := int(n) + 2
 		for len(buf) < need {
@@ -115,5 +142,31 @@ func ReadChunked(initial []byte, readMore func() ([]byte, error), max int) ([]by
 		}
 		out.Write(buf[:n])
 		buf = buf[need:]
+	}
+}
+
+// consumeChunkTrailers 消费终止块 "0\r\n" 之后的可选 trailer 头与结束空行 "\r\n"。
+func consumeChunkTrailers(buf []byte, readMore func() ([]byte, error)) error {
+	total := 0
+	for {
+		for !bytes.Contains(buf, []byte("\r\n")) {
+			if len(buf) > maxChunkTrailerSize {
+				return ErrChunkedBody
+			}
+			more, err := readMore()
+			if err != nil || len(more) == 0 {
+				return ErrChunkedBody
+			}
+			buf = append(buf, more...)
+		}
+		line, rest, _ := bytes.Cut(buf, []byte("\r\n"))
+		buf = rest
+		if len(line) == 0 {
+			return nil
+		}
+		total += len(line) + 2
+		if total > maxChunkTrailerSize || bytes.IndexByte(line, ':') <= 0 || bytes.ContainsAny(line, "\r\n") {
+			return ErrChunkedBody
+		}
 	}
 }

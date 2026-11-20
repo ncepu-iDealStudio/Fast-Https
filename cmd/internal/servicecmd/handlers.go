@@ -17,7 +17,6 @@ import (
 	"fast-https/modules/websocket"
 	"fast-https/runtime/listener"
 	"fast-https/runtime/metrics"
-	"strings"
 )
 
 // RegisterHandlers installs the production location handlers.
@@ -95,13 +94,12 @@ func rejectConn(ev *core.Event) bool {
 }
 
 func handleListen(ev *core.Event) bool {
-	// Kept from the previous listen filter: it compares the listener type with
-	// config.PROXY_TCP (3). Listener creation stores TCP as LisType 2, so this
-	// branch does not run for a "tcp" listen. ProxyEventTcp itself is covered
-	// by modules/proxy_tcp/event_proxy_tcp_test.go.
-	if ev.LisInfo.LisType == config.PROXY_TCP {
-		proxy_tcp.ProxyEventTcp(ev, ev.LisInfo.Cfgs()[0].ProxyAddr)
-		return true
+	if ev.LisInfo != nil && (ev.LisInfo.LisType == 2 || ev.LisInfo.LisType == config.PROXY_TCP) {
+		cfgs := ev.LisInfo.Cfgs()
+		if len(cfgs) > 0 {
+			proxy_tcp.ProxyEventTcp(ev, cfgs[0].ProxyAddr)
+			return true
+		}
 	}
 	if ev.Upgrade == "websocket" {
 		websocket.WebSocketHandler(ev)
@@ -112,11 +110,7 @@ func handleListen(ev *core.Event) bool {
 
 func rejectLocation(cfg *listener.ListenCfg, ev *core.Event) bool {
 	cl := safe.CountLimitFor(cfg.ID)
-	ip := ""
-	index := strings.LastIndex(ev.Conn.RemoteAddr().String(), ":")
-	if index != -1 {
-		ip = ev.Conn.RemoteAddr().String()[:index]
-	}
+	ip := safe.RemoteIP(ev)
 	if cl != nil && !cl.Insert(ip) {
 		safe.CountHandler(ev.RR)
 		return true

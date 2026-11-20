@@ -2,9 +2,10 @@
 package websocket
 
 import (
+	"fast-https/config"
 	"fast-https/core"
-	"fast-https/modules/proxy"
 	"fast-https/infra/logging"
+	"fast-https/modules/proxy"
 	"io"
 	"net"
 )
@@ -12,15 +13,26 @@ import (
 // like a tcp proxy
 // todo: improve buffer
 func WebSocketHandler(ev *core.Event) {
-	// fmt.Println("+++++++++++++++++++++++++")
-
-	proxy, flag := (ev.RR.CircleData).(*proxy.Proxy)
-	if !flag || proxy == nil || proxy.ProxyConn == nil {
+	p, flag := (ev.RR.CircleData).(*proxy.Proxy)
+	if !flag || p == nil || (p.ProxyConn == nil && p.ProxyTlsConn == nil) {
 		// 断言失败或上游连接未初始化时必须返回，否则下面就是空指针解引用
 		logging.PrintErr("--proxy can not convert circle data to *Proxy")
 		ev.Close()
 		return
 	}
+
+	upstreamConn := p.ProxyConn
+	if p.ProxyType == config.PROXY_HTTPS && p.ProxyTlsConn != nil {
+		upstreamConn = p.ProxyTlsConn
+	}
+	defer func() {
+		if p.Close != nil {
+			_ = p.Close()
+		} else if upstreamConn != nil {
+			_ = upstreamConn.Close()
+		}
+		ev.Close()
+	}()
 
 	// 双向共享同一份空闲状态：任意方向有数据都算活动。
 	idle := core.NewTunnelIdle()
@@ -32,30 +44,34 @@ func WebSocketHandler(ev *core.Event) {
 			n, err := ev.Conn.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
+					if cw, ok := upstreamConn.(interface{ CloseWrite() error }); ok {
+						_ = cw.CloseWrite()
+					}
 					break
 				} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 					if idle.Expired() {
 						logging.ConsoleLog.Debug().Msg("websocket: idle tunnel closed")
 						ev.Close()
-						proxy.ProxyConn.Close()
+						_ = upstreamConn.Close()
 						return
 					}
 					continue
 				} else {
 					logging.PrintWarn("[1]websocket: Proxy read error ", err.Error())
-					proxy.ProxyConn.Close()
+					_ = upstreamConn.Close()
 					return
 				}
 			}
 			idle.Touch()
 
-			_, err = proxy.ProxyConn.Write(buffer[:n])
+			_, err = upstreamConn.Write(buffer[:n])
 			if err != nil {
 				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 					ev.Close()
+					_ = upstreamConn.Close()
 					return
 				} else {
-					proxy.ProxyConn.Close()
+					_ = upstreamConn.Close()
 					logging.PrintWarn("websocket: Proxy Write error ", err.Error())
 					break
 				}
@@ -66,8 +82,8 @@ func WebSocketHandler(ev *core.Event) {
 	buffer := make([]byte, 1024)
 	for {
 
-		proxy.ProxyConn.SetDeadline(idle.Deadline())
-		n, err := proxy.ProxyConn.Read(buffer)
+		upstreamConn.SetDeadline(idle.Deadline())
+		n, err := upstreamConn.Read(buffer)
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -75,13 +91,13 @@ func WebSocketHandler(ev *core.Event) {
 				if idle.Expired() {
 					logging.ConsoleLog.Debug().Msg("websocket: idle tunnel closed")
 					ev.Close()
-					proxy.ProxyConn.Close()
+					_ = upstreamConn.Close()
 					return
 				}
 				continue
 			} else {
 				logging.PrintWarn("websocket: Proxy read error ", err.Error())
-				proxy.ProxyConn.Close()
+				_ = upstreamConn.Close()
 				return
 			}
 
@@ -92,11 +108,11 @@ func WebSocketHandler(ev *core.Event) {
 		if err != nil {
 
 			if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-				proxy.ProxyConn.Close()
+				_ = upstreamConn.Close()
 				return
 			} else {
 				logging.PrintWarn("websocket: Proxy Write error ", err.Error())
-				proxy.ProxyConn.Close()
+				_ = upstreamConn.Close()
 				break
 			}
 		}

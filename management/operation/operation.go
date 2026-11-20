@@ -329,11 +329,27 @@ func (s Store) List(f ListFilter) ([]Record, error) {
 	return out, nil
 }
 
+func isValidOperationID(id string) bool {
+	if id == "" || strings.HasPrefix(id, ".") || strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+			return false
+		}
+	}
+	return true
+}
+
 func (s Store) pathOf(id string) string {
 	return filepath.Join(s.Dir.OperationsDir(), id+".json")
 }
 
 func (s Store) read(id string) (Record, error) {
+	if !isValidOperationID(id) {
+		return Record{}, ErrNotFound
+	}
 	var rec Record
 	if err := readOp(s.pathOf(id), &rec); err != nil {
 		if os.IsNotExist(err) {

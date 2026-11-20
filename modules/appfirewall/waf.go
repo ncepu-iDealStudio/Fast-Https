@@ -2,6 +2,7 @@
 package appfirewall
 
 import (
+	"net"
 	"strings"
 	"sync/atomic"
 
@@ -20,7 +21,8 @@ import (
 // 检测器选项的配置映射见 mapping.go。
 
 type wafEngine struct {
-	e *guardianwaf.Engine
+	e          *guardianwaf.Engine
+	globalOnly bool
 }
 
 // current 持有当前引擎；nil = 未启用 = 所有请求放行（零开销默认）。
@@ -48,7 +50,7 @@ func BuildWAF(cfg *config.Fast_Https) error {
 		return nil
 	}
 
-	detectors := resolveDetectors(cfg)
+	detectors, globalOnly := resolveDetectors(cfg)
 	opts := []guardianwaf.Option{guardianwaf.WithMode(mode)}
 	for _, name := range wafDetectorNames {
 		if detectors[name] {
@@ -64,7 +66,7 @@ func BuildWAF(cfg *config.Fast_Https) error {
 		logging.ConsoleLog.Error().Msgf("waf: build failed, keeping previous engine: %s", err.Error())
 		return err
 	}
-	current.Store(&wafEngine{e: e})
+	current.Store(&wafEngine{e: e, globalOnly: globalOnly})
 	closeEngine(old)
 	logging.ConsoleLog.Info().Msgf("waf: engine started in %s mode with %d detector(s)", mode, len(detectors))
 	return nil
@@ -84,13 +86,29 @@ func closeEngine(w *wafEngine) {
 // Allowed 是全项目唯一的防火墙检测入口，在 location 匹配与认证之后
 // 每请求恰好调用一次。检测命中即写 403 并关闭，返回 false。
 // 引擎为 nil（未配置）时恒放行。
-func Allowed(_ *listener.ListenCfg, ev *core.Event) bool {
+func Allowed(cfg *listener.ListenCfg, ev *core.Event) bool {
 	w := current.Load()
 	if w == nil {
 		return true
 	}
+	if cfg != nil && !w.globalOnly && len(cfg.AppFireWall) == 0 {
+		return true
+	}
 
 	result := w.e.Check(toHTTPRequest(ev))
+	if cfg != nil && len(cfg.AppFireWall) > 0 && len(result.Findings) > 0 {
+		enabled := locationDetectors(cfg.AppFireWall)
+		matched := false
+		for _, f := range result.Findings {
+			if enabled[f.Detector] {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return true
+		}
+	}
 	if result.Logged && len(result.Findings) > 0 {
 		logging.Safe().Debug().
 			Str(logging.FieldRemoteAddr, remoteIP(ev)).
@@ -132,9 +150,12 @@ func findingsSummary(r guardianwaf.Result) string {
 }
 
 func remoteIP(ev *core.Event) string {
-	addr := ev.Conn.RemoteAddr().String()
-	if i := strings.LastIndex(addr, ":"); i != -1 {
-		return addr[:i]
+	if ev == nil || ev.Conn == nil || ev.Conn.RemoteAddr() == nil {
+		return ""
 	}
-	return addr
+	addr := ev.Conn.RemoteAddr().String()
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		return host
+	}
+	return strings.Trim(addr, "[]")
 }

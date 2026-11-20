@@ -112,6 +112,18 @@ func TestPatchAppendsArrayElement(t *testing.T) {
 	}
 }
 
+func TestDeleteMemberInInlineSingleLineObject(t *testing.T) {
+	raw := "{\n  \"auth\": { \"type\": \"basic\", \"user\": \"u\" }\n}"
+	got := mustPatch(t, raw,
+		Edit{Path: []Step{Key("auth"), Key("type")}, Value: nil},
+	)
+	m := decode(t, []byte(got))
+	auth, ok := m["auth"].(map[string]any)
+	if !ok || auth["user"] != "u" {
+		t.Fatalf("inline delete corrupted object: %s", got)
+	}
+}
+
 func TestPatchAppendsIntoEmptyArray(t *testing.T) {
 	raw := `{
   "location": []

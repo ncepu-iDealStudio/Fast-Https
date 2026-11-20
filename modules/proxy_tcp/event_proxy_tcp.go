@@ -18,6 +18,10 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 		ev.Close()
 		return
 	}
+	defer func() {
+		_ = conn2.Close()
+		ev.Close()
+	}()
 
 	// 双向共享同一份空闲状态：任意方向有数据都算活动。
 	idle := core.NewTunnelIdle()
@@ -29,6 +33,9 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 			n, err := ev.Conn.Read(buffer)
 			if err != nil {
 				if err == io.EOF {
+					if cw, ok := conn2.(interface{ CloseWrite() error }); ok {
+						_ = cw.CloseWrite()
+					}
 					break
 				} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 					if idle.Expired() {
@@ -50,6 +57,7 @@ func ProxyEventTcp(ev *core.Event, proxyaddr string) {
 			if err != nil {
 				if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 					ev.Close()
+					conn2.Close()
 					return
 				} else {
 					conn2.Close()

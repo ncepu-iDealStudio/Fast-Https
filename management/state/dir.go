@@ -160,6 +160,12 @@ func (d Dir) Lock() (Release, error) {
 		}
 		var held lockRecord
 		if rerr := readJSON(path, &held); rerr != nil {
+			// 刚被另一个进程 O_CREAT|O_EXCL 创建、尚未写完 JSON 时稍等重试，
+			// 不要直接删除对方刚建好的锁文件。
+			if info, serr := os.Stat(path); serr == nil && time.Since(info.ModTime()) < 200*time.Millisecond {
+				time.Sleep(10 * time.Millisecond)
+				continue
+			}
 			_ = os.Remove(path)
 			continue
 		}

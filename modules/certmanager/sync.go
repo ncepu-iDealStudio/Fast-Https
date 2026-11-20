@@ -26,9 +26,10 @@ func certPaths(domain string) (certPath, keyPath string) {
 		if !strings.Contains(server.Listen, "ssl") {
 			continue
 		}
+		names := server.ServerNames()
 		// 多域名：检查该 server 块的任意域名是否匹配。
 		matched := false
-		for _, raw := range server.ServerNames() {
+		for _, raw := range names {
 			if normalizeName(raw) == domain {
 				matched = true
 				break
@@ -37,9 +38,13 @@ func certPaths(domain string) (certPath, keyPath string) {
 		if !matched {
 			continue
 		}
-		// 多域名 server 块：每个域名用兜底路径（按域名命名），
-		// 不用 SSLCertificate 指向的路径（那是第一个域名的）。
-		if len(server.ServerNames()) > 1 {
+		// 主域名优先写回 server 块配置的 SSLCertificate / SSLCertificateKey，
+		// 其余别名域名使用 config/cert/<domain>.pem（与 ExtraCerts 一致）。
+		if len(names) > 0 && normalizeName(names[0]) == domain &&
+			server.SSLCertificate != "" && server.SSLCertificateKey != "" {
+			return server.SSLCertificate, server.SSLCertificateKey
+		}
+		if len(names) > 1 {
 			return filepath.Join(config.CERT_DIR, domain) + ".pem",
 				filepath.Join(config.CERT_DIR, domain) + "-key.pem"
 		}

@@ -4,25 +4,33 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 )
 
-// WriteFile 先写同目录的 .tmp，再改名为目标文件。
+// WriteFile 先写同目录的唯一临时文件，再改名为目标文件。
 // 读者只读目标路径：要么是完整的旧内容，要么是完整的新内容，不会看到半个文件。
 func WriteFile(path string, data []byte, perm os.FileMode) error {
 	if perm == 0 {
 		perm = 0o600
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, perm); err != nil {
+	f, err := os.CreateTemp(dir, filepath.Base(path)+".*.tmp")
+	if err != nil {
 		return err
 	}
-	if runtime.GOOS == "windows" {
-		_ = os.Remove(path)
+	tmp := f.Name()
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
 	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	_ = os.Chmod(tmp, perm)
 	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
 		return err

@@ -220,3 +220,25 @@ func TestSnapshotReflectsState(t *testing.T) {
 		t.Error("blacklist rejected counter should increment")
 	}
 }
+
+func TestHighRateLimitAndIPv6RemoteIP(t *testing.T) {
+	resetOverlay(t)
+	limitInit()
+
+	if st := GetGlobalRateLimit(); st.Rate != 0 {
+		t.Fatalf("unlimited rate state = %d, want 0", st.Rate)
+	}
+	if err := SetGlobalRateLimit(2500, 10); err != nil {
+		t.Fatal(err)
+	}
+	if st := GetGlobalRateLimit(); st.Rate != 2500 {
+		t.Fatalf("high rps state = %d, want 2500", st.Rate)
+	}
+
+	ev := &core.Event{Conn: &controlNopConn{
+		remote: &net.TCPAddr{IP: net.ParseIP("::1"), Port: 8080},
+	}}
+	if got := RemoteIP(ev); got != "::1" {
+		t.Fatalf("RemoteIP(IPv6) = %q, want \"::1\"", got)
+	}
+}

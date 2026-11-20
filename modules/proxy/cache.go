@@ -79,12 +79,12 @@ func (pc *ProxyCache) ExpireFor(status int) int {
 }
 
 // Serve 命中缓存时把条目还原进 ev.RR.Res，并返回状态码。
-// 未命中、客户端要求不走缓存、或者键为空都返回 false。
+// 未命中、客户端要求不走缓存、携带认证凭据、或者键为空都返回 false。
 func (pc *ProxyCache) Serve(ev *core.Event) (int, bool) {
 	if !pc.methodAllowed(ev.RR.Req.Method) {
 		return 0, false
 	}
-	if pc.clientDisablesCache(ev) {
+	if pc.clientDisablesCache(ev) || ev.RR.Req.HeaderFold("Authorization") != "" {
 		return 0, false
 	}
 	key := pc.CacheKey(ev)
@@ -100,12 +100,19 @@ func (pc *ProxyCache) Serve(ev *core.Event) (int, bool) {
 }
 
 // Store 把当前响应写入缓存。status 为上游返回的状态码。
+// HEAD 响应没有正文（但允许在 Serve 中读命中 GET 缓存），禁止把 HEAD 的空包体写进共享缓存以免把后续 GET 投毒成 0 字节。
 func (pc *ProxyCache) Store(ev *core.Event, status int) {
-	if !pc.methodAllowed(ev.RR.Req.Method) {
+	if !pc.methodAllowed(ev.RR.Req.Method) || strings.EqualFold(strings.TrimSpace(ev.RR.Req.Method), "HEAD") {
+		return
+	}
+	if pc.clientDisablesCache(ev) || ev.RR.Req.HeaderFold("Authorization") != "" {
 		return
 	}
 	key := pc.CacheKey(ev)
 	if key == "" || ev.RR.Res == nil {
+		return
+	}
+	if pc.responseDisablesCache(ev.RR.Res) {
 		return
 	}
 	expire := pc.ExpireFor(status)
@@ -116,14 +123,33 @@ func (pc *ProxyCache) Store(ev *core.Event, status int) {
 		FirstLine: ev.RR.Res.FirstLine,
 		Status:    status,
 		Headers:   cacheableHeaders(ev.RR.Res.Headers),
-		Data:      ev.RR.Res.Body,
+		Data:      append([]byte(nil), ev.RR.Res.Body...),
 	})
 }
 
 // clientDisablesCache 判断请求是否显式要求不使用缓存。
 func (pc *ProxyCache) clientDisablesCache(ev *core.Event) bool {
-	directive := strings.ToLower(ev.RR.Req.Headers["Cache-Control"])
+	directive := strings.ToLower(ev.RR.Req.HeaderFold("Cache-Control"))
 	return strings.Contains(directive, "no-cache") || strings.Contains(directive, "no-store")
+}
+
+// responseDisablesCache 判断上游响应是否声明不可进入共享缓存，
+// 或已带上游 Content-Encoding（缓存键不含 Accept-Encoding，存已压缩体会导致不支持该编码的客户端收到乱码）。
+func (pc *ProxyCache) responseDisablesCache(res *response.Response) bool {
+	if res == nil {
+		return true
+	}
+	cc := strings.ToLower(res.Headers["Cache-Control"])
+	if strings.Contains(cc, "no-store") || strings.Contains(cc, "no-cache") || strings.Contains(cc, "private") {
+		return true
+	}
+	if strings.TrimSpace(res.Headers["Vary"]) == "*" {
+		return true
+	}
+	if strings.TrimSpace(res.Headers["Content-Encoding"]) != "" {
+		return true
+	}
+	return false
 }
 
 // droppedHeaders 是回放缓存响应时必须剔除的头。
@@ -166,6 +192,6 @@ func cachedResponse(entry *cache.CacheEntry) *response.Response {
 	res.SetHeader("Server", "Fast-Https")
 	res.SetHeader("Date", response.CachedDate())
 	res.SetHeader("Content-Length", strconv.Itoa(len(entry.Data)))
-	res.Body = entry.Data
+	res.Body = append([]byte(nil), entry.Data...)
 	return res
 }

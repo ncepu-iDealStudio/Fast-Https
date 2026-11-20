@@ -6,6 +6,7 @@ import (
 	"fast-https/core"
 	"fast-https/infra/logging"
 	"fast-https/runtime/listener"
+	"strings"
 )
 
 type FilterInterface struct {
@@ -28,13 +29,21 @@ func GListenFilter(ev *core.Event) bool {
 }
 
 func GHttpParseFilter(rr *core.RRcircle) bool {
-	conn := rr.Req.GetConnection()
-
-	if conn == "Upgrade" && rr.Req.GetUpgrade() == "websocket" {
+	if hasConnectionToken(rr.Req.HeaderFold("Connection"), "upgrade") &&
+		strings.EqualFold(strings.TrimSpace(rr.Req.HeaderFold("Upgrade")), "websocket") {
 		rr.Ev.Upgrade = "websocket"
 		rr.Ev.Reuse = true
 	}
 	return true
+}
+
+func hasConnectionToken(connHeader, token string) bool {
+	for _, part := range strings.Split(connHeader, ",") {
+		if strings.EqualFold(strings.TrimSpace(part), token) {
+			return true
+		}
+	}
+	return false
 }
 
 func GFilterHostPath(ev *core.Event) (*listener.ListenCfg, bool) {
