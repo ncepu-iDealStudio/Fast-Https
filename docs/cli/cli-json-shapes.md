@@ -58,6 +58,7 @@
 | code | 退出码 | | code | 退出码 |
 |---|---|---|---|---|
 | `INTERNAL_ERROR` | 1 | | `OPERATION_UNKNOWN` | 7 |
+| `CANCELLED` | 1 | | | |
 | `USAGE_ERROR` | 2 | | `TIMEOUT` | 8 |
 | `PERMISSION_DENIED` | 3 | | `NOT_FOUND` | 9 |
 | `SERVICE_UNREACHABLE` | 4 | | `LOG_SOURCE_UNAVAILABLE` | 9 |
@@ -220,8 +221,9 @@
 - **data JSON**：见 §0.5 事务结果。dry-run 时无 `operation_id/status/result`，
   `version` 为空串，`config_state:"unchanged"`。
 - **行为要点**：
-  - **`--yes` / `--dry-run`**：带 `--domain`（纯 flag 模式）时，非 dry-run **必须 `--yes`**
-    （否则 `USAGE_ERROR`：`add requires --yes; use --dry-run to preview`）；
+  - **`--yes` / `--dry-run`**：带 `--domain`（纯 flag 模式）时，非 dry-run 在**非终端**（脚本、桌面端、CI）
+    **必须 `--yes`**（否则 `USAGE_ERROR`：`fast-https site add requires --yes; use --dry-run to preview`）；
+    标准输入是终端时会直接询问 `y/N`，回答 `y` 即视为确认。
     `--dry-run` 不需要 `--yes`。不带 `--domain` 进向导时向导末屏自己确认，不再要 `--yes`；
     stdin 非终端且无 `--domain` → `USAGE_ERROR`。
   - 纯 flag 模式 `--root` 与 `--proxy-pass` 至少一个（否则 `USAGE_ERROR`）。
@@ -244,7 +246,8 @@
   `--ssl-certificate-key`（string）、`--config`、`--dry-run`（`false`）、`--yes`（`false`）。
 - **data JSON**：同 §0.5 事务结果。
 - **行为要点**：白名单字段之外的任意 JSON 合并被拒绝（没有相应 flag）。至少要显式传一个
-  变更 flag，否则 `USAGE_ERROR`。**非 dry-run 必须 `--yes`**（`update requires --yes; use --dry-run to preview`）。
+  变更 flag，否则 `USAGE_ERROR`。非 dry-run 在**非终端**中**必须 `--yes`**
+  （`fast-https site update requires --yes; use --dry-run to preview`）；终端中会询问 `y/N`。
   只改 URL 为 `/` 的 location，其余手写 location 保留。站点内联在主配置 `http.server[]` →
   `NOT_SUPPORTED`（11）；站点不存在 → `NOT_FOUND`（9）；server_name 在同一监听端口重复 →
   `CONFLICT`（10）。
@@ -258,14 +261,14 @@
 - **命令标识**：`site.delete`
 - **flags**：`--config`、`--dry-run`（`false`）、`--yes`（`false`）
 - **data JSON**：同 §0.5 事务结果。
-- **行为要点**：**非 dry-run 必须 `--yes`**。只删站点配置文件，不删内容目录与证书 ——
+- **行为要点**：非 dry-run 在**非终端**中**必须 `--yes`**（终端中会询问 `y/N`）。只删站点配置文件，不删内容目录与证书 ——
   证书按域名落在 `config/cert` 下，重建同名站点可直接复用，文本模式会在 stderr 提示
   保留了哪些证书文件。内联站点 → `NOT_SUPPORTED`（11）；不存在 → `NOT_FOUND`（9）。
 
 ### 1.6 `site enable <name>` / `site disable <name>`
 
 - **命令标识**：`site.enable` / `site.disable`
-- **flags**：`--config`、`--dry-run`（`false`）、`--yes`（`false`，**不需要**，帮助注明 disable/enable 不需要确认）
+- **flags**：`--config`、`--dry-run`（`false`）；不注册 `--yes`（可逆操作，不需要确认）
 - **data JSON**：同 §0.5 事务结果（operation 记录的 args 里有 `enabled`）。
 - **行为要点**：`.json` ↔ `.json.disabled` 改名 + 同一事务（校验/临时备份/reload/可回滚）。
   不要求 `--yes`（可逆）。已经处于目标状态 → `CONFLICT`（10）；不存在 → `NOT_FOUND`（9）；
@@ -280,10 +283,10 @@
   | 子命令 | flags |
   |---|---|
   | `list <site>` | `--config` |
-  | `add <site>` | `--url`（必填，`/` 开头）、`--type`（`local`/`proxy`，默认 `proxy`）、`--root`（local）、`--proxy-pass`（proxy）、`--config`、`--dry-run` |
-  | `update <site>` | `--url`（必填，用于定位）、`--type`、`--root`、`--proxy-pass`（至少一个）、`--config`、`--dry-run` |
-  | `delete <site>` | `--url`、`--config`、`--dry-run`、`--yes`（必需） |
-  | `set <site>` | `--location`（可重复，JSON 对象；不传表示清空）、`--config`、`--dry-run` |
+  | `add <site>` | `--url`（必填，`/` 开头）、`--type`（`local`/`proxy`，默认 `proxy`）、`--root`（local）、`--proxy-pass`（proxy）、`--config`、`--dry-run`、`--yes` |
+  | `update <site>` | `--url`（必填，用于定位）、`--type`、`--root`、`--proxy-pass`（至少一个）、`--config`、`--dry-run`、`--yes` |
+  | `delete <site>` | `--url`、`--config`、`--dry-run`、`--yes` |
+  | `set <site>` | `--location`（可重复，JSON 对象；不传表示清空）、`--config`、`--dry-run`、`--yes` |
 
 - **data JSON**：
   - `list`：`{"site":"web","locations":[{"url":"/","type":"local","root":"./httpdoc/root","index":["index.html","index.htm"]},{"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9000"}]}`
@@ -294,7 +297,8 @@
   - 主 location `/` 只由 `site add/update` 维护；`location add/delete` 拒绝 `/`。
   - `proxy` 需要以 `http://` 或 `https://` 开头的 `--proxy-pass`；`local` 需要已存在的绝对
     `--root`（含 `..` 或落在禁入目录 → `USAGE_ERROR`）。
-  - `delete` 非 dry-run 必须 `--yes`。
+  - `add` / `update` / `delete` / `set` 非 dry-run 在**非终端**中必须 `--yes`；终端中会询问 `y/N`。
+    桌面端与脚本不传 `--yes` → `USAGE_ERROR`（2）。
   - `set` 只提交基础字段：已存在的 URL 原地补 `url/type/root/proxy_pass`，`zip`、`limit`、
     `auth`、`proxy_cache`、`try`、`error_page` 等手写字段与注释原样保留；消失的 URL 删除，
     新 URL 追加。
@@ -417,10 +421,12 @@
 ### 2.4.1 `config versions delete`
 
 - **命令标识**：`config.versions.delete`
-- **用法**：`config versions delete <version> --yes`
-- **data JSON**：`{"version":"v2026.11.18.1","deleted":true}`
+- **用法**：`config versions delete <version> [--dry-run] [--yes]`（终端里可省略 `--yes`，会询问 `y/N`）
+- **data JSON**：`{"version":"v2026.11.18.1","deleted":true}`；`--dry-run` 时为 `{"version":"v2026.11.18.1","deleted":false,"dry_run":true}`
 - **行为要点**：删除一个版本快照目录；当前 active 版本 → `CONFLICT`（10），不存在 →
-  `NOT_FOUND`（9），没有 `--yes` → `USAGE_ERROR`（2）。operation 记录保留，不连带删除历史操作。
+  `NOT_FOUND`（9）；非终端且没有 `--yes` → `USAGE_ERROR`（2）。`--dry-run` 走同一套前置校验，
+  只输出预览，不删目录、不建 operation、不要求确认。终端里选择取消 → `CANCELLED`（1）。
+  operation 记录保留，不连带删除历史操作。
 
 ### 2.5 `config diff`
 
@@ -472,7 +478,8 @@
   （首次操作会先落一个基线版本，占当天序号 1，因此本次结果是序号 2），`result` 同时带
   `version/rolled_back:false/config_state:"matches_candidate"` 与 `changes`。
 - **行为要点**：
-  - **`--yes` / `--dry-run`**：非 dry-run **必须 `--yes`**（`apply requires --yes; use --dry-run to preview`）。
+  - **`--yes` / `--dry-run`**：非 dry-run 在**非终端**中**必须 `--yes`**
+    （`fast-https config apply requires --yes; use --dry-run to preview`）；终端中会询问 `y/N`。
     `--dry-run` 只输出校验与差异：不写正式文件、不 reload、不建快照、不记 operation。
   - 流程：校验候选 → 生成差异 → 临时备份 → 切换文件 → reload → 验证（读得到
     `/runtime` 用强验证，否则弱验证）→ 保存结果快照；失败从临时备份还原（`rolled_back:true`）。
@@ -490,9 +497,9 @@
 - **data JSON**：同 §0.5 事务结果（`result` / operation args 里含 `version`，按操作回滚时另含 `operation`）。
 - **行为要点**：回滚追加一条**新的 operation**，但复用目标版本快照，**不会新建版本**：
   把快照里的主配置、`conf.d` 与服务证书写回线上，再 reload。`--version` 与
-  `--operation` 必须二选一。非 dry-run **必须 `--yes`**
-  （`rollback requires --yes; use --dry-run to preview`）。目标不存在或操作没有
-  配置版本 → `NOT_FOUND`（9）。两个 flag 都缺或都给 → `USAGE_ERROR`（2）。
+  `--operation` 必须二选一。非 dry-run 在**非终端**中**必须 `--yes`**
+  （`fast-https config rollback requires --yes; use --dry-run to preview`）；终端中会询问 `y/N`。
+  目标不存在或操作没有配置版本 → `NOT_FOUND`（9）。两个 flag 都缺或都给 → `USAGE_ERROR`（2）。
 
 ---
 
@@ -1144,9 +1151,9 @@ systemd 依赖它们的文本输出。
 - **命令标识**：`cache.list` / `cache.add` / `cache.update` / `cache.delete`
 - **flags**：
   - `list`：无专属。
-  - `add`：`--name`、`--path`、`--valid`（可重复，必填）、`--max-size`、`--dry-run`
-  - `update <name>`：`--path`、`--valid`、`--max-size`、`--dry-run`
-  - `delete <name>`：`--dry-run`
+  - `add`：`--name`、`--path`、`--valid`（可重复，必填）、`--max-size`、`--dry-run`、`--yes`
+  - `update <name>`：`--path`、`--valid`、`--max-size`、`--dry-run`、`--yes`
+  - `delete <name>`：`--dry-run`、`--purge`、`--yes`
 - **data JSON**：
   - `list`：`{"zones":[{name,path,valid,max_size}], "config":"<path>"}`
   - `add` / `update` / `delete`：`{"config":"<path>", "zones":[...], "operation_id":"op_...", "status":"succeeded", "version":"v002"}`
@@ -1155,5 +1162,6 @@ systemd 依赖它们的文本输出。
   operation 记录都由事务引擎负责，与 `site.*` 同一条链路。成功后自动保存结果快照。写盘前按主配置
   跑一遍完整校验；`delete` 仍被站点 location 引用时返回 `CONFLICT`（10），
   message 里列出引用位置；`--valid` 为空会被拒绝——没有有效期的缓存区不会
-  缓存任何响应。非 dry-run 的写命令可在 `operation list` 或桌面端「操作记录」
+  缓存任何响应。非 dry-run 在**非终端**中必须 `--yes`，终端中会询问 `y/N`；桌面端与脚本
+  不传 `--yes` → `USAGE_ERROR`（2）。非 dry-run 的写命令可在 `operation list` 或桌面端「操作记录」
   里查到。

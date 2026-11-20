@@ -211,8 +211,8 @@ curl -I --http2 -k https://127.0.0.1/  # 确认协商到 HTTP/2
 fast-https site add --domain demo.example --root ./httpdoc/root --listen 8081 --dry-run --json
 fast-https site add --domain demo.example --root ./httpdoc/root --listen 8081 --yes --request-id site-1
 fast-https site update demo.example --listen 8082 --yes
-fast-https site disable demo.example --yes
-fast-https site enable demo.example --yes
+fast-https site disable demo.example
+fast-https site enable demo.example
 fast-https site delete demo.example --yes   # 只删配置文件，不删内容目录与证书
 fast-https site list --json                 # 含 enabled、cert_status
 fast-https site add --domain blog.example --listen 80 --root ./httpdoc/root --yes
@@ -222,12 +222,12 @@ fast-https site show blog
 fast-https site delete blog --yes
 ```
 
-- **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 `--yes`。新建站点默认开启 `br+gzip` 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。
+- **site add**：`--domain` 必填，站点名由域名规范化得到；`--root` 或 `--proxy-pass` 二选一。同名或同 `server_name` 已存在时退出码 10。`--root` 必须是已存在的目录，不能含 `..`，也不能指向配置、证书、状态或日志目录。非 dry-run 在脚本/非终端中必须 `--yes`，在终端里会询问 `y/N`。新建站点默认开启 `br+gzip` 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。
 - **site update**：只允许 `--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`、`--ssl-certificate*`，以及主 location 上的高级配置 `--zip`、`--zip-min-length`、`--zip-skip-types`、`--limit-*`、`--auth-*`、`--cache-*`、`--symlink-policy`。内联在主配置 `http.server[]` 里的站点返回退出码 11。注释与未建模字段由补丁保留。
-- **site location**：`list / add / update / delete / set` 管理主 location 之外的路径（例如 `/api` 反代）；`add/update` 用 `--url`、`--type`、`--root`、`--proxy-pass`，`delete` 需要 `--yes`。主 location `/` 不允许删除。
+- **site location**：`list / add / update / delete / set` 管理主 location 之外的路径（例如 `/api` 反代）；`add/update` 用 `--url`、`--type`、`--root`、`--proxy-pass`，所有写子命令在脚本/非终端中都需要 `--yes`，终端中会询问 `y/N`。主 location `/` 不允许删除。
 - **符号链接策略**：`site add/update` 的 `--symlink-policy` 取 `check-at-load`（默认）、`reject`、`allow`，只对 `local` 站点生效；`site update --symlink-policy=` 传空串表示删掉该键、回到默认。代理站点带此参数返回退出码 2。
 - **site disable / enable**：把 `<name>.json` 改名为 `<name>.json.disabled` 或改回（`include` 只加载 `*.json`）。`site list --json` 里停用站点为 `enabled: false`。
-- **site delete**：必须 `--yes`。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 `config rollback` 找回。
+- **site delete**：脚本/非终端中必须 `--yes`，终端中会询问 `y/N`。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 `config rollback` 找回。
 - **交互式**：`fast-https site add` 不带 `--domain` 且标准输入是终端时进向导，一题一屏依次问站点名（也是文件名）、监听端口、类型、是否 TLS；最后一屏按所选类型决定——静态站点问站点根目录，反向代理问上游地址（`http://127.0.0.1:8080`）；加 `--plain` 改成逐行问答。最后一屏确认即视为 `--yes`。标准输入不是终端时不会挂起，会提示改用 `--domain` 等参数。
 - **反代站点（旧 init）**：`--type proxy --proxy-pass http://127.0.0.1:8080`。
 - **改已有站点**：用 `site update <name>`，只改白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls`），不接受 `--type`。同名站点不再隐式更新，`site add` 遇到重名直接返回冲突（退出码 10）。
@@ -436,6 +436,7 @@ fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops
 
 `--trusted-proxies` 传空表示清空；三项都回到默认值时删除整个 `proxy` 段。
 写盘前会做完整校验，`--dry-run` 只打印结果。新配置在下次 reload 或启动时生效。
+终端里直接运行会先询问 `y/N`；脚本/非终端中需要加 `--yes`。
 桌面端在「设置」页的「代理」分组里有同样三项，清空后保存与 CLI 的落盘结果一致。
 
 ## 6. 典型配置
@@ -543,6 +544,7 @@ fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops
 缓存区可用 `fast-https cache list / add / update / delete` 管理，或到桌面端
 「缓存区」页维护；站点弹窗里直接选择缓存区。删除仍被站点引用的缓存区会被拒绝。
 站点命令只接受已定义的区名：`site add|update --cache-zone edge`，写错会在执行前报错。
+`cache add/update/delete` 在终端里会先询问 `y/N`；脚本/非终端中需要加 `--yes`。
 
 ### 6.6 Basic 认证与限流
 
@@ -635,6 +637,8 @@ fast-https config tls show        # 查看当前兜底证书
 fast-https config tls --cert= --key=   # 清除，回到默认回落行为
 ```
 
+终端里直接运行会先询问 `y/N`；脚本/非终端中需要加 `--yes`。
+
 写入前会按主配置完整校验（成对、文件存在），`--dry-run` 只打印改写结果。新配置同样在下次 `reload` 或启动时生效。
 
 ## 8. HTTP/2
@@ -693,10 +697,10 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `config proxy` | 写入顶层 `proxy` 段（`--trusted-proxies`、`--max-hops`、`--preserve-host`）；只重写 `proxy` 段、保留注释；全部传默认值删除该段；`--dry-run` 只打印；`config proxy show` 查看 |
 | `config validate` | 校验当前配置，或用 `--candidate` 校验一棵候选目录（`fast-https.json` + `conf.d`）；只校验，不应用；失败退出码 5；路径含 `..` 或符号链接逃出目录时退出码 2 |
 | `config versions` | 列出状态目录里的配置快照。版本号是 `vYYYY.MM.DD.N`（如 `v2026.11.18.1`，同一天递增），`active` 由当前磁盘配置树哈希决定，都不匹配则 `drift:true`。快照包含主配置、`conf.d` 与服务证书/私钥（不含 ACME 存储目录）；版本永久保留 |
-| `config versions delete <版本>` | 手动删除一个历史版本快照；当前 active 版本不能删，operation 记录保留。必须 `--yes` |
+| `config versions delete <版本>` | 手动删除一个历史版本快照；当前 active 版本不能删，operation 记录保留。`--dry-run` 只校验并显示会删除的版本。脚本/非终端中必须 `--yes`，终端中会询问 `y/N` |
 | `config diff --candidate` | 比较当前配置与候选目录、文件、版本号或操作 ID（`--current` 也可写版本号/操作 ID，用于对比两个历史版本）。候选是目录时比较整棵 JSON 树。敏感键只显示 `changed` |
-| `config apply --candidate` | 将候选目录受控应用到线上（校验、差异、临时备份、切换、reload、强验证；读不到 `/runtime` 时退回弱验证；失败则还原）。成功后自动保存结果快照。必须 `--yes`。`--dry-run` 不写正式文件、不 reload、不建快照 |
-| `config rollback --version\|--operation` | 回滚到历史版本或某个操作的结果。回滚复用目标快照（含证书），追加一条 operation，但不会新建版本；已有版本不删除。必须 `--yes` |
+| `config apply --candidate` | 将候选目录受控应用到线上（校验、差异、临时备份、切换、reload、强验证；读不到 `/runtime` 时退回弱验证；失败则还原）。成功后自动保存结果快照。脚本/非终端中必须 `--yes`，终端中会询问 `y/N`。`--dry-run` 不写正式文件、不 reload、不建快照 |
+| `config rollback --version\|--operation` | 回滚到历史版本或某个操作的结果。回滚复用目标快照（含证书），追加一条 operation，但不会新建版本；已有版本不删除。脚本/非终端中必须 `--yes`，终端中会询问 `y/N` |
 | `operation list` / `operation get` | 查询落盘的管理操作。`running` 且持有者进程已不在时对账为 `unknown` |
 | `cert list` | 按证书文件列出配置里各 ssl 站点声明的证书：域名、状态（`valid`、`expiring`、`expired`、`not_yet_valid`、`missing`、`unreadable`、`unknown`）、到期天数、颜发者、是否由 ACME 管理、被哪些站点使用；只读，不输出私钥内容与路径 |
 | `cert check --domain <域名>` | 检查该域名使用的证书：文件是否存在、有效期、是否覆盖该域名、证书与私钥是否配对。证书有问题也是成功的查询（退出码 0），域名不在任何 ssl 站点里退出码 9 |
@@ -706,14 +710,14 @@ Linux 包会安装 `/etc/logrotate.d/fast-https`：每天轮转、保留 14 份�
 | `diagnose` | 只读汇总健康检查。失败与不可用分开：`runtime` 读 `/runtime`（连不上为 warning）；`monitor` 读状态文件（未安装为 ok，过期为 warning）。配置有问题也退出码 0 |
 | `monitor status` | 只读 Monitor 的 `status.json`。文件不存在时 `status` 为 `not_installed`（退出码 0）；采集时间早于 30 秒为 `stale`。不连接 Monitor 进程，也不负责启停 |
 | `monitor events` | 只读 `events.jsonl`。`--since`、`--limit`（默认 100，上限 1000）、`--severity`（`info`、`warning`、`error`、`critical`）。坏行跳过并计数，事件文本只作为数据返回 |
-| `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`、`--symlink-policy`）。走配置事务，非 dry-run 必须 `--yes`。同名或同 `server_name` 退出码 10 |
+| `site add` | 受控新增站点（`--domain`、`--root` 或 `--proxy-pass`、`--listen`、`--tls`、`--symlink-policy`）。走配置事务，非 dry-run 在脚本/非终端中必须 `--yes`，终端中会询问 `y/N`。同名或同 `server_name` 退出码 10 |
 | `site update <name>` | 受控更新白名单字段（`--listen`、`--server-name`、`--root`、`--proxy-pass`、`--tls` 与主 location 高级配置，含 `--symlink-policy`）。内联主配置站点退出码 11 |
-| `site delete <name>` | 受控删除站点配置（不删内容目录与证书）。必须 `--yes` |
-| `site enable <name>` / `site disable <name>` | 把 `<name>.json` 与 `<name>.json.disabled` 互改并 reload。必须 `--yes` |
+| `site delete <name>` | 受控删除站点配置（不删内容目录与证书）。脚本/非终端中必须 `--yes`，终端中会询问 `y/N` |
+| `site enable <name>` / `site disable <name>` | 把 `<name>.json` 与 `<name>.json.disabled` 互改并 reload。可逆操作，不要求 `--yes` |
 | `site list` | 列出站点文件、监听、`server_name` 与 location 类型；加 `--json` 输出封套（含 `enabled`、`cert_status`） |
 | `site show <name>` | 打印站点文件原文；加 `--merged` 输出合并后的完整 server 块；加 `--json` 输出脱敏后的封套（文本模式仍打印原文，包含写在文件里的口令） |
 | `acme` | 交互式配置 ACME：问邮箱、CA、挑战方式，写回 `acme` 段 |
-| `acme setup` | 同 `acme`，可用 `--email`、`--ca`、`--challenge` 等 flags 非交互执行 |
+| `acme setup` | 同 `acme`，可用 `--email`、`--ca`、`--challenge` 等 flags 非交互执行。非交互且非 `--dry-run` 时脚本必须加 `--yes`，终端中会询问 `y/N` |
 | `acme show` | 打印生效的 ACME 配置（EAB 私钥脱敏）与会申请证书的域名 |
 
 三点行为需要留意：
@@ -776,7 +780,7 @@ FAST_HTTPS_LANG=en fast-https -h       # 英文
 - 相同的 `--request-id` 但参数不同：退出码 10，错误码 `REQUEST_ID_CONFLICT`。
 - 没传时 CLI 自己生成一个，并写进 JSON 的 `request_id` 和 operation 记录。
 
-`--dry-run` 不写正式配置、不 reload，默认也不建 operation。非 dry-run 的 `config apply`、`config rollback` 和受控站点写命令必须加 `--yes`（`--confirm` 同义）。
+`--dry-run` 不写正式配置、不 reload，默认也不建 operation。非 dry-run 的 `config apply`、`config rollback`、`config versions delete`、`cache add/update/delete`、`config proxy/tls`、`acme setup --non-interactive` 与受控站点写命令，在脚本/非终端中必须加 `--yes`；在终端里会先提示并读取 `y/N`，不需要手动加 `--yes`。终端里回答 `n` 表示取消，返回 `CANCELLED`（退出码 1），不会改动任何文件。`site enable/disable` 可逆，不需要确认。
 
 Unix 上，事务执行期间忽略 `SIGHUP` 与 `SIGPIPE`，避免 SSH 断开把正在写状态的进程杀掉。命令超时或调用方断开后，用响应里的 `operation_id` 执行 `operation get`。若记录仍是 `running` 而持有者进程已经不在，查询时会把它对账成 `unknown`。不要在状态未明时换一个新的 `--request-id` 再执行一次。
 

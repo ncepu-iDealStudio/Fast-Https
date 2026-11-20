@@ -53,7 +53,7 @@ func runTLS(t *testing.T, args ...string) (string, error) {
 
 func TestConfigTLSSetAndClear(t *testing.T) {
 	main, cert, key := tlsFixture(t)
-	if _, err := runTLS(t, "--config", main, "--cert", cert, "--key", key); err != nil {
+	if _, err := runTLS(t, "--config", main, "--cert", cert, "--key", key, "--yes"); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(main)
@@ -67,7 +67,7 @@ func TestConfigTLSSetAndClear(t *testing.T) {
 		t.Fatalf("注释丢了:\n%s", raw)
 	}
 
-	if _, err := runTLS(t, "--config", main, "--cert=", "--key="); err != nil {
+	if _, err := runTLS(t, "--config", main, "--cert=", "--key=", "--yes"); err != nil {
 		t.Fatal(err)
 	}
 	raw, err = os.ReadFile(main)
@@ -99,7 +99,7 @@ func TestConfigTLSNeedsFlags(t *testing.T) {
 
 func TestConfigTLSRejectsMissingFile(t *testing.T) {
 	main, cert, _ := tlsFixture(t)
-	_, err := runTLS(t, "--config", main, "--cert", cert, "--key", filepath.Join(filepath.Dir(cert), "absent.key"))
+	_, err := runTLS(t, "--config", main, "--cert", cert, "--key", filepath.Join(filepath.Dir(cert), "absent.key"), "--yes")
 	var ce *cli.CLIError
 	if !errors.As(err, &ce) || ce.Code != cli.CodeConfigInvalid {
 		t.Fatalf("私钥不存在应报配置错误，got %v", err)
@@ -133,7 +133,7 @@ func TestConfigTLSDryRun(t *testing.T) {
 
 func TestConfigTLSShow(t *testing.T) {
 	main, cert, key := tlsFixture(t)
-	if _, err := runTLS(t, "--config", main, "--cert", cert, "--key", key); err != nil {
+	if _, err := runTLS(t, "--config", main, "--cert", cert, "--key", key, "--yes"); err != nil {
 		t.Fatal(err)
 	}
 	out, err := runTLS(t, "show", "--config", main)

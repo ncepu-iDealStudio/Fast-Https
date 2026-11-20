@@ -32,6 +32,8 @@ const (
 	CodeRequestIDClash   = "REQUEST_ID_CONFLICT"
 	CodeUnmetDependency  = "UNMET_DEPENDENCY"
 	CodeNotSupported     = "NOT_SUPPORTED"
+	// CodeCancelled 表示用户在终端确认时选择了取消，不是程序内部错误。
+	CodeCancelled = "CANCELLED"
 )
 
 var exitCodes = map[string]int{
@@ -50,6 +52,7 @@ var exitCodes = map[string]int{
 	CodeRequestIDClash:   10,
 	CodeUnmetDependency:  11,
 	CodeNotSupported:     11,
+	CodeCancelled:        1,
 }
 
 // ExitCodes 返回错误码到退出码的映射副本。退出码是对外契约，

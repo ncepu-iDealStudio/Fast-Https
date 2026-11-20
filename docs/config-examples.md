@@ -170,7 +170,7 @@
 fast-https site add --domain example.com --root D:\www\site --listen 80 --yes
 
 # 给站点加 /api 反代（主 location 之外）
-fast-https site location add example.com --url /api --type proxy --proxy-pass http://127.0.0.1:8080
+fast-https site location add example.com --url /api --type proxy --proxy-pass http://127.0.0.1:8080 --yes
 
 # 查看站点全部 location
 fast-https site location list example.com

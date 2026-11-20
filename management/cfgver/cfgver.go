@@ -608,17 +608,13 @@ func newer(a, b Manifest) bool {
 	return a.CreatedAt > b.CreatedAt
 }
 
-// Delete 删除一个版本快照。active 版本不允许删除；operation 记录保留。
-func Delete(dir state.Dir, version, liveMain string) error {
+// ValidateDelete 校验版本是否可以删除：版本名合法、目录存在、不是 active。
+// dry-run 预览与真实删除共用这套前置条件，避免两边判断漂移。
+func ValidateDelete(dir state.Dir, version, liveMain string) error {
 	version = strings.TrimSpace(version)
 	if version == "" || version == "." || version == ".." || strings.ContainsAny(version, `/\`) {
 		return ErrVersionNotFound
 	}
-	release, err := dir.Lock()
-	if err != nil {
-		return err
-	}
-	defer release()
 	dest := filepath.Join(dir.SnapshotsDir(), version)
 	info, err := os.Stat(dest)
 	if err != nil || !info.IsDir() {
@@ -633,7 +629,20 @@ func Delete(dir state.Dir, version, liveMain string) error {
 			return ErrActiveVersion
 		}
 	}
-	return os.RemoveAll(dest)
+	return nil
+}
+
+// Delete 删除一个版本快照。active 版本不允许删除；operation 记录保留。
+func Delete(dir state.Dir, version, liveMain string) error {
+	release, err := dir.Lock()
+	if err != nil {
+		return err
+	}
+	defer release()
+	if err := ValidateDelete(dir, version, liveMain); err != nil {
+		return err
+	}
+	return os.RemoveAll(filepath.Join(dir.SnapshotsDir(), strings.TrimSpace(version)))
 }
 
 func currentUser() string {

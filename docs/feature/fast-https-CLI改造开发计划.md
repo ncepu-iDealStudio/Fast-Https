@@ -162,8 +162,8 @@ go build -o $fh .
 - 查询类命令「服务没在跑」是一次成功的查询：`service status` 返回 `ok:true`、`data.status:"stopped"`、退出码 0。旧的顶层 `status` 仍保持非零退出。
 - 字段取不到时省略并在 `warnings` 里说明，不填 0 或空串。
 - `--request-id` 只对修改命令有效；没传则由 CLI 生成并在响应里返回。
-- 确认标志：`--yes` 与 `--confirm` 同义（D3）。
-- 新增的所有写命令都必须支持 `--dry-run`，且 dry-run 不写正式配置、不发信号。
+- 确认标志：只使用 `--yes`（不提供 `--confirm` 别名）。脚本/非终端必须显式传入，终端询问 `y/N`；用户取消返回 `CANCELLED`（退出码 1），不按内部错误处理。
+- 新增的所有写命令都必须支持 `--dry-run`，且 dry-run 不写正式配置、不发信号、不要求确认。
 
 **新目录**：规范建议的管理核心放 `management/`，按子包拆分，并登记为分层测试里的新一层（只依赖 `infra`、`config`、`modules/site`、`modules/certmanager`，不能依赖 `runtime`、`core`、`cmd`）。`cmd` 负责解析参数与输出，业务逻辑放 `management/*`（规范 §0 第 4 条）。
 
@@ -726,8 +726,8 @@ Copy-Item .\config $env:TEMP\cand -Recurse -Force
 & $fh site add --domain demo.example --root .\httpdoc\root --listen "8081" --dry-run --json
 & $fh site add --domain demo.example --root .\httpdoc\root --listen "8081" --yes --request-id site-1 --json
 & $fh site list --json
-& $fh site disable demo.example --yes --json
-& $fh site enable demo.example --yes --json
+& $fh site disable demo.example --json
+& $fh site enable demo.example --json
 & $fh site delete demo.example --yes --json     # httpdoc\root 不受影响
 & $fh config rollback --version <删除前的版本> --yes --json   # 找回
 ```

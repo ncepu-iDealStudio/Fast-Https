@@ -31,7 +31,6 @@ type Options struct {
 	LocationType   string
 	TLS            bool
 	Force          bool
-	Yes            bool
 	Merged         bool
 	NonInteractive bool
 	// Changed 报告某个 flag 是否被显式传入。同名站点按"更新"处理时，
@@ -124,9 +123,6 @@ func OptionsFrom(cmd *cobra.Command, args []string) Options {
 	}
 	if v, err := flags.GetBool("force"); err == nil {
 		opts.Force = v
-	}
-	if v, err := flags.GetBool("yes"); err == nil {
-		opts.Yes = v
 	}
 	if v, err := flags.GetBool("merged"); err == nil {
 		opts.Merged = v

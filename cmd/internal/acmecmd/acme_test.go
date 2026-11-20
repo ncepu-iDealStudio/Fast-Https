@@ -3,6 +3,7 @@ package acmecmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fast-https/config"
 	"fast-https/modules/certmanager"
 	"fmt"
@@ -223,6 +224,58 @@ func TestAcmeSetupNonInteractiveWrites(t *testing.T) {
 	}
 	if len(cfg.CAs) != 1 || cfg.CAs[0].Name != "letsencrypt" {
 		t.Fatalf("cas = %+v", cfg.CAs)
+	}
+}
+
+func TestAcmeSetupNonInteractiveCancelKeepsFile(t *testing.T) {
+	path := tempACMEConfig(t)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	err = setupACME(defaultAcmeAnswers(), acmeOptions{
+		Path:           path,
+		NonInteractive: true,
+		Out:            &bytes.Buffer{},
+		Confirm: func(string) error {
+			calls++
+			return errors.New("已取消")
+		},
+	})
+	if err == nil {
+		t.Fatal("确认被拒绝后不应写盘")
+	}
+	if calls != 1 {
+		t.Fatalf("Confirm 调用 %d 次，want 1", calls)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("取消后配置被改动")
+	}
+}
+
+func TestAcmeSetupDryRunSkipsConfirm(t *testing.T) {
+	path := tempACMEConfig(t)
+	calls := 0
+	err := setupACME(defaultAcmeAnswers(), acmeOptions{
+		Path:           path,
+		NonInteractive: true,
+		DryRun:         true,
+		Out:            &bytes.Buffer{},
+		Confirm: func(string) error {
+			calls++
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("dry-run 不应确认，调用了 %d 次", calls)
 	}
 }
 

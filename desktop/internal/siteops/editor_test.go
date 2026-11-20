@@ -462,12 +462,12 @@ func TestExtraLocationHelpers(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := `{"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9000"}`
-	if len(args) != 6 || args[0] != "site" || args[1] != "location" || args[2] != "set" ||
-		args[3] != "web" || args[4] != "--location" || args[5] != want {
+	if len(args) != 7 || args[0] != "site" || args[1] != "location" || args[2] != "set" ||
+		args[3] != "web" || args[4] != "--location" || args[5] != want || args[6] != "--yes" {
 		t.Fatalf("args = %v", args)
 	}
 	// 空列表也要生成命令，交给 set 清空额外 location。
-	if args, _ = locationSetArgs("web", nil); len(args) != 4 {
+	if args, _ = locationSetArgs("web", nil); len(args) != 5 {
 		t.Fatalf("empty args = %v", args)
 	}
 

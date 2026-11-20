@@ -25,7 +25,7 @@ func addSiteWriteCommands(root *cobra.Command) {
 				"新建站点默认开启 br+gzip 压缩（阈值 1 KB，自动跳过图片/音视频/字体/压缩包），"+
 				"可用 --zip、--zip-min-length、--zip-skip-types 覆盖，--zip= 关闭。"+
 				"要用代理缓存时传 --cache-zone 引用主配置里已定义的缓存区。"+
-				"纯 flag 模式非 dry-run 必须 --yes；向导模式在最后一屏确认。",
+				"纯 flag 模式非 dry-run 需 --yes；在终端里会询问 y/N，向导模式在最后一屏确认。",
 			"Copy the live config tree, write the site file on the candidate, then apply it with the same transaction\n"+
 				"as config apply. With --domain everything comes from flags; without it, an interactive terminal enters the wizard.\n"+
 				"A duplicate name, or a server_name already served on the same listen port, exits with code 10 (the same domain on a different port is fine).\n"+
@@ -34,7 +34,7 @@ func addSiteWriteCommands(root *cobra.Command) {
 				"New sites get br+gzip compression by default (1 KB threshold, images/media/fonts/archives skipped);\n"+
 				"override with --zip, --zip-min-length, --zip-skip-types, or disable with --zip=.\n"+
 				"Pass --cache-zone to enable proxy caching with a zone defined in the main config.\n"+
-				"Flag mode requires --yes unless --dry-run; the wizard confirms at the end."),
+				"Flag mode needs --yes unless --dry-run; interactive terminals are asked y/N, and the wizard confirms at the end."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         RunAdd,
@@ -144,33 +144,36 @@ func addSiteWriteCommands(root *cobra.Command) {
 	for _, c := range []*cobra.Command{add, upd, del, dis, en} {
 		cli.AddConfigFlag(c)
 		c.Flags().Bool("dry-run", false, cli.T("只生成差异，不应用", "show the diff only, do not apply"))
-		c.Flags().Bool("yes", false, cli.T("确认执行（add/update/delete 非 dry-run 必填；disable/enable 不需要）",
-			"confirm (required for add/update/delete unless --dry-run; not needed for disable/enable)"))
 		root.AddCommand(c)
+	}
+	// enable/disable 只是改文件名、随时可逆，不注册 --yes，免得看起来需要确认。
+	for _, c := range []*cobra.Command{add, upd, del} {
+		c.Flags().Bool("yes", false, cli.T("确认执行（非 dry-run 时脚本必须显式传入；终端中会询问 y/N）",
+			"confirm (required in scripts unless --dry-run; interactive terminals are asked y/N)"))
 	}
 }
 
-func siteWriteYes(cmd *cobra.Command) error {
+func siteWriteYes(cmd *cobra.Command, action string) error {
 	dry, _ := cmd.Flags().GetBool("dry-run")
-	if dry || cli.Confirmed(cmd) {
+	if dry {
 		return nil
 	}
-	return cli.UsageError(fmt.Errorf("%s requires --yes; use --dry-run to preview", cmd.Name()))
+	return cli.ConfirmWrite(cmd, action)
 }
 func RunAdd(cmd *cobra.Command, _ []string) error {
 	live, _ := cmd.Flags().GetString("config")
 	dry, _ := cmd.Flags().GetBool("dry-run")
-	// 没给 --domain 时进向导：向导最后一屏本身就带确认，再要求 --yes
-	// 会让用户还没看到任何问题就被拦住，等于确认两次。纯 flag 模式
-	// 仍要显式确认，避免脚本误写。
-	if cmd.Flags().Changed("domain") {
-		if err := siteWriteYes(cmd); err != nil {
-			return err
-		}
-	}
 	in, err := collectAddInput(cmd, live, cli.BannedRoots(live))
 	if err != nil {
 		return err
+	}
+	// 没给 --domain 时进向导：向导最后一屏本身就带确认，再要求 --yes
+	// 会让用户还没看到任何问题就被拦住，等于确认两次。纯 flag 模式
+	// 仍要显式确认，避免脚本误写。确认放在输入校验之后，避免先问再报错。
+	if cmd.Flags().Changed("domain") {
+		if err := siteWriteYes(cmd, cli.T("新增站点 "+in.Domain, "add site "+in.Domain)); err != nil {
+			return err
+		}
 	}
 	return cli.RunTxn(cmd, "site.add", "site add "+in.Domain, map[string]string{"domain": in.Domain}, dry, func(_ string, dirs []string) error {
 		_, err := siteops.Add(dirs, in)
@@ -273,11 +276,9 @@ func collectAddInput(cmd *cobra.Command, live string, banned []string) (siteops.
 }
 
 func RunUpdate(cmd *cobra.Command, args []string) error {
-	if err := siteWriteYes(cmd); err != nil {
-		return err
-	}
+	name := strings.TrimSuffix(args[0], ".json")
 	live, _ := cmd.Flags().GetString("config")
-	in := siteops.UpdateInput{Name: strings.TrimSuffix(args[0], ".json"), Banned: cli.BannedRoots(live)}
+	in := siteops.UpdateInput{Name: name, Banned: cli.BannedRoots(live)}
 	changed := false
 	if cmd.Flags().Changed("listen") {
 		v, _ := cmd.Flags().GetStringArray("listen")
@@ -361,6 +362,10 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 	if !changed {
 		return cli.UsageError(fmt.Errorf("update requires at least one of --listen, --server-name, --root, --proxy-pass, --tls, --ssl-certificate, --ssl-certificate-key, --zip, --zip-min-length, --zip-skip-types, --limit-*, --auth-*, --cache-zone, --symlink-policy"))
 	}
+	// 确认放在参数校验之后：没写任何更新字段时直接报用法错误，不要让用户白确认一次。
+	if err := siteWriteYes(cmd, cli.T("更新站点 "+name, "update site "+name)); err != nil {
+		return err
+	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	return cli.RunTxn(cmd, "site.update", "site update "+in.Name, map[string]string{"name": in.Name}, dry, func(_ string, dirs []string) error {
 		_, err := siteops.Update(dirs, live, in)
@@ -369,10 +374,10 @@ func RunUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func RunDelete(cmd *cobra.Command, args []string) error {
-	if err := siteWriteYes(cmd); err != nil {
+	name := strings.TrimSuffix(args[0], ".json")
+	if err := siteWriteYes(cmd, cli.T("删除站点 "+name, "delete site "+name)); err != nil {
 		return err
 	}
-	name := strings.TrimSuffix(args[0], ".json")
 	live, _ := cmd.Flags().GetString("config")
 	dry, _ := cmd.Flags().GetBool("dry-run")
 	// 证书按域名落在 config/cert 下，删除站点时刻意保留：重建同名站点能直接

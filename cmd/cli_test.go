@@ -136,6 +136,7 @@ func TestExitCodeTable(t *testing.T) {
 		cli.CodeRequestIDClash:   10,
 		cli.CodeUnmetDependency:  11,
 		cli.CodeNotSupported:     11,
+		cli.CodeCancelled:        1,
 	}
 	for code, want := range cases {
 		if got := cli.ExitCode(cli.New(code, "x")); got != want {
@@ -159,6 +160,7 @@ func TestEveryErrorCodeHasExitCode(t *testing.T) {
 		cli.CodeInternal, cli.CodeUsage, cli.CodePermissionDenied, cli.CodeServiceDown, cli.CodeConfigInvalid,
 		cli.CodeOperationFailed, cli.CodeRecoveryRequired, cli.CodeOperationUnknown, cli.CodeTimeout,
 		cli.CodeNotFound, cli.CodeLogUnavailable, cli.CodeConflict, cli.CodeRequestIDClash, cli.CodeUnmetDependency, cli.CodeNotSupported,
+		cli.CodeCancelled,
 	} {
 		if _, ok := cli.ExitCodes()[code]; !ok {
 			t.Errorf("错误码 %s 没有退出码", code)

@@ -48,7 +48,7 @@ func TestConfigProxyIsRecorded(t *testing.T) {
 	t.Setenv("FASTHTTPS_STATE_DIR", stateDir)
 	main := proxyFixture(t)
 
-	if _, err := runProxy(t, "--config", main, "--max-hops", "5"); err != nil {
+	if _, err := runProxy(t, "--config", main, "--max-hops", "5", "--yes"); err != nil {
 		t.Fatal(err)
 	}
 	recs, err := operation.Store{Dir: state.Dir{Root: stateDir}}.List(operation.ListFilter{})
@@ -69,7 +69,7 @@ func TestConfigProxyIsRecorded(t *testing.T) {
 
 func TestConfigProxySetShowAndClear(t *testing.T) {
 	main := proxyFixture(t)
-	if _, err := runProxy(t, "--config", main, "--trusted-proxies", "10.0.0.0/8, 192.168.1.10", "--max-hops", "10", "--preserve-host=false", "--upstream-timeout", "45", "--tunnel-idle-timeout", "30"); err != nil {
+	if _, err := runProxy(t, "--config", main, "--trusted-proxies", "10.0.0.0/8, 192.168.1.10", "--max-hops", "10", "--preserve-host=false", "--upstream-timeout", "45", "--tunnel-idle-timeout", "30", "--yes"); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(main)
@@ -93,7 +93,7 @@ func TestConfigProxySetShowAndClear(t *testing.T) {
 	}
 
 	// 只改一项时其它值保留。
-	if _, err := runProxy(t, "--config", main, "--max-hops", "3"); err != nil {
+	if _, err := runProxy(t, "--config", main, "--max-hops", "3", "--yes"); err != nil {
 		t.Fatal(err)
 	}
 	out, err = runProxy(t, "show", "--config", main)
@@ -104,7 +104,7 @@ func TestConfigProxySetShowAndClear(t *testing.T) {
 		t.Fatalf("补丁覆盖了其它字段:\n%s", out)
 	}
 
-	if _, err := runProxy(t, "--config", main, "--trusted-proxies=", "--max-hops", "0", "--preserve-host", "--upstream-timeout", "0", "--tunnel-idle-timeout", "0"); err != nil {
+	if _, err := runProxy(t, "--config", main, "--trusted-proxies=", "--max-hops", "0", "--preserve-host", "--upstream-timeout", "0", "--tunnel-idle-timeout", "0", "--yes"); err != nil {
 		t.Fatal(err)
 	}
 	raw, err = os.ReadFile(main)
@@ -118,7 +118,7 @@ func TestConfigProxySetShowAndClear(t *testing.T) {
 
 func TestConfigProxyRejectsInvalidCIDR(t *testing.T) {
 	main := proxyFixture(t)
-	_, err := runProxy(t, "--config", main, "--trusted-proxies", "10.0.0.0/33")
+	_, err := runProxy(t, "--config", main, "--trusted-proxies", "10.0.0.0/33", "--yes")
 	var ce *cli.CLIError
 	if !errors.As(err, &ce) || ce.Code != cli.CodeConfigInvalid {
 		t.Fatalf("非法 CIDR 应报配置错误，got %v", err)

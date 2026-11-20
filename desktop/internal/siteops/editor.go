@@ -741,6 +741,8 @@ func locationSetArgs(id string, extras []model.SiteLocation) ([]string, error) {
 		}
 		args = append(args, "--location", string(value))
 	}
+	// 桌面端没有可交互终端，必须显式确认。
+	args = append(args, "--yes")
 	return args, nil
 }
 

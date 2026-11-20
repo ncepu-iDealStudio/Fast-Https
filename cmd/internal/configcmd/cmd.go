@@ -179,19 +179,18 @@ func newConfigVersionsDeleteCmd() *cobra.Command {
 		Short: cli.T("删除一个历史版本快照", "delete a historical version snapshot"),
 		Long: cli.T(
 			"删除一个版本快照目录。当前 active 版本不能删除；operation 记录保留，不会连带删除历史操作。\n"+
-				"版本号形如 v2026.11.18.1；旧的时间戳（20261118-141108-836）与 vNNN 也能识别。必须加 --yes。",
+				"版本号形如 v2026.11.18.1；旧的时间戳（20261118-141108-836）与 vNNN 也能识别。\n"+
+				"脚本中必须加 --yes；在终端里会先询问 y/N。",
 			"Delete a version snapshot directory. The active version cannot be deleted; operation records are kept.\n"+
 				"The version looks like v2026.11.18.1; legacy timestamps (20261118-141108-836) and vNNN are also accepted.\n"+
-				"--yes is required."),
+				"Scripts must pass --yes; interactive terminals are asked y/N first. --dry-run only validates and reports."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cli.Confirmed(cmd) {
-				return cli.UsageError(fmt.Errorf("delete requires --yes"))
-			}
 			path, _ := cmd.Flags().GetString("config")
+			dry, _ := cmd.Flags().GetBool("dry-run")
 			version := strings.TrimSpace(args[0])
-			if err := cfgver.Delete(cli.StateDir(), version, path); err != nil {
+			mapErr := func(err error) error {
 				switch {
 				case errors.Is(err, cfgver.ErrActiveVersion):
 					return &cli.CLIError{Code: cli.CodeConflict, Command: "config.versions.delete", Message: "cannot delete the active version: " + version, Cause: err}
@@ -201,6 +200,23 @@ func newConfigVersionsDeleteCmd() *cobra.Command {
 					return cli.FromStateError("config.versions.delete", err)
 				}
 			}
+			// 先校验再确认：版本不存在或仍是 active 时直接报错，不让用户白确认一次。
+			if err := cfgver.ValidateDelete(cli.StateDir(), version, path); err != nil {
+				return mapErr(err)
+			}
+			if dry {
+				if cli.JSONMode(cmd) {
+					return cli.EmitOK(cmd, "config.versions.delete", map[string]any{"version": version, "deleted": false, "dry_run": true}, nil)
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), cli.T("将删除版本 %s（dry-run，未改动）\n", "would delete version %s (dry-run, nothing changed)\n"), version)
+				return nil
+			}
+			if err := cli.ConfirmWrite(cmd, cli.T("删除版本 "+version, "delete version "+version)); err != nil {
+				return err
+			}
+			if err := cfgver.Delete(cli.StateDir(), version, path); err != nil {
+				return mapErr(err)
+			}
 			if cli.JSONMode(cmd) {
 				return cli.EmitOK(cmd, "config.versions.delete", map[string]any{"version": version, "deleted": true}, nil)
 			}
@@ -209,7 +225,8 @@ func newConfigVersionsDeleteCmd() *cobra.Command {
 		},
 	}
 	cli.AddConfigFlag(c)
-	c.Flags().Bool("yes", false, cli.T("确认删除", "confirm deletion"))
+	c.Flags().Bool("dry-run", false, cli.T("只校验并显示会删除的版本，不删目录", "validate and show the version that would be deleted"))
+	c.Flags().Bool("yes", false, cli.T("确认删除（脚本中非 dry-run 必填；终端中会询问 y/N）", "confirm deletion (required in scripts; interactive terminals are asked y/N)"))
 	return c
 }
 
@@ -347,10 +364,10 @@ func newConfigApplyCmd() *cobra.Command {
 		Short: cli.T("将候选配置目录受控应用到线上", "apply a candidate config directory under management control"),
 		Long: cli.T(
 			"校验候选目录、生成差异、备份、切换配置、reload。读得到 /runtime 时做强验证，否则退回弱验证。失败则从临时备份还原。\n"+
-				"必须加 --yes。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建快照。成功后自动保存结果快照。",
+				"脚本中必须加 --yes；在终端里会先询问 y/N。--dry-run 只输出校验与差异，不写正式文件、不 reload、不建快照。成功后自动保存结果快照。",
 			"Validate the candidate directory, diff it, back up, switch files, reload, and verify.\n"+
 				"When /runtime is reachable the check is strong; otherwise it falls back to a basic process/port check.\n"+
-				"Failure restores from a temporary backup. --yes is required.\n"+
+				"Failure restores from a temporary backup. Scripts must pass --yes; interactive terminals are asked y/N first.\n"+
 				"--dry-run only reports validation and the diff; it writes nothing, does not reload, and creates no snapshot.\n"+
 				"On success a result snapshot is saved automatically."),
 		Args:         cobra.NoArgs,
@@ -360,7 +377,7 @@ func newConfigApplyCmd() *cobra.Command {
 	cli.AddConfigFlag(c)
 	c.Flags().String("candidate", "", cli.T("候选配置目录（必填）", "candidate config directory (required)"))
 	c.Flags().Bool("dry-run", false, cli.T("只校验与展示差异，不应用", "validate and show the diff only, do not apply"))
-	c.Flags().Bool("yes", false, cli.T("确认执行（非 dry-run 必填）", "confirm the apply (required unless --dry-run)"))
+	c.Flags().Bool("yes", false, cli.T("确认执行（脚本中非 dry-run 必填；终端中会询问 y/N）", "confirm the apply (required in scripts; interactive terminals are asked y/N)"))
 	return c
 }
 
@@ -371,12 +388,12 @@ func newConfigRollbackCmd() *cobra.Command {
 		Long: cli.T(
 			"回滚复用目标版本的快照（主配置、conf.d 与服务证书），再走与 apply 相同的事务，不会新建版本。\n"+
 				"目标可以是版本号（v2026.11.18.1）或操作 ID（op_...），二选一。\n"+
-				"回滚会在操作记录里留一条 config.rollback，方便审计，但版本列表不把它当成新版本。必须加 --yes。",
+				"回滚会在操作记录里留一条 config.rollback，方便审计，但版本列表不把它当成新版本。脚本中必须加 --yes；在终端里会先询问 y/N。",
 			"Rollback reuses the target version snapshot (main config, conf.d, and service certificates)\n"+
 				"and runs the same transaction as apply. It never creates a new version.\n"+
 				"The target is either a version (v2026.11.18.1) or an operation id (op_...).\n"+
 				"Rollback leaves a config.rollback entry in the operation log for auditing, but the version list\n"+
-				"does not treat it as a new version. --yes is required."),
+				"does not treat it as a new version. Scripts must pass --yes; interactive terminals are asked y/N first."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         runConfigRollback,
@@ -385,7 +402,7 @@ func newConfigRollbackCmd() *cobra.Command {
 	c.Flags().String("version", "", cli.T("目标版本号，例如 v2026.11.18.1（与 --operation 二选一）", "target version, e.g. v2026.11.18.1 (either this or --operation)"))
 	c.Flags().String("operation", "", cli.T("目标操作 ID，例如 op_20261118_001（与 --version 二选一）", "target operation id, e.g. op_20261118_001 (either this or --version)"))
 	c.Flags().Bool("dry-run", false, cli.T("只校验与展示差异，不回滚", "validate and show the diff only, do not roll back"))
-	c.Flags().Bool("yes", false, cli.T("确认执行（非 dry-run 必填）", "confirm the rollback (required unless --dry-run)"))
+	c.Flags().Bool("yes", false, cli.T("确认执行（脚本中非 dry-run 必填；终端中会询问 y/N）", "confirm the rollback (required in scripts; interactive terminals are asked y/N)"))
 	return c
 }
 func runConfigApply(cmd *cobra.Command, _ []string) error {
@@ -394,8 +411,10 @@ func runConfigApply(cmd *cobra.Command, _ []string) error {
 		return cli.UsageError(fmt.Errorf("--candidate is required"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
-	if !dry && !cli.Confirmed(cmd) {
-		return cli.UsageError(fmt.Errorf("apply requires --yes; use --dry-run to preview"))
+	if !dry {
+		if err := cli.ConfirmWrite(cmd, cli.T("应用配置", "apply config")); err != nil {
+			return err
+		}
 	}
 	live, _ := cmd.Flags().GetString("config")
 	return runTxn(cmd, "config.apply", txn.Input{
@@ -416,8 +435,14 @@ func runConfigRollback(cmd *cobra.Command, _ []string) error {
 		return cli.UsageError(fmt.Errorf("exactly one of --version or --operation is required"))
 	}
 	dry, _ := cmd.Flags().GetBool("dry-run")
-	if !dry && !cli.Confirmed(cmd) {
-		return cli.UsageError(fmt.Errorf("rollback requires --yes; use --dry-run to preview"))
+	if !dry {
+		target := ver
+		if target == "" {
+			target = opID
+		}
+		if err := cli.ConfirmWrite(cmd, cli.T("回滚配置到 "+target, "roll back config to "+target)); err != nil {
+			return err
+		}
 	}
 	if opID != "" {
 		rec, err := operation.Store{Dir: cli.StateDir()}.Get(opID)

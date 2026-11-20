@@ -28,7 +28,7 @@ func newConfigProxyCmd() *cobra.Command {
 				"--upstream-timeout 是代理到上游的整体超时（秒），0 表示默认 20 秒。\n"+
 				"--tunnel-idle-timeout 是 websocket / tcp 隧道的空闲断开时间（秒），0 表示不断开。\n\n"+
 				"五项都回到默认值时删除整个 proxy 段。只改写 proxy 段，注释与其它字段原样保留。\n"+
-				"新配置在下次 reload 或启动时生效；不自动 reload。",
+				"新配置在下次 reload 或启动时生效；不自动 reload。脚本中非 dry-run 必须加 --yes；在终端里会先询问 y/N。",
 			"Write the top-level proxy section. By default only the real client address is appended;\n"+
 				"an inbound X-Forwarded-For is kept only when the peer matches trusted_proxies.\n\n"+
 				"--trusted-proxies accepts IPs or CIDRs, comma separated; an empty value clears it.\n"+
@@ -39,7 +39,8 @@ func newConfigProxyCmd() *cobra.Command {
 				"--tunnel-idle-timeout closes an idle websocket / tcp tunnel after N seconds; 0 disables it.\n\n"+
 				"When all five are back to defaults the whole proxy section is removed. Only the proxy\n"+
 				"section is rewritten; comments and other fields are preserved.\n"+
-				"The change takes effect on the next reload or restart; no reload is triggered."),
+				"The change takes effect on the next reload or restart; no reload is triggered.\n"+
+				"Unless --dry-run, scripts must pass --yes; interactive terminals are asked y/N first."),
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE:         runConfigProxySet,
@@ -51,6 +52,7 @@ func newConfigProxyCmd() *cobra.Command {
 	c.Flags().Int("upstream-timeout", 0, cli.T("代理到上游的超时（秒），0 表示默认 20 秒", "upstream timeout in seconds; 0 uses the default 20s"))
 	c.Flags().Int("tunnel-idle-timeout", 0, cli.T("websocket / tcp 隧道空闲断开时间（秒），0 表示不断开", "idle timeout for websocket / tcp tunnels in seconds; 0 disables it"))
 	c.Flags().Bool("dry-run", false, cli.T("只打印改写后的配置，不写盘", "print the patched config instead of writing it"))
+	c.Flags().Bool("yes", false, cli.T("确认写入（非 dry-run 时，脚本必须显式传入；终端中会询问 y/N）", "confirm the write (required in scripts; interactive terminals are asked y/N)"))
 
 	show := &cobra.Command{
 		Use:          "show",
@@ -116,6 +118,9 @@ func runConfigProxySet(cmd *cobra.Command, _ []string) error {
 	if dryRun {
 		fmt.Fprint(cmd.OutOrStdout(), string(patched))
 		return nil
+	}
+	if err := cli.ConfirmWrite(cmd, cli.T("写入 proxy 配置", "write proxy config")); err != nil {
+		return err
 	}
 	// 与 site.* 一样走配置事务：候选树里改主配置 proxy 段，校验、临时备份、
 	// 原子切换与 operation 记录都由事务引擎负责。

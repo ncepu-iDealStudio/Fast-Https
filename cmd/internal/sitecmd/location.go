@@ -51,9 +51,11 @@ func newLocationAddCmd() *cobra.Command {
 		Short: cli.T("新增一个额外 location", "add an extra location"),
 		Long: cli.T(
 			"新增额外 location。--type proxy 需要 --proxy-pass；--type local 需要 --root（绝对路径）。\n"+
-				"路径必须以 / 开头，且不能与已有 location 重复；主 location / 请用 site update 修改。",
+				"路径必须以 / 开头，且不能与已有 location 重复；主 location / 请用 site update 修改。\n"+
+				"非 dry-run 在脚本里必须加 --yes；在终端里会先询问 y/N。",
 			"Add an extra location. --type proxy requires --proxy-pass; --type local requires an absolute --root.\n"+
-				"The path must start with / and must not duplicate an existing location; the main / belongs to site update."),
+				"The path must start with / and must not duplicate an existing location; the main / belongs to site update.\n"+
+				"Unless --dry-run, scripts must pass --yes; interactive terminals are asked y/N first."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE:         runLocationAdd,
@@ -64,6 +66,7 @@ func newLocationAddCmd() *cobra.Command {
 	c.Flags().String("root", "", cli.T("静态根目录（type=local，绝对路径）", "static root (type=local, absolute path)"))
 	c.Flags().String("proxy-pass", "", cli.T("上游地址，例如 http://127.0.0.1:9000", "upstream, e.g. http://127.0.0.1:9000"))
 	c.Flags().Bool("dry-run", false, cli.T("只校验与展示差异，不写盘", "validate and show the diff only"))
+	c.Flags().Bool("yes", false, cli.T("确认新增（非 dry-run 时，脚本必须显式传入；终端中会询问 y/N）", "confirm the add (required in scripts; interactive terminals are asked y/N)"))
 	return c
 }
 
@@ -71,7 +74,7 @@ func newLocationUpdateCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:          "update <site>",
 		Short:        cli.T("修改一个额外 location", "update an extra location"),
-		Long:         cli.T("按 --url 定位，只改显式给出的 --type / --root / --proxy-pass。", "Located by --url; only the given --type / --root / --proxy-pass are changed."),
+		Long:         cli.T("按 --url 定位，只改显式给出的 --type / --root / --proxy-pass。非 dry-run 在脚本里必须加 --yes；在终端里会先询问 y/N。", "Located by --url; only the given --type / --root / --proxy-pass are changed. Unless --dry-run, scripts must pass --yes; interactive terminals are asked y/N first."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE:         runLocationUpdate,
@@ -82,6 +85,7 @@ func newLocationUpdateCmd() *cobra.Command {
 	c.Flags().String("root", "", cli.T("新的静态根目录（type=local）", "new static root (type=local)"))
 	c.Flags().String("proxy-pass", "", cli.T("新的上游地址（type=proxy）", "new upstream (type=proxy)"))
 	c.Flags().Bool("dry-run", false, cli.T("只校验与展示差异，不写盘", "validate and show the diff only"))
+	c.Flags().Bool("yes", false, cli.T("确认修改（非 dry-run 时，脚本必须显式传入；终端中会询问 y/N）", "confirm the update (required in scripts; interactive terminals are asked y/N)"))
 	return c
 }
 
@@ -89,7 +93,7 @@ func newLocationDeleteCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:          "delete <site>",
 		Short:        cli.T("删除一个额外 location", "delete an extra location"),
-		Long:         cli.T("按 --url 删除额外 location；主 location / 不允许删除。必须加 --yes。", "Delete an extra location by --url; the main / cannot be deleted. --yes is required."),
+		Long:         cli.T("按 --url 删除额外 location；主 location / 不允许删除。非 dry-run 需 --yes，终端中会询问 y/N。", "Delete an extra location by --url; the main / cannot be deleted. --yes is required unless --dry-run; interactive terminals are asked y/N."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE:         runLocationDelete,
@@ -107,7 +111,7 @@ func newLocationSetCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:          "set <site>",
 		Short:        cli.T("整体替换站点的额外 location", "replace all extra locations of a site"),
-		Long:         cli.T("主 location / 保持不动；--location 可重复，不传表示清空额外 location。", "The main / stays untouched; --location is repeatable and an empty list clears extra locations."),
+		Long:         cli.T("主 location / 保持不动；--location 可重复，不传表示清空额外 location。非 dry-run 在脚本里必须加 --yes；在终端里会先询问 y/N。", "The main / stays untouched; --location is repeatable and an empty list clears extra locations. Unless --dry-run, scripts must pass --yes; interactive terminals are asked y/N first."),
 		Args:         cobra.ExactArgs(1),
 		SilenceUsage: true,
 		RunE:         runLocationSet,
@@ -115,6 +119,7 @@ func newLocationSetCmd() *cobra.Command {
 	cli.AddConfigFlag(c)
 	c.Flags().StringArray("location", nil, cli.T(`额外 location 的 JSON，例如 {"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9000"}`, `extra location JSON, e.g. {"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9000"}`))
 	c.Flags().Bool("dry-run", false, cli.T("只校验与展示差异，不写盘", "validate and show the diff only"))
+	c.Flags().Bool("yes", false, cli.T("确认保存（非 dry-run 时，脚本必须显式传入；终端中会询问 y/N）", "confirm the save (required in scripts; interactive terminals are asked y/N)"))
 	return c
 }
 
@@ -130,6 +135,9 @@ func runLocationSet(cmd *cobra.Command, args []string) error {
 			return cli.UsageError(fmt.Errorf("invalid --location JSON %q: %w", raw, err))
 		}
 		extras = append(extras, loc)
+	}
+	if err := locationWriteYes(cmd, cli.T("整体替换站点 "+name+" 的额外路径", "replace extra locations of site "+name)); err != nil {
+		return err
 	}
 	return cli.RunTxn(cmd, "site.location.set", "site location set "+name,
 		map[string]string{"site": name, "locations": strings.Join(rawLocs, "\n")}, dry,
@@ -177,6 +185,9 @@ func runLocationAdd(cmd *cobra.Command, args []string) error {
 		Site: name, URL: url, Type: typ, Root: rootFlag, ProxyPass: pass,
 		Banned: cli.BannedRoots(live),
 	}
+	if err := locationWriteYes(cmd, cli.T("在站点 "+name+" 新增路径 "+strings.TrimSpace(url), "add location "+strings.TrimSpace(url)+" to site "+name)); err != nil {
+		return err
+	}
 	return cli.RunTxn(cmd, "site.location.add", "site location add "+name+" "+strings.TrimSpace(url),
 		map[string]string{"site": name, "url": url, "type": typ}, dry,
 		func(_ string, dirs []string) error {
@@ -203,6 +214,9 @@ func runLocationUpdate(cmd *cobra.Command, args []string) error {
 		v, _ := cmd.Flags().GetString("proxy-pass")
 		in.ProxyPass = &v
 	}
+	if err := locationWriteYes(cmd, cli.T("更新站点 "+name+" 的路径 "+strings.TrimSpace(url), "update location "+strings.TrimSpace(url)+" of site "+name)); err != nil {
+		return err
+	}
 	return cli.RunTxn(cmd, "site.location.update", "site location update "+name+" "+strings.TrimSpace(url),
 		map[string]string{"site": name, "url": url}, dry,
 		func(_ string, dirs []string) error {
@@ -211,14 +225,27 @@ func runLocationUpdate(cmd *cobra.Command, args []string) error {
 		})
 }
 
-func runLocationDelete(cmd *cobra.Command, args []string) error {
-	if !cli.Confirmed(cmd) {
-		return cli.UsageError(fmt.Errorf("location delete requires --yes"))
+// locationWriteYes 与 siteWriteYes 同义：dry-run 不需要确认；非 dry-run 时
+// 终端里问 y/N，非终端（脚本、桌面端）要求显式 --yes。
+func locationWriteYes(cmd *cobra.Command, action string) error {
+	dry, _ := cmd.Flags().GetBool("dry-run")
+	if dry {
+		return nil
 	}
+	return cli.ConfirmWrite(cmd, action)
+}
+
+func runLocationDelete(cmd *cobra.Command, args []string) error {
 	live, _ := cmd.Flags().GetString("config")
 	name := strings.TrimSuffix(strings.TrimSpace(args[0]), ".json")
 	url, _ := cmd.Flags().GetString("url")
 	dry, _ := cmd.Flags().GetBool("dry-run")
+	if err := locationWriteYes(cmd, cli.T(
+		"删除站点 "+name+" 的路径 "+strings.TrimSpace(url),
+		"delete location "+strings.TrimSpace(url)+" of site "+name,
+	)); err != nil {
+		return err
+	}
 	return cli.RunTxn(cmd, "site.location.delete", "site location delete "+name+" "+strings.TrimSpace(url),
 		map[string]string{"site": name, "url": url}, dry,
 		func(_ string, dirs []string) error {

@@ -37,6 +37,12 @@ func writeEnv(t *testing.T) (mainPath, sites string) {
 
 func runCache(t *testing.T, mainPath string, args ...string) (string, error) {
 	t.Helper()
+	// 测试进程没有交互终端，写命令必须显式 --yes。
+	return runCacheRaw(t, mainPath, append(args, "--yes")...)
+}
+
+func runCacheRaw(t *testing.T, mainPath string, args ...string) (string, error) {
+	t.Helper()
 	cmd := NewCacheCmd()
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -49,6 +55,10 @@ func runCache(t *testing.T, mainPath string, args ...string) (string, error) {
 func TestCacheAddListDelete(t *testing.T) {
 	mainPath, _ := writeEnv(t)
 
+	if _, err := runCacheRaw(t, mainPath, "add", "--name", "edge", "--path", "./cache/edge",
+		"--valid", "200:10m"); err == nil {
+		t.Fatal("非终端写操作应要求 --yes")
+	}
 	if _, err := runCache(t, mainPath, "add", "--name", "edge", "--path", "./cache/edge",
 		"--valid", "200:10m", "--valid", "any:30s", "--max-size", "1024"); err != nil {
 		t.Fatalf("add: %v", err)

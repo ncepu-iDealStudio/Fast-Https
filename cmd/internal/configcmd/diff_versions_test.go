@@ -3,11 +3,14 @@ package configcmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"fast-https/cmd/internal/cli"
 	"fast-https/management/cfgdiff"
 	"fast-https/management/cfgver"
 	"fast-https/management/operation"
@@ -59,6 +62,104 @@ func TestConfigDiffBetweenVersions(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("v001 → v002 应显示 cache 被删除：%+v", res.Changes)
+	}
+}
+
+// versions delete --dry-run 只校验和预览，不删目录、不要求确认。
+func TestConfigVersionsDeleteDryRunKeepsSnapshot(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("FASTHTTPS_STATE_DIR", stateDir)
+	main := filepath.Join(t.TempDir(), "fast-https.json")
+	if err := os.WriteFile(main, []byte(`{"log_root":"./logs"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st := state.Dir{Root: stateDir}
+	man, err := cfgver.SnapshotWithCerts(st, main, filepath.Join(stateDir, "cert"), "one", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 改动 live 配置，让该快照不再是 active。
+	if err := os.WriteFile(main, []byte(`{"log_root":"./logs2"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewConfigCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetIn(strings.NewReader(""))
+	cmd.SetArgs([]string{"versions", "delete", man.Version, "--dry-run", "--config", main})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("dry-run: %v\n%s", err, out.String())
+	}
+	if _, err := os.Stat(cfgver.VersionDir(st, man.Version)); err != nil {
+		t.Fatalf("dry-run 不应删除快照目录: %v", err)
+	}
+	if !strings.Contains(out.String(), "dry-run") {
+		t.Fatalf("dry-run 输出应说明未改动：%s", out.String())
+	}
+}
+
+// active 版本即使带 --dry-run 也必须报冲突，与真实删除保持同一套前置校验。
+func TestConfigVersionsDeleteDryRunRejectsActive(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("FASTHTTPS_STATE_DIR", stateDir)
+	main := filepath.Join(t.TempDir(), "fast-https.json")
+	if err := os.WriteFile(main, []byte(`{"log_root":"./logs"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st := state.Dir{Root: stateDir}
+	man, err := cfgver.SnapshotWithCerts(st, main, filepath.Join(stateDir, "cert"), "one", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewConfigCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetIn(strings.NewReader(""))
+	cmd.SetArgs([]string{"versions", "delete", man.Version, "--dry-run", "--config", main})
+	err = cmd.Execute()
+	var ce *cli.CLIError
+	if !errors.As(err, &ce) || ce.Code != cli.CodeConflict {
+		t.Fatalf("err = %v, want CONFLICT", err)
+	}
+	if _, statErr := os.Stat(cfgver.VersionDir(st, man.Version)); statErr != nil {
+		t.Fatalf("冲突时不应删除快照目录: %v", statErr)
+	}
+}
+
+// 非终端删除必须显式 --yes。
+func TestConfigVersionsDeleteNonTerminalNeedsYes(t *testing.T) {
+	stateDir := t.TempDir()
+	t.Setenv("FASTHTTPS_STATE_DIR", stateDir)
+	main := filepath.Join(t.TempDir(), "fast-https.json")
+	if err := os.WriteFile(main, []byte(`{"log_root":"./logs"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st := state.Dir{Root: stateDir}
+	man, err := cfgver.SnapshotWithCerts(st, main, filepath.Join(stateDir, "cert"), "one", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(main, []byte(`{"log_root":"./logs2"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := NewConfigCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetIn(strings.NewReader(""))
+	cmd.SetArgs([]string{"versions", "delete", man.Version, "--config", main})
+	err = cmd.Execute()
+	var ce *cli.CLIError
+	if !errors.As(err, &ce) || ce.Code != cli.CodeUsage {
+		t.Fatalf("err = %v, want USAGE_ERROR", err)
+	}
+	if _, statErr := os.Stat(cfgver.VersionDir(st, man.Version)); statErr != nil {
+		t.Fatalf("拒绝后不应删除快照目录: %v", statErr)
 	}
 }
 

@@ -31,14 +31,14 @@
 }
 ```
 
-全局标志：`--json`（机器输出）、`--timeout`、修改类命令的 `--request-id`；破坏性写操作需 `--yes`（`--confirm` 同义），`--dry-run` 不写生产状态。
+全局标志：`--json`（机器输出）、`--timeout`、修改类命令的 `--request-id`；破坏性写操作在脚本/非终端中需 `--yes`，在终端里会先提示并读取 `y/N`，`--dry-run` 不写生产状态、也不要求确认。`--yes` 是唯一确认标志；终端里选择取消时返回 `CANCELLED`（退出码 1）。
 
 ## 退出码（管理类命令）
 
 | 码 | 典型 `error.code` | 含义 |
 |---:|---|---|
 | 0 | — | 成功 |
-| 1 | `INTERNAL` 等 | 未分类内部错误 |
+| 1 | `INTERNAL`、`CANCELLED` 等 | 未分类内部错误 / 用户在确认提示中取消 |
 | 2 | `USAGE` | 参数或用法错误 |
 | 3 | `PERMISSION_DENIED` | 权限不足 |
 | 4 | `SERVICE_UNREACHABLE` | 服务未运行或端点不可达 |

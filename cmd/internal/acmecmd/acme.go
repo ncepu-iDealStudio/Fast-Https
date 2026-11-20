@@ -53,6 +53,9 @@ type acmeOptions struct {
 	Accessible bool
 	In         io.Reader
 	Out        io.Writer
+	// Confirm 是非交互路径的写盘确认回调：非交互模式没有向导末屏的确认，
+	// 由命令层注入 cli.ConfirmWrite（终端问 y/N，脚本要求 --yes）。
+	Confirm func(action string) error
 }
 
 func NewAcmeCmd() *cobra.Command {
@@ -109,6 +112,7 @@ func registerAcmeSetupFlags(c *cobra.Command) {
 	f.String("storage", config.ACMECertStorageDir, cli.T("ACME 账户与订单缓存的目录", "directory for the ACME account and order cache"))
 	f.Bool("fallback-self-signed", true, cli.T("签发失败时继续用自签证书", "keep serving the self-signed certificate when issuance fails"))
 	f.Bool("non-interactive", false, cli.T("全部取值来自参数，不做任何提问", "take every value from flags, never prompt"))
+	f.Bool("yes", false, cli.T("确认写入（非交互且非 dry-run 时必填；终端中会询问 y/N）", "confirm the write (required for non-interactive runs; interactive terminals are asked y/N)"))
 	f.Bool("plain", false, cli.T("使用逐行问答代替全屏表单", "plain line-by-line prompts instead of the full-screen form"))
 	f.Bool("dry-run", false, cli.T("打印将要写入的配置而不是写盘", "print the patched config instead of writing it"))
 	f.String("config", config.CONFIG_FILE_PATH, cli.T("要改写的配置文件", "config file to patch"))
@@ -145,6 +149,7 @@ func runAcmeSetup(cmd *cobra.Command) error {
 		NonInteractive: nonInteractive || !cli.InteractiveAvailable(),
 		In:             cmd.InOrStdin(),
 		Out:            cmd.OutOrStdout(),
+		Confirm:        func(action string) error { return cli.ConfirmWrite(cmd, action) },
 	}
 	return setupACME(answers, opts)
 }
@@ -175,6 +180,13 @@ func setupACME(answers acmeAnswers, opts acmeOptions) error {
 	cfg, err := answers.buildConfig()
 	if err != nil {
 		return err
+	}
+
+	// 非交互模式没有向导的末屏确认：参数校验通过后、写盘前补一次确认。
+	if opts.NonInteractive && !opts.DryRun && opts.Confirm != nil {
+		if err := opts.Confirm(cli.T("写入 acme 配置", "write acme config")); err != nil {
+			return err
+		}
 	}
 
 	if opts.DryRun {

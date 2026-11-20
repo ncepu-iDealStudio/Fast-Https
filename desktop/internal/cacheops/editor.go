@@ -49,7 +49,7 @@ func Add(dir string, z model.CacheZone) (string, error) {
 	z.Path = pathutil.Compact(dir, z.Path)
 	args := []string{"cache", "add", "--name", strings.TrimSpace(z.Name), "--path", strings.TrimSpace(z.Path)}
 	args = append(args, zoneArgs(z)...)
-	saveArgs := append(args, "--max-size", strconv.Itoa(z.MaxSize))
+	saveArgs := append(args, "--max-size", strconv.Itoa(z.MaxSize), "--yes")
 	_, _, err := cli.RunJSON[any](dir, saveArgs...)
 	if err != nil {
 		return "", fmt.Errorf("%s", cli.FriendlyError(err, strings.Join(saveArgs, " ")))
@@ -69,7 +69,7 @@ func Save(dir, name string, z model.CacheZone) (string, error) {
 	z.Path = pathutil.Compact(dir, z.Path)
 	args := []string{"cache", "update", name, "--path", strings.TrimSpace(z.Path)}
 	args = append(args, zoneArgs(z)...)
-	saveArgs := append(args, "--max-size", strconv.Itoa(z.MaxSize))
+	saveArgs := append(args, "--max-size", strconv.Itoa(z.MaxSize), "--yes")
 	_, _, err := cli.RunJSON[any](dir, saveArgs...)
 	if err != nil {
 		return "", fmt.Errorf("%s", cli.FriendlyError(err, strings.Join(saveArgs, " ")))
@@ -88,6 +88,7 @@ func Delete(dir, name string, purge bool) (string, error) {
 	if purge {
 		args = append(args, "--purge")
 	}
+	args = append(args, "--yes")
 	_, _, err := cli.RunJSON[any](dir, args...)
 	if err != nil {
 		return "", fmt.Errorf("%s", cli.FriendlyError(err, strings.Join(args, " ")))

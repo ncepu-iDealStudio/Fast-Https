@@ -29,7 +29,11 @@ func TestLocationCLI(t *testing.T) {
 	path := filepath.Join(includeDir, "web.json")
 
 	if _, err := runSiteSubcmd(t, mainPath, "location", "add", "web",
-		"--url", "/api", "--type", "proxy", "--proxy-pass", "http://127.0.0.1:9000"); err != nil {
+		"--url", "/api", "--type", "proxy", "--proxy-pass", "http://127.0.0.1:9000"); err == nil {
+		t.Fatal("location add 非终端应要求 --yes")
+	}
+	if _, err := runSiteSubcmd(t, mainPath, "location", "add", "web",
+		"--url", "/api", "--type", "proxy", "--proxy-pass", "http://127.0.0.1:9000", "--yes"); err != nil {
 		t.Fatalf("location add: %v", err)
 	}
 	locs := readLocations(t, path)
@@ -38,12 +42,12 @@ func TestLocationCLI(t *testing.T) {
 	}
 
 	if _, err := runSiteSubcmd(t, mainPath, "location", "add", "web",
-		"--url", "/api", "--type", "proxy", "--proxy-pass", "http://127.0.0.1:9001"); err == nil {
+		"--url", "/api", "--type", "proxy", "--proxy-pass", "http://127.0.0.1:9001", "--yes"); err == nil {
 		t.Fatal("重复 url 应拒绝")
 	}
 
 	if _, err := runSiteSubcmd(t, mainPath, "location", "update", "web",
-		"--url", "/api", "--proxy-pass", "http://127.0.0.1:9100"); err != nil {
+		"--url", "/api", "--proxy-pass", "http://127.0.0.1:9100", "--yes"); err != nil {
 		t.Fatalf("location update: %v", err)
 	}
 	locs = readLocations(t, path)
@@ -67,7 +71,7 @@ func TestLocationCLI(t *testing.T) {
 
 	// list：文本表格要同时列出主 location 与额外路径。
 	if _, err := runSiteSubcmd(t, mainPath, "location", "add", "web",
-		"--url", "/assets", "--type", "local", "--root", t.TempDir()); err != nil {
+		"--url", "/assets", "--type", "local", "--root", t.TempDir(), "--yes"); err != nil {
 		t.Fatalf("location add local: %v", err)
 	}
 	out, err := runSiteSubcmd(t, mainPath, "location", "list", "web")
@@ -80,7 +84,11 @@ func TestLocationCLI(t *testing.T) {
 
 	// set：整体替换额外 location，主 / 保持不动。
 	if _, err := runSiteSubcmd(t, mainPath, "location", "set", "web",
-		"--location", `{"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9200"}`); err != nil {
+		"--location", `{"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9200"}`); err == nil {
+		t.Fatal("location set 非终端应要求 --yes")
+	}
+	if _, err := runSiteSubcmd(t, mainPath, "location", "set", "web",
+		"--location", `{"url":"/api","type":"proxy","proxy_pass":"http://127.0.0.1:9200"}`, "--yes"); err != nil {
 		t.Fatalf("location set: %v", err)
 	}
 	locs = readLocations(t, path)
@@ -90,7 +98,7 @@ func TestLocationCLI(t *testing.T) {
 	}
 
 	// set 不传 --location：清空额外 location。
-	if _, err := runSiteSubcmd(t, mainPath, "location", "set", "web"); err != nil {
+	if _, err := runSiteSubcmd(t, mainPath, "location", "set", "web", "--yes"); err != nil {
 		t.Fatalf("location set empty: %v", err)
 	}
 	if locs = readLocations(t, path); len(locs) != 1 || locs[0].URL != "/" {
@@ -98,7 +106,7 @@ func TestLocationCLI(t *testing.T) {
 	}
 
 	// 非法 JSON 在进入事务前拒绝。
-	if _, err := runSiteSubcmd(t, mainPath, "location", "set", "web", "--location", "{"); err == nil {
+	if _, err := runSiteSubcmd(t, mainPath, "location", "set", "web", "--location", "{", "--yes"); err == nil {
 		t.Fatal("非法 --location JSON 应拒绝")
 	}
 }
