@@ -24,11 +24,7 @@ const runtimePid = ref('');
 const runtimeLog = ref('');
 
 // 后端字段清单里的分组/标签/说明是中文兜底文案；界面按语言查字典覆盖。
-const GROUP_KEYS: Record<string, string> = {
-  '基础': 'basic', '安全': 'security', WAF: 'waf', ACME: 'acme',
-  TLS: 'tls', '代理': 'proxy', HTTP: 'http',
-};
-
+// 分组 id（basic / security / waf…）由后端下发，前端直接拼字典 key。
 function msg(key: string, fallback: string): string {
   return te(key) ? t(key) : fallback;
 }
@@ -52,7 +48,7 @@ const groups = computed(() => {
   }
   return [...map.entries()].map(([name, fields]) => ({
     name,
-    title: msg(`settings.group.${GROUP_KEYS[name] ?? name}`, name),
+    title: msg(`settings.group.${name}`, name),
     fields: fields.map(localizeField),
   }));
 });
@@ -159,7 +155,7 @@ onMounted(() => { void load(); });
     <div v-for="g in groups" :key="g.name" class="card">
       <div class="card-head"><h3>{{ g.title }}</h3></div>
 
-      <template v-if="g.name === '基础'">
+      <template v-if="g.name === 'basic'">
         <RuntimePathRow
           :label="`pid ${t('settings.readonly')}`" :hint="t('settings.pidReadonlyHint')" :value="runtimePid"
         />
