@@ -72,3 +72,22 @@ func TestByteRowHasNoInjectionChannel(t *testing.T) {
 		t.Fatal("rebuilt request must end with empty line")
 	}
 }
+
+// ByteRowTo 只替换请求行里的目标，头部照旧，Req.Path 保持原值：
+// 代理改写上游路径时不能污染日志与缓存键。
+func TestByteRowToKeepsOriginalPath(t *testing.T) {
+	req := RequestInit(false)
+	if err := req.ParseHeader([]byte("POST /api/users?x=1 HTTP/1.1\r\nHost: a\r\nContent-Length: 3\r\n\r\n")); err != RequestOk {
+		t.Fatal(err)
+	}
+	row := string(req.ByteRowTo("/users?x=1"))
+	if !strings.HasPrefix(row, "POST /users?x=1 HTTP/1.1\r\n") {
+		t.Fatalf("request line not rewritten: %q", row)
+	}
+	if !strings.Contains(row, "Host: a\r\n") || !strings.HasSuffix(row, "\r\n\r\n") {
+		t.Fatalf("headers changed: %q", row)
+	}
+	if req.Path != "/api/users?x=1" {
+		t.Fatalf("Req.Path mutated: %q", req.Path)
+	}
+}

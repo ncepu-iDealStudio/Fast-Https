@@ -6,6 +6,7 @@ import (
 	"fast-https/infra/logging"
 	"fast-https/modules/appfirewall"
 	"fast-https/modules/auth"
+	"fast-https/modules/cache"
 	"fast-https/modules/certmanager"
 	"fast-https/modules/dev_mod"
 	"fast-https/modules/proxy"
@@ -43,7 +44,11 @@ func RegisterServices() {
 		RejectWAF: rejectWAF,
 		// ACME 的挑战应答钩子必须在监听器重载**之前**重新对齐：
 		// listenSsl 建 tls.Config 时读 TLSALPNEnabled()，晚一步就白重建。
-		BeforeListenReload: certmanager.ReconcileHooks,
+		// 缓存区目录也在这里补齐：运行时层不允许依赖 modules，只能由组合根挂钩子。
+		BeforeListenReload: func() {
+			certmanager.ReconcileHooks()
+			cache.GCacheContainer.EnsureDirs()
+		},
 		AfterListen:        afterListen,
 		AfterStop: func() {
 			StopRuntimeEndpoint()

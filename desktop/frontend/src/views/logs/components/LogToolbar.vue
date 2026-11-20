@@ -115,10 +115,10 @@ function statusLabel(code: string): string {
     <input :value="filters.pathPrefix" type="text" :placeholder="t('logs.pathPh')"
            @input="set('pathPrefix', ($event.target as HTMLInputElement).value)" @keyup.enter="emit('apply')" />
     <span class="filter-actions">
-      <button class="icon-btn" :title="t('logs.reset')" @click="emit('reset')">
+      <button class="icon-btn" :title="t('logs.reset')" :aria-label="t('logs.reset')" @click="emit('reset')">
         <RotateCcw :size="14" />
       </button>
-      <button class="icon-btn" :title="t('logs.apply')" @click="emit('apply')">
+      <button class="icon-btn" :title="t('logs.apply')" :aria-label="t('logs.apply')" @click="emit('apply')">
         <Search :size="14" />
       </button>
     </span>

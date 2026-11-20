@@ -85,7 +85,7 @@ func NewSiteCmd() *cobra.Command {
 	}
 	showCmd.Flags().Bool("merged", false, cli.T("打印合并后每个字段都生效的 server 块", "print the merged server block with every effective field"))
 
-	root.AddCommand(listCmd, showCmd)
+	root.AddCommand(listCmd, showCmd, newLocationCmd())
 	addSiteWriteCommands(root)
 	return root
 }
@@ -150,72 +150,6 @@ func Dirs(opts Options) ([]string, error) {
 		return nil, fmt.Errorf("主配置 %s 没有可用的 http.include 目录，请先配置 http.include", opts.ConfigPath)
 	}
 	return dirs, nil
-}
-
-// applySiteLocation 只改 URL 为 "/" 的那个 location（没有就补一个），
-// 用户手写的其它 location 原样保留。
-func applySiteLocation(in *config.SiteInput, opts Options, changed func(string) bool) error {
-	typeChanged := changed("type")
-	rootChanged := changed("root")
-	proxyChanged := changed("proxy-pass")
-	if !typeChanged && !rootChanged && !proxyChanged {
-		return nil
-	}
-
-	kind := strings.TrimSpace(opts.LocationType)
-	if typeChanged && kind != "local" && kind != "proxy" {
-		return fmt.Errorf("location 类型只支持 local 或 proxy：%q", kind)
-	}
-
-	loc := primaryLocation(in)
-	if loc == nil {
-		in.Locations = append(in.Locations, config.SiteLocation{URL: "/"})
-		loc = &in.Locations[len(in.Locations)-1]
-	}
-	if !typeChanged {
-		kind = strings.TrimSpace(loc.Type)
-		if kind == "" {
-			kind = "local"
-		}
-	}
-
-	switch kind {
-	case "proxy":
-		upstream := strings.TrimSpace(opts.ProxyPass)
-		if !proxyChanged {
-			upstream = loc.ProxyPass
-		}
-		if upstream == "" {
-			return errors.New("反代站点需要 --proxy-pass，例如 http://127.0.0.1:8080")
-		}
-		loc.Type = "proxy"
-		loc.ProxyPass = upstream
-		loc.Root = ""
-		loc.Index = nil
-	default:
-		loc.Type = "local"
-		loc.ProxyPass = ""
-		if rootChanged || strings.TrimSpace(loc.Root) == "" {
-			root := strings.TrimSpace(opts.Root)
-			if root == "" {
-				root = "./httpdoc/root"
-			}
-			loc.Root = root
-		}
-		if len(loc.Index) == 0 {
-			loc.Index = []string{"index.html", "index.htm"}
-		}
-	}
-	return nil
-}
-
-func primaryLocation(in *config.SiteInput) *config.SiteLocation {
-	for i := range in.Locations {
-		if url := strings.TrimSpace(in.Locations[i].URL); url == "/" || url == "" {
-			return &in.Locations[i]
-		}
-	}
-	return nil
 }
 
 // fillSiteCerts 在监听带 ssl 时补默认证书路径，与 init 的规则保持一致。

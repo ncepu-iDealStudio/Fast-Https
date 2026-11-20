@@ -5,6 +5,7 @@ package loader
 import (
 	"fmt"
 	"net/netip"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -258,6 +259,7 @@ func convertServers(js schema.Server) []model.Server {
 }
 
 func convertPath(jl schema.Path) model.Path {
+	proxyAddr, proxyPath := splitProxyPass(jl.ProxyPass)
 	return model.Path{
 		PathName:       jl.URL,
 		PathType:       parsePathType(jl.Type, jl.ProxyPass),
@@ -266,7 +268,8 @@ func convertPath(jl schema.Path) model.Path {
 		Index:          jl.Index,
 		Rewrite:        jl.Rewrite,
 		Trys:           jl.Try,
-		ProxyData:      trimProxyPass(jl.ProxyPass),
+		ProxyData:      proxyAddr,
+		ProxyPassPath:  proxyPath,
 		ProxySetHeader: jl.ProxySetHeader,
 		AppFireWall:    jl.AppFireWall,
 		ProxyCache:     string(jl.ProxyCache),
@@ -362,6 +365,20 @@ func parsePathType(typeStr, proxyPass string) uint16 {
 
 func trimProxyPass(proxyData string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(proxyData, "https://"), "http://")
+}
+
+// splitProxyPass 把 proxy_pass 拆成拨号地址与可选 URI。
+// 旧实现把 "/v1" 这类路径留在地址里，拨号必然失败；带 URI 的 proxy_pass
+// 现在按 nginx 语义在转发时替换命中的 location 前缀，见 modules/proxy。
+func splitProxyPass(proxyPass string) (addr, uri string) {
+	pass := strings.TrimSpace(proxyPass)
+	if pass == "" {
+		return "", ""
+	}
+	if u, err := url.Parse(pass); err == nil && u.Host != "" {
+		return u.Host, u.EscapedPath()
+	}
+	return trimProxyPass(pass), ""
 }
 
 // SetDefault 补齐系统级默认值，并把相对路径解析成绝对路径。

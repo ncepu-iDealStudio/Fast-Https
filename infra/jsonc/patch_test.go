@@ -177,6 +177,45 @@ func TestPatchMemberRejectsNonObject(t *testing.T) {
 	}
 }
 
+// 删除数组元素：多行删整行、单行只删元素与相邻逗号，剩余内容保持合法。
+func TestDeleteArrayElement(t *testing.T) {
+	multi := []byte("{\n  \"location\": [\n    {\"url\": \"/\"},\n    {\"url\": \"/api\"},\n    {\"url\": \"/static\"}\n  ]\n}")
+	out, err := PatchPath(multi, []Edit{{Path: []Step{Key("location"), At(1)}}})
+	if err != nil {
+		t.Fatalf("delete middle: %v", err)
+	}
+	got := string(out)
+	if strings.Contains(got, "/api") || !strings.Contains(got, "/static") || !strings.Contains(got, "\"/\"") {
+		t.Fatalf("middle delete wrong:\n%s", got)
+	}
+
+	single := []byte(`{"location": [{"url": "/"}, {"url": "/api"}]}`)
+	out, err = PatchPath(single, []Edit{{Path: []Step{Key("location"), At(1)}}})
+	if err != nil {
+		t.Fatalf("delete single-line: %v", err)
+	}
+	if got := string(out); got != `{"location": [{"url": "/"}]}` {
+		t.Fatalf("single-line delete = %s", got)
+	}
+
+	// 多行文档里的单行数组：删除不能把 "location": [ 一起切掉。
+	inline := []byte("{\n  \"location\": [{\"url\": \"/\"}, {\"url\": \"/api\"}, {\"url\": \"/static\"}]\n}")
+	out, err = PatchPath(inline, []Edit{{Path: []Step{Key("location"), At(0)}}})
+	if err != nil {
+		t.Fatalf("delete inline first: %v", err)
+	}
+	if got := string(out); got != "{\n  \"location\": [ {\"url\": \"/api\"}, {\"url\": \"/static\"}]\n}" {
+		t.Fatalf("inline first delete = %s", got)
+	}
+	out, err = PatchPath(inline, []Edit{{Path: []Step{Key("location"), At(1)}}})
+	if err != nil {
+		t.Fatalf("delete inline middle: %v", err)
+	}
+	if got := string(out); got != "{\n  \"location\": [{\"url\": \"/\"},  {\"url\": \"/static\"}]\n}" {
+		t.Fatalf("inline middle delete = %s", got)
+	}
+}
+
 func TestScanObjectMembers(t *testing.T) {
 	raw := []byte("{\n  // c\n  \"a\": [1, 2],\n  \"b\": \"x\"\n}")
 	obj, err := ScanObject(StripComments(raw))

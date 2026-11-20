@@ -476,6 +476,10 @@ func (p *Proxy) proxyNoCache(cfg *listener.ListenCfg, req_data []byte, ev *core.
  */
 func ProxyEvent(cfg *listener.ListenCfg, ev *core.Event) {
 	req_data := ev.RR.Req.ByteRow()
+	// proxy_pass 带 URI 时按 nginx 语义替换 location 前缀；日志与缓存键仍用原始路径。
+	if cfg != nil && cfg.ProxyPassPath != "" {
+		req_data = ev.RR.Req.ByteRowTo(upstreamTarget(ev.RR.Req.Path, ev.RR.PathLocation, cfg.ProxyPassPath))
+	}
 
 	// if len(req_data) > 8192 {
 	// 	fmt.Println(string(req_data[:8192]))

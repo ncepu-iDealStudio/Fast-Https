@@ -372,6 +372,19 @@ func TestValidateZipOptions(t *testing.T) {
 	}
 }
 
+// location.url 在运行期会被编译成正则：非法模式必须在校验阶段拒绝，
+// 否则 reload 时 MustCompile 会 panic。
+func TestValidateLocationPattern(t *testing.T) {
+	server := schema.Server{
+		Listen: schema.FlexList{"80"}, ServerName: "a.example",
+		Locations: []schema.Path{{URL: "/api(", Type: "proxy", ProxyPass: "http://127.0.0.1:9000"}},
+	}
+	err := validateServer(&server, ".", ".", "site", false)
+	if err == nil || !strings.Contains(err.Error(), "not a valid pattern") {
+		t.Fatalf("error = %v, want pattern error", err)
+	}
+}
+
 // zip_skip_types 允许整类与部分通配，不能按「必须含斜杠的精确 MIME」误拒。
 func TestValidateZipSkipWildcardAccepted(t *testing.T) {
 	for _, pattern := range []string{"image/*", "image/p*", "*/*", "*"} {

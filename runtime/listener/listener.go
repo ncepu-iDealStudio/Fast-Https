@@ -48,6 +48,8 @@ type ListenCfg struct {
 	// 10 is dev mod
 	Type           uint16 // 0 1 2 3 4
 	ProxyAddr      string
+	// ProxyPassPath 是 proxy_pass 的 URI 部分；非空时替换命中的 location 前缀。
+	ProxyPassPath  string
 	ProxySetHeader []config.Header
 	ProxyCache     string
 	AppFireWall    []string
@@ -335,6 +337,7 @@ func processListenData(lisInfos *[]*Listener) {
 				}
 				data.Type = paths.PathType
 				data.ProxyAddr = paths.ProxyData
+				data.ProxyPassPath = paths.ProxyPassPath
 				data.ProxySetHeader = paths.ProxySetHeader
 				data.AppFireWall = paths.AppFireWall
 				data.Limit = paths.Limit

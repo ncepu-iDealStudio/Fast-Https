@@ -111,7 +111,7 @@ func applyEdit(raw []byte, e Edit) ([]byte, error) {
 			return nil, fmt.Errorf("下标越界：%d（共 %d 个元素）", last.Index, len(arr.Elems))
 		}
 		if e.Value == nil {
-			return nil, errors.New("不支持删除数组元素")
+			return deleteElem(raw, masked, arr, last.Index), nil
 		}
 		return replaceSpan(raw, arr.Elems[last.Index], e.Value), nil
 
@@ -183,6 +183,30 @@ func replaceSpan(raw []byte, sp Span, value []byte) []byte {
 	out = append(out, value...)
 	out = append(out, raw[sp.End:]...)
 	return out
+}
+
+// deleteElem 删掉数组里的一个元素，连同它一侧的逗号，保证剩下的仍是合法 JSONC。
+// 与 deleteMember 同一套规则：后面还有元素就吃掉自己的逗号，否则吃掉前一个。
+func deleteElem(raw, masked []byte, arr Array, idx int) []byte {
+	el := arr.Elems[idx]
+	if p := skipSpace(masked, el.End); p < len(masked) && masked[p] == ',' {
+		// 元素与左方括号之间有换行才回到行首，连行首换行一起删，避免留下空行。
+		// 判断必须相对数组起点：多行文档里的单行数组（[{...}, {...}]）不能
+		// 因为文档别处有换行就把 "location": [ 一起切掉。
+		start := el.Start
+		if containsNewline(masked, arr.Open, el.Start) {
+			start = lineStart(masked, el.Start)
+		}
+		return cut(raw, start, p+1)
+	}
+	p := el.Start - 1
+	for p >= 0 && isSpace(masked[p]) {
+		p--
+	}
+	if p >= 0 && masked[p] == ',' {
+		return cut(raw, p, el.End)
+	}
+	return cut(raw, el.Start, el.End)
 }
 
 // deleteMember 删掉一个成员，连同它一侧的逗号，保证剩下的仍是合法 JSONC。

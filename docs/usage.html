@@ -229,6 +229,7 @@ fast-https site delete blog --yes</code></pre>
 <ul>
 <li><strong>site add</strong>：<code>--domain</code> 必填，站点名由域名规范化得到；<code>--root</code> 或 <code>--proxy-pass</code> 二选一。同名或同 <code>server_name</code> 已存在时退出码 10。<code>--root</code> 必须是已存在的目录，不能含 <code>..</code>，也不能指向配置、证书、状态或日志目录。非 dry-run 必须 <code>--yes</code>。新建站点默认开启 <code>br+gzip</code> 压缩（阈值 1 KB，跳过图片/音视频/字体/压缩包），见 6.4。</li>
 <li><strong>site update</strong>：只允许 <code>--listen</code>、<code>--server-name</code>、<code>--root</code>、<code>--proxy-pass</code>、<code>--tls</code>、<code>--ssl-certificate*</code>，以及主 location 上的高级配置 <code>--zip</code>、<code>--zip-min-length</code>、<code>--zip-skip-types</code>、<code>--limit-*</code>、<code>--auth-*</code>、<code>--cache-*</code>、<code>--symlink-policy</code>。内联在主配置 <code>http.server[]</code> 里的站点返回退出码 11。注释与未建模字段由补丁保留。</li>
+<li><strong>site location</strong>：<code>list / add / update / delete / set</code> 管理主 location 之外的路径（例如 <code>/api</code> 反代）；<code>add/update</code> 用 <code>--url</code>、<code>--type</code>、<code>--root</code>、<code>--proxy-pass</code>，<code>delete</code> 需要 <code>--yes</code>。主 location <code>/</code> 不允许删除。</li>
 <li><strong>符号链接策略</strong>：<code>site add/update</code> 的 <code>--symlink-policy</code> 取 <code>check-at-load</code>（默认）、<code>reject</code>、<code>allow</code>，只对 <code>local</code> 站点生效；<code>site update --symlink-policy=</code> 传空串表示删掉该键、回到默认。代理站点带此参数返回退出码 2。</li>
 <li><strong>site disable / enable</strong>：把 <code>&lt;name&gt;.json</code> 改名为 <code>&lt;name&gt;.json.disabled</code> 或改回（<code>include</code> 只加载 <code>*.json</code>）。<code>site list --json</code> 里停用站点为 <code>enabled: false</code>。</li>
 <li><strong>site delete</strong>：必须 <code>--yes</code>。只删站点配置文件，不删内容目录、证书、私钥；配置仍留在版本快照里，可用 <code>config rollback</code> 找回。</li>
@@ -324,6 +325,12 @@ fast-https site delete blog --yes</code></pre>
 <tr><td><code>allow_methods</code></td><td>只允许列出的方法，例如 <code>[&#34;GET&#34;, &#34;HEAD&#34;]</code>；越界返回 405 并带 <code>Allow</code> 头。缺省不限制，<code>HEAD</code> 随 <code>GET</code> 自动放行</td></tr>
 </tbody>
 </table>
+<p>一个站点可以有多个 location。匹配规则与 nginx 的前缀语义一致：从路径起点命中的 优先，同类里匹配更长的优先。例如 <code>/</code> 静态 + <code>/api</code> 反代：</p>
+<pre><code class="language-json">&#34;location&#34;: [
+  { &#34;url&#34;: &#34;/&#34;, &#34;type&#34;: &#34;local&#34;, &#34;root&#34;: &#34;./httpdoc/root&#34; },
+  { &#34;url&#34;: &#34;/api&#34;, &#34;type&#34;: &#34;proxy&#34;, &#34;proxy_pass&#34;: &#34;http://127.0.0.1:9000&#34; }
+]</code></pre>
+<p><code>/api/users</code> 会命中代理，其余路径走静态根。主 location <code>/</code> 用 <code>site update</code> 管理，额外路径用 <code>site location add/update/delete</code>（或桌面端站点弹窗的 「路径代理」）。</p>
 <p><code>proxy_set_header</code> 的 <code>HeaderValue</code> 支持变量插值：</p>
 <table>
 <thead><tr><th>变量</th><th>含义</th></tr></thead>
@@ -424,6 +431,9 @@ fast-https config proxy set --trusted-proxies 10.0.0.0/8,192.168.1.10 --max-hops
   ]
 }</code></pre>
 <p><code>proxy_pass</code> 缺少 <code>http://</code> / <code>https://</code> 前缀时会按 <code>local</code> 处理，不会报错，这是最容易踩的坑。</p>
+<p><code>proxy_pass</code> 带路径时按 nginx 规则替换命中的 location 前缀：</p>
+<pre><code class="language-json">{ &#34;url&#34;: &#34;/api&#34;, &#34;type&#34;: &#34;proxy&#34;, &#34;proxy_pass&#34;: &#34;http://127.0.0.1:9000/&#34; }</code></pre>
+<p><code>/api/users</code> 转发到上游时变成 <code>/users</code>；写成 <code>http://127.0.0.1:9000</code>（不带路径） 则原样转发 <code>/api/users</code>。</p>
 <h3 id="sec-24">6.3 TCP 转发</h3>
 <pre><code class="language-json">{
   &#34;listen&#34;: &#34;9000 tcp&#34;,

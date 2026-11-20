@@ -235,6 +235,30 @@
   box-shadow: var(--shadow-1);
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
+/* 路径代理是整行列表，横跨两列 */
+.adv__block--wide { grid-column: 1 / -1; }
+/* 一行路径规则：路径 / 类型 / 目标 / 删除 */
+.path-rule {
+  display: grid;
+  grid-template-columns: 150px 110px minmax(0, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.path-rule input,
+.path-rule select {
+  height: var(--input-h);
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  min-width: 0;
+}
+.path-rule .joined { display: flex; gap: 8px; min-width: 0; }
+.path-rule .joined input { flex: 1; }
 .adv__block:hover {
   border-color: var(--line-strong);
   box-shadow: var(--shadow-2);

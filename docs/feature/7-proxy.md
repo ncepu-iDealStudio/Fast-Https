@@ -18,6 +18,20 @@ HTTP/HTTPS 反向代理：转发到 `proxy_pass` 上游、请求头改写、上�
 
 `proxy_cache` 只写主配置 `cache` 段里的缓存区名（目录、容量、有效期都在那里定义）。
 
+一个站点可以同时有静态主 location 和若干代理路径，按最长前缀匹配：
+
+```json
+"location": [
+  { "url": "/", "type": "local", "root": "./httpdoc/root" },
+  { "url": "/api", "type": "proxy", "proxy_pass": "http://127.0.0.1:9000" }
+]
+```
+
+主 location `/` 由 `site update` 管理，额外路径用 `site location add/update/delete`
+（桌面端在站点弹窗的「路径代理」里编辑）。`proxy_pass` 带路径时按 nginx 规则
+替换命中的前缀：`http://backend/` 会把 `/api/users` 转成 `/users`，不带路径则
+原样转发。
+
 ## 实现方案（modules/proxy/）
 
 - **转发**：请求经 `ByteRow` 重建后发往上游；`X-Forwarded-For` 由 `core.DefaultParseCommandHandler` 追加真实 IP；`proxy_set_header` 支持 `$remote_addr`/`$request_uri` 等变量插值。

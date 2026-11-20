@@ -4,7 +4,7 @@ import { Stethoscope } from '@lucide/vue';
 import { useI18n } from '../../../composables/useI18n';
 import type { Cert } from '../../../types/model';
 
-defineProps<{ items: Cert[]; loading: boolean }>();
+defineProps<{ items: Cert[]; loading: boolean; filtered?: boolean }>();
 const emit = defineEmits<{ check: [domain: string] }>();
 const { t } = useI18n();
 
@@ -23,10 +23,12 @@ function statusLabel(s: string): string {
     <div class="table__head table__head--certs">
       <span>{{ t('certs.configured') }}</span>
       <span>{{ t('common.status') }}</span>
-      <span>expires</span>
+      <span>{{ t('certs.expires') }}</span>
       <span class="table__ops" />
     </div>
-    <div v-if="!items.length && !loading" class="table__empty">{{ t('certs.empty') }}</div>
+    <div v-if="!items.length && !loading" class="table__empty">
+      {{ filtered ? t('certs.noMatch') : t('certs.empty') }}
+    </div>
     <div v-for="c in items" :key="c.file" class="table__row table__row--certs">
       <span class="mono ellipsis" :title="c.file">
         {{ c.domain }}
@@ -43,7 +45,7 @@ function statusLabel(s: string): string {
         <template v-if="c.daysLeft > 0"> · {{ t('certs.daysLeft', { days: c.daysLeft }) }}</template>
       </span>
       <span class="table__ops">
-        <button class="icon-btn" :title="t('certs.check')" @click="emit('check', c.domain)">
+        <button class="icon-btn" :title="t('certs.check')" :aria-label="t('certs.check')" @click="emit('check', c.domain)">
           <Stethoscope :size="14" />
         </button>
       </span>

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -448,6 +449,11 @@ func validateServerWith(s *schema.Server, certBaseDir, rootBaseDir, where string
 		loc := &s.Locations[i]
 		if strings.TrimSpace(loc.URL) == "" {
 			return fmt.Errorf("%s: location[%d].url is required", where, i)
+		}
+		// url 在运行期直接编译成 path 正则；非法模式会让 MustCompile panic，
+		// 必须在配置校验阶段拦住。
+		if _, err := regexp.Compile(loc.URL); err != nil {
+			return fmt.Errorf("%s: location[%d].url is not a valid pattern: %v", where, i, err)
 		}
 
 		if loc.ZipMinLength < 0 {

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /** 站点页编排壳：增删改启停，渲染交给 SiteList。 */
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Plus } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
+import { usePolling } from '../../composables/usePolling';
 import { useSitesStore } from '../../stores/sites';
 import { useOverviewStore } from '../../stores/overview';
 import FhButton from '../../components/ui/FhButton.vue';
@@ -16,7 +17,10 @@ import { messageOf } from '../../services/api/base';
 const { t } = useI18n();
 const sites = useSitesStore();
 const overview = useOverviewStore();
-const busy = ref('');
+const busyIds = ref<string[]>([]);
+function setBusy(id: string, on: boolean): void {
+  busyIds.value = on ? [...busyIds.value, id] : busyIds.value.filter((x) => x !== id);
+}
 const notice = ref('');
 const dialogOpen = ref(false);
 /** 删除确认：先弹窗再执行，避免误点直接删除 */
@@ -24,16 +28,21 @@ const delOpen = ref(false);
 const delId = ref('');
 const delBusy = ref(false);
 const editingId = ref<string | undefined>(undefined);
+const query = ref('');
 
-onMounted(() => {
-  void sites.refresh();
-  // 自动刷新：站点列表随配置事务变化，15 秒一次。
-  const timer = window.setInterval(() => { void sites.refresh(); }, 15000);
-  onUnmounted(() => window.clearInterval(timer));
+// 站点多起来后按名称 / 端口快速过滤。
+const filteredSites = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  if (!q) return sites.items;
+  return sites.items.filter((s) =>
+    [s.name, s.listen, ...(s.listens ?? [])].join(' ').toLowerCase().includes(q));
 });
 
 /** 服务是否在运行：停止时链接灰化。 */
 const serverUp = computed(() => overview.data?.running ?? false);
+
+// 站点列表随配置事务变化，15 秒刷新一次；窗口隐藏时自动暂停。
+usePolling(() => { void sites.refresh(); }, 15000, computed(() => true));
 
 function openAdd(): void {
   editingId.value = undefined;
@@ -48,13 +57,14 @@ async function onSaved(): Promise<void> {
 }
 
 async function onToggle(id: string, enabled: boolean): Promise<void> {
-  busy.value = id;
+  setBusy(id, true);
   try {
-    notice.value = await sites.toggle(id, enabled);
+    await sites.toggle(id, enabled);
+    notice.value = t(enabled ? 'sites.toggledOn' : 'sites.toggledOff', { name: id });
   } catch (e) {
     notice.value = messageOf(e);
   } finally {
-    busy.value = '';
+    setBusy(id, false);
   }
 }
 
@@ -69,9 +79,10 @@ async function doDelete(): Promise<void> {
   const id = delId.value;
   if (!id) return;
   delBusy.value = true;
-  busy.value = id;
+  setBusy(id, true);
   try {
-    notice.value = await sites.remove(id);
+    await sites.remove(id);
+    notice.value = t('sites.deleted', { name: id });
     delOpen.value = false;
     delId.value = '';
   } catch (e) {
@@ -79,7 +90,7 @@ async function doDelete(): Promise<void> {
     delOpen.value = false;
   } finally {
     delBusy.value = false;
-    busy.value = '';
+    setBusy(id, false);
   }
 }
 
@@ -116,8 +127,14 @@ async function onOpen(url: string): Promise<void> {
 
     <div v-if="sites.loading && !sites.items.length" class="notice">{{ t('sites.loading') }}</div>
 
+    <input
+      v-model="query" class="list-search" type="search"
+      :placeholder="t('sites.searchPh')" :aria-label="t('sites.searchPh')"
+    />
+
     <SiteList
-      :items="sites.items" :loading="sites.loading" :server-up="serverUp" :busy="busy"
+      :items="filteredSites" :loading="sites.loading" :server-up="serverUp" :busy-ids="busyIds"
+      :filtered="query.trim().length > 0"
       @edit="openEdit" @toggle="onToggle" @delete="askDelete" @copy="onCopy" @open="onOpen"
     />
 
@@ -126,7 +143,7 @@ async function onOpen(url: string): Promise<void> {
     <ConfirmDialog
       v-model:open="delOpen"
       :title="t('sites.delConfirmTitle')"
-      :message="t('sites.delConfirmBody')"
+      :message="t('sites.delConfirmBody', { name: delId })"
       :loading="delBusy"
       @confirm="doDelete"
     />
