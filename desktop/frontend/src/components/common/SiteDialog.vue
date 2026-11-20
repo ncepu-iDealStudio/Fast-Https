@@ -585,7 +585,7 @@ const certKeyPlaceholder = computed(() => `./cert/${primaryName.value}-key.pem`)
             <input v-else v-model="loc.proxyPass" type="text" :placeholder="t('dialog.site.pathPassPh')" />
             <button
               type="button" class="icon-btn icon-btn--danger"
-              :title="t('dialog.site.pathRemove')" @click="removeLocation(i)"
+              :title="t('dialog.site.pathRemove')" :aria-label="t('dialog.site.pathRemove')" @click="removeLocation(i)"
             ><Trash2 :size="14" /></button>
           </div>
           <button type="button" class="valid-add" @click="addLocation">{{ t('dialog.site.pathAdd') }}</button>

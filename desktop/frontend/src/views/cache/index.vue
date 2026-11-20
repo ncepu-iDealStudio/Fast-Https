@@ -20,6 +20,13 @@ const zones = ref<CacheZone[]>([]);
 const loading = ref(false);
 const error = ref('');
 const notice = ref('');
+const query = ref('');
+
+const filteredZones = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  if (!q) return zones.value;
+  return zones.value.filter((z) => [z.name, z.path].join(' ').toLowerCase().includes(q));
+});
 
 // 新增 / 编辑共用同一个对话框；editingName 为空表示新增。
 const dialogOpen = ref(false);
@@ -213,9 +220,9 @@ async function submit(): Promise<void> {
   error.value = '';
   notice.value = '';
   try {
-    notice.value = editingName.value
-      ? await saveCacheZone(editingName.value, zone)
-      : await addCacheZone(zone);
+    if (editingName.value) await saveCacheZone(editingName.value, zone);
+    else await addCacheZone(zone);
+    notice.value = t('cache.saved', { name });
     dialogOpen.value = false;
     await load();
   } catch (e) {
@@ -238,7 +245,8 @@ async function doDelete(): Promise<void> {
   error.value = '';
   notice.value = '';
   try {
-    notice.value = await deleteCacheZone(name, delPurge.value);
+    await deleteCacheZone(name, delPurge.value);
+    notice.value = t(delPurge.value ? 'cache.deletedPurge' : 'cache.deleted', { name });
     delOpen.value = false;
     await load();
   } catch (e) {
@@ -273,6 +281,11 @@ onMounted(async () => {
     <p v-if="error" class="notice notice--err">{{ error }}</p>
     <p v-else-if="notice" class="notice">{{ notice }}</p>
 
+    <input
+      v-model="query" class="list-search" type="search"
+      :placeholder="t('cache.searchPh')" :aria-label="t('cache.searchPh')"
+    />
+
     <div class="table">
       <div class="table__head">
         <span>{{ t('cache.name') }}</span>
@@ -280,7 +293,7 @@ onMounted(async () => {
         <span>{{ t('cache.valid') }}</span>
         <span />
       </div>
-      <div v-for="z in zones" :key="z.name" class="table__row">
+      <div v-for="z in filteredZones" :key="z.name" class="table__row">
         <span class="mono ellipsis">{{ z.name }}</span>
         <span class="mono ellipsis">{{ z.path }}</span>
         <span class="ellipsis">
@@ -288,15 +301,15 @@ onMounted(async () => {
           <small v-if="z.max_size > 0" class="muted"> · {{ z.max_size }} B</small>
         </span>
         <span class="table__ops">
-          <button class="icon-btn" :title="t('cache.edit')" @click="openEdit(z)"><Pencil :size="14" /></button>
-          <button class="icon-btn icon-btn--danger" :title="t('cache.delete')" @click="askDelete(z.name)">
+          <button class="icon-btn" :title="t('cache.edit')" :aria-label="t('cache.edit')" @click="openEdit(z)"><Pencil :size="14" /></button>
+          <button class="icon-btn icon-btn--danger" :title="t('cache.delete')" :aria-label="t('cache.delete')" @click="askDelete(z.name)">
             <Trash2 :size="14" />
           </button>
         </span>
       </div>
-      <div v-if="!zones.length && !loading" class="table__empty">
-        {{ t('cache.empty') }}
-        <span class="table__quip">{{ quip }}</span>
+      <div v-if="!filteredZones.length && !loading" class="table__empty">
+        {{ query.trim() ? t('cache.noMatch') : t('cache.empty') }}
+        <span v-if="!query.trim()" class="table__quip">{{ quip }}</span>
       </div>
     </div>
 
@@ -335,7 +348,7 @@ onMounted(async () => {
             </select>
             <button
               type="button" class="icon-btn icon-btn--danger"
-              :title="t('cache.validRemove')" :disabled="validRules.length === 1"
+              :title="t('cache.validRemove')" :aria-label="t('cache.validRemove')" :disabled="validRules.length === 1"
               @click="removeRule(i)"
             ><Trash2 :size="14" /></button>
           </div>

@@ -12,7 +12,7 @@ import ConfigField from './components/ConfigField.vue';
 import RuntimePathRow from './components/RuntimePathRow.vue';
 import type { ConfigField as Field, ConfigForm } from '../../types/config';
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const form = ref<ConfigForm | null>(null);
 const initial = ref<Record<string, string>>({});
 const values = ref<Record<string, string>>({});
@@ -23,8 +23,26 @@ const notice = ref('');
 const runtimePid = ref('');
 const runtimeLog = ref('');
 
+// 后端字段清单里的分组/标签/说明是中文兜底文案；界面按语言查字典覆盖。
+const GROUP_KEYS: Record<string, string> = {
+  '基础': 'basic', '安全': 'security', WAF: 'waf', ACME: 'acme',
+  TLS: 'tls', '代理': 'proxy', HTTP: 'http',
+};
+
+function msg(key: string, fallback: string): string {
+  return te(key) ? t(key) : fallback;
+}
+
+function localizeField(f: Field): Field {
+  return {
+    ...f,
+    label: msg(`settings.field.${f.path}.label`, f.label),
+    help: msg(`settings.field.${f.path}.help`, f.help ?? ''),
+  };
+}
+
 const groups = computed(() => {
-  if (!form.value) return [] as { name: string; fields: Field[] }[];
+  if (!form.value) return [] as { name: string; title: string; fields: Field[] }[];
   const map = new Map<string, Field[]>();
   for (const f of form.value.fields) {
     if (f.path === 'pid' || f.path === 'log_root') continue;
@@ -32,7 +50,11 @@ const groups = computed(() => {
     list.push(f);
     map.set(f.group, list);
   }
-  return [...map.entries()].map(([name, fields]) => ({ name, fields }));
+  return [...map.entries()].map(([name, fields]) => ({
+    name,
+    title: msg(`settings.group.${GROUP_KEYS[name] ?? name}`, name),
+    fields: fields.map(localizeField),
+  }));
 });
 
 const changed = computed(() => {
@@ -86,7 +108,9 @@ async function save(): Promise<void> {
   error.value = '';
   notice.value = '';
   try {
-    notice.value = await saveConfigForm(changed.value);
+    const n = Object.keys(changed.value).length;
+    await saveConfigForm(changed.value);
+    notice.value = t('settings.statusSaved', { n });
     await load();
   } catch (e) {
     error.value = messageOf(e);
@@ -97,8 +121,8 @@ async function save(): Promise<void> {
 
 async function validate(): Promise<void> {
   try {
-    const r = await runCommand(['config', 'validate']);
-    notice.value = r.text || t('settings.validateOk');
+    await runCommand(['config', 'validate']);
+    notice.value = t('settings.validateOk');
   } catch (e) {
     error.value = messageOf(e);
   }
@@ -110,8 +134,8 @@ onMounted(() => { void load(); });
 <template>
   <div class="main__body">
     <div class="toolbar">
-      <button class="icon-btn" :title="t('settings.reloadFile')" :disabled="loading" @click="load()"><RefreshCw :size="14" /></button>
-      <button class="icon-btn" :title="t('settings.validate')" @click="validate"><CheckCircle2 :size="14" /></button>
+      <button class="icon-btn" :title="t('settings.reloadFile')" :aria-label="t('settings.reloadFile')" :disabled="loading" @click="load()"><RefreshCw :size="14" /></button>
+      <button class="icon-btn" :title="t('settings.validate')" :aria-label="t('settings.validate')" @click="validate"><CheckCircle2 :size="14" /></button>
       <FhButton variant="primary" :loading="saving" :disabled="!dirty" @click="save">
         <Save :size="14" /><span>{{ t('settings.saveChanges') }}</span>
       </FhButton>
@@ -133,7 +157,7 @@ onMounted(() => { void load(); });
     </div>
 
     <div v-for="g in groups" :key="g.name" class="card">
-      <div class="card-head"><h3>{{ g.name }}</h3></div>
+      <div class="card-head"><h3>{{ g.title }}</h3></div>
 
       <template v-if="g.name === '基础'">
         <RuntimePathRow

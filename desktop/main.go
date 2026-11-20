@@ -46,11 +46,13 @@ func main() {
 	// 由前端 .topbar 自绘标题栏——可拖拽，右侧三个按钮走窗口 API。
 	// DisableFramelessWindowDecorations 保持默认 false，保留 Win11 圆角与阴影。
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "Fast-Https · 本机管理端",
+		Title:            "Fast-Https",
 		Width:            1280,
 		Height:           800,
+		MinWidth:         960,
+		MinHeight:        640,
 		Frameless:        true,
-		BackgroundColour: application.NewRGB(255, 255, 255),
+		BackgroundColour: application.NewRGB(26, 30, 36),
 		URL:              "/",
 		// 桌面端不是浏览器：右键菜单里的「返回 / 刷新 / 另存为 / 打印 / 检查」
 		// 对使用者没有意义，直接交给 WebView 关闭。devtools 在 production

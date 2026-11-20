@@ -10,7 +10,8 @@ const props = defineProps<{
   items: Site[];
   loading: boolean;
   serverUp: boolean;
-  busy: string;
+  busyIds: string[];
+  filtered?: boolean;
 }>();
 const emit = defineEmits<{
   edit: [id: string];
@@ -50,7 +51,10 @@ function siteURLs(s: Site): string[] {
     <template v-for="s in items" :key="s.id">
       <div
         class="sitelist__row" :class="{ 'sitelist__row--open': expanded === s.id }"
+        role="button" tabindex="0" :aria-expanded="expanded === s.id"
         @click="toggleExpand(s.id)"
+        @keydown.enter.prevent="toggleExpand(s.id)"
+        @keydown.space.prevent="toggleExpand(s.id)"
       >
         <span class="sitelist__chevron" :class="{ 'is-open': expanded === s.id }">
           <ChevronRight :size="14" />
@@ -63,19 +67,20 @@ function siteURLs(s: Site): string[] {
           </span>
         </span>
         <span class="sitelist__ops" @click.stop>
-          <button class="icon-btn" :title="t('sites.detail')" @click="emit('edit', s.id)">
+          <button class="icon-btn" :title="t('sites.detail')" :aria-label="t('sites.detail')" @click="emit('edit', s.id)">
             <Pencil :size="14" />
           </button>
           <button
-            class="icon-btn" :disabled="busy === s.id"
+            class="icon-btn" :disabled="busyIds.includes(s.id)"
             :title="s.enabled ? t('sites.toggleOn') : t('sites.toggleOff')"
+            :aria-label="s.enabled ? t('sites.toggleOn') : t('sites.toggleOff')"
             @click="emit('toggle', s.id, !s.enabled)"
           >
             <Power :size="14" />
           </button>
           <button
-            class="icon-btn icon-btn--danger" :disabled="busy === s.id"
-            :title="t('sites.del')" @click="emit('delete', s.id)"
+            class="icon-btn icon-btn--danger" :disabled="busyIds.includes(s.id)"
+            :title="t('sites.del')" :aria-label="t('sites.del')" @click="emit('delete', s.id)"
           >
             <Trash2 :size="14" />
           </button>
@@ -91,11 +96,11 @@ function siteURLs(s: Site): string[] {
           <Globe :size="14" class="sitelist__url-ico" />
           <span class="sitelist__url-text mono">{{ url }}</span>
           <span class="sitelist__url-ops">
-            <button class="icon-btn" :title="t('sites.copy')" @click="emit('copy', url)">
+            <button class="icon-btn" :title="t('sites.copy')" :aria-label="t('sites.copy')" @click="emit('copy', url)">
               <Copy :size="13" />
             </button>
             <button
-              class="icon-btn" :title="t('sites.open')"
+              class="icon-btn" :title="t('sites.open')" :aria-label="t('sites.open')"
               :disabled="!serverUp || !s.enabled"
               @click="emit('open', url)"
             >
@@ -107,8 +112,8 @@ function siteURLs(s: Site): string[] {
     </template>
 
     <div v-if="!items.length && !loading" class="table__empty">
-      {{ t('sites.empty') }}
-      <span class="table__quip">{{ quip }}</span>
+      {{ filtered ? t('sites.noMatch') : t('sites.empty') }}
+      <span v-if="!filtered" class="table__quip">{{ quip }}</span>
     </div>
   </div>
 </template>

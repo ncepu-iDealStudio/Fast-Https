@@ -167,6 +167,14 @@
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring);
 }
 .cfg-row__control select { max-width: 340px; }
+/* 数值字段：左右加减按钮，输入框占满中间 */
+.num-field { display: flex; align-items: center; gap: 6px; max-width: 560px; }
+.cfg-row__control .num-field input[type="number"] { flex: 1; width: auto; min-width: 0; }
+.num-field .icon-btn { height: var(--input-h); }
+/* 已经有左右按钮，隐藏浏览器自带的上/下箭头，避免两套控件 */
+.num-field input[type="number"]::-webkit-outer-spin-button,
+.num-field input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.num-field input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 .cfg-row__title {
   display: inline-flex;
   align-items: center;
@@ -207,6 +215,15 @@
 /* 行内按钮与输入框同高，否则 32 对 34 会差出一条缝 */
 .path-row .fh-btn,
 .path-row .icon-btn { height: var(--input-h); }
+
+/* ---------------------------------------------------------------- 列表搜索 */
+.list-search {
+  width: 260px; max-width: 100%; height: var(--input-h); margin-bottom: 10px; padding: 0 10px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--text); font: inherit; font-size: 13px;
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+}
+.list-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); }
 
 /* ---------------------------------------------------------------- 日志筛选 */
 .filter-bar {

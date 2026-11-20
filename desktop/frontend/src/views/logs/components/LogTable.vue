@@ -70,7 +70,7 @@ function levelClass(level?: string): string {
         <span class="logrow__host mono">{{ e.host || '—' }}<template v-if="e.remoteAddr"> · {{ e.remoteAddr }}</template><template v-else-if="e.remoteIp"> · {{ e.remoteIp }}</template></span>
       </div>
       <div v-if="hasMore" class="logtable__more">
-        <button class="icon-btn" :title="t('logs.more')" :disabled="loading" @click="emit('more')">
+        <button class="icon-btn" :title="t('logs.more')" :aria-label="t('logs.more')" :disabled="loading" @click="emit('more')">
           <ChevronDown :size="14" />
         </button>
       </div>

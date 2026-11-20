@@ -8,6 +8,7 @@ import {
   DialogTitle, DialogDescription, DialogClose,
 } from 'reka-ui';
 import { X } from '@lucide/vue';
+import { useI18n } from '../../composables/useI18n';
 
 withDefaults(defineProps<{
   open: boolean;
@@ -17,6 +18,7 @@ withDefaults(defineProps<{
 }>(), { description: '', width: '430px' });
 
 const emit = defineEmits<{ 'update:open': [value: boolean] }>();
+const { t } = useI18n();
 </script>
 
 <template>
@@ -26,7 +28,7 @@ const emit = defineEmits<{ 'update:open': [value: boolean] }>();
       <DialogContent class="fh-dialog" :style="{ width }">
         <div class="fh-dialog__head">
           <DialogTitle class="fh-dialog__title">{{ title }}</DialogTitle>
-          <DialogClose class="fh-dialog__close" aria-label="Close"><X :size="16" /></DialogClose>
+          <DialogClose class="fh-dialog__close" :aria-label="t('common.close')"><X :size="16" /></DialogClose>
         </div>
         <DialogDescription v-if="description" class="fh-dialog__desc">{{ description }}</DialogDescription>
         <div class="fh-dialog__body"><slot /></div>

@@ -1,38 +1,27 @@
 <script setup lang="ts">
 /** 版本更新：唯一历史时间线；行内可看变更、回滚、删除版本。 */
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from '../../composables/useI18n';
+import { usePolling } from '../../composables/usePolling';
 import { runCommand } from '../../services/api/command';
 import { messageOf } from '../../services/api/base';
 import OpsTable from './components/OpsTable.vue';
 import OpsDetail from './components/OpsDetail.vue';
 import DiffDialog from './components/DiffDialog.vue';
 import ConfirmDialog from '../../components/common/ConfirmDialog.vue';
+import { useOperations, type Operation, type OpChange } from './composables/useOperations';
 
-interface Op {
-  operation_id?: string; command?: string; status?: string;
-  created_at?: string; started_at?: string; finished_at?: string;
-  phase?: string; owner_pid?: number; version?: string;
-  result?: Record<string, unknown>;
-  error?: { code?: string; message?: string; details?: { code?: string; message?: string }[] } | null;
-}
 interface Version {
   version?: string; active?: boolean;
 }
-interface Change { path?: string; op?: string; value?: unknown; old?: unknown; new?: unknown; changed?: boolean }
 
-const MAX_LIMIT = 1000;
-const rows = ref<Op[]>([]);
-const loading = ref(false);
-const error = ref('');
+const { rows, loading, error, load, loadMore } = useOperations();
 const notice = ref('');
 const openId = ref('');
-const limit = ref(50);
-const allLoaded = ref(false);
 const activeVersion = ref('');
 const versions = ref<Version[]>([]);
 const drift = ref(false);
-const diffDialog = ref<{ base?: string; version: string; changes: Change[]; missing?: boolean } | null>(null);
+const diffDialog = ref<{ base?: string; version: string; changes: OpChange[]; missing?: boolean } | null>(null);
 const rollbackTarget = ref<{ id?: string; version: string } | null>(null);
 const rollbackBusy = ref(false);
 const deleteTarget = ref('');
@@ -40,18 +29,18 @@ const deleteBusy = ref(false);
 
 const { t } = useI18n();
 
-function opVersion(op: Op): string {
+function opVersion(op: Operation): string {
   const v = op.result?.version ?? op.version;
   return typeof v === 'string' ? v : '';
 }
-function changesOf(op: Op): Change[] {
+function changesOf(op: Operation): OpChange[] {
   const c = op.result?.changes;
-  return Array.isArray(c) ? (c as Change[]) : [];
+  return Array.isArray(c) ? (c as OpChange[]) : [];
 }
-function hasRecordedChanges(op: Op): boolean {
+function hasRecordedChanges(op: Operation): boolean {
   return Array.isArray(op.result?.changes);
 }
-function isActive(op: Op): boolean {
+function isActive(op: Operation): boolean {
   return !!activeVersion.value && opVersion(op) === activeVersion.value;
 }
 
@@ -64,23 +53,8 @@ const currentOpId = computed(() => {
   return hit?.operation_id ?? '';
 });
 
-async function load(reset = true): Promise<void> {
-  if (loading.value) return;
-  if (reset) { limit.value = 50; allLoaded.value = false; }
-  loading.value = true;
-  error.value = '';
-  try {
-    const args = ['operation', 'list', '--limit', String(limit.value)];
-    const r = await runCommand(args);
-    const d = r.data as { operations?: Op[] } | null;
-    rows.value = d?.operations ?? [];
-    if (rows.value.length < limit.value) allLoaded.value = true;
-  } catch (e) {
-    error.value = messageOf(e);
-    if (reset) rows.value = [];
-  } finally {
-    loading.value = false;
-  }
+async function refresh(reset = true): Promise<void> {
+  await load(reset);
   await loadCurrentVersion();
 }
 
@@ -98,16 +72,10 @@ async function loadCurrentVersion(): Promise<void> {
   }
 }
 
-async function loadMore(): Promise<void> {
-  if (loading.value || allLoaded.value || limit.value >= MAX_LIMIT) return;
-  limit.value = Math.min(MAX_LIMIT, limit.value * 2);
-  await load(false);
-}
-
 function toggleDetail(id: string): void {
   openId.value = openId.value === id ? '' : id;
 }
-function toggleDiff(op: Op): void {
+function toggleDiff(op: Operation): void {
   if (!opVersion(op)) return;
   diffDialog.value = {
     version: opVersion(op),
@@ -115,7 +83,7 @@ function toggleDiff(op: Op): void {
     missing: !hasRecordedChanges(op),
   };
 }
-function askRollback(op: Op): void {
+function askRollback(op: Operation): void {
   if (!opVersion(op) || isActive(op)) return;
   notice.value = '';
   rollbackTarget.value = { id: op.operation_id, version: opVersion(op) };
@@ -129,11 +97,11 @@ async function doRollback(): Promise<void> {
     const args = target.id
       ? ['config', 'rollback', '--operation', target.id, '--yes']
       : ['config', 'rollback', '--version', target.version, '--yes'];
-    const r = await runCommand(args);
-    notice.value = r.text || t('settings.rollbackDone');
+    await runCommand(args);
+    notice.value = t('settings.rollbackDone');
     rollbackTarget.value = null;
     diffDialog.value = null;
-    await load();
+    await refresh();
   } catch (e) {
     error.value = messageOf(e);
   } finally {
@@ -141,7 +109,7 @@ async function doRollback(): Promise<void> {
   }
 }
 
-function askDeleteVersion(op: Op): void {
+function askDeleteVersion(op: Operation): void {
   const v = opVersion(op);
   if (!v || v === activeVersion.value) return;
   notice.value = '';
@@ -157,7 +125,7 @@ async function doDeleteVersion(): Promise<void> {
     notice.value = t('ops.deleted', { v });
     deleteTarget.value = '';
     diffDialog.value = null;
-    await load();
+    await refresh();
   } catch (e) {
     error.value = messageOf(e);
   } finally {
@@ -165,12 +133,8 @@ async function doDeleteVersion(): Promise<void> {
   }
 }
 
-onMounted(() => {
-  void load();
-  // 操作记录随事务追加，10 秒刷新一次。
-  const timer = window.setInterval(() => { void load(true); }, 10000);
-  onUnmounted(() => window.clearInterval(timer));
-});
+// 操作记录随事务追加，10 秒刷新一次；保留当前「加载更多」的条数。
+usePolling(() => { void refresh(false); }, 10000, computed(() => true));
 </script>
 
 <template>

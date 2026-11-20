@@ -95,20 +95,20 @@ function statusClass(op: Op): string {
           <span class="opsrow__actions">
             <button
               v-if="mode === 'audit' ? hasChanges(op) : (!!opVersion(op) && opVersion(op) !== activeVersion)"
-              class="icon-btn" :title="t('settings.diff')" @click.stop="emit('diff', op)"
+              class="icon-btn" :title="t('settings.diff')" :aria-label="t('settings.diff')" @click.stop="emit('diff', op)"
             >
               <GitCompareArrows :size="14" />
             </button>
             <template v-if="mode === 'versions'">
               <button
                 v-if="versionExists(op) && opVersion(op) !== activeVersion"
-                class="icon-btn" :title="t('settings.rollback')" @click.stop="emit('rollback', op)"
+                class="icon-btn" :title="t('settings.rollback')" :aria-label="t('settings.rollback')" @click.stop="emit('rollback', op)"
               >
                 <Undo2 :size="14" />
               </button>
               <button
                 v-if="versionExists(op) && opVersion(op) !== activeVersion"
-                class="icon-btn" :title="t('ops.deleteVersion')" @click.stop="emit('delete', op)"
+                class="icon-btn" :title="t('ops.deleteVersion')" :aria-label="t('ops.deleteVersion')" @click.stop="emit('delete', op)"
               >
                 <Trash2 :size="14" />
               </button>

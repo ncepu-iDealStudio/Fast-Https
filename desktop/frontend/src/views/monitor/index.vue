@@ -4,11 +4,13 @@
  * 概览 / 状态矩阵 / 运行快照 三页合并于此，一次拉齐所有数据。
  * 页面内不重复大标题——标题由顶栏与侧栏承担。
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Activity, Globe, Database, ShieldCheck, ScrollText, Zap, AlertCircle, ArrowLeftRight, Check } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
 import { useAppStore, type PaneKey } from '../../stores/app';
 import { startServer, stopServer, reloadServer } from '../../services/api/app';
+import { messageOf } from '../../services/api/base';
+import { usePolling } from '../../composables/usePolling';
 import { useMonitorData } from './composables/useMonitorData';
 import HeroCard from './components/HeroCard.vue';
 import MetricCards from './components/MetricCards.vue';
@@ -124,7 +126,7 @@ async function toggleServer(): Promise<void> {
   try {
     if (running.value) await stopServer(); else await startServer();
   } catch (e) {
-    notice.value = String(e);
+    notice.value = messageOf(e);
   } finally {
     busy.value = false;
     await load();
@@ -137,7 +139,7 @@ async function reload(): Promise<void> {
   try {
     await reloadServer();
   } catch (e) {
-    notice.value = String(e);
+    notice.value = messageOf(e);
   } finally {
     busy.value = false;
     await load();
@@ -148,7 +150,8 @@ function go(pane: string): void {
   app.activate(pane as PaneKey);
 }
 
-onMounted(() => { void load(); });
+// 监控中心常驻页面：每 5 秒刷新一次运行快照、健康状态与事件。
+usePolling(() => { void load(); }, 5000, computed(() => true));
 </script>
 
 <template>

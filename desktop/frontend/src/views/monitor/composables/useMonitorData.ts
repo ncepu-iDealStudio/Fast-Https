@@ -82,6 +82,8 @@ export function useMonitorData() {
   }
 
   async function load(): Promise<void> {
+    // 轮询可能在上一次还没跑完时触发：直接跳过，避免请求堆积。
+    if (loading.value) return;
     loading.value = true;
 
     try {
@@ -89,8 +91,10 @@ export function useMonitorData() {
     } catch { /* 服务未启动不算错误 */ }
 
     try {
-      const r = await runCommand(['runtime', 'status']);
-      const s = await runCommand(['runtime', 'stats']);
+      const [r, s] = await Promise.all([
+        runCommand(['runtime', 'status']),
+        runCommand(['runtime', 'stats']),
+      ]);
       const sd = (s.data ?? {}) as { responses?: Record<string, number>; upstream?: Record<string, number> };
       const base = (r.data ?? {}) as RuntimeData;
       const conns = base.connections ?? {};
@@ -114,19 +118,12 @@ export function useMonitorData() {
       clearHistory();
     }
 
-    try {
-      const st = await runCommand(['monitor', 'status']);
-      monitor.value = (st.data ?? null) as MonitorStatus | null;
-    } catch {
-      monitor.value = null;
-    }
-
-    try {
-      const ev = await runCommand(['monitor', 'events', '--limit', '8']);
-      events.value = ((ev.data ?? {}) as { events?: MonitorEvent[] }).events ?? [];
-    } catch {
-      events.value = [];
-    }
+    const [st, ev] = await Promise.all([
+      runCommand(['monitor', 'status']).catch(() => null),
+      runCommand(['monitor', 'events', '--limit', '8']).catch(() => null),
+    ]);
+    monitor.value = st ? ((st.data ?? null) as MonitorStatus | null) : null;
+    events.value = ev ? (((ev.data ?? {}) as { events?: MonitorEvent[] }).events ?? []) : [];
 
     loading.value = false;
   }

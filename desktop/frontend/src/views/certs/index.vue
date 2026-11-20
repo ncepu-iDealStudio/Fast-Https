@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /** 证书页编排壳：刷新 / 信任 CA / 检查，数据交给 CertTable。 */
-import { onMounted, onUnmounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ShieldCheck } from '@lucide/vue';
 import { useI18n } from '../../composables/useI18n';
+import { usePolling } from '../../composables/usePolling';
 import { useCertsStore } from '../../stores/certs';
 import FhButton from '../../components/ui/FhButton.vue';
 import PageTitle from '../../components/common/PageTitle.vue';
@@ -15,17 +16,21 @@ const certs = useCertsStore();
 const trustOpen = ref(false);
 const checkOpen = ref(false);
 const checkDomain = ref('');
+const query = ref('');
+
+const filteredCerts = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  if (!q) return certs.items;
+  return certs.items.filter((c) =>
+    [c.domain, c.subject, c.names, c.file].join(' ').toLowerCase().includes(q));
+});
 
 function openCheck(domain: string): void {
   checkDomain.value = domain;
   checkOpen.value = true;
 }
-onMounted(() => {
-  void certs.refresh();
-  // 自动刷新：证书状态随时间变化，30 秒一次，无需手动点。
-  const timer = window.setInterval(() => { void certs.refresh(); }, 30000);
-  onUnmounted(() => window.clearInterval(timer));
-});
+// 证书状态随时间变化，30 秒刷新一次；窗口隐藏时自动暂停。
+usePolling(() => { void certs.refresh(); }, 30000, computed(() => true));
 </script>
 
 <template>
@@ -41,7 +46,12 @@ onMounted(() => {
     <p v-if="certs.error" class="notice notice--err">{{ certs.error }}</p>
     <div v-if="certs.loading && !certs.items.length" class="notice">{{ t('certs.loading') }}</div>
 
-    <CertTable :items="certs.items" :loading="certs.loading" @check="openCheck" />
+    <input
+      v-model="query" class="list-search" type="search"
+      :placeholder="t('certs.searchPh')" :aria-label="t('certs.searchPh')"
+    />
+
+    <CertTable :items="filteredCerts" :loading="certs.loading" :filtered="query.trim().length > 0" @check="openCheck" />
 
     <TrustDialog v-model:open="trustOpen" />
     <CertCheckDialog v-model:open="checkOpen" :domain="checkDomain" />
