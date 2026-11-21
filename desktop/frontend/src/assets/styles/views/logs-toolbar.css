@@ -3,22 +3,24 @@
 /* 分段控件：四类日志是一组互斥视图，用一个容器统一切换比四个独立按钮更清晰 */
 .seg {
   display: inline-flex;
-  padding: 2px;
-  border: 1px solid var(--line-strong);
+  padding: 3px;
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--surface);
 }
 .seg__item {
-  height: var(--btn-h-sm); padding: 0 12px;
+  height: var(--btn-h-sm); padding: 0 14px;
   border: 0; border-radius: var(--radius-sm);
   background: transparent; color: var(--muted);
   font-size: 12px; cursor: pointer;
+  transition: background var(--dur-2) var(--ease), color var(--dur-2) var(--ease), box-shadow var(--dur-2) var(--ease);
 }
 .seg__item:hover { color: var(--text); }
 .seg__item--on {
-  background: var(--bg); color: var(--text); font-weight: 600;
-  box-shadow: 0 1px 2px rgba(16, 20, 28, .06);
+  background: var(--bg); color: var(--accent); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(16, 20, 36, .08), 0 0 0 1px var(--ring);
 }
+.seg__item--on:hover { color: var(--accent); }
 
 .logs-count { font-size: 11px; color: var(--faint); margin-left: auto; }
 

@@ -1,8 +1,8 @@
 /* FhDialog.vue —— Reka UI headless 原语的外观层，沿用旧版 .dialog 规格。 */
 .fh-dialog__overlay {
   position: fixed; inset: 0; z-index: 60;
-  background: rgba(16, 20, 28, .3);
-  backdrop-filter: blur(2px);
+  background: rgba(12, 15, 26, .42);
+  backdrop-filter: blur(4px);
   animation: fh-overlay-in var(--dur-2) var(--ease);
 }
 .fh-dialog {
@@ -12,9 +12,9 @@
   display: flex; flex-direction: column; overflow: hidden;
   padding: 24px 26px 20px;
   background: var(--bg); border: 1px solid var(--line-strong);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: var(--shadow-2);
-  animation: fh-dialog-in var(--dur-2) var(--ease);
+  animation: fh-dialog-in .22s var(--ease);
 }
 .fh-dialog__head {
   flex: 0 0 auto;
@@ -47,7 +47,7 @@
 }
 @keyframes fh-overlay-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fh-dialog-in {
-  from { opacity: 0; transform: translate(-50%, -48%) scale(.985); }
+  from { opacity: 0; transform: translate(-50%, -46%) scale(.96); }
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {

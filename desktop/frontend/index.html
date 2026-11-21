@@ -22,22 +22,22 @@
   <style>
     /* 首屏骨架：Vue 挂载前先画出与真实布局同构的占位，避免 dev 首次启动
        时 Webview 抢在 Vite 依赖预构建完成之前渲染出「只有侧边栏」的半成品。 */
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #F5F7FA; }
-    html[data-mode="dark"], html[data-mode="dark"] body { background: #1A1E24; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #F4F5F9; }
+    html[data-mode="dark"], html[data-mode="dark"] body { background: #0D1017; }
     #boot {
       height: 100%; display: flex; flex-direction: column;
       font: 400 13.5px/1.7 "Segoe UI Variable", "Segoe UI", "Microsoft YaHei UI", sans-serif;
-      color: #666C75;
+      color: #686E82;
     }
-    html[data-mode="dark"] #boot { color: #8B94A1; }
-    #boot .top { height: 52px; flex: 0 0 52px; background: #fff; border-bottom: 1px solid #E6E8EC; }
-    html[data-mode="dark"] #boot .top { background: #1A1E24; border-bottom-color: #2C333D; }
-    #boot .body { flex: 1; display: grid; grid-template-columns: 200px 1fr; min-height: 0; }
-    html[data-rail="rail"] #boot .body { grid-template-columns: 56px 1fr; }
-    #boot .side { background: #fff; border-right: 1px solid #E6E8EC; }
-    html[data-mode="dark"] #boot .side { background: #1A1E24; border-right-color: #2C333D; }
-    #boot .hold { display: grid; place-items: center; }
-    #boot .hold span { font-size: 12px; color: #949AA3; letter-spacing: .04em; }
+    html[data-mode="dark"] #boot { color: #848CA4; }
+    #boot .top { height: 52px; flex: 0 0 52px; background: transparent; }
+    #boot .body { flex: 1; display: grid; grid-template-columns: 212px 1fr; gap: 12px; padding: 0 12px 12px; min-height: 0; }
+    html[data-rail="rail"] #boot .body { grid-template-columns: 68px 1fr; }
+    #boot .side { background: rgba(255,255,255,.78); border: 1px solid #E5E7F0; border-radius: 20px; }
+    html[data-mode="dark"] #boot .side { background: rgba(21,24,34,.78); border-color: #23283A; }
+    #boot .hold { display: grid; place-items: center; background: rgba(255,255,255,.78); border: 1px solid #E5E7F0; border-radius: 20px; }
+    html[data-mode="dark"] #boot .hold { background: rgba(21,24,34,.78); border-color: #23283A; }
+    #boot .hold span { font-size: 12px; color: #848CA4; letter-spacing: .04em; }
   </style>
 </head>
 <body>

@@ -6,12 +6,15 @@
   flex: 0 0 var(--icon-btn);
   display: inline-grid; place-items: center;
   padding: 0;
-  border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
   background: var(--bg); color: var(--muted);
   cursor: pointer;
-  transition: background .15s, border-color .15s, color .15s;
+  transition: background .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s;
 }
-.icon-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--text); }
+.icon-btn:hover:not(:disabled) {
+  background: var(--accent-soft); border-color: var(--ring); color: var(--accent);
+}
+.icon-btn:active:not(:disabled) { transform: scale(.94); }
 .icon-btn:disabled { opacity: .45; cursor: not-allowed; }
-.icon-btn--danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+.icon-btn--danger:hover:not(:disabled) { border-color: var(--danger-line); color: var(--danger); background: var(--danger-soft); box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .icon-btn { transition: none; } }

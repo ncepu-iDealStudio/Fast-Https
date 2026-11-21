@@ -1,7 +1,7 @@
 .sitelist {
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-1);
 }
@@ -11,15 +11,16 @@
   grid-template-columns: 22px minmax(0, 1.2fr) minmax(0, 1fr) 84px auto;
   gap: 14px;
   align-items: center;
-  padding: 10px 16px;
+  padding: 11px 18px;
   font-size: 13px;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
   user-select: none;
-  transition: background-color var(--dur-1) var(--ease);
+  transition: background-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
 }
-.sitelist__row:hover { background: var(--surface); }
-.sitelist__row--open { background: var(--surface); }
+.sitelist__row:hover { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.sitelist__row--open { background: var(--grad-brand-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.sitelist__row--open .sitelist__chevron { color: var(--accent); }
 
 .sitelist__chevron {
   display: grid; place-items: center;

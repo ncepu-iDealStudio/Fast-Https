@@ -7,10 +7,11 @@
 }
 
 .card {
+  position: relative; overflow: hidden;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  padding: 18px 22px;
   margin-bottom: 16px;
   box-shadow: var(--shadow-1);
   transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease);

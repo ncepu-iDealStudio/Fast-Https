@@ -2,60 +2,91 @@
    亮色：文档式运行报告；暗色：深石墨值班台。
    顶部通栏放 logo，工作区是浅底 + 白卡片；导航选中态用中性色块，不用左侧竖条。 */
 
+/* 「静谧值班台」主题：克制的靛蓝单色强调 + 极淡环境光，
+   工作区卡片实底保证高可读性；顶栏 / 侧栏 / 状态栏为轻薄悬浮玻璃层。 */
 :root {
-  --accent: #5F6670;
-  --accent-soft: #ECEDF0;
+  --accent: #4F5BD5;
+  --accent-soft: rgba(79, 91, 213, .08);
   --accent-ink: #FFFFFF;
   --bg: #FFFFFF;
-  --surface: #F5F7FA;
+  --surface: #F4F5F9;
   --panel: #FFFFFF;
-  --line: #E6E8EC;
-  --line-strong: #CFD4DC;
-  --text: #16181D;
-  --muted: #5F6670;
+  --line: #E5E7F0;
+  --line-strong: #D0D4E2;
+  --text: #151722;
+  --muted: #555B6E;
   /* faint 只用于说明文字，必须过 AA：白底上 4.7:1。改浅就会出现「看得见但费劲」。 */
-  --faint: #6F7782;
-  --ok: #16794A;
-  --warn: #A75B0A;
-  --danger: #C0392B;
-  --sidebar-w: 200px;
+  --faint: #686E82;
+  --ok: #138050;
+  --warn: #AE5E0A;
+  --danger: #C93B2F;
+  --sidebar-w: 212px;
+
+  /* 品牌克制双色：靛蓝 → 柔青，仅用于极少数锚点，不铺满界面 */
+  --brand-1: #4F5BD5;
+  --brand-2: #5E6AD2;
+  --brand-3: #2B9EB3;
+  --grad-brand: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-3) 100%);
+  --grad-brand-soft: linear-gradient(135deg, rgba(79,91,213,.09) 0%, rgba(43,158,179,.06) 100%);
+
+  /* 玻璃层：悬浮的顶栏 / 侧栏 / 状态栏 */
+  --glass: rgba(255, 255, 255, .78);
+  --glass-strong: rgba(255, 255, 255, .92);
+  --glass-line: rgba(255, 255, 255, .85);
+  --glass-edge: rgba(20, 24, 48, .07);
+
+  /* 环境氛围光（极淡，避免光污染） */
+  --aurora-1: rgba(79, 91, 213, .07);
+  --aurora-2: rgba(43, 158, 179, .06);
+  --aurora-3: rgba(94, 106, 210, .04);
+  --grid-dot: rgba(30, 35, 65, .05);
 
   /* 语义色底/描边：徽标、提示条用半透明叠加，避免整块实色压过内容 */
-  --ok-soft: rgba(22, 121, 74, .10);
-  --ok-line: rgba(22, 121, 74, .32);
-  --warn-soft: rgba(167, 91, 10, .10);
-  --warn-line: rgba(167, 91, 10, .32);
-  --danger-soft: rgba(192, 57, 43, .09);
-  --danger-line: rgba(192, 57, 43, .30);
-  --ring: rgba(95, 102, 112, .16);
+  --ok-soft: rgba(19, 128, 80, .09);
+  --ok-line: rgba(19, 128, 80, .28);
+  --warn-soft: rgba(174, 94, 10, .09);
+  --warn-line: rgba(174, 94, 10, .28);
+  --danger-soft: rgba(201, 59, 47, .08);
+  --danger-line: rgba(201, 59, 47, .28);
+  --ring: rgba(79, 91, 213, .18);
 
   /* 原生控件（下拉箭头、数字步进、滚动条）跟随主题，否则暗色下会是黑箭头 */
   color-scheme: light;
 }
 
 html[data-mode="dark"] {
-  --accent: #C2C8D0;
-  --accent-soft: rgba(255,255,255,.09);
-  --accent-ink: #14171C;
-  --bg: #1A1E24;
-  --surface: #101319;
-  --panel: #171B21;
-  --line: #2A2F37;
-  --line-strong: #3A414B;
-  --text: #E8EBEF;
-  --muted: #A2ABB8;
-  --faint: #8B94A1;
-  --ok: #5FCB96;
-  --warn: #E0A458;
-  --danger: #F08A80;
+  --accent: #8B95F6;
+  --accent-soft: rgba(139, 149, 246, .11);
+  --accent-ink: #0E101A;
+  --bg: #151822;
+  --surface: #0D1017;
+  --panel: #131620;
+  --line: #23283A;
+  --line-strong: #323950;
+  --text: #E6E9F2;
+  --muted: #9CA3B8;
+  --faint: #848CA4;
+  --ok: #46C98E;
+  --warn: #E2A957;
+  --danger: #EE847B;
 
-  --ok-soft: rgba(95, 203, 150, .12);
-  --ok-line: rgba(95, 203, 150, .34);
-  --warn-soft: rgba(224, 164, 88, .12);
-  --warn-line: rgba(224, 164, 88, .34);
-  --danger-soft: rgba(240, 138, 128, .12);
-  --danger-line: rgba(240, 138, 128, .34);
-  --ring: rgba(194, 200, 208, .22);
+  --glass: rgba(21, 24, 34, .78);
+  --glass-strong: rgba(23, 27, 39, .92);
+  --glass-line: rgba(255, 255, 255, .06);
+  --glass-edge: rgba(0, 0, 0, .32);
+
+  --aurora-1: rgba(79, 91, 213, .11);
+  --aurora-2: rgba(43, 158, 179, .08);
+  --aurora-3: rgba(94, 106, 210, .06);
+  --grid-dot: rgba(180, 190, 230, .04);
+
+  --ok-soft: rgba(70, 201, 142, .11);
+  --ok-line: rgba(70, 201, 142, .30);
+  --warn-soft: rgba(226, 169, 87, .11);
+  --warn-line: rgba(226, 169, 87, .30);
+  --danger-soft: rgba(238, 132, 123, .11);
+  --danger-line: rgba(238, 132, 123, .30);
+  --ring: rgba(139, 149, 246, .24);
 
   color-scheme: dark;
 }
@@ -75,15 +106,18 @@ html[data-mode="dark"] {
   --sp-4: 16px;
   --sp-5: 24px;
 
-  --radius-xs: 5px;
-  --radius-sm: 7px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-pill: 999px;
 
-  /* 一层极轻投影表示「浮起」，不刻意做玻璃拟态；对话框用更深一层 */
-  --shadow-1: 0 1px 2px rgba(16, 20, 28, .04), 0 1px 1px rgba(16, 20, 28, .03);
-  --shadow-2: 0 18px 48px rgba(16, 20, 28, .18), 0 2px 8px rgba(16, 20, 28, .06);
+  /* 投影：克制的中性微影，不做彩色发光 */
+  --shadow-1: 0 1px 2px rgba(16, 20, 36, .04), 0 2px 8px -4px rgba(16, 20, 36, .06);
+  --shadow-hover: 0 2px 4px rgba(16, 20, 36, .05), 0 10px 24px -12px rgba(16, 20, 36, .16);
+  --shadow-2: 0 20px 56px rgba(16, 20, 36, .18), 0 2px 8px rgba(16, 20, 36, .06);
+  --shadow-glow: 0 2px 8px -3px rgba(79, 91, 213, .28);
 
   /* 动效：统一时长与缓动，避免各处 .15s/.18s/.2s 混用显得跳 */
   --ease: cubic-bezier(.2, .7, .3, 1);
@@ -126,8 +160,20 @@ body {
   font-variant-numeric: tabular-nums;
   font-synthesis-weight: none;
 }
-/* 选中态用中性底，避免系统蓝在灰调界面里跳出来 */
-::selection { background: var(--accent-soft); color: var(--text); }
+html[data-mode="dark"] {
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .26), 0 4px 14px -8px rgba(0, 0, 0, .40);
+  --shadow-hover: 0 2px 6px rgba(0, 0, 0, .32), 0 14px 28px -14px rgba(0, 0, 0, .55);
+  --shadow-2: 0 24px 64px rgba(0, 0, 0, .52), 0 2px 10px rgba(0, 0, 0, .32);
+}
+
+/* 选中态用品牌浅底 */
+::selection { background: rgba(99, 102, 241, .22); color: var(--text); }
+/* 渐变文字工具类 */
+.grad-text {
+  background: var(--grad-brand);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; }
 h1, h2, h3, h4, b, strong, .m-value { font-weight: 600; letter-spacing: 0; }

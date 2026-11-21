@@ -21,9 +21,12 @@ const emit = defineEmits<{ go: [pane: string] }>();
 
 <template>
   <div class="comp-grid">
-    <div v-for="c in cards" :key="c.title" class="comp">
+    <div
+      v-for="(c, i) in cards" :key="c.title"
+      class="comp" :class="c.ok ? 'comp--ok' : 'comp--off'" :style="{ '--i': i }"
+    >
       <div class="comp__top">
-        <span class="comp__ico"><component :is="c.ico" :size="12" /></span>
+        <span class="comp__ico"><component :is="c.ico" :size="14" /></span>
         <span class="comp__name">{{ c.title }}</span>
         <span class="badge" :class="c.ok ? 'badge--ok' : 'badge--off'">
           <span class="badge__dot" />{{ c.status }}

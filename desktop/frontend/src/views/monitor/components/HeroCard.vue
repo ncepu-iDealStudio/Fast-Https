@@ -39,29 +39,42 @@ const subtitle = computed(() =>
   <section class="hero" :class="{ 'hero--off': !running }">
     <div class="hero__row">
       <div class="hero__main">
-        <div class="hero__kicker">SERVICE STATUS</div>
+        <div class="hero__kicker"><span class="hero__kicker-line" />SERVICE STATUS</div>
         <h2 class="hero__title">
           {{ running ? t('status.running') : t('status.stopped') }}
           <span v-if="running" class="live-pill">LIVE</span>
         </h2>
         <p class="hero__sub">{{ subtitle }}</p>
+        <div class="hero__actions">
+          <button class="hbtn hbtn--main" :class="{ 'hbtn--stop': running }" :disabled="busy" @click="emit('toggle')">
+            <component :is="running ? Square : Play" :size="13" />
+            <span>{{ running ? t('overview.stop') : t('overview.start') }}</span>
+          </button>
+          <button class="hbtn" :disabled="busy" @click="emit('reload')">
+            <RotateCw :size="13" /><span>{{ t('overview.reload') }}</span>
+          </button>
+          <button class="hbtn" @click="emit('diagnose')">
+            <Stethoscope :size="13" /><span>{{ t('overview.diagnose') }}</span>
+          </button>
+        </div>
       </div>
-      <div class="hero__actions">
-        <button class="hbtn" :class="{ 'hbtn--stop': running }" :disabled="busy" @click="emit('toggle')">
-          <component :is="running ? Square : Play" :size="13" />
-          <span>{{ running ? t('overview.stop') : t('overview.start') }}</span>
-        </button>
-        <button class="hbtn" :disabled="busy" @click="emit('reload')">
-          <RotateCw :size="13" /><span>{{ t('overview.reload') }}</span>
-        </button>
-        <button class="hbtn" @click="emit('diagnose')">
-          <Stethoscope :size="13" /><span>{{ t('overview.diagnose') }}</span>
-        </button>
+
+      <!-- 雷达：运行时扫描线旋转 + 回波闪烁；停止时静止发灰。纯装饰。 -->
+      <div class="radar" aria-hidden="true">
+        <span class="radar__ring radar__ring--1" />
+        <span class="radar__ring radar__ring--2" />
+        <span class="radar__ring radar__ring--3" />
+        <span class="radar__cross" />
+        <span v-if="running" class="radar__sweep" />
+        <span v-if="running" class="radar__blip radar__blip--a" />
+        <span v-if="running" class="radar__blip radar__blip--b" />
+        <span v-if="running" class="radar__blip radar__blip--c" />
+        <span class="radar__core" />
       </div>
     </div>
 
     <div class="hero__facts">
-      <div v-for="f in facts" :key="f.k" class="hf">
+      <div v-for="(f, i) in facts" :key="f.k" class="hf" :style="{ '--i': i }">
         <div class="hf__k">{{ f.k }}</div>
         <div class="hf__v" :class="{ 'is-dim': f.dim, 'is-ok': f.ok }">{{ f.v }}</div>
       </div>

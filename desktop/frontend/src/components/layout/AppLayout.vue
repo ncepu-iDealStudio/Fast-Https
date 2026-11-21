@@ -63,6 +63,13 @@ async function starRepo(): Promise<void> {
 
 <template>
   <div class="window" :class="{ 'window--rail': app.railCollapsed }">
+    <!-- 极光背景：三团缓慢漂移的光斑 + 点阵网格，纯装饰 -->
+    <div class="aurora" aria-hidden="true">
+      <span class="aurora__blob aurora__blob--a" />
+      <span class="aurora__blob aurora__blob--b" />
+      <span class="aurora__blob aurora__blob--c" />
+      <span class="aurora__grid" />
+    </div>
     <TitleBar />
     <div class="app">
       <Sidebar />
@@ -75,7 +82,7 @@ async function starRepo(): Promise<void> {
     <footer class="footbar">
       <AccountMenu class="footbar__account" />
 
-      <div class="footbar__status">
+      <div class="footbar__status" :class="{ 'is-live': overview.data?.running }">
         <span class="dot" :class="overview.data?.running ? 'state-ok' : 'state-off'" />
         <strong>{{ overview.data?.running ? t('status.running') : t('status.stopped') }}</strong>
         <template v-if="overview.data?.running">
