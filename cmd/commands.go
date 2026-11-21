@@ -351,6 +351,12 @@ func StopHandler() error {
 			logging.ConsoleLog.Info().Msgf("fast-https is not running (pid %d)", pid)
 			return nil
 		}
+		// 进程是别的用户（通常是 root）启动的：没有权限发信号。pid 文件
+		// 必须保留，否则用户改用 sudo stop 时也找不到进程了。
+		if errors.Is(err, os.ErrPermission) {
+			logging.ConsoleLog.Fatal().Msgf(
+				"fast-https (pid %d) was started by another user; re-run stop with sudo", pid)
+		}
 		logging.ConsoleLog.Fatal().Msgf("fast-https stop failed: %v", err)
 	}
 
@@ -411,6 +417,10 @@ func reload(configPath, pidPath string) error {
 	err = servicecmd.SignalReloadProcess(process, pid)
 
 	if err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			logging.ConsoleLog.Fatal().Msgf(
+				"fast-https (pid %d) was started by another user; re-run reload with sudo", pid)
+		}
 		logging.ConsoleLog.Fatal().Msgf("fast-https reload failed: %v", err)
 	}
 	return nil
