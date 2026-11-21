@@ -56,6 +56,20 @@
 .footbar__hint { color: var(--faint); font-size: 11px; }
 .footbar__err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; }
 .footbar__spacer { flex: 1; }
+/* 状态栏中央的极淡哲学眉批：吃掉中间留白，不抢状态信息，窄窗自动隐去 */
+.footbar__colophon {
+  flex: 1 1 0; min-width: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 16px;
+  font-size: 11px; color: var(--faint);
+  opacity: .58;
+  user-select: none;
+  transition: opacity var(--dur-2) var(--ease);
+}
+.footbar__colophon:hover { opacity: .9; }
+.footbar__colophon-txt {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .footbar__checked {
   color: var(--faint); font-size: 10.5px;
   padding: 1px 8px; border-radius: var(--radius-pill); background: var(--accent-soft);
@@ -81,6 +95,9 @@
   .footbar__status.is-live::after { animation: none; }
 }
 
+@media (max-width: 980px) {
+  .footbar__colophon-txt { display: none; }
+}
 @media (max-width: 900px) {
   .footbar__hint, .footbar__checked { display: none; }
 }

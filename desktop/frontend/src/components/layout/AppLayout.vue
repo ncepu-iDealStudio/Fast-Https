@@ -7,17 +7,21 @@ import { computed, onMounted, ref } from 'vue';
 import TitleBar from './TitleBar.vue';
 import Sidebar from './Sidebar.vue';
 import AccountMenu from '../common/AccountMenu.vue';
+import SplashCurtain from '../common/SplashCurtain.vue';
+import PhilosophyWhisper from '../common/PhilosophyWhisper.vue';
 import { useAppStore } from '../../stores/app';
 import { useOverviewStore } from '../../stores/overview';
 import { useI18n } from '../../composables/useI18n';
 import { usePolling } from '../../composables/usePolling';
 import { startServer, stopServer, openRepo } from '../../services/api/app';
 import { messageOf } from '../../services/api/base';
+import { colophonOfMoment } from '../../content/philosophy';
 import { Play, Square, RotateCw } from '@lucide/vue';
 
 const app = useAppStore();
 const overview = useOverviewStore();
-const { t } = useI18n();
+const { t, lang } = useI18n();
+const colophon = computed(() => colophonOfMoment(lang()));
 
 const busy = ref(false);
 const footError = ref('');
@@ -98,7 +102,10 @@ async function starRepo(): Promise<void> {
         <span class="footbar__sep">·</span>
         <span class="footbar__hint">{{ t('status.refreshing') }}</span>
         <span v-if="footError" class="footbar__err">{{ footError }}</span>
-        <span class="footbar__spacer" />
+        <span v-if="!footError" class="footbar__colophon" aria-hidden="true">
+          <span class="footbar__colophon-txt">{{ colophon.text }}</span>
+        </span>
+        <span v-else class="footbar__spacer" />
         <span class="footbar__checked mono">{{ overview.data?.checkedAt || '' }}</span>
         <button
           class="fbtn" :title="overview.data?.running ? t('overview.stop') : t('overview.start')"
@@ -118,5 +125,7 @@ async function starRepo(): Promise<void> {
         </button>
       </div>
     </footer>
+    <SplashCurtain />
+    <PhilosophyWhisper />
   </div>
 </template>
