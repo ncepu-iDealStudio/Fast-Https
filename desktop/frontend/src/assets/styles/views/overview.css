@@ -7,7 +7,8 @@
 }
 
 .card {
-  position: relative; overflow: hidden;
+  position: relative;
+  flex: 0 0 auto;
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);

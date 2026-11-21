@@ -1,0 +1,274 @@
+/* 主配置页：顶部固定操作条 + 左侧分组锚点目录 + 右侧独立滚动配置卡片。
+   无论滚到哪个分组，校验与保存始终触手可及；被修改的行带克制的高亮提示。 */
+
+.settings-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 26px 18px;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------------- 顶部操作条 */
+.settings-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+}
+.settings-bar__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 240px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.settings-bar__ico {
+  width: 28px; height: 28px; flex: 0 0 28px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.settings-bar__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.settings-bar__path {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-bar__sub {
+  font-size: 10.5px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.settings-bar__dirty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--ring);
+  white-space: nowrap;
+}
+.settings-bar__dirty::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* 提示条：紧贴操作条下方，不挤压滚动区 */
+.settings-page > .notice {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- 双栏工作区 */
+.settings-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: 14px;
+}
+
+/* 左侧分组目录 */
+.settings-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-1);
+  overflow-y: auto;
+  align-self: start;
+  max-height: 100%;
+}
+.settings-toc__item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.settings-toc__item:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.settings-toc__item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.settings-toc__ico { flex: 0 0 14px; opacity: .85; }
+.settings-toc__txt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-toc__dot {
+  width: 6px; height: 6px; flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.settings-toc__count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--faint);
+}
+
+/* 右侧分组卡片滚动区 */
+.settings-content {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-card {
+  flex: 0 0 auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px 10px;
+  box-shadow: var(--shadow-1);
+}
+.settings-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-card__ico {
+  width: 28px; height: 28px; flex: 0 0 28px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.settings-card__head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.settings-card__badge {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+}
+.settings-card__badge--dirty {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--ring);
+}
+
+/* 字段行精修：更舒适的行距、悬浮微背景、已修改左侧指示线 */
+.settings-card .cfg-row {
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 18px;
+  padding: 11px 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-sm);
+  border-bottom: 1px solid var(--line);
+  transition: background-color var(--dur-1) var(--ease);
+}
+.settings-card .cfg-row:last-child { border-bottom: 0; }
+.settings-card .cfg-row:hover { background: color-mix(in srgb, var(--surface) 65%, transparent); }
+.settings-card .cfg-row--dirty {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.settings-card .cfg-row--dirty:hover { background: var(--accent-soft); }
+
+.settings-card .inline-fields {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 560px;
+}
+.settings-card .inline-fields input { flex: 1; min-width: 0; }
+.settings-card .inline-fields .icon-btn { height: var(--input-h); }
+.settings-card .path-list { max-width: 560px; }
+
+/* 窄窗：目录折叠到上方横向滚动条，保证表单列宽充足 */
+@media (max-width: 980px) {
+  .settings-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-toc {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 6px;
+  }
+  .settings-toc__item {
+    width: auto;
+    flex: 0 0 auto;
+    height: 32px;
+    padding: 0 12px;
+  }
+  .settings-card .cfg-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-content { scroll-behavior: auto; }
+}

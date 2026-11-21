@@ -26,6 +26,7 @@
 
 /* 数据表：一行一条记录，列宽固定，便于扫读 */
 .table {
+  flex-shrink: 0;
   background: var(--bg); border: 1px solid var(--line);
   border-radius: var(--radius-lg); overflow: hidden;
   box-shadow: var(--shadow-1);

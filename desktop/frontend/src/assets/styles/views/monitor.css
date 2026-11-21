@@ -18,6 +18,7 @@
 
 /* ---------------------------------------------------------------- HERO */
 .hero {
+  flex-shrink: 0;
   position: relative; overflow: hidden; isolation: isolate;
   border-radius: var(--radius-xl);
   background:

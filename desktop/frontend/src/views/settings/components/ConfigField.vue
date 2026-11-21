@@ -8,6 +8,7 @@ import type { ConfigField as Field } from '../../../types/config';
 const props = defineProps<{
   field: Field;
   value: string;
+  dirty?: boolean;
 }>();
 const emit = defineEmits<{
   change: [v: string];
@@ -98,7 +99,7 @@ function delRow(i: number): void {
 </script>
 
 <template>
-  <div class="cfg-row" :class="{ 'cfg-row--missing': field.missing }">
+  <div class="cfg-row" :class="{ 'cfg-row--missing': field.missing, 'cfg-row--dirty': dirty }">
     <label class="cfg-row__label">
       <span class="cfg-row__title">
         <span>{{ field.label }}</span>
